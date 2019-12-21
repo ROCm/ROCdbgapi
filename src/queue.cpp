@@ -52,7 +52,7 @@ using utils::bit_extract;
 #define COMPUTE_RELAUNCH_IS_EVENT(x) bit_extract ((x), 30, 30)
 #define COMPUTE_RELAUNCH_IS_STATE(x) bit_extract ((x), 31, 31)
 
-queue_t::queue_t (amd_dbgapi_queue_id_t queue_id, agent_t *agent,
+queue_t::queue_t (amd_dbgapi_queue_id_t queue_id, agent_t &agent,
                   const kfd_queue_snapshot_entry &kfd_queue_info)
     : handle_object (queue_id), m_kfd_queue_info (kfd_queue_info),
       m_agent (agent)
@@ -61,7 +61,7 @@ queue_t::queue_t (amd_dbgapi_queue_id_t queue_id, agent_t *agent,
 
 queue_t::~queue_t ()
 {
-  if (!agent ())
+  if (!mark ())
     /* This is a partially initialized queue, skip it.  */
     return;
 
@@ -75,7 +75,7 @@ queue_t::~queue_t ()
 amd_dbgapi_status_t
 queue_t::update_waves (bool always_assign_wave_ids)
 {
-  process_t *process = this->process ();
+  process_t &process = this->process ();
   const epoch_t wave_mark = m_next_wave_mark++;
   amd_dbgapi_status_t status;
 
@@ -85,16 +85,16 @@ queue_t::update_waves (bool always_assign_wave_ids)
   /* Read the queue's write_dispatch_id and read_dispatch_id.  */
 
   uint64_t write_dispatch_id;
-  status = process->read_global_memory (m_kfd_queue_info.write_pointer_address,
-                                        &write_dispatch_id,
-                                        sizeof (write_dispatch_id));
+  status = process.read_global_memory (m_kfd_queue_info.write_pointer_address,
+                                       &write_dispatch_id,
+                                       sizeof (write_dispatch_id));
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
 
   uint64_t read_dispatch_id;
-  status = process->read_global_memory (m_kfd_queue_info.read_pointer_address,
-                                        &read_dispatch_id,
-                                        sizeof (read_dispatch_id));
+  status = process.read_global_memory (m_kfd_queue_info.read_pointer_address,
+                                       &read_dispatch_id,
+                                       sizeof (read_dispatch_id));
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
 
@@ -109,7 +109,7 @@ queue_t::update_waves (bool always_assign_wave_ids)
     uint32_t wave_state_size;
   } header;
 
-  status = process->read_global_memory (
+  status = process.read_global_memory (
       m_kfd_queue_info.ctx_save_restore_address, &header, sizeof (header));
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
@@ -126,9 +126,9 @@ queue_t::update_waves (bool always_assign_wave_ids)
 
   ssize_t displaced_stepping_buffer_size
       = /* one displaced + 1 nop (if architecture cannot halt at endpgm).  */
-      architecture ()->largest_instruction_size ()
-      + (!architecture ()->can_halt_at_endpgm ()
-             ? architecture ()->nop_instruction ().size ()
+      architecture ().largest_instruction_size ()
+      + (!architecture ().can_halt_at_endpgm ()
+             ? architecture ().nop_instruction ().size ()
              : 0);
 
   if (free_space < displaced_stepping_buffer_size)
@@ -147,7 +147,7 @@ queue_t::update_waves (bool always_assign_wave_ids)
                                                   / sizeof (uint32_t));
 
   /* Read the entire ctrl stack from the inferior.  */
-  status = process->read_global_memory (
+  status = process.read_global_memory (
       m_kfd_queue_info.ctx_save_restore_address + header.ctrl_stack_offset,
       &ctrl_stack[0], header.ctrl_stack_size);
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -175,7 +175,7 @@ queue_t::update_waves (bool always_assign_wave_ids)
           /* vgprs are allocated in blocks of 4 registers.  */
           n_vgprs = (1 + COMPUTE_RELAUNCH_PAYLOAD_VGPRS (relaunch)) * 4;
 
-          switch (agent ()->architecture ()->compute_relaunch_abi ())
+          switch (agent ().architecture ().compute_relaunch_abi ())
             {
             case architecture_t::compute_relaunch_abi_t::GFX900:
               n_accvgprs = 0;
@@ -227,8 +227,8 @@ queue_t::update_waves (bool always_assign_wave_ids)
                 + (amdgpu_regnum_t::TTMP4 - amdgpu_regnum_t::FIRST_TTMP)
                       * sizeof (uint32_t);
 
-          status = process->read_global_memory (ttmp4_5_address, &wave_id,
-                                                sizeof (wave_id));
+          status = process.read_global_memory (ttmp4_5_address, &wave_id,
+                                               sizeof (wave_id));
           if (status != AMD_DBGAPI_STATUS_SUCCESS)
             return status;
 
@@ -241,7 +241,7 @@ queue_t::update_waves (bool always_assign_wave_ids)
         {
           /* The wave already exists, so we should find it and update its
              context save area address.  */
-          wave = process->find (amd_dbgapi_wave_id_t{ wave_id });
+          wave = process.find (amd_dbgapi_wave_id_t{ wave_id });
           if (!wave)
             {
               warning ("wave_%ld not found in the process map", wave_id);
@@ -261,8 +261,8 @@ queue_t::update_waves (bool always_assign_wave_ids)
                       * sizeof (uint32_t);
 
           amd_dbgapi_global_address_t dispatch_ptr;
-          status = process->read_global_memory (ttmp6_7_address, &dispatch_ptr,
-                                                sizeof (dispatch_ptr));
+          status = process.read_global_memory (ttmp6_7_address, &dispatch_ptr,
+                                               sizeof (dispatch_ptr));
           if (status != AMD_DBGAPI_STATUS_SUCCESS)
             return status;
 
@@ -327,23 +327,23 @@ queue_t::update_waves (bool always_assign_wave_ids)
             }
 
           /* Check if the dispatch already exists.  */
-          dispatch_t *dispatch = process->find_if ([&] (const dispatch_t &x) {
-            return x.queue () == this
+          dispatch_t *dispatch = process.find_if ([&] (const dispatch_t &x) {
+            return x.queue ().id () == id ()
                    && x.queue_packet_id () == queue_packet_id;
           });
 
           /* If we did not find the current dispatch, create a new one.  */
           if (!dispatch)
-            dispatch = &process->create<dispatch_t> (
-                this,            /* queue  */
+            dispatch = &process.create<dispatch_t> (
+                *this,           /* queue  */
                 queue_packet_id, /* queue_packet_id  */
                 dispatch_ptr);   /* packet_address  */
 
-          wave = &process->create<wave_t> (dispatch,    /* dispatch  */
-                                           n_vgprs,     /* vgpr_count  */
-                                           n_accvgprs,  /* accvgpr_count */
-                                           n_sgprs,     /* sgpr_count  */
-                                           wave_lanes); /* lane_count  */
+          wave = &process.create<wave_t> (*dispatch,   /* dispatch  */
+                                          n_vgprs,     /* vgpr_count  */
+                                          n_accvgprs,  /* accvgpr_count */
+                                          n_sgprs,     /* sgpr_count  */
+                                          wave_lanes); /* lane_count  */
         }
 
       status = wave->update (wave_area_address);
@@ -369,22 +369,22 @@ queue_t::update_waves (bool always_assign_wave_ids)
      queue current read dispatch id are now retired, so remove them from
      the process.  */
 
-  auto dispatch_range = process->range<dispatch_t> ();
+  auto dispatch_range = process.range<dispatch_t> ();
   for (auto dispatch_it = dispatch_range.begin ();
        dispatch_it != dispatch_range.end ();)
-    if (dispatch_it->queue () == this
+    if (dispatch_it->queue ().id () == id ()
         && dispatch_it->queue_packet_id () < read_dispatch_id)
-      dispatch_it = process->destroy (dispatch_it);
+      dispatch_it = process.destroy (dispatch_it);
     else
       ++dispatch_it;
 
   /* Iterate all waves belonging to this queue, and prune those with a mark
      older than the current mark.  */
 
-  auto wave_range = process->range<wave_t> ();
+  auto wave_range = process.range<wave_t> ();
   for (auto wave_it = wave_range.begin (); wave_it != wave_range.end ();)
-    if (wave_it->queue () == this && wave_it->mark () < wave_mark)
-      wave_it = process->destroy (wave_it);
+    if (wave_it->queue ().id () == id () && wave_it->mark () < wave_mark)
+      wave_it = process.destroy (wave_it);
     else
       ++wave_it;
 
@@ -403,7 +403,7 @@ queue_t::scratch_backing_memory_address () const
      address of the pointer to the scratch_backing_memory_location and read
      it.  We cannot cache this value as the runtime may change the allocation
      dynamically.  */
-  if (process ()->read_global_memory (
+  if (process ().read_global_memory (
           m_kfd_queue_info.read_pointer_address
               + offsetof (amd_queue_t, scratch_backing_memory_location)
               - offsetof (amd_queue_t, read_dispatch_id),
@@ -420,7 +420,7 @@ queue_t::scratch_backing_memory_size () const
   size_t size;
 
   /* See comment is queue_t::scratch_backing_memory_address.  */
-  if (process ()->read_global_memory (
+  if (process ().read_global_memory (
           m_kfd_queue_info.read_pointer_address
               + offsetof (amd_queue_t, scratch_backing_memory_byte_size)
               - offsetof (amd_queue_t, read_dispatch_id),
@@ -438,10 +438,10 @@ queue_t::get_info (amd_dbgapi_queue_info_t query, size_t value_size,
   switch (query)
     {
     case AMD_DBGAPI_QUEUE_INFO_AGENT:
-      return utils::get_info (value_size, value, agent ()->id ());
+      return utils::get_info (value_size, value, agent ().id ());
 
     case AMD_DBGAPI_QUEUE_INFO_ARCHITECTURE:
-      return utils::get_info (value_size, value, architecture ()->id ());
+      return utils::get_info (value_size, value, architecture ().id ());
 
     default:
       return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
@@ -450,23 +450,23 @@ queue_t::get_info (amd_dbgapi_queue_info_t query, size_t value_size,
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
-scoped_queue_suspend_t::scoped_queue_suspend_t (queue_t *queue)
-    : m_queue (!queue->suspended () ? queue : nullptr)
+scoped_queue_suspend_t::scoped_queue_suspend_t (queue_t &queue)
+    : m_queue (!queue.suspended () ? &queue : nullptr)
 {
   if (!m_queue)
     return;
 
-  if (m_queue->process ()->suspend_queues ({ m_queue })
+  if (m_queue->process ().suspend_queues ({ m_queue })
       != AMD_DBGAPI_STATUS_SUCCESS)
     error ("process::suspend_queues failed");
 }
 
 scoped_queue_suspend_t::~scoped_queue_suspend_t ()
 {
-  if (!m_queue || !m_queue->process ()->forward_progress_needed ())
+  if (!m_queue || !m_queue->process ().forward_progress_needed ())
     return;
 
-  if (m_queue->process ()->resume_queues ({ m_queue })
+  if (m_queue->process ().resume_queues ({ m_queue })
       != AMD_DBGAPI_STATUS_SUCCESS)
     error ("process::resume_queues failed");
 }

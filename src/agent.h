@@ -65,8 +65,8 @@ public:
     uint32_t fw_version{ 0 };
   };
 
-  agent_t (amd_dbgapi_agent_id_t agent_id, process_t *process,
-           kfd_gpu_id_t gpu_id, const architecture_t *architecture,
+  agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
+           kfd_gpu_id_t gpu_id, const architecture_t &architecture,
            const properties_t &properties);
   ~agent_t ();
   bool is_valid () const { return m_poll_fd != -1; }
@@ -83,8 +83,8 @@ public:
   amd_dbgapi_status_t get_info (amd_dbgapi_agent_info_t query,
                                 size_t value_size, void *value) const;
 
-  const architecture_t *architecture () const { return m_architecture; }
-  process_t *process () const { return m_process; }
+  const architecture_t &architecture () const { return m_architecture; }
+  process_t &process () const { return m_process; }
 
 private:
   amd_dbgapi_status_t enable_debug_trap (void);
@@ -97,8 +97,8 @@ private:
   file_desc_t m_poll_fd{ -1 };
   std::atomic<bool> m_kfd_event_notifier{ false };
 
-  const architecture_t *const m_architecture;
-  process_t *const m_process;
+  const architecture_t &m_architecture;
+  process_t &m_process;
 };
 
 } /* namespace dbgapi */

@@ -40,7 +40,7 @@ namespace dbgapi
 {
 
 /* Breakpoint resume event.  */
-event_t::event_t (amd_dbgapi_event_id_t event_id, process_t *process,
+event_t::event_t (amd_dbgapi_event_id_t event_id, process_t &process,
                   amd_dbgapi_event_kind_t event_kind,
                   amd_dbgapi_breakpoint_id_t breakpoint_id,
                   amd_dbgapi_client_thread_id_t client_thread_id)
@@ -55,7 +55,7 @@ event_t::event_t (amd_dbgapi_event_id_t event_id, process_t *process,
 }
 
 /* Code object list updated event.  */
-event_t::event_t (amd_dbgapi_event_id_t event_id, process_t *process,
+event_t::event_t (amd_dbgapi_event_id_t event_id, process_t &process,
                   amd_dbgapi_event_kind_t event_kind,
                   amd_dbgapi_event_id_t breakpoint_resume_event_id)
     : handle_object (event_id),
@@ -68,7 +68,7 @@ event_t::event_t (amd_dbgapi_event_id_t event_id, process_t *process,
 }
 
 /* Runtime event. */
-event_t::event_t (amd_dbgapi_event_id_t event_id, process_t *process,
+event_t::event_t (amd_dbgapi_event_id_t event_id, process_t &process,
                   amd_dbgapi_event_kind_t event_kind,
                   amd_dbgapi_runtime_state_t runtime_state)
     : handle_object (event_id),
@@ -80,7 +80,7 @@ event_t::event_t (amd_dbgapi_event_id_t event_id, process_t *process,
 }
 
 /* Wave stop / command terminated event.  */
-event_t::event_t (amd_dbgapi_event_id_t event_id, process_t *process,
+event_t::event_t (amd_dbgapi_event_id_t event_id, process_t &process,
                   amd_dbgapi_event_kind_t event_kind,
                   amd_dbgapi_wave_id_t wave_id)
     : handle_object (event_id),
@@ -103,7 +103,7 @@ event_t::pretty_printer_string () const
 
     case AMD_DBGAPI_EVENT_KIND_WAVE_STOP:
       {
-        wave_t *wave = process ()->find (m_data.wave_event.wave_id);
+        wave_t *wave = process ().find (m_data.wave_event.wave_id);
         if (!wave)
           return string_printf (
               "WAVE_STOP for terminated %s",
@@ -149,9 +149,9 @@ event_t::processed ()
          callback do not have a breakpoint resume event.  */
       if (event_id != AMD_DBGAPI_EVENT_NONE)
         {
-          event_t *breakpoint_resume_event = process ()->find (event_id);
+          event_t *breakpoint_resume_event = process ().find (event_id);
           dbgapi_assert (breakpoint_resume_event);
-          process ()->enqueue_event (*breakpoint_resume_event);
+          process ().enqueue_event (*breakpoint_resume_event);
         }
     }
 }

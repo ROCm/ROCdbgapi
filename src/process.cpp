@@ -437,7 +437,7 @@ process_t::update_agents ()
   struct sysfs_node_t
   {
     agent_t::kfd_gpu_id_t gpu_id;
-    const architecture_t *architecture;
+    const architecture_t &architecture;
     agent_t::properties_t properties;
   };
 
@@ -558,7 +558,7 @@ process_t::update_agents ()
           continue;
         }
 
-      sysfs_nodes.emplace_back (sysfs_node_t{ gpu_id, gpu_arch, props });
+      sysfs_nodes.emplace_back (sysfs_node_t{ gpu_id, *gpu_arch, props });
     }
 
   closedir (dirp);
@@ -568,7 +568,7 @@ process_t::update_agents ()
     if (!find_if ([&] (const agent_t &a) {
           return a.gpu_id () == sysfs_node.gpu_id;
         }))
-      create<agent_t> (this,                    /* process  */
+      create<agent_t> (*this,                   /* process  */
                        sysfs_node.gpu_id,       /* gpu_id  */
                        sysfs_node.architecture, /* architecture  */
                        sysfs_node.properties);  /* properties  */
@@ -639,7 +639,7 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues)
       kfd_ioctl_dbg_trap_args args{
         .ptr = 0, /* unused  */
         .pid = static_cast<uint32_t> (os_pid ()),
-        .gpu_id = queue->agent ()->gpu_id (),
+        .gpu_id = queue->agent ().gpu_id (),
         .op = KFD_IOC_DBG_TRAP_QUERY_DEBUG_EVENT,
         .data1 = queue->kfd_queue_id (),
         .data2 = KFD_DBG_EV_FLAG_CLEAR_STATUS,
@@ -779,7 +779,16 @@ process_t::update_queues ()
                  not report the new queue.  */
               dbgapi_assert (queue);
 
-              if (!queue->agent ())
+              /* FIXME: If we could select which flags get cleared by the
+                 query_debug_event ioctl, we would not need to create a
+                 partially initialized queue in agent_t::next_kfd_event, and
+                 fix it here with the information contained in the queue
+                 snapshots.  */
+
+              /* If the queue mark is null, the queue was created outside of
+                 update_queues, and it does not have all the information yet
+                 filled in.  */
+              if (!queue->mark ())
                 {
                   /* This is a partially initialized queue, re-create a fully
                      initialized instance with the same kfd_queue_id.  */
@@ -824,7 +833,7 @@ process_t::update_queues ()
           /* create<queue_t> will allocate a new queue_id if reuse_queue_id
              is {0}.  */
           create<queue_t> (reuse_queue_id, /* queue_id */
-                           agent,          /* agent */
+                           *agent,         /* agent */
                            queue_info)     /* queue_info */
               .set_mark (queue_mark);
         }
@@ -901,7 +910,7 @@ process_t::update_code_objects ()
       });
 
       if (!code_object)
-        code_object = &create<code_object_t> (this, uri, load_address);
+        code_object = &create<code_object_t> (*this, uri, load_address);
 
       code_object->set_mark (code_object_mark);
 
@@ -995,12 +1004,12 @@ process_t::attach ()
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
 
-  auto on_load_callback = [this] (const shared_library_t *library) {
+  auto on_load_callback = [this] (const shared_library_t &library) {
     /* Retrieve the address of the rendez-vous structure (_amd_gpu_r_debug)
        used by the ROCm Runtime Loader to communicate details of code objects
        loading to the debugger.  */
     constexpr char amdgpu_r_debug_symbol_name[] = "_amdgpu_r_debug";
-    if (get_symbol_address (library->id (), amdgpu_r_debug_symbol_name,
+    if (get_symbol_address (library.id (), amdgpu_r_debug_symbol_name,
                             &m_r_debug_address)
         != AMD_DBGAPI_STATUS_SUCCESS)
       error ("Cannot find symbol `%s'", amdgpu_r_debug_symbol_name);
@@ -1018,53 +1027,53 @@ process_t::attach ()
 
     /* This function gets called when the client reports that the breakpoint
        has been hit.  */
-    auto r_brk_callback =
-        [this] (breakpoint_t *breakpoint,
-                amd_dbgapi_client_thread_id_t client_thread_id,
-                amd_dbgapi_breakpoint_action_t *action) {
-          update_code_objects ();
+    auto r_brk_callback
+        = [this] (breakpoint_t &breakpoint,
+                  amd_dbgapi_client_thread_id_t client_thread_id,
+                  amd_dbgapi_breakpoint_action_t *action) {
+            update_code_objects ();
 
-          /* Create a breakpoint resume event that will be enqueued when the
-             code object list updated event is reported as processed.  This
-             will allow the client thread to resume execution.  */
-          event_t &breakpoint_resume_event
-              = create<event_t> (this, AMD_DBGAPI_EVENT_KIND_BREAKPOINT_RESUME,
-                                 breakpoint->id (), client_thread_id);
+            /* Create a breakpoint resume event that will be enqueued when the
+               code object list updated event is reported as processed.  This
+               will allow the client thread to resume execution.  */
+            event_t &breakpoint_resume_event = create<event_t> (
+                *this, AMD_DBGAPI_EVENT_KIND_BREAKPOINT_RESUME,
+                breakpoint.id (), client_thread_id);
 
-          /* Enqueue a code object list updated event.  */
-          enqueue_event (create<event_t> (
-              this, AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED,
-              breakpoint_resume_event.id ()));
+            /* Enqueue a code object list updated event.  */
+            enqueue_event (create<event_t> (
+                *this, AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED,
+                breakpoint_resume_event.id ()));
 
-          /* Tell the client thread that it cannot resume execution until it
-             sees the breakpoint resume event for this breakpoint_id and
-             report it as processed.  */
-          *action = AMD_DBGAPI_BREAKPOINT_ACTION_HALT;
-          return AMD_DBGAPI_STATUS_SUCCESS;
-        };
+            /* Tell the client thread that it cannot resume execution until it
+               sees the breakpoint resume event for this breakpoint_id and
+               report it as processed.  */
+            *action = AMD_DBGAPI_BREAKPOINT_ACTION_HALT;
+            return AMD_DBGAPI_STATUS_SUCCESS;
+          };
 
     create<breakpoint_t> (library, r_brk_address, r_brk_callback);
 
     enqueue_event (
-        create<event_t> (this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
+        create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
                          AMD_DBGAPI_RUNTIME_STATE_LOADED_SUPPORTED));
 
     update_code_objects ();
 
     if (count<code_object_t> ())
       enqueue_event (create<event_t> (
-          this, AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED,
+          *this, AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED,
           AMD_DBGAPI_EVENT_NONE));
   };
 
-  auto on_unload_callback = [this] (const shared_library_t *library) {
-    process_t *process = library->process ();
+  auto on_unload_callback = [this] (const shared_library_t &library) {
+    process_t &process = library.process ();
 
     /* Remove the breakpoints we've inserted when the library was loaded.  */
-    auto breakpoint_range = process->range<breakpoint_t> ();
+    auto breakpoint_range = process.range<breakpoint_t> ();
     for (auto it = breakpoint_range.begin (); it != breakpoint_range.end ();)
-      if (it->shared_library () == library)
-        it = process->destroy (it);
+      if (it->shared_library ().id () == library.id ())
+        it = process.destroy (it);
       else
         ++it;
 
@@ -1072,16 +1081,16 @@ process_t::attach ()
     m_handle_object_sets.get<code_object_t> ().clear ();
 
     enqueue_event (
-        create<event_t> (this, AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED,
+        create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED,
                          AMD_DBGAPI_EVENT_NONE));
 
-    enqueue_event (create<event_t> (this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
+    enqueue_event (create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
                                     AMD_DBGAPI_RUNTIME_STATE_UNLOADED));
   };
 
   /* Set/remove internal breakpoints when the ROCm Runtime is loaded/unloaded.
    */
-  create<shared_library_t> (this, "/libhsa-runtime64.so.1", on_load_callback,
+  create<shared_library_t> (*this, "/libhsa-runtime64.so.1", on_load_callback,
                             on_unload_callback)
       .id ();
 
@@ -1388,37 +1397,37 @@ amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
   catch (const exception_t &)
     {
       process->create<shared_library_t> (
-          process.get (), "/libhsakmt.so.1",
-          [] (const shared_library_t *library) {
+          *process.get (), "/libhsakmt.so.1",
+          [] (const shared_library_t &library) {
             constexpr char name[] = "hsaKmtAcquireSystemProperties";
-            process_t *process = library->process ();
+            process_t &process = library.process ();
             amd_dbgapi_global_address_t address;
 
-            if (process->get_symbol_address (library->id (), name, &address)
+            if (process.get_symbol_address (library.id (), name, &address)
                 != AMD_DBGAPI_STATUS_SUCCESS)
               error ("Cannot find symbol `%s'", name);
 
-            auto callback = [] (breakpoint_t *breakpoint,
+            auto callback = [] (breakpoint_t &breakpoint,
                                 amd_dbgapi_client_thread_id_t client_thread_id,
                                 amd_dbgapi_breakpoint_action_t *action) {
-              breakpoint->disable ();
-              breakpoint->process ()->attach ();
+              breakpoint.disable ();
+              breakpoint.process ().attach ();
               *action = AMD_DBGAPI_BREAKPOINT_ACTION_RESUME;
               return AMD_DBGAPI_STATUS_SUCCESS;
             };
 
-            process->create<breakpoint_t> (library, address, callback);
+            process.create<breakpoint_t> (library, address, callback);
           },
-          [] (const shared_library_t *library) {
-            process_t *process = library->process ();
+          [] (const shared_library_t &library) {
+            process_t &process = library.process ();
 
             /* Remove the breakpoints inserted when the library was loaded.
              */
-            auto breakpoint_range = process->range<breakpoint_t> ();
+            auto breakpoint_range = process.range<breakpoint_t> ();
             for (auto it = breakpoint_range.begin ();
                  it != breakpoint_range.end ();)
-              if (it->shared_library () == library)
-                it = process->destroy (it);
+              if (it->shared_library ().id () == library.id ())
+                it = process.destroy (it);
               else
                 ++it;
           });

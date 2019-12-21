@@ -416,7 +416,7 @@ amdgcn_architecture_t::terminate_wave_if_at_endpgm (wave_t &wave) const
   size_t size = largest_instruction_size ();
   std::vector<uint8_t> instruction_bytes (size);
 
-  if (wave.process ()->read_global_memory_partial (
+  if (wave.process ().read_global_memory_partial (
           wave.pc (), instruction_bytes.data (), &size)
       != AMD_DBGAPI_STATUS_SUCCESS)
     return false;
@@ -430,7 +430,7 @@ amdgcn_architecture_t::terminate_wave_if_at_endpgm (wave_t &wave) const
   /* Write ignored_wave_id into ttmp[4:5].  */
   amd_dbgapi_wave_id_t wave_id = wave_t::ignored_wave_id;
 
-  wave.process ()->write_global_memory (
+  wave.process ().write_global_memory (
       wave.context_save_address ()
           + wave.register_offset_and_size (amdgpu_regnum_t::TTMP4).first,
       &wave_id, sizeof (wave_id));
@@ -446,7 +446,7 @@ bool
 amdgcn_architecture_t::displaced_stepping_copy (
     displaced_stepping_t &displaced_stepping, bool *simulate) const
 {
-  process_t *process = displaced_stepping.process ();
+  process_t &process = displaced_stepping.process ();
   const std::vector<uint8_t> &original_instruction
       = displaced_stepping.original_instruction ();
 
@@ -471,8 +471,8 @@ amdgcn_architecture_t::displaced_stepping_copy (
          we would not need to copy a nop into the displaced instruction buffer,
          we would simply enqueue a single-step event and skip the resume.   */
 
-      if (process->write_global_memory (buffer, nop_instruction ().data (),
-                                        nop_instruction ().size ())
+      if (process.write_global_memory (buffer, nop_instruction ().data (),
+                                       nop_instruction ().size ())
           != AMD_DBGAPI_STATUS_SUCCESS)
         return false;
 
@@ -481,8 +481,8 @@ amdgcn_architecture_t::displaced_stepping_copy (
     }
   else
     {
-      if (process->write_global_memory (buffer, original_instruction.data (),
-                                        original_instruction.size ())
+      if (process.write_global_memory (buffer, original_instruction.data (),
+                                       original_instruction.size ())
           != AMD_DBGAPI_STATUS_SUCCESS)
         return false;
 
@@ -495,8 +495,8 @@ amdgcn_architecture_t::displaced_stepping_copy (
      a NOP.  */
   if (!can_halt_at_endpgm ())
     {
-      if (process->write_global_memory (buffer, nop_instruction ().data (),
-                                        nop_instruction ().size ())
+      if (process.write_global_memory (buffer, nop_instruction ().data (),
+                                       nop_instruction ().size ())
           != AMD_DBGAPI_STATUS_SUCCESS)
         return false;
     }
@@ -546,7 +546,7 @@ amdgcn_architecture_t::get_wave_coords (wave_t &wave, uint32_t (&group_ids)[3],
   dbgapi_assert (wave_in_group && "Invalid parameter");
 
   /* Read group_ids[0:3] from ttmp[8:10].  */
-  status = wave.process ()->read_global_memory (
+  status = wave.process ().read_global_memory (
       wave.context_save_address ()
           + wave.register_offset_and_size (amdgpu_regnum_t::TTMP8).first,
       &group_ids[0], sizeof (group_ids));
@@ -557,7 +557,7 @@ amdgcn_architecture_t::get_wave_coords (wave_t &wave, uint32_t (&group_ids)[3],
     }
 
   uint32_t ttmp11;
-  status = wave.process ()->read_global_memory (
+  status = wave.process ().read_global_memory (
       wave.context_save_address ()
           + wave.register_offset_and_size (amdgpu_regnum_t::TTMP11).first,
       &ttmp11, sizeof (ttmp11));
@@ -678,7 +678,7 @@ amdgcn_architecture_t::get_wave_state (
               std::vector<uint8_t> instruction (size);
 
               /* Read up to largest_instruction_size bytes.  */
-              status = wave.process ()->read_global_memory_partial (
+              status = wave.process ().read_global_memory_partial (
                   wave.pc (), instruction.data (), &size);
               if (status != AMD_DBGAPI_STATUS_SUCCESS)
                 return status;

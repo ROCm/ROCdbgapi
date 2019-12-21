@@ -36,14 +36,14 @@ namespace amd
 namespace dbgapi
 {
 
-dispatch_t::dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id, queue_t *queue,
+dispatch_t::dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id, queue_t &queue,
                         amd_dbgapi_queue_packet_id_t queue_packet_id,
                         amd_dbgapi_global_address_t packet_address)
     : handle_object (dispatch_id), m_queue_packet_id (queue_packet_id),
       m_queue (queue)
 {
-  if (process ()->read_global_memory (packet_address, &m_packet,
-                                      sizeof (m_packet))
+  if (process ().read_global_memory (packet_address, &m_packet,
+                                     sizeof (m_packet))
       != AMD_DBGAPI_STATUS_SUCCESS)
     dbgapi_assert_not_reached ("process_t::read_memory failed");
 
@@ -61,7 +61,7 @@ dispatch_t::dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id, queue_t *queue,
     uint8_t reserved2[6];
   } kd;
 
-  if (process ()->read_global_memory (m_packet.kernel_object, &kd, sizeof (kd))
+  if (process ().read_global_memory (m_packet.kernel_object, &kd, sizeof (kd))
       != AMD_DBGAPI_STATUS_SUCCESS)
     dbgapi_assert_not_reached ("process_t::read_memory failed");
 
@@ -76,13 +76,13 @@ dispatch_t::get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
   switch (query)
     {
     case AMD_DBGAPI_DISPATCH_INFO_QUEUE:
-      return utils::get_info (value_size, value, queue ()->id ());
+      return utils::get_info (value_size, value, queue ().id ());
 
     case AMD_DBGAPI_DISPATCH_INFO_AGENT:
-      return utils::get_info (value_size, value, agent ()->id ());
+      return utils::get_info (value_size, value, agent ().id ());
 
     case AMD_DBGAPI_DISPATCH_INFO_ARCHITECTURE:
-      return utils::get_info (value_size, value, architecture ()->id ());
+      return utils::get_info (value_size, value, architecture ().id ());
 
     case AMD_DBGAPI_DISPATCH_INFO_KERNEL_ENTRY_ADDRESS:
       return utils::get_info (value_size, value, m_kernel_entry_address);

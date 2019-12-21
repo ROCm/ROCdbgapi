@@ -41,8 +41,8 @@ namespace amd
 namespace dbgapi
 {
 
-agent_t::agent_t (amd_dbgapi_agent_id_t agent_id, process_t *process,
-                  kfd_gpu_id_t gpu_id, const architecture_t *architecture,
+agent_t::agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
+                  kfd_gpu_id_t gpu_id, const architecture_t &architecture,
                   const properties_t &properties)
     : handle_object (agent_id), m_gpu_id (gpu_id), m_properties (properties),
       m_architecture (architecture), m_process (process)
@@ -55,7 +55,7 @@ agent_t::~agent_t () { disable_debug_trap (); }
 amd_dbgapi_status_t
 agent_t::enable_debug_trap (void)
 {
-  process_t *process = this->process ();
+  process_t &process = this->process ();
 
   /* KFD_IOC_DBG_TRAP_ENABLE (#0):
      data1: [in] enable/disable (1/0)
@@ -63,13 +63,13 @@ agent_t::enable_debug_trap (void)
 
   kfd_ioctl_dbg_trap_args args = {
     .ptr = 0, /* unused  */
-    .pid = static_cast<uint32_t> (process->os_pid ()),
+    .pid = static_cast<uint32_t> (process.os_pid ()),
     .gpu_id = gpu_id (),
     .op = KFD_IOC_DBG_TRAP_ENABLE,
     .data1 = 1 /* enable  */,
   };
 
-  if (ioctl (process->kfd_fd (), AMDKFD_IOC_DBG_TRAP, &args))
+  if (ioctl (process.kfd_fd (), AMDKFD_IOC_DBG_TRAP, &args))
     {
       /* FIXME: remove this when KFD is able to create a kfd_process on behalf
          of the target process. For now, we rely on an exception caught in
@@ -87,7 +87,7 @@ agent_t::enable_debug_trap (void)
 amd_dbgapi_status_t
 agent_t::disable_debug_trap (void)
 {
-  process_t *process = this->process ();
+  process_t &process = this->process ();
 
   if (m_poll_fd != -1)
     {
@@ -100,13 +100,13 @@ agent_t::disable_debug_trap (void)
 
   kfd_ioctl_dbg_trap_args args = {
     .ptr = 0, /* unused  */
-    .pid = static_cast<uint32_t> (process->os_pid ()),
+    .pid = static_cast<uint32_t> (process.os_pid ()),
     .gpu_id = gpu_id (),
     .op = KFD_IOC_DBG_TRAP_ENABLE,
     .data1 = 0 /* disable  */,
   };
 
-  if (ioctl (process->kfd_fd (), AMDKFD_IOC_DBG_TRAP, &args))
+  if (ioctl (process.kfd_fd (), AMDKFD_IOC_DBG_TRAP, &args))
     return AMD_DBGAPI_STATUS_ERROR;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
@@ -117,7 +117,7 @@ agent_t::next_kfd_event (amd_dbgapi_queue_id_t *queue_id,
                          uint32_t *queue_status)
 {
   dbgapi_assert (queue_id && queue_status && "must not be null");
-  process_t *process = this->process ();
+  process_t &process = this->process ();
 
   while (true)
     {
@@ -128,14 +128,14 @@ agent_t::next_kfd_event (amd_dbgapi_queue_id_t *queue_id,
 
       kfd_ioctl_dbg_trap_args args{
         .ptr = 0, /* unused  */
-        .pid = static_cast<uint32_t> (process->os_pid ()),
+        .pid = static_cast<uint32_t> (process.os_pid ()),
         .gpu_id = gpu_id (),
         .op = KFD_IOC_DBG_TRAP_QUERY_DEBUG_EVENT,
         .data1 = static_cast<uint32_t> (-1),
         .data2 = KFD_DBG_EV_FLAG_CLEAR_STATUS,
       };
 
-      int ret = ioctl (process->kfd_fd (), AMDKFD_IOC_DBG_TRAP, &args);
+      int ret = ioctl (process.kfd_fd (), AMDKFD_IOC_DBG_TRAP, &args);
       if (ret == -1 && errno == EAGAIN)
         {
           /* There are no more events.  */
@@ -151,7 +151,7 @@ agent_t::next_kfd_event (amd_dbgapi_queue_id_t *queue_id,
       /* Find the queue by matching its kfd_queue_id with the one
          returned by the ioctl.  */
 
-      queue_t *queue = process->find_if ([kfd_queue_id] (const queue_t &q) {
+      queue_t *queue = process.find_if ([kfd_queue_id] (const queue_t &q) {
         return q.kfd_queue_id () == kfd_queue_id;
       });
 
@@ -162,23 +162,23 @@ agent_t::next_kfd_event (amd_dbgapi_queue_id_t *queue_id,
           /* If there is a stale queue with the same kfd_queue_id, destroy it.
            */
           if (queue)
-            process->destroy (queue);
+            process.destroy (queue);
 
           /* Create a "dummy" queue instance (with a null agent), to reserve
              the unique queue_id.  */
           kfd_queue_snapshot_entry queue_info{ 0 };
           queue_info.queue_id = kfd_queue_id;
 
-          *queue_id = process->create<queue_t> (nullptr, queue_info).id ();
+          *queue_id = process.create<queue_t> (*this, queue_info).id ();
           *queue_status = args.data3;
 
           /* Update the queues. This will fill in the queue information for
              the queue we've just created.  */
-          process->update_queues ();
+          process.update_queues ();
 
           /* Check that the queue still exists, update_queues () may have
              destroyed it if it isn't a supported queue type.  */
-          if (process->find (*queue_id))
+          if (process.find (*queue_id))
             return AMD_DBGAPI_STATUS_SUCCESS;
         }
       else if (queue)
@@ -206,7 +206,7 @@ agent_t::get_info (amd_dbgapi_agent_info_t query, size_t value_size,
       return utils::get_info (value_size, value, m_properties.name);
 
     case AMD_DBGAPI_AGENT_INFO_ARCHITECTURE:
-      return utils::get_info (value_size, value, architecture ()->id ());
+      return utils::get_info (value_size, value, architecture ().id ());
 
     case AMD_DBGAPI_AGENT_INFO_SHADER_ENGINE_COUNT:
       return utils::get_info (value_size, value,

@@ -50,7 +50,7 @@ namespace dbgapi
 /* ignored_wave_id is ODR-used by the operator==.  */
 constexpr amd_dbgapi_wave_id_t wave_t::ignored_wave_id;
 
-wave_t::wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t *dispatch,
+wave_t::wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t &dispatch,
                 uint32_t vgpr_count, uint32_t accvgpr_count,
                 uint32_t sgpr_count, uint32_t lane_count)
     : handle_object (wave_id), m_vgpr_count (vgpr_count),
@@ -62,8 +62,8 @@ wave_t::wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t *dispatch,
 amd_dbgapi_status_t
 wave_t::update (amd_dbgapi_global_address_t context_save_address)
 {
-  dbgapi_assert (queue ()->suspended ());
-  process_t *process = this->process ();
+  dbgapi_assert (queue ().suspended ());
+  process_t &process = this->process ();
   amd_dbgapi_status_t status;
 
   bool first_update = !m_context_save_address;
@@ -76,7 +76,7 @@ wave_t::update (amd_dbgapi_global_address_t context_save_address)
 
       /* Write the wave_id into ttmp[4:5].  */
       amd_dbgapi_wave_id_t wave_id = id ();
-      status = process->write_global_memory (
+      status = process.write_global_memory (
           m_context_save_address
               + register_offset_and_size (amdgpu_regnum_t::TTMP4).first,
           &wave_id, sizeof (wave_id));
@@ -86,14 +86,14 @@ wave_t::update (amd_dbgapi_global_address_t context_save_address)
           return status;
         }
 
-      status = architecture ()->get_wave_coords (*this, m_group_ids,
-                                                 &m_wave_in_group);
+      status = architecture ().get_wave_coords (*this, m_group_ids,
+                                                &m_wave_in_group);
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
     }
 
   amd_dbgapi_wave_state_t saved_state = m_state;
-  status = architecture ()->get_wave_state (*this, &m_state, &m_stop_reason);
+  status = architecture ().get_wave_state (*this, &m_state, &m_stop_reason);
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
 
@@ -104,7 +104,7 @@ wave_t::update (amd_dbgapi_global_address_t context_save_address)
 
   if (m_stop_reason && m_state == AMD_DBGAPI_WAVE_STATE_STOP
       && saved_state != AMD_DBGAPI_WAVE_STATE_STOP)
-    process->enqueue_event (process->create<event_t> (
+    process.enqueue_event (process.create<event_t> (
         process, AMD_DBGAPI_EVENT_KIND_WAVE_STOP, id ()));
 
   return AMD_DBGAPI_STATUS_SUCCESS;
@@ -115,7 +115,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
 {
   amd_dbgapi_wave_state_t prev_state = m_state;
 
-  amd_dbgapi_status_t status = architecture ()->set_wave_state (*this, state);
+  amd_dbgapi_status_t status = architecture ().set_wave_state (*this, state);
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
 
@@ -135,7 +135,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
       && prev_state != AMD_DBGAPI_WAVE_STATE_STOP)
     {
       m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
-      process ()->enqueue_event (process ()->create<event_t> (
+      process ().enqueue_event (process ().create<event_t> (
           process (), AMD_DBGAPI_EVENT_KIND_WAVE_STOP, id ()));
     }
 
@@ -151,7 +151,7 @@ wave_t::register_available (amdgpu_regnum_t regnum) const
       if ((regnum - amdgpu_regnum_t::V0) >= m_vgpr_count)
         return false;
     }
-  else if (architecture ()->has_acc_vgprs ()
+  else if (architecture ().has_acc_vgprs ()
            && regnum >= amdgpu_regnum_t::FIRST_ACCVGPR
            && regnum <= amdgpu_regnum_t::LAST_ACCVGPR)
     {
@@ -174,7 +174,7 @@ wave_t::register_available (amdgpu_regnum_t regnum) const
 std::string
 wave_t::register_name (amdgpu_regnum_t regnum) const
 {
-  return register_available (regnum) ? architecture ()->register_name (regnum)
+  return register_available (regnum) ? architecture ().register_name (regnum)
                                      : "";
 }
 
@@ -252,7 +252,7 @@ wave_t::register_type (amdgpu_regnum_t regnum) const
   /* Vector registers (arch and acc).  */
   if ((regnum >= amdgpu_regnum_t::FIRST_VGPR
        && regnum <= amdgpu_regnum_t::LAST_VGPR)
-      || (architecture ()->has_acc_vgprs ()
+      || (architecture ().has_acc_vgprs ()
           && regnum >= amdgpu_regnum_t::FIRST_ACCVGPR
           && regnum <= amdgpu_regnum_t::LAST_ACCVGPR))
     {
@@ -292,7 +292,7 @@ amd_dbgapi_status_t
 wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
                        size_t value_size, void *value)
 {
-  dbgapi_assert (queue ()->suspended ());
+  dbgapi_assert (queue ().suspended ());
 
   size_t reg_offset, reg_size;
   std::tie (reg_offset, reg_size) = register_offset_and_size (regnum);
@@ -303,7 +303,7 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
   if (!value_size || (offset + value_size) > reg_size)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE;
 
-  return process ()->read_global_memory (
+  return process ().read_global_memory (
       m_context_save_address + reg_offset + offset,
       static_cast<char *> (value) + offset, value_size);
 }
@@ -312,7 +312,7 @@ amd_dbgapi_status_t
 wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
                         size_t value_size, const void *value)
 {
-  dbgapi_assert (queue ()->suspended ());
+  dbgapi_assert (queue ().suspended ());
 
   size_t reg_offset, reg_size;
   std::tie (reg_offset, reg_size) = register_offset_and_size (regnum);
@@ -328,7 +328,7 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
     memcpy (reinterpret_cast<char *> (&m_pc) + offset,
             static_cast<const char *> (value) + offset, value_size);
 
-  return process ()->write_global_memory (
+  return process ().write_global_memory (
       m_context_save_address + reg_offset + offset,
       static_cast<const char *> (value) + offset, value_size);
 }
@@ -343,19 +343,19 @@ wave_t::get_info (amd_dbgapi_wave_info_t query, size_t value_size,
       return utils::get_info (value_size, value, m_state);
 
     case AMD_DBGAPI_WAVE_INFO_DISPATCH:
-      return utils::get_info (value_size, value, dispatch ()->id ());
+      return utils::get_info (value_size, value, dispatch ().id ());
 
     case AMD_DBGAPI_WAVE_INFO_STOP_REASON:
       return utils::get_info (value_size, value, m_stop_reason);
 
     case AMD_DBGAPI_WAVE_INFO_QUEUE:
-      return utils::get_info (value_size, value, queue ()->id ());
+      return utils::get_info (value_size, value, queue ().id ());
 
     case AMD_DBGAPI_WAVE_INFO_AGENT:
-      return utils::get_info (value_size, value, agent ()->id ());
+      return utils::get_info (value_size, value, agent ().id ());
 
     case AMD_DBGAPI_WAVE_INFO_ARCHITECTURE:
-      return utils::get_info (value_size, value, architecture ()->id ());
+      return utils::get_info (value_size, value, architecture ().id ());
 
     case AMD_DBGAPI_WAVE_INFO_WORK_GROUP_COORD:
       return utils::get_info (value_size, value, m_group_ids);

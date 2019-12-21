@@ -42,7 +42,7 @@ class process_t;
 class dispatch_t : public detail::handle_object<amd_dbgapi_dispatch_id_t>
 {
 public:
-  dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id, queue_t *queue,
+  dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id, queue_t &queue,
               amd_dbgapi_queue_packet_id_t queue_packet_id,
               amd_dbgapi_global_address_t packet_address);
 
@@ -53,12 +53,12 @@ public:
   amd_dbgapi_status_t get_info (amd_dbgapi_dispatch_info_t query,
                                 size_t value_size, void *value) const;
 
-  queue_t *queue () const { return m_queue; }
-  agent_t *agent () const { return queue ()->agent (); }
-  process_t *process () const { return agent ()->process (); }
-  const architecture_t *architecture () const
+  queue_t &queue () const { return m_queue; }
+  agent_t &agent () const { return queue ().agent (); }
+  process_t &process () const { return agent ().process (); }
+  const architecture_t &architecture () const
   {
-    return agent ()->architecture ();
+    return agent ().architecture ();
   }
 
 private:
@@ -66,7 +66,7 @@ private:
   amd_dbgapi_global_address_t m_kernel_entry_address;
   hsa_kernel_dispatch_packet_t m_packet;
 
-  queue_t *const m_queue;
+  queue_t &m_queue;
 };
 
 } /* namespace dbgapi */

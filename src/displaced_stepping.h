@@ -47,7 +47,7 @@ class displaced_stepping_t
 {
 public:
   displaced_stepping_t (
-      amd_dbgapi_displaced_stepping_id_t displaced_stepping_id, queue_t *queue,
+      amd_dbgapi_displaced_stepping_id_t displaced_stepping_id, queue_t &queue,
       amd_dbgapi_global_address_t from, const void *saved_instruction_bytes);
 
   ~displaced_stepping_t () {}
@@ -66,12 +66,12 @@ public:
   amd_dbgapi_status_t start (wave_t &wave);
   amd_dbgapi_status_t complete (wave_t &wave);
 
-  queue_t *queue () const { return m_queue; }
-  agent_t *agent () const { return queue ()->agent (); }
-  process_t *process () const { return agent ()->process (); }
-  const architecture_t *architecture () const
+  queue_t &queue () const { return m_queue; }
+  agent_t &agent () const { return queue ().agent (); }
+  process_t &process () const { return agent ().process (); }
+  const architecture_t &architecture () const
   {
-    return agent ()->architecture ();
+    return agent ().architecture ();
   }
 
 private:
@@ -81,7 +81,7 @@ private:
   amd_dbgapi_global_address_t const m_from;
   std::vector<uint8_t> m_original_instruction;
 
-  queue_t *const m_queue;
+  queue_t &m_queue;
 };
 
 } /* namespace dbgapi */

@@ -44,7 +44,7 @@ class queue_t : public detail::handle_object<amd_dbgapi_queue_id_t>
 public:
   using kfd_queue_id_t = uint32_t;
 
-  queue_t (amd_dbgapi_queue_id_t queue_id, agent_t *agent,
+  queue_t (amd_dbgapi_queue_id_t queue_id, agent_t &agent,
            const kfd_queue_snapshot_entry &kfd_queue_info);
 
   ~queue_t ();
@@ -70,11 +70,11 @@ public:
   amd_dbgapi_status_t get_info (amd_dbgapi_queue_info_t query,
                                 size_t value_size, void *value) const;
 
-  agent_t *agent () const { return m_agent; }
-  process_t *process () const { return agent ()->process (); }
-  const architecture_t *architecture () const
+  agent_t &agent () const { return m_agent; }
+  process_t &process () const { return agent ().process (); }
+  const architecture_t &architecture () const
   {
-    return agent ()->architecture ();
+    return agent ().architecture ();
   }
 
 private:
@@ -89,7 +89,7 @@ private:
      deleted, as these waves are no longer active.  */
   monotonic_counter_t<epoch_t> m_next_wave_mark{ 1 };
 
-  agent_t *const m_agent;
+  agent_t &m_agent;
 };
 
 /* Wraps a queue and provides a RAII mechanism to suspend it if it wasn't
@@ -101,7 +101,7 @@ private:
 class scoped_queue_suspend_t
 {
 public:
-  scoped_queue_suspend_t (queue_t *queue);
+  scoped_queue_suspend_t (queue_t &queue);
   ~scoped_queue_suspend_t ();
 
   /* Disable copies.  */

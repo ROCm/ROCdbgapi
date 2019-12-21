@@ -187,7 +187,7 @@ amd_dbgapi_architecture_register_get_info (
 }
 
 amd_dbgapi_status_t
-amd_dbgapi_architecture_register_list_1 (const architecture_t *architecture,
+amd_dbgapi_architecture_register_list_1 (const architecture_t &architecture,
                                          size_t *register_count,
                                          amd_dbgapi_register_id_t **registers)
 {
@@ -197,7 +197,7 @@ amd_dbgapi_architecture_register_list_1 (const architecture_t *architecture,
   amdgpu_regnum_t i;
   size_t cur_pos = 0,
          count = AMDGPU_VGPRS_COUNT
-                 + (architecture->has_acc_vgprs () ? AMDGPU_ACCVGPRS_COUNT : 0)
+                 + (architecture.has_acc_vgprs () ? AMDGPU_ACCVGPRS_COUNT : 0)
                  + AMDGPU_SGPRS_COUNT + AMDGPU_HWREGS_COUNT
                  + AMDGPU_TTMPS_COUNT;
 
@@ -212,7 +212,7 @@ amd_dbgapi_architecture_register_list_1 (const architecture_t *architecture,
     retval[cur_pos++].handle
         = static_cast<decltype (amd_dbgapi_register_id_t::handle)> (i);
 
-  if (architecture->has_acc_vgprs ())
+  if (architecture.has_acc_vgprs ())
     for (i = amdgpu_regnum_t::FIRST_ACCVGPR;
          i <= amdgpu_regnum_t::LAST_ACCVGPR; ++i)
       retval[cur_pos++].handle
@@ -254,8 +254,8 @@ amd_dbgapi_architecture_register_list (
   if (!architecture)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID;
 
-  return amd_dbgapi_architecture_register_list_1 (architecture, register_count,
-                                                  registers);
+  return amd_dbgapi_architecture_register_list_1 (*architecture,
+                                                  register_count, registers);
 
   CATCH;
 }

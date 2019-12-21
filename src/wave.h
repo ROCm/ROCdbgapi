@@ -49,7 +49,7 @@ public:
   static constexpr amd_dbgapi_wave_id_t ignored_wave_id
       = mark_id<amd_dbgapi_wave_id_t> ();
 
-  wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t *dispatch,
+  wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t &dispatch,
           uint32_t vgpr_count, uint32_t accvgpr_count, uint32_t sgpr_count,
           uint32_t lane_count);
 
@@ -102,13 +102,13 @@ public:
     return write_register (regnum, 0, sizeof (T), value);
   }
 
-  dispatch_t *dispatch () const { return m_dispatch; }
-  queue_t *queue () const { return dispatch ()->queue (); }
-  agent_t *agent () const { return queue ()->agent (); }
-  process_t *process () const { return agent ()->process (); }
-  const architecture_t *architecture () const
+  dispatch_t &dispatch () const { return m_dispatch; }
+  queue_t &queue () const { return dispatch ().queue (); }
+  agent_t &agent () const { return queue ().agent (); }
+  process_t &process () const { return agent ().process (); }
+  const architecture_t &architecture () const
   {
-    return agent ()->architecture ();
+    return agent ().architecture ();
   }
 
   bool register_available (amdgpu_regnum_t regnum) const;
@@ -132,7 +132,7 @@ private:
   uint32_t m_wave_in_group;
 
   amd_dbgapi_global_address_t m_context_save_address{ 0 };
-  dispatch_t *const m_dispatch;
+  dispatch_t &m_dispatch;
 };
 
 } /* namespace dbgapi */

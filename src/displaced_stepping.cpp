@@ -36,25 +36,25 @@ namespace dbgapi
 {
 
 displaced_stepping_t::displaced_stepping_t (
-    amd_dbgapi_displaced_stepping_id_t displaced_stepping_id, queue_t *queue,
+    amd_dbgapi_displaced_stepping_id_t displaced_stepping_id, queue_t &queue,
     amd_dbgapi_global_address_t from, const void *saved_instruction_bytes)
     : handle_object (displaced_stepping_id), m_from (from), m_queue (queue)
 {
-  const architecture_t *architecture = this->architecture ();
+  const architecture_t &architecture = this->architecture ();
   const std::vector<uint8_t> &breakpoint_instruction
-      = architecture->breakpoint_instruction ();
+      = architecture.breakpoint_instruction ();
 
   /* Keep a copy of the original instruction bytes, we may need it to
      complete the displaced stepping.  */
 
-  m_original_instruction.resize (architecture->largest_instruction_size ());
+  m_original_instruction.resize (architecture.largest_instruction_size ());
   memcpy (m_original_instruction.data (), saved_instruction_bytes,
           breakpoint_instruction.size ());
 
   size_t offset = breakpoint_instruction.size ();
   size_t remaining_size = m_original_instruction.size () - offset;
 
-  if (process ()->read_global_memory_partial (
+  if (process ().read_global_memory_partial (
           from + offset, m_original_instruction.data () + offset,
           &remaining_size)
       != AMD_DBGAPI_STATUS_SUCCESS)
@@ -65,13 +65,13 @@ displaced_stepping_t::displaced_stepping_t (
 
   /* Trim to size of instruction.  */
   size_t instruction_size
-      = architecture->instruction_size (m_original_instruction);
+      = architecture.instruction_size (m_original_instruction);
   if (!instruction_size)
     return;
   m_original_instruction.resize (instruction_size);
 
   /* Copy a single instruction to the displaced stepping buffer.  */
-  if (!architecture->displaced_stepping_copy (*this, &m_is_simulated))
+  if (!architecture.displaced_stepping_copy (*this, &m_is_simulated))
     return;
 
   m_is_valid = true;
@@ -101,13 +101,13 @@ displaced_stepping_t::complete (wave_t &wave)
 
   if (is_simulated ())
     {
-      return wave.architecture ()->displaced_stepping_simulate (wave, *this)
+      return wave.architecture ().displaced_stepping_simulate (wave, *this)
                  ? AMD_DBGAPI_STATUS_SUCCESS
                  : AMD_DBGAPI_STATUS_ERROR;
     }
   else
     {
-      return wave.architecture ()->displaced_stepping_fixup (wave, *this)
+      return wave.architecture ().displaced_stepping_fixup (wave, *this)
                  ? AMD_DBGAPI_STATUS_SUCCESS
                  : AMD_DBGAPI_STATUS_ERROR;
     }
@@ -151,7 +151,7 @@ amd_dbgapi_displaced_stepping_start (
      the old pc, and reference count it.  */
 
   amd_dbgapi_global_address_t buffer
-      = wave->queue ()->displaced_stepping_buffer_address ();
+      = wave->queue ().displaced_stepping_buffer_address ();
 
   /* FIXME: We can only have one displaced_stepping_t per queue, so make sure
      it isn't currently used.  */

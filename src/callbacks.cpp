@@ -35,7 +35,7 @@ namespace dbgapi
 {
 
 shared_library_t::shared_library_t (amd_dbgapi_shared_library_id_t library_id,
-                                    process_t *process, std::string name,
+                                    process_t &process, std::string name,
                                     notify_callback_t on_load,
                                     notify_callback_t on_unload)
     : handle_object (library_id), m_on_load (on_load), m_on_unload (on_unload),
@@ -43,32 +43,32 @@ shared_library_t::shared_library_t (amd_dbgapi_shared_library_id_t library_id,
 {
   amd_dbgapi_shared_library_state_t library_state;
 
-  if (m_process->enable_notify_shared_library (name.c_str (), library_id,
-                                               &library_state)
+  if (m_process.enable_notify_shared_library (name.c_str (), library_id,
+                                              &library_state)
       != AMD_DBGAPI_STATUS_SUCCESS)
     return;
 
   m_is_valid = true;
 
   if (library_state == AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED)
-    on_load (this);
+    on_load (*this);
 }
 
 shared_library_t::~shared_library_t ()
 {
   if (m_is_valid)
-    m_process->disable_notify_shared_library (id ());
+    m_process.disable_notify_shared_library (id ());
 }
 
 breakpoint_t::breakpoint_t (amd_dbgapi_breakpoint_id_t breakpoint_id,
-                            const shared_library_t *shared_library,
+                            const shared_library_t &shared_library,
                             amd_dbgapi_global_address_t address,
                             action_callback_t action)
     : handle_object (breakpoint_id), m_address (address), m_action (action),
       m_shared_library (shared_library)
 {
-  m_inserted = process ()->add_breakpoint (shared_library->id (), address,
-                                           breakpoint_id)
+  m_inserted = process ().add_breakpoint (shared_library.id (), address,
+                                          breakpoint_id)
                == AMD_DBGAPI_STATUS_SUCCESS;
 }
 
@@ -76,7 +76,7 @@ breakpoint_t::~breakpoint_t ()
 {
   if (m_inserted)
     {
-      amd_dbgapi_status_t status = process ()->remove_breakpoint (id ());
+      amd_dbgapi_status_t status = process ().remove_breakpoint (id ());
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         warning ("remove_breakpoint failed (rc=%d)", status);
     }
@@ -85,7 +85,7 @@ breakpoint_t::~breakpoint_t ()
 void
 breakpoint_t::set_state (amd_dbgapi_breakpoint_state_t state)
 {
-  amd_dbgapi_status_t status = process ()->set_breakpoint_state (id (), state);
+  amd_dbgapi_status_t status = process ().set_breakpoint_state (id (), state);
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     error ("set_breakpoint_state failed (rc=%d)", status);
 }
@@ -121,7 +121,7 @@ amd_dbgapi_report_shared_library (
   if (!shared_library)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_SHARED_LIBRARY_ID;
 
-  shared_library->callback (shared_library_state) (shared_library);
+  shared_library->callback (shared_library_state) (*shared_library);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
@@ -153,7 +153,7 @@ amd_dbgapi_report_breakpoint_hit (
   if (!breakpoint)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_BREAKPOINT_ID;
 
-  return breakpoint->action () (breakpoint, client_thread_id,
+  return breakpoint->action () (*breakpoint, client_thread_id,
                                 breakpoint_action);
   CATCH;
 }
