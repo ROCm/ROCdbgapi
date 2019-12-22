@@ -70,14 +70,7 @@ agent_t::enable_debug_trap (void)
   };
 
   if (ioctl (process.kfd_fd (), AMDKFD_IOC_DBG_TRAP, &args))
-    {
-      /* FIXME: remove this when KFD is able to create a kfd_process on behalf
-         of the target process. For now, we rely on an exception caught in
-         process_attach, to delay initialization until after hsaKmtOpenKFD is
-         called.  */
-      throw exception_t (AMD_DBGAPI_STATUS_FATAL, "Enable debug trap failed");
-      return AMD_DBGAPI_STATUS_ERROR;
-    }
+    return AMD_DBGAPI_STATUS_ERROR;
 
   m_poll_fd = args.data3;
 

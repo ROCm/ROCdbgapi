@@ -964,6 +964,13 @@ process_t::attach ()
     .op = KFD_IOC_DBG_TRAP_GET_VERSION,
   };
 
+  /* Enabling debug mode before the target process opens the KFD device
+     requires KFD_IOCTL_DBG >= 1.1  */
+  static_assert (KFD_IOCTL_DBG_MAJOR_VERSION > 1
+                     || (KFD_IOCTL_DBG_MAJOR_VERSION == 1
+                         && KFD_IOCTL_DBG_MINOR_VERSION >= 1),
+                 "KFD_IOCTL_DBG >= 1.1 required");
+
   /* Check that the KFD dbg trap major == IOCTL dbg trap major,
      and KFD dbg trap minor >= IOCTL dbg trap minor.  */
   if (ioctl (m_kfd_fd, AMDKFD_IOC_DBG_TRAP, &dbg_trap_args)
@@ -1378,60 +1385,12 @@ amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
     }
 
   auto process = std::make_unique<process_t> (client_process_id, id);
-
   if (!process->is_valid ())
     return AMD_DBGAPI_STATUS_ERROR;
 
-  /* TODO: Remove this when the KFD can create a kfd_process on behalf of
-     the target. We can't initialize the process_t unless the target has
-     opened the KFD device. As a workaround we execute process_t::attach
-     and if an exception is thrown because we could not enable the agents
-     debug trap, we instead install a breakpoint, and re-execute
-     process_t::attach when the breakpoint is hit.  */
-  try
-    {
-      amd_dbgapi_status_t status = process->attach ();
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
-    }
-  catch (const exception_t &)
-    {
-      process->create<shared_library_t> (
-          *process.get (), "/libhsakmt.so.1",
-          [] (const shared_library_t &library) {
-            constexpr char name[] = "hsaKmtAcquireSystemProperties";
-            process_t &process = library.process ();
-            amd_dbgapi_global_address_t address;
-
-            if (process.get_symbol_address (library.id (), name, &address)
-                != AMD_DBGAPI_STATUS_SUCCESS)
-              error ("Cannot find symbol `%s'", name);
-
-            auto callback = [] (breakpoint_t &breakpoint,
-                                amd_dbgapi_client_thread_id_t client_thread_id,
-                                amd_dbgapi_breakpoint_action_t *action) {
-              breakpoint.disable ();
-              breakpoint.process ().attach ();
-              *action = AMD_DBGAPI_BREAKPOINT_ACTION_RESUME;
-              return AMD_DBGAPI_STATUS_SUCCESS;
-            };
-
-            process.create<breakpoint_t> (library, address, callback);
-          },
-          [] (const shared_library_t &library) {
-            process_t &process = library.process ();
-
-            /* Remove the breakpoints inserted when the library was loaded.
-             */
-            auto breakpoint_range = process.range<breakpoint_t> ();
-            for (auto it = breakpoint_range.begin ();
-                 it != breakpoint_range.end ();)
-              if (it->shared_library ().id () == library.id ())
-                it = process.destroy (it);
-              else
-                ++it;
-          });
-    }
+  amd_dbgapi_status_t status = process->attach ();
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    return status;
 
   *process_id = amd_dbgapi_process_id_t{ process->id () };
 
