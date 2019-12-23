@@ -2309,8 +2309,14 @@ typedef enum
    */
   AMD_DBGAPI_WAVE_INFO_WATCHPOINTS = 3,
   /**
-   * Return the dispatch to which this wave belongs.  The type of this
-   * attribute is ::amd_dbgapi_dispatch_id_t.
+   * Return the dispatch to which this wave belongs.  The type of this attribute
+   * is ::amd_dbgapi_dispatch_id_t.
+   *
+   * If the dispatch associated with a wave is not available then
+   * ::AMD_DBGAPI_DISPATCH_NONE is returned.  If a wave has no associated
+   * dispatch then the the ::AMD_DBGAPI_WAVE_INFO_WORK_GROUP_COORD query may
+   * return incorrect information.  Note that a wave may not have an associated
+   * dispatch if attaching to a process with already existing waves.
    */
   AMD_DBGAPI_WAVE_INFO_DISPATCH = 4,
   /**

@@ -21,7 +21,7 @@
 cmake_minimum_required(VERSION 3.2.0)
 include(GNUInstallDirs)
 
-project(AMD_DBGAPI VERSION 0.1.17)
+project(AMD_DBGAPI VERSION 0.1.18)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
