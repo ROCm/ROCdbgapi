@@ -414,27 +414,17 @@ amd_dbgapi_read_register (amd_dbgapi_process_id_t process_id,
 
   amdgpu_regnum_t regnum = static_cast<amdgpu_regnum_t> (register_id.handle);
 
-  /* TODO: Implement a proper register cache. For now, we only cache the
-     program counter.  */
-  if (regnum == amdgpu_regnum_t::PC)
-    {
-      amd_dbgapi_global_address_t pc = wave->pc ();
-
-      if (!value_size || (offset + value_size) > sizeof (pc))
-        return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE;
-
-      memcpy (static_cast<char *> (value) + offset,
-              reinterpret_cast<const char *> (&pc) + offset, value_size);
-
-      return AMD_DBGAPI_STATUS_SUCCESS;
-    }
-
   {
-    scoped_queue_suspend_t suspend (wave->queue ());
+    utils::optional<scoped_queue_suspend_t> suspend;
 
-    /* Look for the wave_id again, the wave may have exited.  */
-    if (!(wave = process->find (wave_id)))
-      return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
+    if (!wave->is_register_cached (regnum))
+      {
+        suspend.emplace (wave->queue ());
+
+        /* Look for the wave_id again, the wave may have exited.  */
+        if (!(wave = process->find (wave_id)))
+          return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
+      }
 
     return wave->read_register (regnum, offset, value_size, value);
   }

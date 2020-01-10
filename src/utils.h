@@ -258,6 +258,45 @@ amd_dbgapi_status_t get_handle_list (amd_dbgapi_process_id_t process_id,
                                      typename Object::handle_type **objects,
                                      amd_dbgapi_changed_t *changed);
 
+/* Minimal implementation of std::optional. std::optional requires C++17.  */
+template <typename T> class optional
+{
+  optional (const optional &) = delete;
+  optional (optional &&) = delete;
+  optional &operator= (const optional &) = delete;
+  optional &operator= (optional &&) = delete;
+
+public:
+  optional () : m_dummy () {}
+
+  ~optional ()
+  {
+    if (m_instantiated)
+      m_object.~T ();
+  }
+
+  template <typename... Args> T &emplace (Args &&... args)
+  {
+    /* Only support setting to a value once, and do not support setting back to
+       undefined.  */
+    dbgapi_assert (!m_instantiated && "not supported");
+
+    new (&m_object) T (std::forward<Args> (args)...);
+    m_instantiated = true;
+    return m_object;
+  }
+
+private:
+  bool m_instantiated{ false };
+  union
+  {
+    struct
+    {
+    } m_dummy;
+    T m_object;
+  };
+};
+
 } /* namespace utils */
 
 /* A monotonic counter with wrap-around detection. Type must be an integral

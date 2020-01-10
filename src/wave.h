@@ -62,7 +62,8 @@ public:
   {
     return m_context_save_address;
   }
-  amd_dbgapi_global_address_t pc () const { return m_pc; }
+  amd_dbgapi_global_address_t pc () const;
+  amd_dbgapi_global_address_t prev_pc () const { return m_prev_pc; }
 
   amd_dbgapi_status_t
   update (amd_dbgapi_global_address_t context_save_address);
@@ -85,13 +86,19 @@ public:
   amd_dbgapi_status_t get_info (amd_dbgapi_wave_info_t query,
                                 size_t value_size, void *value) const;
 
+  bool is_register_cached (amdgpu_regnum_t regnum) const
+  {
+    return m_context_save_address && regnum >= amdgpu_regnum_t::FIRST_HWREG
+           && regnum <= amdgpu_regnum_t::LAST_HWREG;
+  }
+
   amd_dbgapi_status_t read_register (amdgpu_regnum_t regnum, size_t offset,
-                                     size_t value_size, void *value);
+                                     size_t value_size, void *value) const;
   amd_dbgapi_status_t write_register (amdgpu_regnum_t regnum, size_t offset,
                                       size_t value_size, const void *value);
 
   template <typename T>
-  amd_dbgapi_status_t read_register (amdgpu_regnum_t regnum, T *value)
+  amd_dbgapi_status_t read_register (amdgpu_regnum_t regnum, T *value) const
   {
     return read_register (regnum, 0, sizeof (T), value);
   }
@@ -122,12 +129,16 @@ private:
     AMD_DBGAPI_WAVE_STOP_REASON_NONE
   };
 
+  bool m_reload_hwregs_cache{ true };
+  uint32_t m_hwregs_cache[amdgpu_regnum_t::LAST_HWREG
+                          - amdgpu_regnum_t::FIRST_HWREG + 1];
+
   uint32_t const m_vgpr_count;
   uint32_t const m_accvgpr_count;
   uint32_t const m_sgpr_count;
   uint32_t const m_lane_count;
 
-  amd_dbgapi_global_address_t m_pc;
+  amd_dbgapi_global_address_t m_prev_pc{ 0 };
   uint32_t m_group_ids[3];
   uint32_t m_wave_in_group;
 

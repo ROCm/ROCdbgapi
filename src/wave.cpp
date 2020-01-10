@@ -59,6 +59,15 @@ wave_t::wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t &dispatch,
 {
 }
 
+amd_dbgapi_global_address_t
+wave_t::pc () const
+{
+  amd_dbgapi_global_address_t pc;
+  if (read_register (amdgpu_regnum_t::PC, &pc) != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not read the PC register");
+  return pc;
+}
+
 amd_dbgapi_status_t
 wave_t::update (amd_dbgapi_global_address_t context_save_address)
 {
@@ -92,20 +101,37 @@ wave_t::update (amd_dbgapi_global_address_t context_save_address)
         return status;
     }
 
-  amd_dbgapi_wave_state_t saved_state = m_state;
-  status = architecture ().get_wave_state (*this, &m_state, &m_stop_reason);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
+  /* Reload the HW registers cache, and update the wave's state, if this is a
+     new wave, or if the wave wasn't stopped (mode.halt == 1) the last time the
+     queue it belongs to was resumed.  */
+  if (m_reload_hwregs_cache)
+    {
+      /* Record the last pc before updating the hwregs cache.  */
+      if (!first_update)
+        m_prev_pc = pc ();
 
-  /* Cache the PC register.  */
-  status = read_register (amdgpu_regnum_t::PC, &m_pc);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
+      status = process.read_global_memory (
+          m_context_save_address
+              + register_offset_and_size (amdgpu_regnum_t::FIRST_HWREG).first,
+          &m_hwregs_cache[0], sizeof (m_hwregs_cache));
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        return status;
 
-  if (m_stop_reason && m_state == AMD_DBGAPI_WAVE_STATE_STOP
-      && saved_state != AMD_DBGAPI_WAVE_STATE_STOP)
-    process.enqueue_event (process.create<event_t> (
-        process, AMD_DBGAPI_EVENT_KIND_WAVE_STOP, id ()));
+      amd_dbgapi_wave_state_t saved_state = m_state;
+      status
+          = architecture ().get_wave_state (*this, &m_state, &m_stop_reason);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        return status;
+
+      /* If the wave is not stopped, we'll need to reload the hwregs cache
+         during the next update.  */
+      m_reload_hwregs_cache = (m_state != AMD_DBGAPI_WAVE_STATE_STOP);
+
+      if (m_stop_reason && m_state == AMD_DBGAPI_WAVE_STATE_STOP
+          && saved_state != AMD_DBGAPI_WAVE_STATE_STOP)
+        process.enqueue_event (process.create<event_t> (
+            process, AMD_DBGAPI_EVENT_KIND_WAVE_STOP, id ()));
+    }
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
@@ -120,6 +146,11 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
     return status;
 
   m_state = state;
+
+  /* If we are resuming this wave, we'll need to reload the hwregs cache during
+    the next update.  */
+  if (m_state != AMD_DBGAPI_WAVE_STATE_STOP)
+    m_reload_hwregs_cache = true;
 
   /* Clear the stop reason if we are resuming this wave.  */
   if (state != AMD_DBGAPI_WAVE_STATE_STOP)
@@ -290,10 +321,8 @@ wave_t::register_type (amdgpu_regnum_t regnum) const
 
 amd_dbgapi_status_t
 wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
-                       size_t value_size, void *value)
+                       size_t value_size, void *value) const
 {
-  dbgapi_assert (queue ().suspended ());
-
   size_t reg_offset, reg_size;
   std::tie (reg_offset, reg_size) = register_offset_and_size (regnum);
 
@@ -302,6 +331,20 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
 
   if (!value_size || (offset + value_size) > reg_size)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE;
+
+  /* hwregs are cached, so return the value from the cache.  */
+  if (regnum >= amdgpu_regnum_t::FIRST_HWREG
+      && regnum <= amdgpu_regnum_t::LAST_HWREG)
+    {
+      memcpy (static_cast<char *> (value) + offset,
+              reinterpret_cast<const char *> (
+                  &m_hwregs_cache[regnum - amdgpu_regnum_t::FIRST_HWREG])
+                  + offset,
+              value_size);
+      return AMD_DBGAPI_STATUS_SUCCESS;
+    }
+
+  dbgapi_assert (queue ().suspended ());
 
   return process ().read_global_memory (
       m_context_save_address + reg_offset + offset,
@@ -312,8 +355,6 @@ amd_dbgapi_status_t
 wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
                         size_t value_size, const void *value)
 {
-  dbgapi_assert (queue ().suspended ());
-
   size_t reg_offset, reg_size;
   std::tie (reg_offset, reg_size) = register_offset_and_size (regnum);
 
@@ -323,10 +364,15 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
   if (!value_size || (offset + value_size) > reg_size)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE;
 
-  /* Update the cached PC.  */
-  if (regnum == amdgpu_regnum_t::PC)
-    memcpy (reinterpret_cast<char *> (&m_pc) + offset,
+  /* Update the cached hwregs.  */
+  if (regnum >= amdgpu_regnum_t::FIRST_HWREG
+      && regnum <= amdgpu_regnum_t::LAST_HWREG)
+    memcpy (reinterpret_cast<char *> (
+                &m_hwregs_cache[regnum - amdgpu_regnum_t::FIRST_HWREG])
+                + offset,
             static_cast<const char *> (value) + offset, value_size);
+
+  dbgapi_assert (queue ().suspended ());
 
   return process ().write_global_memory (
       m_context_save_address + reg_offset + offset,
@@ -364,7 +410,7 @@ wave_t::get_info (amd_dbgapi_wave_info_t query, size_t value_size,
       return utils::get_info (value_size, value, m_wave_in_group);
 
     case AMD_DBGAPI_WAVE_INFO_PC:
-      return utils::get_info (value_size, value, m_pc);
+      return utils::get_info (value_size, value, pc ());
 
     default:
       return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;

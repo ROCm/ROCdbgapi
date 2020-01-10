@@ -617,10 +617,7 @@ amdgcn_architecture_t::get_wave_state (
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
 
-      amd_dbgapi_global_address_t pc;
-      status = wave.read_register (amdgpu_regnum_t::PC, &pc);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
+      amd_dbgapi_global_address_t pc = wave.pc ();
 
       if (trapsts
           & (SQ_WAVE_TRAPSTS_EXCP_MASK | SQ_WAVE_TRAPSTS_ILLEGAL_INST_MASK))
@@ -670,7 +667,7 @@ amdgcn_architecture_t::get_wave_state (
            */
           bool ignore_single_step_event
               = saved_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
-                && wave.pc () == pc;
+                && wave.prev_pc () == pc;
 
           if (ignore_single_step_event)
             {
@@ -679,7 +676,7 @@ amdgcn_architecture_t::get_wave_state (
 
               /* Read up to largest_instruction_size bytes.  */
               status = wave.process ().read_global_memory_partial (
-                  wave.pc (), instruction.data (), &size);
+                  pc, instruction.data (), &size);
               if (status != AMD_DBGAPI_STATUS_SUCCESS)
                 return status;
 
