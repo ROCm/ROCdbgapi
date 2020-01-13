@@ -79,6 +79,10 @@ Generating the AMD Debugger API documentation has the following prerequisites:
    apt install doxygen graphviz texlive-full
    ````
 
+   NOTE: The ``doxygen`` 1.8.13 that is installed by Ubuntu 18.04 has a bug that
+   prevents the PDF from being created. Both ``doxygen`` 1.8.11 and 1.8.17 can
+   be built from source to avoid the issue.
+
 2. For Centos 7.6 the following adds the needed packages:
 
    ````shell
