@@ -287,7 +287,8 @@ amd_dbgapi_next_pending_event (amd_dbgapi_process_id_t process_id,
                     }
 
                   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                              "queue_%ld has pending events", queue_id);
+                              "%s has pending events",
+                              to_string (queue_id).c_str ());
 
                   /* The queue may already be suspended. This can happen if an
                      event occurs after requesting the queue to be suspended

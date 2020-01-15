@@ -718,8 +718,8 @@ amdgcn_architecture_t::get_wave_state (
                 return status;
 
               dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                          "wave_%ld (pc=%p) ignore spurious single-step",
-                          wave.id (), pc);
+                          "%s (pc=%#lx) ignore spurious single-step",
+                          to_string (wave.id ()).c_str (), pc);
 
               /* Don't report the event.  */
               *stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;

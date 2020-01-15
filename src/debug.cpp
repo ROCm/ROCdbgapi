@@ -109,7 +109,7 @@ exception_t::print_message (void) const noexcept
   dbgapi_log (error_code () == AMD_DBGAPI_STATUS_FATAL
                   ? AMD_DBGAPI_LOG_LEVEL_FATAL_ERROR
                   : AMD_DBGAPI_LOG_LEVEL_WARNING,
-              what ());
+              "%s", what ());
 }
 
 void

@@ -23,6 +23,7 @@
 #include "logging.h"
 #include "utils.h"
 
+#include <cstdarg>
 #include <string>
 
 namespace amd
@@ -52,6 +53,19 @@ vlog (amd_dbgapi_log_level_t level, const char *format, va_list va)
   (*process_callbacks.log_message) (level, message.c_str ());
 }
 
+namespace detail
+{
+
+void
+log (amd_dbgapi_log_level_t level, const char *format, ...)
+{
+  va_list va;
+  va_start (va, format);
+  vlog (level, format, va);
+  va_end (va);
+}
+
+} /* namespace detail */
 } /* namespace dbgapi */
 } /* namespace amd */
 

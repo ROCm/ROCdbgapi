@@ -615,8 +615,8 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues)
     {
       queue->set_suspended (true);
       queue_ids.emplace_back (queue->kfd_queue_id ());
-      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "suspending queue_%ld",
-                  queue->id ());
+      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "suspending %s",
+                  to_string (queue->id ()).c_str ());
     }
 
   /* KFD_IOC_DBG_TRAP_NODE_SUSPEND (#4):
@@ -686,8 +686,8 @@ process_t::resume_queues (const std::vector<queue_t *> &queues)
   for (auto &&queue : queues)
     {
       queue_ids.emplace_back (queue->kfd_queue_id ());
-      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "resuming queue_%ld",
-                  queue->id ());
+      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "resuming %s",
+                  to_string (queue->id ()).c_str ());
     }
 
   /* KFD_IOC_DBG_TRAP_NODE_RESUME (#5):
@@ -1320,7 +1320,8 @@ process_t::get_info (amd_dbgapi_process_info_t query, size_t value_size,
 void
 process_t::enqueue_event (event_t &event)
 {
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "enqueue event_%ld: %s", event.id (),
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "enqueue %s: %s",
+              to_string (event.id ()).c_str (),
               event.pretty_printer_string ().c_str ());
 
   m_pending_events.emplace (&event);

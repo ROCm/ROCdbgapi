@@ -34,14 +34,7 @@
   do                                                                          \
     {                                                                         \
       if (level <= amd::dbgapi::log_level)                                    \
-        {                                                                     \
-          [] (amd_dbgapi_log_level_t _level, const char *_format, ...) {      \
-            va_list va;                                                       \
-            va_start (va, _format);                                           \
-            amd::dbgapi::vlog (_level, _format, va);                          \
-            va_end (va);                                                      \
-          }(level, format, ##__VA_ARGS__);                                    \
-        }                                                                     \
+        amd::dbgapi::detail::log (level, format, ##__VA_ARGS__);              \
     }                                                                         \
   while (0)
 
@@ -49,6 +42,16 @@ namespace amd
 {
 namespace dbgapi
 {
+namespace detail
+{
+
+extern void log (amd_dbgapi_log_level_t level, const char *format, ...)
+#if defined(__GNUC__)
+    __attribute__ ((format (printf, 2, 3)))
+#endif /* defined (__GNUC__) */
+    ;
+
+} /* namespace detail */
 
 extern void vlog (amd_dbgapi_log_level_t level, const char *format,
                   va_list va);
