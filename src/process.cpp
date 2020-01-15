@@ -568,10 +568,23 @@ process_t::update_agents ()
     if (!find_if ([&] (const agent_t &a) {
           return a.gpu_id () == sysfs_node.gpu_id;
         }))
-      create<agent_t> (*this,                   /* process  */
-                       sysfs_node.gpu_id,       /* gpu_id  */
-                       sysfs_node.architecture, /* architecture  */
-                       sysfs_node.properties);  /* properties  */
+      {
+        try
+          {
+            create<agent_t> (*this,                   /* process  */
+                             sysfs_node.gpu_id,       /* gpu_id  */
+                             sysfs_node.architecture, /* architecture  */
+                             sysfs_node.properties);  /* properties  */
+          }
+        catch (const exception_t &)
+          {
+            /* FIXME: We could not create an agent_t for this node.  Another
+               process may already have enabled debug mode.  Remove this
+               when KFD supports concurrent debugging on the same agent.  */
+            warning ("Could not enable debugging on gpu_id %d.",
+                     sysfs_node.gpu_id);
+          }
+      }
 
   /* Delete agents that are no longer present in this process. */
   auto agent_range = range<agent_t> ();
@@ -1098,8 +1111,7 @@ process_t::attach ()
   /* Set/remove internal breakpoints when the ROCm Runtime is loaded/unloaded.
    */
   create<shared_library_t> (*this, "/libhsa-runtime64.so.1", on_load_callback,
-                            on_unload_callback)
-      .id ();
+                            on_unload_callback);
 
   m_initialized = true;
   return AMD_DBGAPI_STATUS_SUCCESS;
