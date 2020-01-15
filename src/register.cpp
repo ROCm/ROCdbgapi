@@ -131,7 +131,7 @@ amd_dbgapi_architecture_register_class_list (
       = static_cast<amd_dbgapi_register_class_id_t *> (
           allocate_memory (count * sizeof (amd_dbgapi_register_class_id_t)));
 
-  if (!classes)
+  if (count && !classes)
     return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
 
   /* Skip the first element (class_none).  */
@@ -195,11 +195,11 @@ amd_dbgapi_architecture_register_list_1 (const architecture_t &architecture,
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   amdgpu_regnum_t i;
-  size_t cur_pos = 0,
-         count = AMDGPU_VGPRS_COUNT
+  size_t count = AMDGPU_VGPRS_COUNT
                  + (architecture.has_acc_vgprs () ? AMDGPU_ACCVGPRS_COUNT : 0)
                  + AMDGPU_SGPRS_COUNT + AMDGPU_HWREGS_COUNT
                  + AMDGPU_TTMPS_COUNT;
+  size_t cur_pos = 0;
 
   amd_dbgapi_register_id_t *retval;
   retval = static_cast<amd_dbgapi_register_id_t *> (
@@ -515,8 +515,8 @@ amd_dbgapi_wave_register_get_info (amd_dbgapi_process_id_t process_id,
         if (name.empty ())
           return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
-        if (!(retval
-              = static_cast<char *> (allocate_memory (name.length () + 1))))
+        retval = static_cast<char *> (allocate_memory (name.length () + 1));
+        if (!retval)
           return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
 
         strcpy (retval, name.c_str ());
@@ -535,8 +535,8 @@ amd_dbgapi_wave_register_get_info (amd_dbgapi_process_id_t process_id,
         if (type.empty ())
           return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
-        if (!(retval
-              = static_cast<char *> (allocate_memory (type.length () + 1))))
+        retval = static_cast<char *> (allocate_memory (type.length () + 1));
+        if (!retval)
           return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
 
         strcpy (retval, type.c_str ());

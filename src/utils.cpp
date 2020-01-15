@@ -54,8 +54,8 @@ get_info (size_t value_size, void *ret, const std::string &value)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE;
 
   const size_t size = value.size ();
-  if (!(retval
-        = static_cast<char *> (amd::dbgapi::allocate_memory (size + 1))))
+  retval = static_cast<char *> (amd::dbgapi::allocate_memory (size + 1));
+  if (!retval)
     return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
 
   value.copy (retval, size);
@@ -75,7 +75,8 @@ get_info (size_t value_size, void *ret, const std::vector<T> &value)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE;
 
   const size_t size = sizeof (T) * value.size ();
-  if (!(retval = static_cast<T *> (amd::dbgapi::allocate_memory (size))))
+  retval = static_cast<T *> (amd::dbgapi::allocate_memory (size));
+  if (size && !retval)
     return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
 
   memcpy (retval, value.data (), size);
@@ -114,8 +115,8 @@ get_handle_list (amd_dbgapi_process_id_t process_id, size_t *object_count,
   size_t count = process->count<Object> ();
   Handle *retval;
 
-  if (!(retval
-        = static_cast<Handle *> (allocate_memory (count * sizeof (Handle)))))
+  retval = static_cast<Handle *> (allocate_memory (count * sizeof (Handle)));
+  if (count && !retval)
     return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
 
   *objects = retval;

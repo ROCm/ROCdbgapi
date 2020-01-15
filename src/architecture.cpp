@@ -1373,17 +1373,19 @@ amd_dbgapi_disassemble_instruction (
   /* Return the instruction text in client allocated memory.  */
   void *mem;
   size_t mem_size = instruction_str.length () + 1;
-  if (!(mem = allocate_memory (mem_size)))
+  mem = allocate_memory (mem_size);
+  if (!mem)
     return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
 
   memcpy (mem, instruction_str.c_str (), mem_size);
   *instruction_text = static_cast<char *> (mem);
 
   /* Return the operands in client allocated memory.  */
-  if (address_operands && operands_vec.size ())
+  if (address_operands)
     {
       mem_size = operands_vec.size () * sizeof (amd_dbgapi_global_address_t);
-      if (!(mem = allocate_memory (mem_size)))
+      mem = allocate_memory (mem_size);
+      if (mem_size && !mem)
         {
           amd::dbgapi::deallocate_memory (*instruction_text);
           *instruction_text = nullptr;
@@ -1393,8 +1395,6 @@ amd_dbgapi_disassemble_instruction (
       memcpy (mem, operands_vec.data (), mem_size);
       *address_operands = static_cast<amd_dbgapi_global_address_t *> (mem);
     }
-  else if (address_operands)
-    *address_operands = nullptr;
 
   if (address_operand_count)
     *address_operand_count = operands_vec.size ();
