@@ -5502,14 +5502,15 @@ struct amd_dbgapi_callbacks_s
 {
 
   /**
-   * Allocate memory to be used to return a value from the library that is
-   * then owned by the client.
+   * Allocate memory to be used to return a value from the library that is then
+   * owned by the client.
    *
-   * The memory should be suitably aligned for any type.  If unable to allocate
-   * memory of the byte size specified by \p byte_size then return NULL.  The
-   * client is responsible for deallocating this memory, and so is responsible
-   * for tracking the size of the allocation.  Note that these requirements can
-   * be met by implementing using \p malloc.
+   * The memory should be suitably aligned for any type.  If \p byte_size is 0
+   * or if unable to allocate memory of the byte size specified by \p byte_size
+   * then return NULL and allocate no memory.  The client is responsible for
+   * deallocating this memory, and so is responsible for tracking the size of
+   * the allocation.  Note that these requirements can be met by implementing
+   * using \p malloc.
    */
   void *(*allocate_memory) (size_t byte_size);
 
@@ -5517,11 +5518,17 @@ struct amd_dbgapi_callbacks_s
    * Deallocate memory that was allocated by
    * amd_dbgapi_callbacks_s::allocate_memory.
    *
-   * \p data is a pointer returned by amd_dbgapi_callbacks_s::allocate_memory
-   * that will not be returned to the client and has not been previously
-   * deallocated.  Note this callback may be used by the library implementation
-   * if it encounters an error after using
-   * amd_dbgapi_callbacks_s::allocate_memory to allocate memory.
+   * \p data will be a pointer returned by
+   * amd_dbgapi_callbacks_s::allocate_memory that will not be returned to the
+   * client.  If \p data is NULL then it indicates the allocation failed or was
+   * for 0 bytes: in either case the callback is required to take no action.  If
+   * \p data is not NULL then it will not have been deallocated by a previous
+   * call to amd_dbgapi_callbacks_s::allocate_memory.  Note that these
+   * requirements can be met by implementing using \p free.
+   *
+   * Note this callback may be used by the library implementation if it
+   * encounters an error after using amd_dbgapi_callbacks_s::allocate_memory to
+   * allocate memory.
    */
   void (*deallocate_memory) (void *data);
 
