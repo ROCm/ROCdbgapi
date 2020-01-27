@@ -21,7 +21,11 @@
 cmake_minimum_required(VERSION 3.2.0)
 include(GNUInstallDirs)
 
-project(AMD_DBGAPI VERSION 0.1.18)
+project(AMD_DBGAPI VERSION 0.19.0)
+
+# The project command does not set the <PROJECT-NAME>_NAME variable so must set
+# it explicitly.
+set(AMD_DBGAPI_NAME "${PROJECT_NAME}")
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
