@@ -110,7 +110,7 @@ install(FILES
 install(FILES
   "README.md"
   "LICENSE.txt"
-  DESTINATION share/amd-dbgapi)
+  DESTINATION share/doc/amd-dbgapi)
 
 # Generate the install-tree package.
 set(AMD_DBGAPI_PREFIX_CODE "
@@ -196,4 +196,10 @@ if(DOXYGEN_FOUND)
 
   add_custom_target(doc DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/doc/html/index.html
     ${CMAKE_CURRENT_BINARY_DIR}/doc/latex/refman.pdf)
+
+  install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/doc/latex/refman.pdf"
+    DESTINATION share/doc/amd-dbgapi
+    RENAME "amd-dbgapi.pdf" OPTIONAL)
+
 endif()
