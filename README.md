@@ -9,8 +9,8 @@ The following AMD GPU architectures are supported:
 
 - GFX9
   - gfx900 (Vega 10)
-  - gfx906 (Vega 20)
-  - gfx908 (MI100)
+  - gfx906 (Vega 7nm also referred to as Vega 20)
+  - gfx908 (Arcturus)
 
 For more information about ROCm and ROCdbgapi, please refer to the Release Notes
 file available at:
@@ -92,7 +92,12 @@ the above ``cmake`` is:
 make doc
 ````
 
-The generated documentation is put in:
+The generated ROCdbgapi library documentation is put in:
 
 - ``doc/html/index.html``
 - ``doc/latex/refman.pdf``
+
+If the ROCdbgapi library PDF documentation has been generated, ``make install``
+will place it in:
+
+- ``../install/share/doc/amd-dbgapi/amd-dbgapi.pdf``
