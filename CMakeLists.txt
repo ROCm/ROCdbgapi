@@ -108,7 +108,6 @@ install(FILES
   DESTINATION include)
 
 install(FILES
-  "README.md"
   "LICENSE.txt"
   DESTINATION share/doc/amd-dbgapi)
 
