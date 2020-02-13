@@ -83,10 +83,11 @@ Generating the AMD Debugger API documentation has the following prerequisites:
    prevents the PDF from being created. Both ``doxygen`` 1.8.11 and 1.8.17 can
    be built from source to avoid the issue.
 
-2. For Centos 7.6 the following adds the needed packages:
+2. For CentOS 7.6 the following adds the needed packages:
 
    ````shell
-   yum install -y doxygen graphviz texlive
+   yum install -y doxygen graphviz texlive texlive-xtab texlive-multirow \
+     texlive-sectsty texlive-tocloft
    ````
 
 An example command-line to generate the HTML and PDF documentation after running
