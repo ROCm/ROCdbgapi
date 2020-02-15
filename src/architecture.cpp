@@ -941,6 +941,8 @@ protected:
   }
 
 public:
+  bool has_wave32_vgprs () const final { return false; }
+  bool has_wave64_vgprs () const final { return true; }
   bool has_acc_vgprs () const override { return false; }
   bool can_halt_at_endpgm () const override { return false; }
   size_t largest_instruction_size () const override { return 8; }
@@ -1023,6 +1025,60 @@ public:
   }
 } gfx908_instance;
 
+class gfx10_base_t : public amdgcn_architecture_t
+{
+protected:
+  gfx10_base_t (uint8_t gfxip_minor, uint8_t gfxip_stepping)
+      : amdgcn_architecture_t (10, gfxip_minor, gfxip_stepping)
+  {
+  }
+
+public:
+  bool has_wave32_vgprs () const final { return true; }
+  bool has_wave64_vgprs () const final { return true; }
+  bool has_acc_vgprs () const override { return false; }
+  bool can_halt_at_endpgm () const override { return false; }
+  size_t largest_instruction_size () const override { return 20; }
+
+  compute_relaunch_abi_t compute_relaunch_abi () const override
+  {
+    return compute_relaunch_abi_t::GFX1000;
+  }
+};
+
+static class gfx1010_t final : public gfx10_base_t
+{
+public:
+  gfx1010_t () : gfx10_base_t (1, 0) {}
+
+  elf_amdgpu_machine_t elf_amdgpu_machine () const override
+  {
+    return EF_AMDGPU_MACH_AMDGCN_GFX1010;
+  }
+} gfx1010_instance;
+
+static class gfx1011_t final : public gfx10_base_t
+{
+public:
+  gfx1011_t () : gfx10_base_t (1, 1) {}
+
+  elf_amdgpu_machine_t elf_amdgpu_machine () const override
+  {
+    return EF_AMDGPU_MACH_AMDGCN_GFX1011;
+  }
+} gfx1011_instance;
+
+static class gfx1012_t final : public gfx10_base_t
+{
+public:
+  gfx1012_t () : gfx10_base_t (1, 2) {}
+
+  elf_amdgpu_machine_t elf_amdgpu_machine () const override
+  {
+    return EF_AMDGPU_MACH_AMDGCN_GFX1012;
+  }
+} gfx1012_instance;
+
 architecture_t::architecture_t (int gfxip_major, int gfxip_minor,
                                 int gfxip_stepping)
     : m_architecture_id (
@@ -1085,15 +1141,21 @@ architecture_t::register_name (amdgpu_regnum_t regnum) const
     {
       return string_printf ("s%ld", regnum - amdgpu_regnum_t::FIRST_SGPR);
     }
-  else if (regnum >= amdgpu_regnum_t::FIRST_VGPR
-           && regnum <= amdgpu_regnum_t::LAST_VGPR)
+  else if (has_wave32_vgprs () && regnum >= amdgpu_regnum_t::FIRST_VGPR_32
+           && regnum <= amdgpu_regnum_t::LAST_VGPR_32)
     {
-      return string_printf ("v%ld", regnum - amdgpu_regnum_t::FIRST_VGPR);
+      return string_printf ("v%ld", regnum - amdgpu_regnum_t::FIRST_VGPR_32);
     }
-  else if (has_acc_vgprs () && regnum >= amdgpu_regnum_t::FIRST_ACCVGPR
-           && regnum <= amdgpu_regnum_t::LAST_ACCVGPR)
+  else if (has_wave64_vgprs () && regnum >= amdgpu_regnum_t::FIRST_VGPR_64
+           && regnum <= amdgpu_regnum_t::LAST_VGPR_64)
     {
-      return string_printf ("acc%ld", regnum - amdgpu_regnum_t::FIRST_ACCVGPR);
+      return string_printf ("v%ld", regnum - amdgpu_regnum_t::FIRST_VGPR_64);
+    }
+  else if (has_acc_vgprs () && regnum >= amdgpu_regnum_t::FIRST_ACCVGPR_64
+           && regnum <= amdgpu_regnum_t::LAST_ACCVGPR_64)
+    {
+      return string_printf ("acc%ld",
+                            regnum - amdgpu_regnum_t::FIRST_ACCVGPR_64);
     }
   else if (regnum >= amdgpu_regnum_t::FIRST_TTMP
            && regnum <= amdgpu_regnum_t::LAST_TTMP)

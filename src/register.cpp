@@ -195,10 +195,11 @@ amd_dbgapi_architecture_register_list_1 (const architecture_t &architecture,
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   amdgpu_regnum_t i;
-  size_t count = AMDGPU_VGPRS_COUNT
-                 + (architecture.has_acc_vgprs () ? AMDGPU_ACCVGPRS_COUNT : 0)
-                 + AMDGPU_SGPRS_COUNT + AMDGPU_HWREGS_COUNT
-                 + AMDGPU_TTMPS_COUNT;
+  size_t count
+      = (architecture.has_wave32_vgprs () ? AMDGPU_VGPRS_32_COUNT : 0)
+        + (architecture.has_wave64_vgprs () ? AMDGPU_VGPRS_64_COUNT : 0)
+        + (architecture.has_acc_vgprs () ? AMDGPU_ACCVGPRS_64_COUNT : 0)
+        + AMDGPU_SGPRS_COUNT + AMDGPU_HWREGS_COUNT + AMDGPU_TTMPS_COUNT;
   size_t cur_pos = 0;
 
   amd_dbgapi_register_id_t *retval;
@@ -208,13 +209,21 @@ amd_dbgapi_architecture_register_list_1 (const architecture_t &architecture,
   if (!retval)
     return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
 
-  for (i = amdgpu_regnum_t::FIRST_VGPR; i <= amdgpu_regnum_t::LAST_VGPR; ++i)
-    retval[cur_pos++].handle
-        = static_cast<decltype (amd_dbgapi_register_id_t::handle)> (i);
+  if (architecture.has_wave32_vgprs ())
+    for (i = amdgpu_regnum_t::FIRST_VGPR_32;
+         i <= amdgpu_regnum_t::LAST_VGPR_32; ++i)
+      retval[cur_pos++].handle
+          = static_cast<decltype (amd_dbgapi_register_id_t::handle)> (i);
+
+  if (architecture.has_wave64_vgprs ())
+    for (i = amdgpu_regnum_t::FIRST_VGPR_64;
+         i <= amdgpu_regnum_t::LAST_VGPR_64; ++i)
+      retval[cur_pos++].handle
+          = static_cast<decltype (amd_dbgapi_register_id_t::handle)> (i);
 
   if (architecture.has_acc_vgprs ())
-    for (i = amdgpu_regnum_t::FIRST_ACCVGPR;
-         i <= amdgpu_regnum_t::LAST_ACCVGPR; ++i)
+    for (i = amdgpu_regnum_t::FIRST_ACCVGPR_64;
+         i <= amdgpu_regnum_t::LAST_ACCVGPR_64; ++i)
       retval[cur_pos++].handle
           = static_cast<decltype (amd_dbgapi_register_id_t::handle)> (i);
 
@@ -293,11 +302,15 @@ amd_dbgapi_register_is_in_register_class (
 
   bool is_in_register_class;
 
-  if ((regnum >= amdgpu_regnum_t::FIRST_VGPR
-       && regnum <= amdgpu_regnum_t::LAST_VGPR)
+  if ((architecture->has_wave32_vgprs ()
+       && regnum >= amdgpu_regnum_t::FIRST_VGPR_32
+       && regnum <= amdgpu_regnum_t::LAST_VGPR_32)
+      || (architecture->has_wave64_vgprs ()
+          && regnum >= amdgpu_regnum_t::FIRST_VGPR_64
+          && regnum <= amdgpu_regnum_t::LAST_VGPR_64)
       || (architecture->has_acc_vgprs ()
-          && regnum >= amdgpu_regnum_t::FIRST_ACCVGPR
-          && regnum <= amdgpu_regnum_t::LAST_ACCVGPR))
+          && regnum >= amdgpu_regnum_t::FIRST_ACCVGPR_64
+          && regnum <= amdgpu_regnum_t::LAST_ACCVGPR_64))
     {
       is_in_register_class = (regclass == REGISTER_CLASS_GENERAL
                               || regclass == REGISTER_CLASS_VECTOR);
@@ -371,8 +384,9 @@ amd_dbgapi_dwarf_register_to_register (
   else if (dwarf_register >= 256 && dwarf_register <= 511)
     {
       /* Vector registers.  */
-      regnum = amdgpu_regnum_t::FIRST_VGPR + (dwarf_register - 256);
+      regnum = amdgpu_regnum_t::FIRST_VGPR_64 + (dwarf_register - 256);
     }
+  /* FIXME: Add VGPR_32 registers.  */
   else
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 

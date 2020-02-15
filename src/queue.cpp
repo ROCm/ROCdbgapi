@@ -46,9 +46,11 @@ using utils::bit_extract;
 /* COMPUTE_RELAUNCH register fields.  */
 #define COMPUTE_RELAUNCH_PAYLOAD_VGPRS(x) bit_extract ((x), 0, 5)
 #define COMPUTE_RELAUNCH_PAYLOAD_SGPRS(x) bit_extract ((x), 6, 8)
-#define COMPUTE_RELAUNCH_PAYLOAD_LDS_SIZE(x) bit_extract ((x), 9, 17)
+#define COMPUTE_RELAUNCH_GFX9_PAYLOAD_LDS_SIZE(x) bit_extract ((x), 9, 17)
+#define COMPUTE_RELAUNCH_GFX10_PAYLOAD_LDS_SIZE(x) bit_extract ((x), 10, 17)
 #define COMPUTE_RELAUNCH_PAYLOAD_LAST_WAVE(x) bit_extract ((x), 16, 16)
 #define COMPUTE_RELAUNCH_PAYLOAD_FIRST_WAVE(x) bit_extract ((x), 17, 17)
+#define COMPUTE_RELAUNCH_GFX10_PAYLOAD_W32_EN(x) bit_extract ((x), 24, 24)
 #define COMPUTE_RELAUNCH_IS_EVENT(x) bit_extract ((x), 30, 30)
 #define COMPUTE_RELAUNCH_IS_STATE(x) bit_extract ((x), 31, 31)
 
@@ -157,8 +159,9 @@ queue_t::update_waves (bool always_assign_wave_ids)
      architecture class as the layout may change between gfxips.  */
   amd_dbgapi_global_address_t wave_area_address
       = m_kfd_queue_info.ctx_save_restore_address + header.wave_state_offset;
-  uint32_t n_vgprs = 0, n_accvgprs = 0, n_sgprs = 0, lds_size = 0;
-  constexpr uint32_t n_ttmps = 16, n_hwregs = 16, wave_lanes = 64;
+  uint32_t wave_lanes = 0, n_vgprs = 0, n_accvgprs = 0, n_sgprs = 0,
+           lds_size = 0, padding = 0;
+  constexpr uint32_t n_ttmps = 16, n_hwregs = 16;
 
   for (size_t i = 2; /* Skip the 2 PM4 packets at the top of the stack.  */
        i < header.ctrl_stack_size / sizeof (uint32_t); ++i)
@@ -172,12 +175,60 @@ queue_t::update_waves (bool always_assign_wave_ids)
         }
       else if (COMPUTE_RELAUNCH_IS_STATE (relaunch))
         {
-          /* vgprs are allocated in blocks of 4 registers.  */
-          n_vgprs = (1 + COMPUTE_RELAUNCH_PAYLOAD_VGPRS (relaunch)) * 4;
+          architecture_t::compute_relaunch_abi_t relaunch_abi
+              = agent ().architecture ().compute_relaunch_abi ();
 
-          switch (agent ().architecture ().compute_relaunch_abi ())
+          switch (relaunch_abi)
             {
             case architecture_t::compute_relaunch_abi_t::GFX900:
+            case architecture_t::compute_relaunch_abi_t::GFX908:
+              /* gfx9 only supports wave64 mode.  */
+              wave_lanes = 64;
+
+              /* vgprs are allocated in blocks of 4 registers.  */
+              n_vgprs = (1 + COMPUTE_RELAUNCH_PAYLOAD_VGPRS (relaunch)) * 4;
+
+              /* sgprs are allocated in blocks of 16 registers. Subtract
+                 the ttmps registers from this count, as they will be saved in
+                 a different area than the sgprs.  */
+              n_sgprs = (1 + COMPUTE_RELAUNCH_PAYLOAD_SGPRS (relaunch)) * 16
+                        - n_ttmps;
+              padding = n_ttmps * sizeof (uint32_t);
+
+              /* lds_size: 128 bytes granularity.  */
+              lds_size = COMPUTE_RELAUNCH_GFX9_PAYLOAD_LDS_SIZE (relaunch)
+                         * 128 * 4;
+              break;
+            case architecture_t::compute_relaunch_abi_t::GFX1000:
+              /* On gfx10, there are 2 COMPUTE_RELAUNCH registers for state.
+                 Skip COMPUTE_RELAUNCH2 as it is currently unused.  */
+              ++i;
+
+              wave_lanes
+                  = COMPUTE_RELAUNCH_GFX10_PAYLOAD_W32_EN (relaunch) ? 32 : 64;
+
+              /* vgprs are allocated in blocks of 4/8 registers (W64/32).  */
+              n_vgprs = (1 + COMPUTE_RELAUNCH_PAYLOAD_VGPRS (relaunch))
+                        * (256 / wave_lanes);
+
+              /* Each wave gets 128 scalar registers.  */
+              n_sgprs = 128;
+              padding = 0;
+
+              /* lds_size: 128 bytes granularity.  */
+              lds_size = COMPUTE_RELAUNCH_GFX10_PAYLOAD_LDS_SIZE (relaunch)
+                         * 128 * 4;
+              break;
+            default:
+              dbgapi_assert_not_reached (
+                  "compute_relaunch register ABI not supported");
+              break;
+            }
+
+          switch (relaunch_abi)
+            {
+            case architecture_t::compute_relaunch_abi_t::GFX900:
+            case architecture_t::compute_relaunch_abi_t::GFX1000:
               n_accvgprs = 0;
               break;
             case architecture_t::compute_relaunch_abi_t::GFX908:
@@ -189,14 +240,6 @@ queue_t::update_waves (bool always_assign_wave_ids)
               break;
             }
 
-          /* sgprs are allocated in blocks of 16 registers. Subtract
-             the ttmps registers from this count, as they will be saved in
-             a different area than the sgprs.  */
-          n_sgprs
-              = (1 + COMPUTE_RELAUNCH_PAYLOAD_SGPRS (relaunch)) * 16 - n_ttmps;
-
-          /* lds_size: 128 bytes granularity.  */
-          lds_size = COMPUTE_RELAUNCH_PAYLOAD_LDS_SIZE (relaunch) * 128 * 4;
           continue;
         }
 
@@ -209,7 +252,7 @@ queue_t::update_waves (bool always_assign_wave_ids)
           + n_hwregs * sizeof (uint32_t)    /* hwregs save area */
           + n_ttmps * sizeof (uint32_t)     /* ttmp sgprs save area */
           + (first_in_group ? lds_size : 0) /* lds save area */
-          + 16 * sizeof (uint32_t);
+          + padding;
 
       wave_area_address -= wave_area_size;
 

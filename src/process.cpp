@@ -74,7 +74,8 @@ constexpr struct gfxip_lookup_table
 } gfxip_lookup_table[]
     = { { "vega10", { 9, 0, 0 }, 432 },  { "raven", { 9, 0, 2 }, 0 },
         { "vega12", { 9, 0, 4 }, 0 },    { "vega20", { 9, 0, 6 }, 432 },
-        { "arcturus", { 9, 0, 8 }, 34 }, { "navi10", { 10, 1, 0 }, 0 } };
+        { "arcturus", { 9, 0, 8 }, 34 }, { "navi10", { 10, 1, 0 }, 0 },
+        { "navi12", { 10, 1, 1 }, 0 },   { "navi14", { 10, 1, 2 }, 0 } };
 
 namespace detail
 {

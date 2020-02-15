@@ -65,6 +65,7 @@ public:
   {
     GFX900,
     GFX908,
+    GFX1000,
   };
 
 private:
@@ -85,6 +86,8 @@ public:
 
   /* FIXME: add SQ prefetch instruction bytes size.  */
 
+  virtual bool has_wave32_vgprs () const = 0;
+  virtual bool has_wave64_vgprs () const = 0;
   virtual bool has_acc_vgprs () const = 0;
   virtual compute_relaunch_abi_t compute_relaunch_abi () const = 0;
   virtual bool can_halt_at_endpgm () const = 0;

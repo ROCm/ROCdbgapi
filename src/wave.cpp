@@ -176,30 +176,46 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
 bool
 wave_t::register_available (amdgpu_regnum_t regnum) const
 {
-  if (regnum >= amdgpu_regnum_t::FIRST_VGPR
-      && regnum <= amdgpu_regnum_t::LAST_VGPR)
+  if (regnum >= amdgpu_regnum_t::FIRST_VGPR_32
+      && regnum <= amdgpu_regnum_t::LAST_VGPR_32)
     {
-      if ((regnum - amdgpu_regnum_t::V0) >= m_vgpr_count)
-        return false;
+      return lane_count () == 32
+             && ((regnum - amdgpu_regnum_t::V0_32) < m_vgpr_count);
     }
-  else if (architecture ().has_acc_vgprs ()
-           && regnum >= amdgpu_regnum_t::FIRST_ACCVGPR
-           && regnum <= amdgpu_regnum_t::LAST_ACCVGPR)
+  if (regnum >= amdgpu_regnum_t::FIRST_VGPR_64
+      && regnum <= amdgpu_regnum_t::LAST_VGPR_64)
     {
-      if ((regnum - amdgpu_regnum_t::ACC0) >= m_accvgpr_count)
-        return false;
+      return lane_count () == 64
+             && ((regnum - amdgpu_regnum_t::V0_64) < m_vgpr_count);
     }
-  else if (regnum >= amdgpu_regnum_t::FIRST_SGPR
-           && regnum <= amdgpu_regnum_t::LAST_SGPR)
+  if (regnum >= amdgpu_regnum_t::FIRST_ACCVGPR_64
+      && regnum <= amdgpu_regnum_t::LAST_ACCVGPR_64)
     {
-      if ((regnum - amdgpu_regnum_t::S0) >= std::min (102u, m_sgpr_count))
-        return false;
+      return lane_count () == 64 && architecture ().has_acc_vgprs ()
+             && ((regnum - amdgpu_regnum_t::ACC0_64) < m_accvgpr_count);
     }
-  else if (regnum < amdgpu_regnum_t::FIRST_RAW
-           || regnum > amdgpu_regnum_t::LAST_PSEUDO)
-    return false;
+  if (regnum >= amdgpu_regnum_t::FIRST_SGPR
+      && regnum <= amdgpu_regnum_t::LAST_SGPR)
+    {
+      return ((regnum - amdgpu_regnum_t::S0) < std::min (102u, m_sgpr_count));
+    }
+  if (regnum >= amdgpu_regnum_t::FIRST_HWREG
+      && regnum <= amdgpu_regnum_t::LAST_HWREG)
+    {
+      return true;
+    }
+  if (regnum >= amdgpu_regnum_t::FIRST_TTMP
+      && regnum <= amdgpu_regnum_t::LAST_TTMP)
+    {
+      return true;
+    }
+  if (regnum >= amdgpu_regnum_t::FIRST_PSEUDO
+      && regnum <= amdgpu_regnum_t::LAST_PSEUDO)
+    {
+      return true;
+    }
 
-  return true;
+  return false;
 }
 
 std::string
@@ -215,21 +231,30 @@ wave_t::register_offset_and_size (amdgpu_regnum_t regnum) const
   if (!register_available (regnum))
     return std::make_pair (0, 0);
 
-  if (regnum >= amdgpu_regnum_t::FIRST_VGPR
-      && regnum <= amdgpu_regnum_t::LAST_VGPR)
+  if (lane_count () == 32 && regnum >= amdgpu_regnum_t::FIRST_VGPR_32
+      && regnum <= amdgpu_regnum_t::LAST_VGPR_32)
     {
       size_t vgprs_offset = 0;
-      size_t vgpr_size = sizeof (int32_t) * m_lane_count;
-      size_t vgpr_num = regnum - amdgpu_regnum_t::V0;
+      size_t vgpr_size = sizeof (int32_t) * 32;
+      size_t vgpr_num = regnum - amdgpu_regnum_t::V0_32;
 
       return std::make_pair (vgprs_offset + vgpr_num * vgpr_size, vgpr_size);
     }
-  else if (regnum >= amdgpu_regnum_t::FIRST_ACCVGPR
-           && regnum <= amdgpu_regnum_t::LAST_ACCVGPR)
+  else if (lane_count () == 64 && regnum >= amdgpu_regnum_t::FIRST_VGPR_64
+           && regnum <= amdgpu_regnum_t::LAST_VGPR_64)
+    {
+      size_t vgprs_offset = 0;
+      size_t vgpr_size = sizeof (int32_t) * 64;
+      size_t vgpr_num = regnum - amdgpu_regnum_t::V0_64;
+
+      return std::make_pair (vgprs_offset + vgpr_num * vgpr_size, vgpr_size);
+    }
+  else if (lane_count () == 64 && regnum >= amdgpu_regnum_t::FIRST_ACCVGPR_64
+           && regnum <= amdgpu_regnum_t::LAST_ACCVGPR_64)
     {
       size_t accvgprs_offset = m_vgpr_count * sizeof (int32_t) * m_lane_count;
       size_t accvgpr_size = sizeof (int32_t) * m_lane_count;
-      size_t accvgpr_num = regnum - amdgpu_regnum_t::ACC0;
+      size_t accvgpr_num = regnum - amdgpu_regnum_t::ACC0_64;
 
       return std::make_pair (accvgprs_offset + accvgpr_num * accvgpr_size,
                              accvgpr_size);
@@ -274,6 +299,8 @@ wave_t::register_offset_and_size (amdgpu_regnum_t regnum) const
   return std::make_pair (0, 0);
 }
 
+/* TODO: Move this to architecture_t.  Needs pseudo regs to handle EXEC_32 and
+   EXEC_64.  */
 std::string
 wave_t::register_type (amdgpu_regnum_t regnum) const
 {
@@ -281,13 +308,20 @@ wave_t::register_type (amdgpu_regnum_t regnum) const
     return "";
 
   /* Vector registers (arch and acc).  */
-  if ((regnum >= amdgpu_regnum_t::FIRST_VGPR
-       && regnum <= amdgpu_regnum_t::LAST_VGPR)
-      || (architecture ().has_acc_vgprs ()
-          && regnum >= amdgpu_regnum_t::FIRST_ACCVGPR
-          && regnum <= amdgpu_regnum_t::LAST_ACCVGPR))
+  if (lane_count () == 32
+      && (regnum >= amdgpu_regnum_t::FIRST_VGPR_32
+          && regnum <= amdgpu_regnum_t::LAST_VGPR_32))
     {
-      return string_printf ("int32_t[%d]", lane_count ());
+      return "int32_t[32]";
+    }
+  else if (lane_count () == 64
+           && ((regnum >= amdgpu_regnum_t::FIRST_VGPR_64
+                && regnum <= amdgpu_regnum_t::LAST_VGPR_64)
+               || (architecture ().has_acc_vgprs ()
+                   && regnum >= amdgpu_regnum_t::FIRST_ACCVGPR_64
+                   && regnum <= amdgpu_regnum_t::LAST_ACCVGPR_64)))
+    {
+      return "int32_t[64]";
     }
   /* Scalar registers.  */
   else if (regnum >= amdgpu_regnum_t::FIRST_SGPR
@@ -313,10 +347,17 @@ wave_t::register_type (amdgpu_regnum_t regnum) const
         }
     }
   /* Everything else (hwregs, ttmps).  */
-  else
+  else if ((regnum >= amdgpu_regnum_t::FIRST_HWREG
+            && regnum <= amdgpu_regnum_t::LAST_HWREG)
+           || (regnum >= amdgpu_regnum_t::FIRST_TTMP
+               && regnum <= amdgpu_regnum_t::LAST_TTMP)
+           || (regnum >= amdgpu_regnum_t::FIRST_PSEUDO
+               && regnum <= amdgpu_regnum_t::LAST_PSEUDO))
     {
       return "uint32_t";
     }
+
+  return "";
 }
 
 amd_dbgapi_status_t

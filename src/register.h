@@ -33,21 +33,35 @@ namespace dbgapi
 enum class amdgpu_regnum_t : decltype (amd_dbgapi_register_id_t::handle)
 {
   FIRST_RAW = 0,
-  FIRST_VGPR = FIRST_RAW,
+  FIRST_VGPR_32 = FIRST_RAW,
 
-  /* 32-bit Vector registers (vgprs).  */
-  V0 = FIRST_VGPR,
-  V255 = V0 + 255,
+  /* 32-bit Vector registers (vgprs) for wave32 wavefronts.  */
+  V0_32 = FIRST_VGPR_32,
+  V255_32 = V0_32 + 255,
 
-  LAST_VGPR = V255,
-  FIRST_ACCVGPR = LAST_VGPR + 1,
+  LAST_VGPR_32 = V255_32,
+  FIRST_VGPR_64 = LAST_VGPR_32 + 1,
 
-  /* 32-bit Accumulation Vector registers (accvgprs).  */
-  ACC0 = FIRST_ACCVGPR,
-  ACC255 = ACC0 + 255,
+  /* 32-bit Vector registers (vgprs) for wave64 wavefronts.  */
+  V0_64 = FIRST_VGPR_64,
+  V255_64 = V0_64 + 255,
 
-  LAST_ACCVGPR = ACC255,
-  FIRST_SGPR = LAST_ACCVGPR + 1,
+  LAST_VGPR_64 = V255_64,
+  FIRST_ACCVGPR_32 = LAST_VGPR_64 + 1,
+
+  /* 32-bit Accumulation Vector registers (accvgprs) for wave64 wavefronts  */
+  ACC0_32 = FIRST_ACCVGPR_32,
+  ACC255_32 = ACC0_32 + 255,
+
+  LAST_ACCVGPR_32 = ACC255_32,
+  FIRST_ACCVGPR_64 = LAST_ACCVGPR_32 + 1,
+
+  /* 32-bit Accumulation Vector registers (accvgprs) for wave64 wavefronts  */
+  ACC0_64 = FIRST_ACCVGPR_64,
+  ACC255_64 = ACC0_64 + 255,
+
+  LAST_ACCVGPR_64 = ACC255_64,
+  FIRST_SGPR = LAST_ACCVGPR_64 + 1,
 
   /* 32-bit Scalar registers (sgprs).  */
   S0 = FIRST_SGPR,
@@ -120,10 +134,12 @@ operator++ (amdgpu_regnum_t &regnum, int)
   return prev;
 }
 
-constexpr size_t AMDGPU_VGPRS_COUNT
-    = amdgpu_regnum_t::LAST_VGPR - amdgpu_regnum_t::FIRST_VGPR + 1;
-constexpr size_t AMDGPU_ACCVGPRS_COUNT
-    = amdgpu_regnum_t::LAST_ACCVGPR - amdgpu_regnum_t::FIRST_ACCVGPR + 1;
+constexpr size_t AMDGPU_VGPRS_32_COUNT
+    = amdgpu_regnum_t::LAST_VGPR_32 - amdgpu_regnum_t::FIRST_VGPR_32 + 1;
+constexpr size_t AMDGPU_VGPRS_64_COUNT
+    = amdgpu_regnum_t::LAST_VGPR_64 - amdgpu_regnum_t::FIRST_VGPR_64 + 1;
+constexpr size_t AMDGPU_ACCVGPRS_64_COUNT
+    = amdgpu_regnum_t::LAST_ACCVGPR_64 - amdgpu_regnum_t::FIRST_ACCVGPR_64 + 1;
 constexpr size_t AMDGPU_SGPRS_COUNT
     = amdgpu_regnum_t::LAST_SGPR - amdgpu_regnum_t::FIRST_SGPR + 1;
 constexpr size_t AMDGPU_HWREGS_COUNT
