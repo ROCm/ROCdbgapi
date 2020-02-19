@@ -131,6 +131,7 @@ public:
                                      int gfxip_stepping);
 
   std::string register_name (amdgpu_regnum_t regnum) const;
+  std::string register_type (amdgpu_regnum_t regnum) const;
 
   size_t instruction_size (const std::vector<uint8_t> &bytes) const;
   amd_dbgapi_status_t disassemble_instruction (

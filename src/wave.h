@@ -88,8 +88,14 @@ public:
 
   bool is_register_cached (amdgpu_regnum_t regnum) const
   {
-    return m_context_save_address && regnum >= amdgpu_regnum_t::FIRST_HWREG
-           && regnum <= amdgpu_regnum_t::LAST_HWREG;
+    return m_context_save_address
+           && (regnum == amdgpu_regnum_t::PC
+               || regnum == amdgpu_regnum_t::EXEC_32
+               || regnum == amdgpu_regnum_t::EXEC_64
+               || regnum == amdgpu_regnum_t::XNACK_MASK_32
+               || regnum == amdgpu_regnum_t::XNACK_MASK_64
+               || (regnum >= amdgpu_regnum_t::FIRST_HWREG
+                   && regnum <= amdgpu_regnum_t::LAST_HWREG));
   }
 
   amd_dbgapi_status_t read_register (amdgpu_regnum_t regnum, size_t offset,
@@ -123,6 +129,13 @@ public:
   register_offset_and_size (amdgpu_regnum_t regnum) const;
 
 private:
+  amd_dbgapi_status_t read_pseudo_register (amdgpu_regnum_t regnum,
+                                            size_t offset, size_t value_size,
+                                            void *value) const;
+  amd_dbgapi_status_t write_pseudo_register (amdgpu_regnum_t regnum,
+                                             size_t offset, size_t value_size,
+                                             const void *value);
+
   epoch_t m_mark{ 0 };
   amd_dbgapi_wave_state_t m_state{ AMD_DBGAPI_WAVE_STATE_RUN };
   amd_dbgapi_wave_stop_reason_t m_stop_reason{

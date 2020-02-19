@@ -239,7 +239,7 @@ amdgcn_architecture_t::scalar_operand_to_regnum (wave_t &wave, int operand)
     }
   else if (operand >= 126 && operand <= 127)
     {
-      return amdgpu_regnum_t::EXEC + (operand - 126);
+      return amdgpu_regnum_t::EXEC_32 + (operand - 126);
     }
   else
     {
@@ -1141,24 +1141,29 @@ architecture_t::register_name (amdgpu_regnum_t regnum) const
     {
       return string_printf ("s%ld", regnum - amdgpu_regnum_t::FIRST_SGPR);
     }
-  else if (has_wave32_vgprs () && regnum >= amdgpu_regnum_t::FIRST_VGPR_32
-           && regnum <= amdgpu_regnum_t::LAST_VGPR_32)
+  if (regnum >= amdgpu_regnum_t::FIRST_VGPR_32
+      && regnum <= amdgpu_regnum_t::LAST_VGPR_32)
     {
-      return string_printf ("v%ld", regnum - amdgpu_regnum_t::FIRST_VGPR_32);
+      return has_wave32_vgprs () ? string_printf (
+                 "v%ld", regnum - amdgpu_regnum_t::FIRST_VGPR_32)
+                                 : "";
     }
-  else if (has_wave64_vgprs () && regnum >= amdgpu_regnum_t::FIRST_VGPR_64
-           && regnum <= amdgpu_regnum_t::LAST_VGPR_64)
+  if (regnum >= amdgpu_regnum_t::FIRST_VGPR_64
+      && regnum <= amdgpu_regnum_t::LAST_VGPR_64)
     {
-      return string_printf ("v%ld", regnum - amdgpu_regnum_t::FIRST_VGPR_64);
+      return has_wave64_vgprs () ? string_printf (
+                 "v%ld", regnum - amdgpu_regnum_t::FIRST_VGPR_64)
+                                 : "";
     }
-  else if (has_acc_vgprs () && regnum >= amdgpu_regnum_t::FIRST_ACCVGPR_64
-           && regnum <= amdgpu_regnum_t::LAST_ACCVGPR_64)
+  if (regnum >= amdgpu_regnum_t::FIRST_ACCVGPR_64
+      && regnum <= amdgpu_regnum_t::LAST_ACCVGPR_64)
     {
-      return string_printf ("acc%ld",
-                            regnum - amdgpu_regnum_t::FIRST_ACCVGPR_64);
+      return has_wave64_vgprs () && has_acc_vgprs () ? string_printf (
+                 "acc%ld", regnum - amdgpu_regnum_t::FIRST_ACCVGPR_64)
+                                                     : "";
     }
-  else if (regnum >= amdgpu_regnum_t::FIRST_TTMP
-           && regnum <= amdgpu_regnum_t::LAST_TTMP)
+  if (regnum >= amdgpu_regnum_t::FIRST_TTMP
+      && regnum <= amdgpu_regnum_t::LAST_TTMP)
     {
       switch (regnum)
         {
@@ -1173,37 +1178,95 @@ architecture_t::register_name (amdgpu_regnum_t regnum) const
         case amdgpu_regnum_t::TTMP13:
           return string_printf ("ttmp%ld",
                                 regnum - amdgpu_regnum_t::FIRST_TTMP);
-          break;
         default:
-          break;
+          return "";
         }
     }
-  else if (regnum >= amdgpu_regnum_t::FIRST_HWREG
-           && regnum <= amdgpu_regnum_t::LAST_HWREG)
+  if (regnum >= amdgpu_regnum_t::FIRST_HWREG
+      && regnum <= amdgpu_regnum_t::LAST_HWREG)
     {
       switch (regnum)
         {
         case amdgpu_regnum_t::M0:
           return "m0";
-          break;
-        case amdgpu_regnum_t::PC:
-          return "pc";
-          break;
-        case amdgpu_regnum_t::EXEC:
-          return "exec";
-          break;
         case amdgpu_regnum_t::STATUS:
           return "status";
-          break;
         case amdgpu_regnum_t::TRAPSTS:
           return "trapsts";
-          break;
         case amdgpu_regnum_t::MODE:
           return "mode";
-          break;
         default:
-          break;
+          return "";
         }
+    }
+  if (regnum >= amdgpu_regnum_t::FIRST_PSEUDO
+      && regnum <= amdgpu_regnum_t::LAST_PSEUDO)
+    {
+      switch (regnum)
+        {
+        case amdgpu_regnum_t::PC:
+          return "pc";
+        case amdgpu_regnum_t::EXEC_32:
+          return has_wave32_vgprs () ? "exec" : "";
+        case amdgpu_regnum_t::EXEC_64:
+          return has_wave64_vgprs () ? "exec" : "";
+        case amdgpu_regnum_t::VCC_32:
+          return has_wave32_vgprs () ? "vcc" : "";
+        case amdgpu_regnum_t::VCC_64:
+          return has_wave64_vgprs () ? "vcc" : "";
+        default:
+          return "";
+        }
+    }
+
+  return "";
+}
+
+std::string
+architecture_t::register_type (amdgpu_regnum_t regnum) const
+{
+  /* Vector registers (arch and acc).  */
+  if (regnum >= amdgpu_regnum_t::FIRST_VGPR_32
+      && regnum <= amdgpu_regnum_t::LAST_VGPR_32)
+    {
+      return has_wave32_vgprs () ? "int32_t[32]" : "";
+    }
+  if (regnum >= amdgpu_regnum_t::FIRST_VGPR_64
+      && regnum <= amdgpu_regnum_t::LAST_VGPR_64)
+    {
+      return has_wave64_vgprs () ? "int32_t[64]" : "";
+    }
+  if (regnum >= amdgpu_regnum_t::FIRST_ACCVGPR_64
+      && regnum <= amdgpu_regnum_t::LAST_ACCVGPR_64)
+    {
+      return has_wave64_vgprs () && has_acc_vgprs () ? "int32_t[64]" : "";
+    }
+  /* Scalar registers.  */
+  if (regnum >= amdgpu_regnum_t::FIRST_SGPR
+      && regnum <= amdgpu_regnum_t::LAST_SGPR)
+    {
+      return "int32_t";
+    }
+  /* Everything else (hwregs, ttmps).  */
+  if ((regnum >= amdgpu_regnum_t::FIRST_HWREG
+       && regnum <= amdgpu_regnum_t::LAST_HWREG)
+      || (regnum >= amdgpu_regnum_t::FIRST_TTMP
+          && regnum <= amdgpu_regnum_t::LAST_TTMP))
+    {
+      return "uint32_t";
+    }
+  /* Pseudo registers.  */
+  if (regnum == amdgpu_regnum_t::PC)
+    {
+      return "void (*)()";
+    }
+  if (regnum == amdgpu_regnum_t::EXEC_32 || regnum == amdgpu_regnum_t::VCC_32)
+    {
+      return has_wave32_vgprs () ? "uint32_t" : "";
+    }
+  if (regnum == amdgpu_regnum_t::EXEC_64 || regnum == amdgpu_regnum_t::VCC_64)
+    {
+      return has_wave64_vgprs () ? "uint64_t" : "";
     }
 
   return "";

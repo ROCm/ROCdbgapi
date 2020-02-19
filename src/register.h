@@ -71,14 +71,20 @@ enum class amdgpu_regnum_t : decltype (amd_dbgapi_register_id_t::handle)
   FIRST_HWREG = LAST_SGPR + 1,
 
   /* Hardware registers (hwregs).  */
-  M0 = FIRST_HWREG,   /* Memory Descriptor.  */
-  PC,                 /* Program counter.  */
-  EXEC = PC + 2,      /* Execution mask.  */
-  STATUS = EXEC + 2,  /* Status register.  */
-  TRAPSTS,            /* Exception status registers.  */
-  MODE = TRAPSTS + 3, /* Mode register.  */
+  M0 = FIRST_HWREG, /* Memory Descriptor.  */
+  PC_LO,            /* Program counter (lower 32-bit).  */
+  PC_HI,            /* Program counter (higher 32-bit).  */
+  EXEC_LO,          /* Execution mask (lower 32-bit).  */
+  EXEC_HI,          /* Execution mask (higher 32-bit).  */
+  STATUS,           /* Status register.  */
+  TRAPSTS,          /* Exception status registers.  */
+  XNACK_MASK_LO,    /* XNACK mask (lower 32-bit).  */
+  XNACK_MASK_HI,    /* XNACK mask (lower 32-bit).  */
+  MODE,             /* Mode register.  */
+  HWREG10,
+  HWREG15 = HWREG10 + 5,
 
-  LAST_HWREG = MODE,
+  LAST_HWREG = HWREG15,
   FIRST_TTMP = LAST_HWREG + 1,
 
   /* Trap temporary registers (ttmps).  */
@@ -98,9 +104,14 @@ enum class amdgpu_regnum_t : decltype (amd_dbgapi_register_id_t::handle)
   FIRST_PSEUDO = LAST_RAW + 1,
 
   /* Pseudo registers.  */
-  VCC = FIRST_PSEUDO, /* Vector Condition Code.  */
-  XNACK_MASK,         /* XNACK mask.  */
-  FLAT_SCRATCH,       /* Flat scratch.  */
+  PC = FIRST_PSEUDO, /* Program counter.  */
+  EXEC_32,           /* Execution mask for wave32 wavefronts.  */
+  EXEC_64,           /* Execution mask for wave64 wavefronts.  */
+  VCC_32,            /* Vector Condition Code for wave32 wavefronts.  */
+  VCC_64,            /* Vector Condition Code for wave64 wavefronts.  */
+  XNACK_MASK_32,     /* XNACK mask for wave32 wavefronts.  */
+  XNACK_MASK_64,     /* XNACK mask for wave64 wavefronts.  */
+  FLAT_SCRATCH,      /* Flat scratch.  */
 
   LAST_PSEUDO = FLAT_SCRATCH,
 };
@@ -117,6 +128,13 @@ operator+ (amdgpu_regnum_t lhs, int rhs)
 {
   return static_cast<amdgpu_regnum_t> (
       static_cast<decltype (amd_dbgapi_register_id_t::handle)> (lhs) + rhs);
+}
+
+constexpr amdgpu_regnum_t
+operator- (amdgpu_regnum_t lhs, int rhs)
+{
+  return static_cast<amdgpu_regnum_t> (
+      static_cast<decltype (amd_dbgapi_register_id_t::handle)> (lhs) - rhs);
 }
 
 static inline amdgpu_regnum_t

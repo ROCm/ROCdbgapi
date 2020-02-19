@@ -209,10 +209,17 @@ wave_t::register_available (amdgpu_regnum_t regnum) const
     {
       return true;
     }
-  if (regnum >= amdgpu_regnum_t::FIRST_PSEUDO
-      && regnum <= amdgpu_regnum_t::LAST_PSEUDO)
+  if (regnum == amdgpu_regnum_t::PC)
     {
       return true;
+    }
+  if (regnum == amdgpu_regnum_t::EXEC_32 || regnum == amdgpu_regnum_t::VCC_32)
+    {
+      return lane_count () == 32;
+    }
+  if (regnum == amdgpu_regnum_t::EXEC_64 || regnum == amdgpu_regnum_t::VCC_64)
+    {
+      return lane_count () == 64;
     }
 
   return false;
@@ -221,15 +228,48 @@ wave_t::register_available (amdgpu_regnum_t regnum) const
 std::string
 wave_t::register_name (amdgpu_regnum_t regnum) const
 {
-  return register_available (regnum) ? architecture ().register_name (regnum)
-                                     : "";
+  if (!register_available (regnum))
+    return "";
+
+  /* Hide the upper SGPRs architected to hold the special values of  VCC,
+     FIXME: XNACK_MASK, FLAT_SCRATCH.  */
+
+  /* TODO: make an architecture query to return the number of special
+     registers.  */
+
+  if (regnum >= amdgpu_regnum_t::FIRST_SGPR
+      && regnum <= amdgpu_regnum_t::LAST_SGPR
+      && ((regnum - amdgpu_regnum_t::S0) >= (m_sgpr_count - 2)))
+    return "";
+
+  return architecture ().register_name (regnum);
+}
+
+std::string
+wave_t::register_type (amdgpu_regnum_t regnum) const
+{
+  if (!register_available (regnum))
+    return "";
+
+  /* Hide the upper SGPRs architected to hold the special values of  VCC,
+     FIXME: XNACK_MASK, FLAT_SCRATCH.  */
+
+  /* TODO: make an architecture query to return the number of special
+     registers.  */
+
+  if (regnum >= amdgpu_regnum_t::FIRST_SGPR
+      && regnum <= amdgpu_regnum_t::LAST_SGPR
+      && ((regnum - amdgpu_regnum_t::S0) >= (m_sgpr_count - 2)))
+    return "";
+
+  return architecture ().register_type (regnum);
 }
 
 std::pair<size_t, size_t>
 wave_t::register_offset_and_size (amdgpu_regnum_t regnum) const
 {
   if (!register_available (regnum))
-    return std::make_pair (0, 0);
+    return std::make_pair (-1, 0);
 
   if (lane_count () == 32 && regnum >= amdgpu_regnum_t::FIRST_VGPR_32
       && regnum <= amdgpu_regnum_t::LAST_VGPR_32)
@@ -275,10 +315,7 @@ wave_t::register_offset_and_size (amdgpu_regnum_t regnum) const
       size_t hwregs_offset
           = (m_vgpr_count + m_accvgpr_count) * sizeof (int32_t) * m_lane_count
             + m_sgpr_count * sizeof (int32_t);
-      size_t hwreg_size
-          = (regnum == amdgpu_regnum_t::PC || regnum == amdgpu_regnum_t::EXEC)
-                ? sizeof (uint64_t)
-                : sizeof (uint32_t);
+      size_t hwreg_size = sizeof (uint32_t);
       size_t hwreg_num = regnum - amdgpu_regnum_t::FIRST_HWREG;
 
       return std::make_pair (hwregs_offset + hwreg_num * sizeof (uint32_t),
@@ -295,75 +332,34 @@ wave_t::register_offset_and_size (amdgpu_regnum_t regnum) const
       return std::make_pair (ttmps_offset + ttmp_num * sizeof (uint32_t),
                              sizeof (uint32_t));
     }
-
-  return std::make_pair (0, 0);
-}
-
-/* TODO: Move this to architecture_t.  Needs pseudo regs to handle EXEC_32 and
-   EXEC_64.  */
-std::string
-wave_t::register_type (amdgpu_regnum_t regnum) const
-{
-  if (!register_available (regnum))
-    return "";
-
-  /* Vector registers (arch and acc).  */
-  if (lane_count () == 32
-      && (regnum >= amdgpu_regnum_t::FIRST_VGPR_32
-          && regnum <= amdgpu_regnum_t::LAST_VGPR_32))
-    {
-      return "int32_t[32]";
-    }
-  else if (lane_count () == 64
-           && ((regnum >= amdgpu_regnum_t::FIRST_VGPR_64
-                && regnum <= amdgpu_regnum_t::LAST_VGPR_64)
-               || (architecture ().has_acc_vgprs ()
-                   && regnum >= amdgpu_regnum_t::FIRST_ACCVGPR_64
-                   && regnum <= amdgpu_regnum_t::LAST_ACCVGPR_64)))
-    {
-      return "int32_t[64]";
-    }
-  /* Scalar registers.  */
-  else if (regnum >= amdgpu_regnum_t::FIRST_SGPR
-           && regnum <= amdgpu_regnum_t::LAST_SGPR)
-    {
-      return "int32_t";
-    }
-  /* Program counter.  */
   else if (regnum == amdgpu_regnum_t::PC)
     {
-      return "void (*)()";
+      return std::make_pair (-1, sizeof (void (*) ()));
     }
-  else if (regnum == amdgpu_regnum_t::EXEC)
+  else if (lane_count () == 32
+           && (regnum == amdgpu_regnum_t::EXEC_32
+               || regnum == amdgpu_regnum_t::VCC_32))
     {
-      switch (lane_count ())
-        {
-        case 32:
-          return "uint32_t";
-        case 64:
-          return "uint64_t";
-        default:
-          error ("wave size = %d is not supported", lane_count ());
-        }
+      return std::make_pair (-1, sizeof (uint32_t));
     }
-  /* Everything else (hwregs, ttmps).  */
-  else if ((regnum >= amdgpu_regnum_t::FIRST_HWREG
-            && regnum <= amdgpu_regnum_t::LAST_HWREG)
-           || (regnum >= amdgpu_regnum_t::FIRST_TTMP
-               && regnum <= amdgpu_regnum_t::LAST_TTMP)
-           || (regnum >= amdgpu_regnum_t::FIRST_PSEUDO
-               && regnum <= amdgpu_regnum_t::LAST_PSEUDO))
+  else if (lane_count () == 64
+           && (regnum == amdgpu_regnum_t::EXEC_64
+               || regnum == amdgpu_regnum_t::VCC_64))
     {
-      return "uint32_t";
+      return std::make_pair (-1, sizeof (uint64_t));
     }
 
-  return "";
+  return std::make_pair (-1, 0);
 }
 
 amd_dbgapi_status_t
 wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
                        size_t value_size, void *value) const
 {
+  if (regnum >= amdgpu_regnum_t::FIRST_PSEUDO
+      && regnum <= amdgpu_regnum_t::LAST_PSEUDO)
+    return read_pseudo_register (regnum, offset, value_size, value);
+
   size_t reg_offset, reg_size;
   std::tie (reg_offset, reg_size) = register_offset_and_size (regnum);
 
@@ -393,9 +389,105 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
 }
 
 amd_dbgapi_status_t
+wave_t::read_pseudo_register (amdgpu_regnum_t regnum, size_t offset,
+                              size_t value_size, void *value) const
+{
+  if (lane_count () == 32
+      && (regnum == amdgpu_regnum_t::EXEC_32
+          || regnum == amdgpu_regnum_t::VCC_32))
+    {
+      amdgpu_regnum_t regnum_lo;
+
+      switch (regnum)
+        {
+        case amdgpu_regnum_t::EXEC_32:
+          regnum_lo = amdgpu_regnum_t::EXEC_LO;
+          break;
+        case amdgpu_regnum_t::VCC_32:
+          regnum_lo = amdgpu_regnum_t::S0 + sgpr_count () - 2;
+          break;
+        default:
+          return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
+        }
+
+      return read_register (regnum_lo, offset, value_size, value);
+    }
+  /* Read registers that are lo/hi pairs.  */
+  else if (regnum == amdgpu_regnum_t::PC
+           || (lane_count () == 64
+               && (regnum == amdgpu_regnum_t::EXEC_64
+                   || regnum == amdgpu_regnum_t::VCC_64)))
+    {
+      amdgpu_regnum_t regnum_lo;
+      uint32_t reg[2];
+
+      switch (regnum)
+        {
+        case amdgpu_regnum_t::PC:
+          regnum_lo = amdgpu_regnum_t::PC_LO;
+          break;
+        case amdgpu_regnum_t::EXEC_64:
+          regnum_lo = amdgpu_regnum_t::EXEC_LO;
+          break;
+        case amdgpu_regnum_t::VCC_64:
+          regnum_lo = amdgpu_regnum_t::S0 + sgpr_count () - 2;
+          break;
+        default:
+          return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
+        }
+      amdgpu_regnum_t regnum_hi = regnum_lo + 1;
+
+      if (!value_size || (offset + value_size) > sizeof (reg))
+        return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE;
+
+      size_t saved_offset = offset;
+      size_t saved_value_size = value_size;
+      amd_dbgapi_status_t status;
+
+      /* Read the partial lo register.  */
+      if (offset < sizeof (reg[0]))
+        {
+          size_t size_lo = (offset + value_size) > sizeof (reg[0])
+                               ? sizeof (reg[0]) - offset
+                               : value_size;
+
+          if ((status = read_register (regnum_lo, offset, size_lo, &reg[0]))
+              != AMD_DBGAPI_STATUS_SUCCESS)
+            return status;
+
+          value_size -= size_lo;
+          offset = sizeof (reg[0]);
+        }
+
+      /* Read the partial hi register.  */
+      if (value_size)
+        {
+          if ((status = read_register (regnum_hi, offset - sizeof (reg[0]),
+                                       value_size, &reg[1]))
+              != AMD_DBGAPI_STATUS_SUCCESS)
+            return status;
+        }
+
+      memcpy (static_cast<char *> (value) + saved_offset,
+              reinterpret_cast<const char *> (&reg[0]) + saved_offset,
+              saved_value_size);
+
+      return AMD_DBGAPI_STATUS_SUCCESS;
+    }
+  else
+    {
+      return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
+    }
+}
+
+amd_dbgapi_status_t
 wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
                         size_t value_size, const void *value)
 {
+  if (regnum >= amdgpu_regnum_t::FIRST_PSEUDO
+      && regnum <= amdgpu_regnum_t::LAST_PSEUDO)
+    return write_pseudo_register (regnum, offset, value_size, value);
+
   size_t reg_offset, reg_size;
   std::tie (reg_offset, reg_size) = register_offset_and_size (regnum);
 
@@ -418,6 +510,95 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
   return process ().write_global_memory (
       m_context_save_address + reg_offset + offset,
       static_cast<const char *> (value) + offset, value_size);
+}
+
+amd_dbgapi_status_t
+wave_t::write_pseudo_register (amdgpu_regnum_t regnum, size_t offset,
+                               size_t value_size, const void *value)
+{
+  if (lane_count () == 32
+      && (regnum == amdgpu_regnum_t::EXEC_32
+          || regnum == amdgpu_regnum_t::VCC_32))
+    {
+      amdgpu_regnum_t regnum_lo;
+
+      switch (regnum)
+        {
+        case amdgpu_regnum_t::EXEC_32:
+          regnum_lo = amdgpu_regnum_t::EXEC_LO;
+          break;
+        case amdgpu_regnum_t::VCC_32:
+          regnum_lo = amdgpu_regnum_t::S0 + sgpr_count () - 2;
+          break;
+        default:
+          return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
+        }
+
+      return write_register (regnum_lo, offset, value_size, value);
+    }
+  /* Write registers that are lo/hi pairs.  */
+  else if (regnum == amdgpu_regnum_t::PC
+           || (lane_count () == 64
+               && (regnum == amdgpu_regnum_t::EXEC_64
+                   || regnum == amdgpu_regnum_t::VCC_64)))
+    {
+      amdgpu_regnum_t regnum_lo;
+      uint32_t reg[2];
+
+      switch (regnum)
+        {
+        case amdgpu_regnum_t::PC:
+          regnum_lo = amdgpu_regnum_t::PC_LO;
+          break;
+        case amdgpu_regnum_t::EXEC_64:
+          regnum_lo = amdgpu_regnum_t::EXEC_LO;
+          break;
+        case amdgpu_regnum_t::VCC_64:
+          regnum_lo = amdgpu_regnum_t::S0 + sgpr_count () - 2;
+          break;
+        default:
+          return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
+        }
+      amdgpu_regnum_t regnum_hi = regnum_lo + 1;
+
+      if (!value_size || (offset + value_size) > sizeof (reg))
+        return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE;
+
+      memcpy (reinterpret_cast<char *> (&reg[0]) + offset,
+              static_cast<const char *> (value) + offset, value_size);
+
+      amd_dbgapi_status_t status;
+
+      /* Write the partial lo register.  */
+      if (offset < sizeof (reg[0]))
+        {
+          size_t size_lo = (offset + value_size) > sizeof (reg[0])
+                               ? sizeof (reg[0]) - offset
+                               : value_size;
+
+          if ((status = write_register (regnum_lo, offset, size_lo, &reg[0]))
+              != AMD_DBGAPI_STATUS_SUCCESS)
+            return status;
+
+          value_size -= size_lo;
+          offset = sizeof (reg[0]);
+        }
+
+      /* Write the partial hi register.  */
+      if (value_size)
+        {
+          if ((status = write_register (regnum_hi, offset - sizeof (reg[0]),
+                                        value_size, &reg[1]))
+              != AMD_DBGAPI_STATUS_SUCCESS)
+            return status;
+        }
+
+      return AMD_DBGAPI_STATUS_SUCCESS;
+    }
+  else
+    {
+      return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
+    }
 }
 
 amd_dbgapi_status_t
