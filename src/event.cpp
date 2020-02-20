@@ -274,6 +274,10 @@ amd_dbgapi_next_pending_event (amd_dbgapi_process_id_t process_id,
                   if (!queue_id.handle)
                     break;
 
+                  /* TODO: Should we skip the event if the queue status reports
+                     that it is suspended? (system wide events such as VM
+                     faults could be reported for suspended queues) */
+
                   queue_t *queue = process->find (queue_id);
 
                   if (!queue)
@@ -287,8 +291,8 @@ amd_dbgapi_next_pending_event (amd_dbgapi_process_id_t process_id,
                     }
 
                   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                              "%s has pending events",
-                              to_string (queue_id).c_str ());
+                              "%s has pending events (%#x)",
+                              to_string (queue_id).c_str (), queue_status);
 
                   /* The queue may already be suspended. This can happen if an
                      event occurs after requesting the queue to be suspended
@@ -296,7 +300,9 @@ amd_dbgapi_next_pending_event (amd_dbgapi_process_id_t process_id,
                      suspending a wave generates a new event (such as for the
                      single step work-around in the CWSR handler).  */
                   if (!queue->suspended ())
-                    queues.emplace_back (queue);
+                    if (std::find (queues.begin (), queues.end (), queue)
+                        == queues.end ())
+                      queues.emplace_back (queue);
                 }
             }
 
