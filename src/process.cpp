@@ -631,7 +631,7 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues)
     .pid = static_cast<uint32_t> (os_pid ()),
     .gpu_id = 0, /* unused  */
     .op = KFD_IOC_DBG_TRAP_NODE_SUSPEND,
-    .data1 = 0 /* FIXME: KFD_DBG_*_CLEAR_STATUS, see comment below  */,
+    .data1 = KFD_DBG_EV_FLAG_CLEAR_STATUS,
     .data2 = static_cast<uint32_t> (queue_ids.size ()),
     .data3 = 0,
   };
@@ -642,27 +642,6 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues)
   /* Update the waves that have been context switched.  */
   for (auto &&queue : queues)
     {
-      /* FIXME: Remove this when KFD supports clearing the events status
-         of the queues suspended with KFD_IOC_DBG_TRAP_NODE_SUSPEND.  */
-
-      /* KFD_IOC_DBG_TRAP_QUERY_DEBUG_EVENT (#6):
-         data1: [in/out] queue id
-         data2: [in] flags
-         data3: [out] new_queue[3:3], suspended[2:2], event_type [1:0]  */
-
-      kfd_ioctl_dbg_trap_args args{
-        .ptr = 0, /* unused  */
-        .pid = static_cast<uint32_t> (os_pid ()),
-        .gpu_id = queue->agent ().gpu_id (),
-        .op = KFD_IOC_DBG_TRAP_QUERY_DEBUG_EVENT,
-        .data1 = queue->kfd_queue_id (),
-        .data2 = KFD_DBG_EV_FLAG_CLEAR_STATUS,
-      };
-
-      int ret = ioctl (kfd_fd (), AMDKFD_IOC_DBG_TRAP, &args);
-      if (ret == -1 && errno != EAGAIN)
-        warning ("KFD_IOC_DBG_TRAP_QUERY_DEBUG_EVENT failed (rc=%d)", errno);
-
       if (queue->kfd_queue_type () == KFD_IOC_QUEUE_TYPE_COMPUTE_AQL)
         {
           amd_dbgapi_status_t status = queue->update_waves (!m_initialized);
@@ -978,12 +957,14 @@ process_t::attach ()
     .op = KFD_IOC_DBG_TRAP_GET_VERSION,
   };
 
-  /* Enabling debug mode before the target process opens the KFD device
-     requires KFD_IOCTL_DBG >= 1.1  */
+  /* - Enabling debug mode before the target process opens the KFD device
+       requires KFD_IOCTL_DBG >= 1.1
+     - Clearing the queue status on queue suspend requires version >= 1.3
+   */
   static_assert (KFD_IOCTL_DBG_MAJOR_VERSION > 1
                      || (KFD_IOCTL_DBG_MAJOR_VERSION == 1
-                         && KFD_IOCTL_DBG_MINOR_VERSION >= 1),
-                 "KFD_IOCTL_DBG >= 1.1 required");
+                         && KFD_IOCTL_DBG_MINOR_VERSION >= 3),
+                 "KFD_IOCTL_DBG >= 1.3 required");
 
   /* Check that the KFD dbg trap major == IOCTL dbg trap major,
      and KFD dbg trap minor >= IOCTL dbg trap minor.  */

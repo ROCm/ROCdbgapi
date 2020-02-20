@@ -140,6 +140,7 @@ agent_t::next_kfd_event (amd_dbgapi_queue_id_t *queue_id,
         return AMD_DBGAPI_STATUS_ERROR;
 
       const queue_t::kfd_queue_id_t kfd_queue_id = args.data1;
+      const uint32_t status = args.data3;
 
       /* Find the queue by matching its kfd_queue_id with the one
          returned by the ioctl.  */
@@ -150,7 +151,7 @@ agent_t::next_kfd_event (amd_dbgapi_queue_id_t *queue_id,
 
       /* If this is a new queue, update the queues to make sure we don't
          return a stale queue with the same kfd_queue_id.  */
-      if (args.data3 & KFD_DBG_EV_STATUS_NEW_QUEUE)
+      if (status & KFD_DBG_EV_STATUS_NEW_QUEUE)
         {
           /* If there is a stale queue with the same kfd_queue_id, destroy it.
            */
@@ -163,7 +164,7 @@ agent_t::next_kfd_event (amd_dbgapi_queue_id_t *queue_id,
           queue_info.queue_id = kfd_queue_id;
 
           *queue_id = process.create<queue_t> (*this, queue_info).id ();
-          *queue_status = args.data3;
+          *queue_status = status;
 
           /* Update the queues. This will fill in the queue information for
              the queue we've just created.  */
@@ -177,7 +178,7 @@ agent_t::next_kfd_event (amd_dbgapi_queue_id_t *queue_id,
       else if (queue)
         {
           *queue_id = queue->id ();
-          *queue_status = args.data3;
+          *queue_status = status;
           return AMD_DBGAPI_STATUS_SUCCESS;
         }
 
