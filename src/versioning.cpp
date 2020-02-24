@@ -27,8 +27,8 @@ const char AMD_DBGAPI *
 amd_dbgapi_get_build_name (void)
 {
   TRACE ();
-  /* FIXME: not implemented.  */
-  return "";
+
+  return AMD_DBGAPI_BUILD_INFO;
 }
 
 void AMD_DBGAPI

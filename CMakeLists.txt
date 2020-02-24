@@ -66,6 +66,35 @@ find_package(amd_comgr REQUIRED CONFIG
 )
 MESSAGE(STATUS "Code Object Manager found at ${amd_comgr_DIR}.")
 
+if(DEFINED ENV{ROCM_BUILD_ID})
+  # ROCM_BUILD_ID is set by the ROCm-CI build environment.
+  set(build_info $ENV{ROCM_BUILD_ID})
+else()
+  string(TIMESTAMP NOW "%Y%m%dT%H%M%S")
+  set(build_info developer-build-${NOW})
+
+  if(DEFINED ENV{USER})
+    set(build_info ${build_info}-$ENV{USER})
+  endif()
+
+  find_package(Git)
+  if(GIT_FOUND)
+    execute_process(
+      COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
+      WORKING_DIRECTORY "${local_dir}"
+      OUTPUT_VARIABLE build_revision
+      ERROR_QUIET
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+  else()
+    message(STATUS "GIT not found")
+  endif()
+
+  if(DEFINED build_revision)
+    set(build_info ${build_info}-git-${build_revision})
+  endif()
+endif()
+
 target_link_libraries(amd-dbgapi PRIVATE amd_comgr Threads::Threads)
 
 target_compile_options(amd-dbgapi
@@ -75,7 +104,7 @@ target_compile_definitions(amd-dbgapi
   PRIVATE _GNU_SOURCE __STDC_LIMIT_MACROS __STDC_CONSTANT_MACROS)
 
 set_source_files_properties(src/versioning.cpp PROPERTIES
-  COMPILE_DEFINITIONS AMD_DBGAPI_VERSION_PATCH=${AMD_DBGAPI_VERSION_PATCH})
+  COMPILE_DEFINITIONS "AMD_DBGAPI_VERSION_PATCH=${AMD_DBGAPI_VERSION_PATCH};AMD_DBGAPI_BUILD_INFO=\"${AMD_DBGAPI_VERSION}-${build_info}\"")
 
 target_include_directories(amd-dbgapi
   PUBLIC
@@ -132,17 +161,12 @@ install(EXPORT amd-dbgapi-export
   DESTINATION "${AMD_DBGAPI_PACKAGE_PREFIX}"
   FILE "${AMD_DBGAPI_TARGETS_NAME}")
 
-set(build_info)
-if(DEFINED ENV{ROCM_BUILD_ID})
-  set(build_info -$ENV{ROCM_BUILD_ID})
-endif()
-
 # Add packaging directives for amd-dbgapi
 set(CPACK_PACKAGE_NAME rocm-dbgapi)
 set(CPACK_PACKAGE_VENDOR "AMD")
 set(CPACK_PACKAGE_VERSION_MAJOR ${AMD_DBGAPI_VERSION_MAJOR})
 set(CPACK_PACKAGE_VERSION_MINOR ${AMD_DBGAPI_VERSION_MINOR})
-set(CPACK_PACKAGE_VERSION_PATCH ${AMD_DBGAPI_VERSION_PATCH}${build_info})
+set(CPACK_PACKAGE_VERSION_PATCH ${AMD_DBGAPI_VERSION_PATCH}-${build_info})
 set(CPACK_PACKAGE_CONTACT "Advanced Micro Devices Inc.")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Library to provide AMD GPU debugger API")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.txt")
