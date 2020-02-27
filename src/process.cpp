@@ -127,6 +127,26 @@ close_kfd ()
   return 0;
 }
 
+int
+process_t::dbg_trap_ioctl (uint32_t action, kfd_ioctl_dbg_trap_args *args)
+{
+  if (m_process_exited)
+    return -ESRCH;
+
+  args->pid = m_os_pid;
+  args->op = action;
+
+  int ret = ::ioctl (m_kfd_fd, AMDKFD_IOC_DBG_TRAP, args);
+  if (ret < 0 && errno == ESRCH)
+    {
+      /* The target process does not exist, it must have exited.  */
+      m_process_exited = true;
+      return -ESRCH;
+    }
+
+  return ret < 0 ? -errno : 0;
+}
+
 process_t::process_t (amd_dbgapi_client_process_id_t client_process_id,
                       amd_dbgapi_process_id_t process_id)
     : m_process_id (process_id), m_client_process_id (client_process_id)
@@ -171,52 +191,60 @@ process_t::detach ()
   std::exception_ptr exception;
   std::vector<queue_t *> queues;
 
+  /* The client process could have exited, so refresh its os pid.  */
+  amd_dbgapi_status_t status = get_os_pid (&m_os_pid);
+  if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    m_process_exited = true;
+  else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("get_os_pid callback failed (rc=%d)", status);
+
   /* If an exception is raised while attempting to detach, make sure we still
      destruct the handle objects in the correct order. To achieve this, we
      catch any exception, and rethrow it later.
    */
 
-  try
-    {
-      update_queues ();
+  if (!m_process_exited)
+    try
+      {
+        update_queues ();
 
-      /* Suspend the queues that weren't already suspended.  */
-      for (auto &&queue : range<queue_t> ())
-        if (!queue.suspended ())
+        /* Suspend the queues that weren't already suspended.  */
+        for (auto &&queue : range<queue_t> ())
+          if (!queue.suspended ())
+            queues.emplace_back (&queue);
+
+        suspend_queues (queues);
+
+        /* Resume all waves left in non run mode.  */
+        for (auto &&wave : range<wave_t> ())
+          {
+            /* TODO: Move this to the architecture class.  Not absolutely
+               necessary, but restore the DATA0/DATA1 registers to zero for the
+               next attach.  */
+            uint64_t zero = 0;
+            wave.write_register (amdgpu_regnum_t::WAVE_ID, &zero);
+
+            if (wave.state () != AMD_DBGAPI_WAVE_STATE_RUN)
+              wave.set_state (AMD_DBGAPI_WAVE_STATE_RUN);
+          }
+
+        /* Resume all the queues.  */
+        queues.clear ();
+        for (auto &&queue : range<queue_t> ())
           queues.emplace_back (&queue);
 
-      suspend_queues (queues);
+        resume_queues (queues);
 
-      /* Resume all waves left in non run mode.  */
-      for (auto &&wave : range<wave_t> ())
-        {
-          /* TODO: Move this to the architecture class.  Not absolutely
-             necessary, but restore the DATA0/DATA1 registers to zero for the
-             next attach.  */
-          uint64_t zero = 0;
-          wave.write_register (amdgpu_regnum_t::WAVE_ID, &zero);
-
-          if (wave.state () != AMD_DBGAPI_WAVE_STATE_RUN)
-            wave.set_state (AMD_DBGAPI_WAVE_STATE_RUN);
-        }
-
-      /* Resume all the queues.  */
-      queues.clear ();
-      for (auto &&queue : range<queue_t> ())
-        queues.emplace_back (&queue);
-
-      resume_queues (queues);
-
-      /* Stop the event thread before destructing the agents.  The event loop
-         polls the file descriptors returned by the KFD for each agent.  We
-         need to terminate the event loop before the files are closed.  */
-      if (stop_event_thread () != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("Could not stop the event thread");
-    }
-  catch (...)
-    {
-      exception = std::current_exception ();
-    }
+        /* Stop the event thread before destructing the agents.  The event loop
+           polls the file descriptors returned by the KFD for each agent.  We
+           need to terminate the event loop before the files are closed.  */
+        if (stop_event_thread () != AMD_DBGAPI_STATUS_SUCCESS)
+          error ("Could not stop the event thread");
+      }
+    catch (...)
+      {
+        exception = std::current_exception ();
+      }
 
   /* Destruct the waves, dispatches, queues, and agents, in this order.  */
   m_handle_object_sets.get<wave_t> ().clear ();
@@ -231,7 +259,7 @@ process_t::detach ()
 
   if (m_proc_mem_fd != -1)
     {
-      close (m_proc_mem_fd);
+      ::close (m_proc_mem_fd);
       m_proc_mem_fd = -1;
     }
 
@@ -603,6 +631,84 @@ process_t::update_agents ()
 }
 
 amd_dbgapi_status_t
+process_t::enable_debug_trap (const agent_t &agent, file_desc_t *poll_fd)
+{
+  dbgapi_assert (poll_fd && "must not be null");
+
+  /* KFD_IOC_DBG_TRAP_ENABLE (#0):
+     data1: [in] enable/disable (1/0)
+     data3: [out] poll_fd  */
+
+  kfd_ioctl_dbg_trap_args args{ 0 };
+  args.gpu_id = agent.gpu_id ();
+  args.data1 = 1; /* enable  */
+
+  int err = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_ENABLE, &args);
+  if (err == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err < 0)
+    return AMD_DBGAPI_STATUS_ERROR;
+
+  *poll_fd = args.data3;
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
+amd_dbgapi_status_t
+process_t::disable_debug_trap (const agent_t &agent)
+{
+  /* KFD_IOC_DBG_TRAP_ENABLE (#0):
+     data1: [in] enable/disable (1/0)  */
+
+  kfd_ioctl_dbg_trap_args args{ 0 };
+  args.gpu_id = agent.gpu_id ();
+  args.data1 = 0; /* disable  */
+
+  int err = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_ENABLE, &args);
+  if (err == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err < 0)
+    return AMD_DBGAPI_STATUS_ERROR;
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
+amd_dbgapi_status_t
+process_t::query_debug_event (const agent_t &agent,
+                              queue_t::kfd_queue_id_t *kfd_queue_id,
+                              uint32_t *queue_status)
+{
+  dbgapi_assert (kfd_queue_id && queue_status && "must not be null");
+
+  /* KFD_IOC_DBG_TRAP_QUERY_DEBUG_EVENT (#6):
+     data1: [in/out] queue id
+     data2: [in] flags
+     data3: [out] new_queue[3:3], suspended[2:2], event_type [1:0]  */
+
+  kfd_ioctl_dbg_trap_args args{ 0 };
+  args.gpu_id = agent.gpu_id ();
+  args.data1 = KFD_INVALID_QUEUEID;
+  args.data2 = KFD_DBG_EV_FLAG_CLEAR_STATUS;
+
+  int err = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_QUERY_DEBUG_EVENT, &args);
+  if (err == -EAGAIN)
+    {
+      /* There are no more events.  */
+      *kfd_queue_id = KFD_INVALID_QUEUEID;
+      *queue_status = 0;
+      return AMD_DBGAPI_STATUS_SUCCESS;
+    }
+  else if (err == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err < 0)
+    return AMD_DBGAPI_STATUS_ERROR;
+
+  *kfd_queue_id = args.data1;
+  *queue_status = args.data3;
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
+amd_dbgapi_status_t
 process_t::suspend_queues (const std::vector<queue_t *> &queues)
 {
   if (queues.empty ())
@@ -625,17 +731,15 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues)
      data3: [in] grace period
      ptr:   [in] queue ids  */
 
-  kfd_ioctl_dbg_trap_args args = {
-    .ptr = reinterpret_cast<uint64_t> (queue_ids.data ()),
-    .pid = static_cast<uint32_t> (os_pid ()),
-    .gpu_id = 0, /* unused  */
-    .op = KFD_IOC_DBG_TRAP_NODE_SUSPEND,
-    .data1 = KFD_DBG_EV_FLAG_CLEAR_STATUS,
-    .data2 = static_cast<uint32_t> (queue_ids.size ()),
-    .data3 = 0,
-  };
+  kfd_ioctl_dbg_trap_args args{ 0 };
+  args.data1 = KFD_DBG_EV_FLAG_CLEAR_STATUS;
+  args.data2 = static_cast<uint32_t> (queue_ids.size ());
+  args.ptr = reinterpret_cast<uint64_t> (queue_ids.data ());
 
-  if (ioctl (m_kfd_fd, AMDKFD_IOC_DBG_TRAP, &args))
+  int err = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_SUSPEND, &args);
+  if (err == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
   /* Update the waves that have been context switched.  */
@@ -674,16 +778,15 @@ process_t::resume_queues (const std::vector<queue_t *> &queues)
      data2: [in] number of queues
      ptr:   [in] queue ids  */
 
-  kfd_ioctl_dbg_trap_args args{
-    .ptr = reinterpret_cast<uint64_t> (queue_ids.data ()),
-    .pid = static_cast<uint32_t> (os_pid ()),
-    .gpu_id = 0, /* unused  */
-    .op = KFD_IOC_DBG_TRAP_NODE_RESUME,
-    .data1 = 0,
-    .data2 = static_cast<uint32_t> (queue_ids.size ()),
-  };
+  kfd_ioctl_dbg_trap_args args{ 0 };
+  args.data1 = 0;
+  args.data2 = static_cast<uint32_t> (queue_ids.size ());
+  args.ptr = reinterpret_cast<uint64_t> (queue_ids.data ());
 
-  if (ioctl (m_kfd_fd, AMDKFD_IOC_DBG_TRAP, &args))
+  int err = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_RESUME, &args);
+  if (err == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
   for (auto &&queue : queues)
@@ -718,16 +821,15 @@ process_t::update_queues ()
          data2: [in/out] number of queues snapshots
          ptr:   [in] user buffer  */
 
-      kfd_ioctl_dbg_trap_args args{
-        .ptr = reinterpret_cast<uint64_t> (snapshots.get ()),
-        .pid = static_cast<uint32_t> (os_pid ()),
-        .gpu_id = 0, /* unused  */
-        .op = KFD_IOC_DBG_TRAP_GET_QUEUE_SNAPSHOT,
-        .data1 = 0,
-        .data2 = snapshot_count,
-      };
+      kfd_ioctl_dbg_trap_args args{ 0 };
+      args.data1 = 0;
+      args.data2 = snapshot_count;
+      args.ptr = reinterpret_cast<uint64_t> (snapshots.get ());
 
-      if (ioctl (m_kfd_fd, AMDKFD_IOC_DBG_TRAP, &args))
+      int err = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_GET_QUEUE_SNAPSHOT, &args);
+      if (err == -ESRCH)
+        return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+      else if (err < 0)
         return AMD_DBGAPI_STATUS_ERROR;
 
       /* KFD writes up to snapshot_count queue snapshots, but returns the
@@ -932,7 +1034,7 @@ process_t::attach ()
   amd_dbgapi_status_t status;
 
   /* Check that the KFD major == IOCTL major, and KFD minor >= IOCTL minor.  */
-  kfd_ioctl_get_version_args get_version_args;
+  kfd_ioctl_get_version_args get_version_args{ 0 };
   if (ioctl (m_kfd_fd, AMDKFD_IOC_GET_VERSION, &get_version_args)
       || get_version_args.major_version != KFD_IOCTL_MAJOR_VERSION
       || get_version_args.minor_version < KFD_IOCTL_MINOR_VERSION)
@@ -959,11 +1061,12 @@ process_t::attach ()
   /* - Enabling debug mode before the target process opens the KFD device
        requires KFD_IOCTL_DBG >= 1.1
      - Clearing the queue status on queue suspend requires version >= 1.3
+     - 1.4 Fixes an issue with kfifo free exposed by a user mode change.
    */
   static_assert (KFD_IOCTL_DBG_MAJOR_VERSION > 1
                      || (KFD_IOCTL_DBG_MAJOR_VERSION == 1
-                         && KFD_IOCTL_DBG_MINOR_VERSION >= 3),
-                 "KFD_IOCTL_DBG >= 1.3 required");
+                         && KFD_IOCTL_DBG_MINOR_VERSION >= 4),
+                 "KFD_IOCTL_DBG >= 1.4 required");
 
   /* Check that the KFD dbg trap major == IOCTL dbg trap major,
      and KFD dbg trap minor >= IOCTL dbg trap minor.  */

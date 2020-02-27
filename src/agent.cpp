@@ -47,62 +47,18 @@ agent_t::agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
     : handle_object (agent_id), m_gpu_id (gpu_id), m_properties (properties),
       m_architecture (architecture), m_process (process)
 {
-  enable_debug_trap ();
+  m_process.enable_debug_trap (*this, &m_poll_fd);
 }
 
-agent_t::~agent_t () { disable_debug_trap (); }
-
-amd_dbgapi_status_t
-agent_t::enable_debug_trap (void)
+agent_t::~agent_t ()
 {
-  process_t &process = this->process ();
-
-  /* KFD_IOC_DBG_TRAP_ENABLE (#0):
-     data1: [in] enable/disable (1/0)
-     data3: [out] poll_fd  */
-
-  kfd_ioctl_dbg_trap_args args = {
-    .ptr = 0, /* unused  */
-    .pid = static_cast<uint32_t> (process.os_pid ()),
-    .gpu_id = gpu_id (),
-    .op = KFD_IOC_DBG_TRAP_ENABLE,
-    .data1 = 1 /* enable  */,
-  };
-
-  if (ioctl (process.kfd_fd (), AMDKFD_IOC_DBG_TRAP, &args))
-    return AMD_DBGAPI_STATUS_ERROR;
-
-  m_poll_fd = args.data3;
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
-}
-
-amd_dbgapi_status_t
-agent_t::disable_debug_trap (void)
-{
-  process_t &process = this->process ();
-
   if (m_poll_fd != -1)
     {
       ::close (m_poll_fd);
       m_poll_fd = -1;
     }
 
-  /* KFD_IOC_DBG_TRAP_ENABLE (#0):
-     data1: [in] enable/disable (1/0)  */
-
-  kfd_ioctl_dbg_trap_args args = {
-    .ptr = 0, /* unused  */
-    .pid = static_cast<uint32_t> (process.os_pid ()),
-    .gpu_id = gpu_id (),
-    .op = KFD_IOC_DBG_TRAP_ENABLE,
-    .data1 = 0 /* disable  */,
-  };
-
-  if (ioctl (process.kfd_fd (), AMDKFD_IOC_DBG_TRAP, &args))
-    return AMD_DBGAPI_STATUS_ERROR;
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
+  m_process.disable_debug_trap (*this);
 }
 
 amd_dbgapi_status_t
@@ -114,33 +70,19 @@ agent_t::next_kfd_event (amd_dbgapi_queue_id_t *queue_id,
 
   while (true)
     {
-      /* KFD_IOC_DBG_TRAP_QUERY_DEBUG_EVENT (#6):
-         data1: [in/out] queue id
-         data2: [in] flags
-         data3: [out] new_queue[3:3], suspended[2:2], event_type [1:0]  */
+      queue_t::kfd_queue_id_t kfd_queue_id;
 
-      kfd_ioctl_dbg_trap_args args{
-        .ptr = 0, /* unused  */
-        .pid = static_cast<uint32_t> (process.os_pid ()),
-        .gpu_id = gpu_id (),
-        .op = KFD_IOC_DBG_TRAP_QUERY_DEBUG_EVENT,
-        .data1 = static_cast<uint32_t> (-1),
-        .data2 = KFD_DBG_EV_FLAG_CLEAR_STATUS,
-      };
+      amd_dbgapi_status_t status
+          = process.query_debug_event (*this, &kfd_queue_id, queue_status);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        return status;
 
-      int ret = ioctl (process.kfd_fd (), AMDKFD_IOC_DBG_TRAP, &args);
-      if (ret == -1 && errno == EAGAIN)
+      if (kfd_queue_id == KFD_INVALID_QUEUEID)
         {
           /* There are no more events.  */
-          *queue_id = { 0 };
-          *queue_status = 0;
+          *queue_id = AMD_DBGAPI_QUEUE_NONE;
           return AMD_DBGAPI_STATUS_SUCCESS;
         }
-      else if (ret < 0)
-        return AMD_DBGAPI_STATUS_ERROR;
-
-      const queue_t::kfd_queue_id_t kfd_queue_id = args.data1;
-      const uint32_t status = args.data3;
 
       /* Find the queue by matching its kfd_queue_id with the one
          returned by the ioctl.  */
@@ -151,7 +93,7 @@ agent_t::next_kfd_event (amd_dbgapi_queue_id_t *queue_id,
 
       /* If this is a new queue, update the queues to make sure we don't
          return a stale queue with the same kfd_queue_id.  */
-      if (status & KFD_DBG_EV_STATUS_NEW_QUEUE)
+      if (*queue_status & KFD_DBG_EV_STATUS_NEW_QUEUE)
         {
           /* If there is a stale queue with the same kfd_queue_id, destroy it.
            */
@@ -164,7 +106,6 @@ agent_t::next_kfd_event (amd_dbgapi_queue_id_t *queue_id,
           queue_info.queue_id = kfd_queue_id;
 
           *queue_id = process.create<queue_t> (*this, queue_info).id ();
-          *queue_status = status;
 
           /* Update the queues. This will fill in the queue information for
              the queue we've just created.  */
@@ -178,7 +119,6 @@ agent_t::next_kfd_event (amd_dbgapi_queue_id_t *queue_id,
       else if (queue)
         {
           *queue_id = queue->id ();
-          *queue_status = status;
           return AMD_DBGAPI_STATUS_SUCCESS;
         }
 

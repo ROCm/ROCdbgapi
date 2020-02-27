@@ -65,6 +65,8 @@ class process_t
                                   dispatch_t, displaced_stepping_t, event_t,
                                   queue_t, shared_library_t, wave_t>;
 
+  int dbg_trap_ioctl (uint32_t action, kfd_ioctl_dbg_trap_args *args);
+
 public:
   process_t (amd_dbgapi_client_process_id_t client_process_id,
              amd_dbgapi_process_id_t process_id);
@@ -78,7 +80,6 @@ public:
   }
 
   pid_t os_pid () const { return m_os_pid; }
-  file_desc_t kfd_fd () const { return m_kfd_fd; }
 
   amd_dbgapi_status_t
   read_global_memory_partial (amd_dbgapi_global_address_t address,
@@ -112,6 +113,14 @@ public:
 
   void enqueue_event (event_t &event);
   event_t *dequeue_event ();
+
+  amd_dbgapi_status_t enable_debug_trap (const agent_t &agent,
+                                         file_desc_t *poll_fd);
+  amd_dbgapi_status_t disable_debug_trap (const agent_t &agent);
+
+  amd_dbgapi_status_t query_debug_event (const agent_t &agent,
+                                         queue_t::kfd_queue_id_t *kfd_queue_id,
+                                         uint32_t *status);
 
   amd_dbgapi_status_t suspend_queues (const std::vector<queue_t *> &queues);
   amd_dbgapi_status_t resume_queues (const std::vector<queue_t *> &queues);
@@ -256,7 +265,9 @@ private:
   amd_dbgapi_process_id_t const m_process_id;
   amd_dbgapi_client_process_id_t const m_client_process_id;
   amd_dbgapi_global_address_t m_r_debug_address{ 0 };
+
   pid_t m_os_pid{ -1 };
+  bool m_process_exited{ false };
 
   bool m_forward_progress_needed{ true };
   bool m_initialized{ false };

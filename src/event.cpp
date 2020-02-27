@@ -271,7 +271,7 @@ amd_dbgapi_next_pending_event (amd_dbgapi_process_id_t process_id,
                   if (status != AMD_DBGAPI_STATUS_SUCCESS)
                     return status;
 
-                  if (!queue_id.handle)
+                  if (queue_id == AMD_DBGAPI_QUEUE_NONE)
                     break;
 
                   queue_t *queue = process->find (queue_id);
