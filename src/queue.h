@@ -41,6 +41,15 @@ class process_t;
 
 class queue_t : public detail::handle_object<amd_dbgapi_queue_id_t>
 {
+private:
+  struct context_save_area_header_s
+  {
+    uint32_t ctrl_stack_offset;
+    uint32_t ctrl_stack_size;
+    uint32_t wave_state_offset;
+    uint32_t wave_state_size;
+  };
+
 public:
   using kfd_queue_id_t = uint32_t;
 
@@ -64,6 +73,15 @@ public:
   {
     return m_displaced_stepping_buffer_address;
   }
+  amd_dbgapi_global_address_t parked_wave_buffer_address () const
+  {
+    return m_parked_wave_buffer_address;
+  }
+  amd_dbgapi_global_address_t endpgm_buffer_address () const
+  {
+    return m_endpgm_buffer_address;
+  }
+
   amd_dbgapi_global_address_t scratch_backing_memory_address () const;
   amd_dbgapi_size_t scratch_backing_memory_size () const;
 
@@ -79,7 +97,10 @@ public:
 
 private:
   kfd_queue_snapshot_entry const m_kfd_queue_info;
-  amd_dbgapi_global_address_t m_displaced_stepping_buffer_address;
+  amd_dbgapi_global_address_t m_displaced_stepping_buffer_address{ 0 };
+  amd_dbgapi_global_address_t m_parked_wave_buffer_address{ 0 };
+  amd_dbgapi_global_address_t m_endpgm_buffer_address{ 0 };
+  amd_dbgapi_global_address_t m_context_save_start_address;
 
   epoch_t m_mark{ 0 };
   bool m_suspended{ false };

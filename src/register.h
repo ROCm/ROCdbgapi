@@ -112,8 +112,9 @@ enum class amdgpu_regnum_t : decltype (amd_dbgapi_register_id_t::handle)
   XNACK_MASK_32,     /* XNACK mask for wave32 wavefronts.  */
   XNACK_MASK_64,     /* XNACK mask for wave64 wavefronts.  */
   FLAT_SCRATCH,      /* Flat scratch.  */
+  WAVE_ID,           /* Debug[0:1].  */
 
-  LAST_PSEUDO = FLAT_SCRATCH,
+  LAST_PSEUDO = WAVE_ID,
 };
 
 constexpr ssize_t

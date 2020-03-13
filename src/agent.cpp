@@ -84,7 +84,7 @@ agent_t::disable_debug_trap (void)
 
   if (m_poll_fd != -1)
     {
-      close (m_poll_fd);
+      ::close (m_poll_fd);
       m_poll_fd = -1;
     }
 

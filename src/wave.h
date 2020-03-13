@@ -63,7 +63,11 @@ public:
     return m_context_save_address;
   }
   amd_dbgapi_global_address_t pc () const;
-  amd_dbgapi_global_address_t prev_pc () const { return m_prev_pc; }
+  amd_dbgapi_global_address_t saved_pc () const { return m_saved_pc; }
+  std::vector<uint8_t> instruction_at_pc () const;
+
+  amd_dbgapi_status_t park ();
+  amd_dbgapi_status_t unpark ();
 
   amd_dbgapi_status_t
   update (amd_dbgapi_global_address_t context_save_address);
@@ -151,7 +155,9 @@ private:
   uint32_t const m_sgpr_count;
   uint32_t const m_lane_count;
 
-  amd_dbgapi_global_address_t m_prev_pc{ 0 };
+  amd_dbgapi_global_address_t m_saved_pc{ 0 };
+  bool m_parked{ false };
+
   uint32_t m_group_ids[3];
   uint32_t m_wave_in_group;
 

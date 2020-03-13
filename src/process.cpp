@@ -193,9 +193,8 @@ process_t::detach ()
           /* TODO: Move this to the architecture class.  Not absolutely
              necessary, but restore the DATA0/DATA1 registers to zero for the
              next attach.  */
-          uint32_t zero = 0;
-          wave.write_register (amdgpu_regnum_t::TTMP4, &zero);
-          wave.write_register (amdgpu_regnum_t::TTMP5, &zero);
+          uint64_t zero = 0;
+          wave.write_register (amdgpu_regnum_t::WAVE_ID, &zero);
 
           if (wave.state () != AMD_DBGAPI_WAVE_STATE_RUN)
             wave.set_state (AMD_DBGAPI_WAVE_STATE_RUN);

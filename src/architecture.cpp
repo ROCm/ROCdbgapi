@@ -98,6 +98,8 @@ protected:
   }
 
 public:
+  virtual size_t displaced_stepping_buffer_size () const override;
+
   virtual bool
   displaced_stepping_copy (displaced_stepping_t &displaced_stepping,
                            bool *simulate) const override;
@@ -119,6 +121,7 @@ public:
   virtual size_t minimum_instruction_alignment () const override;
   virtual const std::vector<uint8_t> &nop_instruction () const override;
   virtual const std::vector<uint8_t> &breakpoint_instruction () const override;
+  virtual const std::vector<uint8_t> &endpgm_instruction () const override;
   virtual size_t breakpoint_instruction_pc_adjust () const override;
 
 protected:
@@ -165,11 +168,6 @@ protected:
   virtual amd_dbgapi_status_t
   simulate_instruction (wave_t &wave, amd_dbgapi_global_address_t pc,
                         const std::vector<uint8_t> &instruction) const;
-
-  /* Check the instruction at the current pc. If it is an s_endpgm, we can't
-     halt the wave, or we'll hang the gpu, so resume the wave and make it look
-     like the wave has terminated.  */
-  bool terminate_wave_if_at_endpgm (wave_t &wave) const;
 };
 
 decltype (amdgcn_architecture_t::cbranch_opcodes_map)
@@ -210,6 +208,16 @@ amdgcn_architecture_t::breakpoint_instruction () const
   };
 
   return s_breakpoint_instruction_bytes;
+}
+
+const std::vector<uint8_t> &
+amdgcn_architecture_t::endpgm_instruction () const
+{
+  static const std::vector<uint8_t> s_endpgm_instruction_bytes{
+    0x00, 0x00, 0x81, 0xBF /* s_endpgm 0 */
+  };
+
+  return s_endpgm_instruction_bytes;
 }
 
 size_t
@@ -328,7 +336,28 @@ amdgcn_architecture_t::simulate_instruction (
   amd_dbgapi_global_address_t new_pc;
   amd_dbgapi_status_t status;
 
-  if (is_branch (instruction) || is_cbranch (instruction))
+  if (is_endpgm (instruction))
+    {
+      /* Mark the wave as invalid and un-halt it at an s_endpgm instruction.
+         This allows the hardware to terminate the wave, while ensuring that
+         the wave is never reported to the client as existing.  */
+
+      /* Make the PC point to an immutable s_endpgm instruction.  */
+      amd_dbgapi_global_address_t pc = wave.queue ().endpgm_buffer_address ();
+      amd_dbgapi_status_t status
+          = wave.write_register (amdgpu_regnum_t::PC, &pc);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        return status;
+
+      /* Set the wave_id to ignored_wave_id.  */
+      amd_dbgapi_wave_id_t wave_id = wave_t::ignored_wave_id;
+      status = wave.write_register (amdgpu_regnum_t::WAVE_ID, &wave_id);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        return status;
+
+      return wave.set_state (AMD_DBGAPI_WAVE_STATE_RUN);
+    }
+  else if (is_branch (instruction) || is_cbranch (instruction))
     {
       new_pc = branch_target (wave, pc, instruction);
     }
@@ -404,42 +433,19 @@ amdgcn_architecture_t::simulate_instruction (
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
 
-  if (!can_halt_at_endpgm ())
-    terminate_wave_if_at_endpgm (wave);
+  if (!can_halt_at_endpgm () && is_endpgm (wave.instruction_at_pc ()))
+    wave.park ();
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
-bool
-amdgcn_architecture_t::terminate_wave_if_at_endpgm (wave_t &wave) const
+size_t
+amdgcn_architecture_t::displaced_stepping_buffer_size () const
 {
-  size_t size = largest_instruction_size ();
-  std::vector<uint8_t> instruction_bytes (size);
-
-  if (wave.process ().read_global_memory_partial (
-          wave.pc (), instruction_bytes.data (), &size)
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    return false;
-
-  /* Trim unread bytes.  */
-  instruction_bytes.resize (size);
-
-  if (!is_endpgm (instruction_bytes))
-    return false;
-
-  /* Write ignored_wave_id into ttmp[4:5].  */
-  amd_dbgapi_wave_id_t wave_id = wave_t::ignored_wave_id;
-
-  wave.process ().write_global_memory (
-      wave.context_save_address ()
-          + wave.register_offset_and_size (amdgpu_regnum_t::TTMP4).first,
-      &wave_id, sizeof (wave_id));
-
-  /* FIXME: We should report a command_terminated event if there was an
-     outstanding stop or single-step request.  */
-
-  wave.set_state (AMD_DBGAPI_WAVE_STATE_RUN);
-  return true;
+  /* one displaced + 1 breakpoint instruction (if the architecture cannot halt
+     at an s_endpgm instruction).  */
+  return largest_instruction_size ()
+         + (!can_halt_at_endpgm () ? nop_instruction ().size () : 0);
 }
 
 bool
@@ -462,10 +468,14 @@ amdgcn_architecture_t::displaced_stepping_copy (
 
   if (is_branch (original_instruction) || is_cbranch (original_instruction)
       || is_call (original_instruction) || is_getpc (original_instruction)
-      || is_setpc (original_instruction) || is_swappc (original_instruction))
+      || is_setpc (original_instruction) || is_swappc (original_instruction)
+      || is_endpgm (original_instruction))
     {
       /* We simulate PC relative branch instructions to avoid reading
          uninitialized memory at the branch target.  */
+
+      /* We simulate ENDPGM do make sure we are reporting to the client that
+         the displaced instruction has completed the single step operation.  */
 
       /* FIXME: If we were simulating the original instruction at 'start' time,
          we would not need to copy a nop into the displaced instruction buffer,
@@ -523,17 +533,18 @@ amdgcn_architecture_t::displaced_stepping_fixup (
   dbgapi_assert (
       !is_call (original_instruction) && !is_getpc (original_instruction)
       && !is_setpc (original_instruction) && !is_swappc (original_instruction)
+      && !is_endpgm (original_instruction)
       && "Should be simulated: these instructions require special handling");
 
-  amd_dbgapi_global_address_t new_pc
+  amd_dbgapi_global_address_t restored_pc
       = wave.pc () + displaced_stepping.from () - displaced_stepping.to ();
 
-  if (wave.write_register (amdgpu_regnum_t::PC, &new_pc)
+  if (wave.write_register (amdgpu_regnum_t::PC, &restored_pc)
       != AMD_DBGAPI_STATUS_SUCCESS)
     return false;
 
-  if (!can_halt_at_endpgm ())
-    terminate_wave_if_at_endpgm (wave);
+  if (!can_halt_at_endpgm () && is_endpgm (wave.instruction_at_pc ()))
+    wave.park ();
 
   return true;
 }
@@ -667,7 +678,7 @@ amdgcn_architecture_t::get_wave_state (
            */
           bool ignore_single_step_event
               = saved_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
-                && wave.prev_pc () == pc;
+                && wave.saved_pc () == pc;
 
           if (ignore_single_step_event)
             {
@@ -740,46 +751,37 @@ amd_dbgapi_status_t
 amdgcn_architecture_t::set_wave_state (wave_t &wave,
                                        amd_dbgapi_wave_state_t state) const
 {
+  uint32_t status_reg, mode_reg;
   amd_dbgapi_status_t status;
 
-  uint32_t status_reg;
   status = wave.read_register (amdgpu_regnum_t::STATUS, &status_reg);
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
 
-  uint32_t mode_reg;
   status = wave.read_register (amdgpu_regnum_t::MODE, &mode_reg);
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
 
-  if (state == AMD_DBGAPI_WAVE_STATE_STOP)
+  switch (state)
     {
-      if (wave.state () != AMD_DBGAPI_WAVE_STATE_STOP
-          && !can_halt_at_endpgm ())
-        {
-          /* Check the instruction at the current pc. If it is a s_endpgm, we
-             can't halt the wave, or we'll hang the gpu, so make it look like
-             the wave has terminated by returning an invalid wave id error.  */
-
-          if (terminate_wave_if_at_endpgm (wave))
-            return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
-        }
-
+    case AMD_DBGAPI_WAVE_STATE_STOP:
       mode_reg &= ~SQ_WAVE_MODE_DEBUG_EN_MASK;
       status_reg |= SQ_WAVE_STATUS_HALT_MASK;
-    }
-  else if (state == AMD_DBGAPI_WAVE_STATE_RUN)
-    {
+      break;
+
+    case AMD_DBGAPI_WAVE_STATE_RUN:
       mode_reg &= ~SQ_WAVE_MODE_DEBUG_EN_MASK;
       status_reg &= ~SQ_WAVE_STATUS_HALT_MASK;
-    }
-  else if (state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
-    {
+      break;
+
+    case AMD_DBGAPI_WAVE_STATE_SINGLE_STEP:
       mode_reg |= SQ_WAVE_MODE_DEBUG_EN_MASK;
       status_reg &= ~SQ_WAVE_STATUS_HALT_MASK;
+      break;
+
+    default:
+      return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
     }
-  else
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   status = wave.write_register (amdgpu_regnum_t::STATUS, &status_reg);
   if (status != AMD_DBGAPI_STATUS_SUCCESS)

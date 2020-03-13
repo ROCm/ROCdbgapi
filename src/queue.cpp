@@ -59,6 +59,43 @@ queue_t::queue_t (amd_dbgapi_queue_id_t queue_id, agent_t &agent,
     : handle_object (queue_id), m_kfd_queue_info (kfd_queue_info),
       m_agent (agent)
 {
+  if (kfd_queue_type () == KFD_IOC_QUEUE_TYPE_COMPUTE_AQL)
+    {
+      m_context_save_start_address = m_kfd_queue_info.ctx_save_restore_address
+                                     + sizeof (context_save_area_header_s);
+
+      /* FIXME: This is only temporary, we are using the free space in the
+         queue control stack memory. The control stack grows from high to
+         low address, so we can steal bytes between the context save area
+         header and the top of stack limit. queue_t::update_waves () checks
+         that the area is not overwritten.  */
+
+      m_displaced_stepping_buffer_address = m_context_save_start_address;
+      m_context_save_start_address
+          += architecture ().displaced_stepping_buffer_size ();
+
+      m_parked_wave_buffer_address = m_context_save_start_address;
+      m_context_save_start_address
+          += architecture ().breakpoint_instruction ().size ();
+
+      if (process ().write_global_memory (
+              m_parked_wave_buffer_address,
+              architecture ().breakpoint_instruction ().data (),
+              architecture ().breakpoint_instruction ().size ())
+          != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("Could not write to the parked wave instruction buffer");
+
+      m_endpgm_buffer_address = m_context_save_start_address;
+      m_context_save_start_address
+          += architecture ().endpgm_instruction ().size ();
+
+      if (process ().write_global_memory (
+              m_endpgm_buffer_address,
+              architecture ().endpgm_instruction ().data (),
+              architecture ().endpgm_instruction ().size ())
+          != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("Could not write to the endpgm instruction buffer");
+    }
 }
 
 queue_t::~queue_t ()
@@ -103,42 +140,24 @@ queue_t::update_waves (bool always_assign_wave_ids)
   /* Retrieve the used control stack size and used wave area from the
      context save area header.  */
 
-  struct context_save_area_header_s
-  {
-    uint32_t ctrl_stack_offset;
-    uint32_t ctrl_stack_size;
-    uint32_t wave_state_offset;
-    uint32_t wave_state_size;
-  } header;
+  struct context_save_area_header_s header;
 
   status = process.read_global_memory (
       m_kfd_queue_info.ctx_save_restore_address, &header, sizeof (header));
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
 
-  /* FIXME: This is only temporary, we are using the free space in the queue
-     control stack memory as our displaced stepping buffer.  */
-  size_t max_ctrl_stack_size
+  constexpr size_t max_ctrl_stack_size
       = 32 /* max_waves_per_cu */ * 2 /* registers */ * sizeof (uint32_t)
         + 2 /* PM4 packets */ * sizeof (uint32_t)
         + sizeof (context_save_area_header_s);
 
-  ssize_t free_space = header.ctrl_stack_offset + header.ctrl_stack_size
-                       - max_ctrl_stack_size;
-
-  ssize_t displaced_stepping_buffer_size
-      = /* one displaced + 1 nop (if architecture cannot halt at endpgm).  */
-      architecture ().largest_instruction_size ()
-      + (!architecture ().can_halt_at_endpgm ()
-             ? architecture ().nop_instruction ().size ()
-             : 0);
-
-  if (free_space < displaced_stepping_buffer_size)
+  /* Make sure the top of the control stack does not overwrite the displaced
+     stepping buffer or parked wave buffer.  */
+  if (m_kfd_queue_info.ctx_save_restore_address + header.ctrl_stack_offset
+          + header.ctrl_stack_size - max_ctrl_stack_size
+      < m_context_save_start_address)
     error ("not enough free space in the control stack");
-
-  m_displaced_stepping_buffer_address
-      = m_kfd_queue_info.ctx_save_restore_address
-        + sizeof (context_save_area_header_s);
 
   /* Make sure the bottom of the ctrl stack == the start of the
      wave save area.  */
