@@ -100,7 +100,7 @@ public:
   amd_dbgapi_status_t
   set_forward_progress_needed (bool forward_progress_needed);
 
-  amd_dbgapi_status_t update_agents ();
+  amd_dbgapi_status_t update_agents (bool enable_debug_trap);
   amd_dbgapi_status_t update_queues ();
   amd_dbgapi_status_t update_code_objects ();
 

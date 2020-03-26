@@ -47,18 +47,30 @@ agent_t::agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
     : handle_object (agent_id), m_gpu_id (gpu_id), m_properties (properties),
       m_architecture (architecture), m_process (process)
 {
-  m_process.enable_debug_trap (*this, &m_poll_fd);
 }
 
 agent_t::~agent_t ()
 {
-  if (m_poll_fd != -1)
-    {
-      ::close (m_poll_fd);
-      m_poll_fd = -1;
-    }
+  if (debug_trap_enabled ())
+    disable_debug_trap ();
+}
 
-  m_process.disable_debug_trap (*this);
+amd_dbgapi_status_t
+agent_t::enable_debug_trap ()
+{
+  dbgapi_assert (m_poll_fd == -1 && "debug_trap is already enabled");
+  return m_process.enable_debug_trap (*this, &m_poll_fd);
+}
+
+amd_dbgapi_status_t
+agent_t::disable_debug_trap ()
+{
+  dbgapi_assert (m_poll_fd != -1 && "debug_trap is not enabled");
+
+  ::close (m_poll_fd);
+  m_poll_fd = -1;
+
+  return m_process.disable_debug_trap (*this);
 }
 
 amd_dbgapi_status_t

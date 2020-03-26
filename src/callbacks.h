@@ -49,14 +49,8 @@ public:
 
   bool is_valid () const { return m_is_valid; }
 
-  notify_callback_t callback (amd_dbgapi_shared_library_state_t state) const
-  {
-    dbgapi_assert (state == AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED
-                   || state == AMD_DBGAPI_SHARED_LIBRARY_STATE_UNLOADED);
-
-    return state == AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED ? m_on_load
-                                                           : m_on_unload;
-  }
+  void set_state (amd_dbgapi_shared_library_state_t state);
+  amd_dbgapi_shared_library_state_t state () const { return m_state; }
 
   process_t &process () const { return m_process; }
 
@@ -65,6 +59,7 @@ private:
 
   notify_callback_t const m_on_load;
   notify_callback_t const m_on_unload;
+  amd_dbgapi_shared_library_state_t m_state;
 
   process_t &m_process;
 };

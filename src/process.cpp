@@ -460,7 +460,7 @@ process_t::find (amd_dbgapi_client_process_id_t client_process_id,
 }
 
 amd_dbgapi_status_t
-process_t::update_agents ()
+process_t::update_agents (bool enable_debug_trap)
 {
   struct sysfs_node_t
   {
@@ -593,26 +593,31 @@ process_t::update_agents ()
 
   /* Add new agents to the process.  */
   for (auto &sysfs_node : sysfs_nodes)
-    if (!find_if ([&] (const agent_t &a) {
-          return a.gpu_id () == sysfs_node.gpu_id;
-        }))
-      {
-        try
-          {
-            create<agent_t> (*this,                   /* process  */
-                             sysfs_node.gpu_id,       /* gpu_id  */
-                             sysfs_node.architecture, /* architecture  */
-                             sysfs_node.properties);  /* properties  */
-          }
-        catch (const exception_t &)
-          {
-            /* FIXME: We could not create an agent_t for this node.  Another
-               process may already have enabled debug mode.  Remove this
-               when KFD supports concurrent debugging on the same agent.  */
-            warning ("Could not enable debugging on gpu_id %d.",
-                     sysfs_node.gpu_id);
-          }
-      }
+    {
+      agent_t *agent = find_if (
+          [&] (const agent_t &a) { return a.gpu_id () == sysfs_node.gpu_id; });
+
+      if (!agent)
+        agent = &create<agent_t> (*this,                   /* process  */
+                                  sysfs_node.gpu_id,       /* gpu_id  */
+                                  sysfs_node.architecture, /* architecture  */
+                                  sysfs_node.properties);  /* properties  */
+
+      if (enable_debug_trap && !agent->debug_trap_enabled ())
+        {
+          amd_dbgapi_status_t status = agent->enable_debug_trap ();
+          if (status != AMD_DBGAPI_STATUS_SUCCESS)
+            {
+              /* FIXME: We could not enable the debug mode for this agent.
+                 Another process may already have enabled debug mode for the
+                 same agent.  Remove this when KFD supports concurrent
+                 debugging on the same agent.  */
+              warning ("Could not enable debugging on gpu_id %d.",
+                       sysfs_node.gpu_id);
+              return status;
+            }
+        }
+    }
 
   /* Delete agents that are no longer present in this process. */
   auto agent_range = range<agent_t> ();
@@ -1031,8 +1036,6 @@ process_t::update_code_objects ()
 amd_dbgapi_status_t
 process_t::attach ()
 {
-  amd_dbgapi_status_t status;
-
   /* Check that the KFD major == IOCTL major, and KFD minor >= IOCTL minor.  */
   kfd_ioctl_get_version_args get_version_args{ 0 };
   if (ioctl (m_kfd_fd, AMDKFD_IOC_GET_VERSION, &get_version_args)
@@ -1082,33 +1085,36 @@ process_t::attach ()
       return AMD_DBGAPI_STATUS_ERROR_VERSION_MISMATCH;
     }
 
-  status = update_agents ();
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
-
-  status = update_queues ();
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
-
-  std::vector<queue_t *> queues;
-  for (auto &&queue : range<queue_t> ())
-    queues.emplace_back (&queue);
-
-  /* Suspend the newly create queues to update the waves, then resume them.
-     We could have attached to the process while wavefronts were executing.  */
-  status = suspend_queues (queues);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
-
-  status = resume_queues (queues);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
-
-  status = start_event_thread ();
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
-
   auto on_load_callback = [this] (const shared_library_t &library) {
+    amd_dbgapi_status_t status;
+
+    status = update_agents (true);
+    if (status != AMD_DBGAPI_STATUS_SUCCESS)
+      error ("update_agents failed (rc=%d)", status);
+
+    status = update_queues ();
+    if (status != AMD_DBGAPI_STATUS_SUCCESS)
+      error ("update_queues failed (rc=%d)", status);
+
+    std::vector<queue_t *> queues;
+    for (auto &&queue : range<queue_t> ())
+      queues.emplace_back (&queue);
+
+    /* Suspend the newly create queues to update the waves, then resume them.
+       We could have attached to the process while wavefronts were executing.
+     */
+    status = suspend_queues (queues);
+    if (status != AMD_DBGAPI_STATUS_SUCCESS)
+      error ("suspend_queues failed (rc=%d)", status);
+
+    status = resume_queues (queues);
+    if (status != AMD_DBGAPI_STATUS_SUCCESS)
+      error ("resume_queues failed (rc=%d)", status);
+
+    status = start_event_thread ();
+    if (status != AMD_DBGAPI_STATUS_SUCCESS)
+      error ("Cannot start the event thread (rc=%d)", status);
+
     /* Retrieve the address of the rendez-vous structure (_amd_gpu_r_debug)
        used by the ROCm Runtime Loader to communicate details of code objects
        loading to the debugger.  */
@@ -1194,8 +1200,17 @@ process_t::attach ()
 
   /* Set/remove internal breakpoints when the ROCm Runtime is loaded/unloaded.
    */
-  create<shared_library_t> (*this, "/libhsa-runtime64.so.1", on_load_callback,
-                            on_unload_callback);
+  const shared_library_t &library = create<shared_library_t> (
+      *this, "/libhsa-runtime64.so.1", on_load_callback, on_unload_callback);
+
+  /* If the ROCm Runtime is not yet loaded, create agents without enabling the
+     debug trap.  */
+  if (library.state () != AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED)
+    {
+      amd_dbgapi_status_t status = update_agents (false);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        return status;
+    }
 
   m_initialized = true;
   return AMD_DBGAPI_STATUS_SUCCESS;

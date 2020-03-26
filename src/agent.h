@@ -69,7 +69,6 @@ public:
            kfd_gpu_id_t gpu_id, const architecture_t &architecture,
            const properties_t &properties);
   ~agent_t ();
-  bool is_valid () const { return m_poll_fd != -1; }
 
   kfd_gpu_id_t gpu_id () const { return m_gpu_id; }
   const properties_t &properties () const { return m_properties; }
@@ -86,9 +85,9 @@ public:
   const architecture_t &architecture () const { return m_architecture; }
   process_t &process () const { return m_process; }
 
-private:
   amd_dbgapi_status_t enable_debug_trap (void);
   amd_dbgapi_status_t disable_debug_trap (void);
+  bool debug_trap_enabled () const { return m_poll_fd != -1; }
 
 private:
   kfd_gpu_id_t const m_gpu_id;

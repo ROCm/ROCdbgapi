@@ -39,25 +39,38 @@ shared_library_t::shared_library_t (amd_dbgapi_shared_library_id_t library_id,
                                     notify_callback_t on_load,
                                     notify_callback_t on_unload)
     : handle_object (library_id), m_on_load (on_load), m_on_unload (on_unload),
-      m_process (process)
+      m_state (AMD_DBGAPI_SHARED_LIBRARY_STATE_UNLOADED), m_process (process)
 {
-  amd_dbgapi_shared_library_state_t library_state;
+  amd_dbgapi_shared_library_state_t state;
 
   if (m_process.enable_notify_shared_library (name.c_str (), library_id,
-                                              &library_state)
+                                              &state)
       != AMD_DBGAPI_STATUS_SUCCESS)
     return;
 
   m_is_valid = true;
-
-  if (library_state == AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED)
-    on_load (*this);
+  set_state (state);
 }
 
 shared_library_t::~shared_library_t ()
 {
   if (m_is_valid)
     m_process.disable_notify_shared_library (id ());
+}
+
+void
+shared_library_t::set_state (amd_dbgapi_shared_library_state_t state)
+{
+  dbgapi_assert (state == AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED
+                 || state == AMD_DBGAPI_SHARED_LIBRARY_STATE_UNLOADED);
+
+  if (m_state != state)
+    {
+      m_state = state;
+      /* Call the notifier since the state has changed.  */
+      (state == AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED ? m_on_load
+                                                       : m_on_unload) (*this);
+    }
 }
 
 breakpoint_t::breakpoint_t (amd_dbgapi_breakpoint_id_t breakpoint_id,
@@ -121,7 +134,7 @@ amd_dbgapi_report_shared_library (
   if (!shared_library)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_SHARED_LIBRARY_ID;
 
-  shared_library->callback (shared_library_state) (*shared_library);
+  shared_library->set_state (shared_library_state);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
