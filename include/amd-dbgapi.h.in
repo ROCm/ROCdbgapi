@@ -1253,29 +1253,38 @@ amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
                            amd_dbgapi_process_id_t *process_id);
 
 /**
- * Detach from a process.
+ * Detach from a process and no longer have debug control of the AMD GPU devices
+ * it uses.
  *
- * The AMD GPU devices used by the process can no longer be controlled.  Any
- * waves with a displaced stepping buffer are stopped and the displaced
- * stepping buffer completed.  Any waves in the stopped or single step state
- * are resumed in non-single step mode.  Any pending events are discarded.  Any
- * data watchpoints are removed.  All agents are configured to
- * ::AMD_DBGAPI_MEMORY_PRECISION_NONE.  Execution of the inferior process will
- * continue unaffected by the library.
+ * If the associated native operating system process has already exited, or
+ * exits while being detached, then the process is trivially detached.
  *
- * It is undefined to use the process handle, or any handles returned by
- * previous operations performed for that process, after detaching.  A process
- * can be attached and detached multiple times.
+ * Otherwise, detaching causes execution of the associated native operating
+ * system process to continue unaffected by the library.  Any waves with a
+ * displaced stepping buffer are stopped and the displaced stepping buffer
+ * completed.  Any data watchpoints are removed.  All agents are configured to
+ * ::AMD_DBGAPI_MEMORY_PRECISION_NONE.  Any waves in the stopped or single step
+ * state are resumed in non-single step mode.  Any pending events are discarded.
+ *
+ * After detaching, the process handle becomes invalid.  It is undefined to use
+ * any handles returned by previous operations performed with a process handle
+ * that has become invalid.
+ *
+ * A native operating system process can be attached and detached multiple
+ * times.  Each attach returns a unique process handle even for the same native
+ * operating system process.
  *
  * The client is responsible for removing any inserted breakpoints before
- * detaching.  Failing to do so will cause the inferior execution of a
- * breakpoint instruction to put the queue into an error state, aborting any
- * executing waves for dispatches on that queue.
+ * detaching.  Failing to do so will cause execution of a breakpoint instruction
+ * to put the queue into an error state, aborting any executing waves for
+ * dispatches on that queue.
  *
  * \param process_id The process handle that is being detached.
  *
  * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
- * successfully and the process has been detached.
+ * successfully and the process has been detached from the associated native
+ * operating system process, or the associated native operating system process
+ * has already exited.
  *
  * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
  * left uninitialized.
@@ -5067,7 +5076,7 @@ typedef enum
  * are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID The \p process_id is
- * invalid.  No event is retrieved and and \p event_id and \p kind are
+ * invalid.  No event is retrieved and \p event_id and \p kind are
  * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p event_id or \p kind
