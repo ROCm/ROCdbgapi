@@ -141,6 +141,8 @@ process_t::dbg_trap_ioctl (uint32_t action, kfd_ioctl_dbg_trap_args *args)
     {
       /* The target process does not exist, it must have exited.  */
       m_process_exited = true;
+      /* FIXME: We should tear down the process now, so that any operation
+         executed after this point returns an error.  */
       return -ESRCH;
     }
 
@@ -649,9 +651,7 @@ process_t::enable_debug_trap (const agent_t &agent, file_desc_t *poll_fd)
   args.data1 = 1; /* enable  */
 
   int err = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_ENABLE, &args);
-  if (err == -ESRCH)
-    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
-  else if (err < 0)
+  if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
   *poll_fd = args.data3;
@@ -669,9 +669,7 @@ process_t::disable_debug_trap (const agent_t &agent)
   args.data1 = 0; /* disable  */
 
   int err = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_ENABLE, &args);
-  if (err == -ESRCH)
-    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
-  else if (err < 0)
+  if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
@@ -702,8 +700,6 @@ process_t::query_debug_event (const agent_t &agent,
       *queue_status = 0;
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
-  else if (err == -ESRCH)
-    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
   else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
@@ -742,9 +738,7 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues)
   args.ptr = reinterpret_cast<uint64_t> (queue_ids.data ());
 
   int err = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_SUSPEND, &args);
-  if (err == -ESRCH)
-    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
-  else if (err < 0)
+  if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
   /* Update the waves that have been context switched.  */
@@ -789,9 +783,7 @@ process_t::resume_queues (const std::vector<queue_t *> &queues)
   args.ptr = reinterpret_cast<uint64_t> (queue_ids.data ());
 
   int err = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_RESUME, &args);
-  if (err == -ESRCH)
-    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
-  else if (err < 0)
+  if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
   for (auto &&queue : queues)
@@ -832,9 +824,7 @@ process_t::update_queues ()
       args.ptr = reinterpret_cast<uint64_t> (snapshots.get ());
 
       int err = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_GET_QUEUE_SNAPSHOT, &args);
-      if (err == -ESRCH)
-        return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
-      else if (err < 0)
+      if (err < 0)
         return AMD_DBGAPI_STATUS_ERROR;
 
       /* KFD writes up to snapshot_count queue snapshots, but returns the
@@ -1042,11 +1032,9 @@ process_t::attach ()
       || get_version_args.major_version != KFD_IOCTL_MAJOR_VERSION
       || get_version_args.minor_version < KFD_IOCTL_MINOR_VERSION)
     {
-      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                  "KFD ioctl version %d.%d does not match %d.%d+ requirement",
-                  get_version_args.major_version,
-                  get_version_args.minor_version, KFD_IOCTL_MAJOR_VERSION,
-                  KFD_IOCTL_MINOR_VERSION);
+      warning ("KFD ioctl version %d.%d does not match %d.%d+ requirement",
+               get_version_args.major_version, get_version_args.minor_version,
+               KFD_IOCTL_MAJOR_VERSION, KFD_IOCTL_MINOR_VERSION);
       return AMD_DBGAPI_STATUS_ERROR_VERSION_MISMATCH;
     }
 
@@ -1077,8 +1065,7 @@ process_t::attach ()
       || dbg_trap_args.data1 != KFD_IOCTL_DBG_MAJOR_VERSION
       || dbg_trap_args.data2 < KFD_IOCTL_DBG_MINOR_VERSION)
     {
-      dbgapi_log (
-          AMD_DBGAPI_LOG_LEVEL_INFO,
+      warning (
           "KFD dbg trap ioctl version %d.%d does not match %d.%d+ requirement",
           dbg_trap_args.data1, dbg_trap_args.data2,
           KFD_IOCTL_DBG_MAJOR_VERSION, KFD_IOCTL_DBG_MINOR_VERSION);
