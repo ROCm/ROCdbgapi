@@ -1415,16 +1415,17 @@ typedef enum
    * the following BNF syntax:
    *
    *     uri ::== file_uri
-   *     file_uri ::== "file://" file_path [ "#" ( file_slice | embedded ) ]
+   *     file_uri ::== "file://" file_path [ "#" file_slice ]
    *     file_slice ::= "offset=" number "&" "size=" number
-   *     embedded ::= "embedded=" name "&" "arch=" name
    *     file_path ::= URI_ENCODED_OS_FILE_PATH
-   *     number ::= HEX_NUMBER | DECIMAL_NUMBER
-   *     name ::= URI_ENCODED_IDENTIFIER
+   *     number ::= HEX_NUMBER | DECIMAL_NUMBER | OCTAL_NUMBER
+   *
+   * ``number`` is a C integral literal where hexadecimal values are prefixed by
+   * "0x" or "0X", and octal values by "0".
    *
    * If the code object is loaded from memory, then the process file system can
    * be used.  For example, on Linux
-   * ``/proc/123/mem#offset=0x2000,size=0x1000``.
+   * ``/proc/123/mem#offset=0x2000&size=0x1000``.
    *
    * It is allocated by the amd_dbgapi_callbacks_s::allocate_memory callback
    * and is owned by the client.
