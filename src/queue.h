@@ -58,6 +58,9 @@ public:
 
   ~queue_t ();
 
+  void invalidate () { m_is_valid = false; }
+  bool is_valid () const { return m_is_valid; }
+
   kfd_queue_id_t kfd_queue_id () const { return m_kfd_queue_info.queue_id; }
   uint32_t kfd_queue_type () const { return m_kfd_queue_info.queue_type; }
 
@@ -104,6 +107,7 @@ private:
 
   epoch_t m_mark{ 0 };
   bool m_suspended{ false };
+  bool m_is_valid{ false };
 
   /* Value used to mark waves that are found in the context save area. When
      sweeping, any wave found with a mark less than the current mark will be

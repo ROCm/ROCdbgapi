@@ -720,7 +720,8 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues)
 
   for (auto &&queue : queues)
     {
-      queue->set_suspended (true);
+      dbgapi_assert (queue->is_valid () && !queue->suspended ()
+                     && "queue is invalid, or already suspended");
       queue_ids.emplace_back (queue->kfd_queue_id ());
       dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "suspending %s",
                   to_string (queue->id ()).c_str ());
@@ -739,11 +740,30 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues)
 
   int err = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_SUSPEND, &args);
   if (err < 0)
-    return AMD_DBGAPI_STATUS_ERROR;
+    {
+      /* The ioctl may have failed because some queues may no longer exist so
+         check the queue_ids returned by KFD and invalidate queues which have
+         been marked as invalid.  */
+      bool invalid_queue = false;
+
+      for (size_t i = 0; i < queue_ids.size (); ++i)
+        if (queue_ids[i] == KFD_INVALID_QUEUEID)
+          {
+            queues[i]->invalidate ();
+            invalid_queue = true;
+          }
+
+      if (!invalid_queue)
+        return AMD_DBGAPI_STATUS_ERROR;
+    }
 
   /* Update the waves that have been context switched.  */
   for (auto &&queue : queues)
     {
+      if (!queue->is_valid ())
+        continue;
+
+      queue->set_suspended (true);
       if (queue->kfd_queue_type () == KFD_IOC_QUEUE_TYPE_COMPUTE_AQL)
         {
           amd_dbgapi_status_t status = queue->update_waves (!m_initialized);
@@ -767,6 +787,7 @@ process_t::resume_queues (const std::vector<queue_t *> &queues)
 
   for (auto &&queue : queues)
     {
+      dbgapi_assert (queue->suspended () && "queue is not suspended");
       queue_ids.emplace_back (queue->kfd_queue_id ());
       dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "resuming %s",
                   to_string (queue->id ()).c_str ());

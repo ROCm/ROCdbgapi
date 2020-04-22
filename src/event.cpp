@@ -312,14 +312,36 @@ amd_dbgapi_next_pending_event (amd_dbgapi_process_id_t process_id,
                 }
             }
 
+          /* Suspend the queues that have pending events which will cause all
+             events to be created for any waves that have pending events.  */
+          while (true)
+            {
+              amd_dbgapi_status_t status = process->suspend_queues (queues);
+              if (status == AMD_DBGAPI_STATUS_SUCCESS)
+                break;
+
+              /* Some queues may have become invalid since we retrieved the
+                  event, so remove them from the list and try again.  */
+              bool invalid_queue = false;
+              for (auto it = queues.begin (); it != queues.end ();)
+                {
+                  if ((*it)->is_valid ())
+                    ++it;
+                  else
+                    {
+                      process->destroy (*it);
+                      it = queues.erase (it);
+                      invalid_queue = true;
+                    }
+                }
+              if (!invalid_queue)
+                error ("process::suspend_queues failed (rc=%d)", status);
+            }
+
           /* Exit the loop if we did not add any new queues to suspend in
              this iteration.  */
           if (queues.empty ())
             break;
-
-          /* Suspend the queues that have pending events which will cause all
-             events to be created for any waves that have pending events.  */
-          process->suspend_queues (queues);
 
           /* Append queues into suspended_queues.  */
           suspended_queues.insert (suspended_queues.end (), queues.begin (),

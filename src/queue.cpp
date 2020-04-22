@@ -96,6 +96,7 @@ queue_t::queue_t (amd_dbgapi_queue_id_t queue_id, agent_t &agent,
           != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not write to the endpgm instruction buffer");
     }
+  m_is_valid = true;
 }
 
 queue_t::~queue_t ()
