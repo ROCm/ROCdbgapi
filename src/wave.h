@@ -130,7 +130,8 @@ public:
 
   bool register_available (amdgpu_regnum_t regnum) const;
   std::pair<size_t, size_t>
-  register_offset_and_size (amdgpu_regnum_t regnum) const;
+  register_offset_and_size (amdgpu_regnum_t regnum,
+                            bool include_aliased_registers = true) const;
 
 private:
   amd_dbgapi_status_t read_pseudo_register (amdgpu_regnum_t regnum,

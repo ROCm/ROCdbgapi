@@ -604,7 +604,7 @@ amd_dbgapi_wave_register_get_info (amd_dbgapi_process_id_t process_id,
         if (value_size != sizeof (size))
           return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE;
 
-        size = wave->register_offset_and_size (regnum).second;
+        size = wave->register_offset_and_size (regnum, false).second;
         if (!size)
           return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
