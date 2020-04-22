@@ -37,14 +37,17 @@ template <typename Handle>
 constexpr Handle
 null_id ()
 {
-  return Handle{ decltype (Handle::handle) (0) };
+  return Handle{ decltype (Handle::handle){ 0 } };
 }
 
-template <typename Handle>
+constexpr int HANDLE_SENTINEL_COUNT = 5;
+
+template <typename Handle, int N = 0>
 constexpr Handle
-mark_id ()
+sentinel_id ()
 {
-  return Handle{ decltype (Handle::handle) (~0) };
+  static_assert (N < HANDLE_SENTINEL_COUNT, "invalid parameter");
+  return Handle{ ~decltype (Handle::handle){ N } };
 }
 
 namespace detail
@@ -84,11 +87,11 @@ private:
 
 /* Wrap-around check functor for handles. An error is thrown if the
    handle value reaches ~0 as it is reserved for a mark object.  */
-template <typename Type> struct has_wrapped_around
+template <typename Type> struct handle_has_wrapped_around
 {
   bool operator() (const Type &old_value, const Type &new_value) const
   {
-    return new_value == ~Type (0);
+    return new_value == ~Type{ HANDLE_SENTINEL_COUNT - 1 };
   }
 };
 
@@ -352,7 +355,7 @@ private:
      as 0 is the null object handle.  */
   monotonic_counter_t<
       decltype (handle_type::handle),
-      detail::has_wrapped_around<decltype (handle_type::handle)>>
+      detail::handle_has_wrapped_around<decltype (handle_type::handle)>>
       m_next_id{ 1 };
 
   /* Flag to tell if the content of the map has changed.  */

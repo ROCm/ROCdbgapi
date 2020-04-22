@@ -91,8 +91,9 @@ public:
   virtual bool has_acc_vgprs () const = 0;
   virtual compute_relaunch_abi_t compute_relaunch_abi () const = 0;
   virtual bool can_halt_at_endpgm () const = 0;
-  virtual bool is_endpgm (const std::vector<uint8_t> &instruction) const = 0;
-  virtual bool is_trap (const std::vector<uint8_t> &instruction) const = 0;
+  virtual bool is_endpgm (const std::vector<uint8_t> &bytes) const = 0;
+  virtual bool is_trap (const std::vector<uint8_t> &bytes,
+                        uint16_t *trap_id = nullptr) const = 0;
 
   virtual elf_amdgpu_machine_t elf_amdgpu_machine () const = 0;
   virtual size_t largest_instruction_size () const = 0;

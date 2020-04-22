@@ -30,6 +30,6 @@
    ttmp11[8:7].
 */
 
-#define ROCR_RDEBUG_VERSION 1
+#define ROCR_RDEBUG_VERSION 2
 
 #endif /* _ROCR_RDEBUG_H */

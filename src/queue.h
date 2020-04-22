@@ -53,6 +53,17 @@ private:
 public:
   using kfd_queue_id_t = uint32_t;
 
+  enum class update_waves_flag_t : uint32_t
+  {
+    /* Assign new ids to all waves regardless of the content of their wave_id
+       register.  This is needed during attach as waves created before the
+       debugger attached to the process may have corrupted wave_ids.  */
+    FORCE_ASSIGN_WAVE_IDS = 1 << 0,
+    /* When changing the wave launch mode from WAVE_LAUNCH_MODE_HALT, all waves
+       halted at launch need to be resumed and reported to the client.  */
+    UNHIDE_WAVES_HALTED_AT_LAUNCH = 1 << 1,
+  };
+
   queue_t (amd_dbgapi_queue_id_t queue_id, agent_t &agent,
            const kfd_queue_snapshot_entry &kfd_queue_info);
 
@@ -70,7 +81,7 @@ public:
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }
 
-  amd_dbgapi_status_t update_waves (bool always_assign_wave_ids);
+  amd_dbgapi_status_t update_waves (update_waves_flag_t flags = {});
 
   amd_dbgapi_global_address_t displaced_stepping_buffer_address () const
   {
@@ -115,6 +126,10 @@ private:
   monotonic_counter_t<epoch_t> m_next_wave_mark{ 1 };
 
   agent_t &m_agent;
+};
+
+template <> struct is_flag<queue_t::update_waves_flag_t> : std::true_type
+{
 };
 
 /* Wraps a queue and provides a RAII mechanism to suspend it if it wasn't

@@ -208,6 +208,13 @@ process_t::detach ()
   if (!m_process_exited)
     try
       {
+        /* We don't need to resume the queues until we are done changing the
+           state.  */
+        set_forward_progress_needed (false);
+
+        /* Resume all the waves halted at launch.  */
+        set_wave_launch_mode (wave_launch_mode_t::NORMAL);
+
         update_queues ();
 
         /* Suspend the queues that weren't already suspended.  */
@@ -247,7 +254,7 @@ process_t::detach ()
         for (auto &&queue : range<queue_t> ())
           queues.emplace_back (&queue);
 
-        resume_queues (queues);
+        set_forward_progress_needed (true);
       }
     catch (...)
       {
@@ -423,6 +430,86 @@ process_t::set_forward_progress_needed (bool forward_progress_needed)
       amd_dbgapi_status_t status = resume_queues (queues);
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
+    }
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
+amd_dbgapi_status_t
+process_t::set_wave_launch_mode (wave_launch_mode_t wave_launch_mode)
+{
+  if (m_wave_launch_mode == wave_launch_mode)
+    return AMD_DBGAPI_STATUS_SUCCESS;
+
+  auto agent_range = range<agent_t> ();
+  for (auto it = agent_range.begin (); it != agent_range.end (); ++it)
+    {
+      amd_dbgapi_status_t status
+          = set_wave_launch_mode (*it, wave_launch_mode);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("agent_t::set_wave_launch_mode (%s) failed (rc=%d)",
+               to_string (wave_launch_mode).c_str (), status);
+    }
+
+  wave_launch_mode_t saved_wave_launch_mode = m_wave_launch_mode;
+  m_wave_launch_mode = wave_launch_mode;
+
+  if (saved_wave_launch_mode == wave_launch_mode_t::HALT)
+    {
+      /* We need to resume the waves that may be halted on launch.  Since we
+         don't know anything about these waves, we have to suspend the queues
+         and update the waves.  */
+      update_queues ();
+
+      std::vector<queue_t *> queues;
+      queues.reserve (count<queue_t> ());
+
+      for (auto &&queue : range<queue_t> ())
+        {
+          if (queue.suspended ())
+            /* If the queue is already suspended, just update its waves.  */
+            queue.update_waves (
+                queue_t::update_waves_flag_t::UNHIDE_WAVES_HALTED_AT_LAUNCH);
+          else
+            queues.emplace_back (&queue);
+        }
+
+      while (true)
+        {
+          amd_dbgapi_status_t status = suspend_queues (
+              queues,
+              queue_t::update_waves_flag_t::UNHIDE_WAVES_HALTED_AT_LAUNCH);
+          if (status == AMD_DBGAPI_STATUS_SUCCESS)
+            break;
+
+          /* Some queues may have become invalid since we retrieved the
+              event, so remove them from the list and try again.  */
+          bool invalid_queue = false;
+          for (auto it = queues.begin (); it != queues.end ();)
+            {
+              if ((*it)->is_valid ())
+                ++it;
+              else
+                {
+                  destroy (*it);
+                  it = queues.erase (it);
+                  invalid_queue = true;
+                }
+            }
+          if (!invalid_queue)
+            error ("process::suspend_queues failed (rc=%d)", status);
+        }
+
+      /* Suspending the queues causes all the waves to be updated which will
+         unhalt waves halted at launch. We now resume them if forward progress
+         is needed.  */
+
+      if (forward_progress_needed ())
+        {
+          amd_dbgapi_status_t status = resume_queues (queues);
+          if (status != AMD_DBGAPI_STATUS_SUCCESS)
+            return status;
+        }
     }
 
   return AMD_DBGAPI_STATUS_SUCCESS;
@@ -621,15 +708,21 @@ process_t::update_agents (bool enable_debug_trap)
         {
           amd_dbgapi_status_t status = agent->enable_debug_trap ();
           if (status != AMD_DBGAPI_STATUS_SUCCESS)
-            {
-              /* FIXME: We could not enable the debug mode for this agent.
-                 Another process may already have enabled debug mode for the
-                 same agent.  Remove this when KFD supports concurrent
-                 debugging on the same agent.  */
-              warning ("Could not enable debugging on gpu_id %d.",
-                       sysfs_node.gpu_id);
-              return status;
-            }
+            /* FIXME: We could not enable the debug mode for this agent.
+               Another process may already have enabled debug mode for the
+               same agent.  Remove this when KFD supports concurrent
+               debugging on the same agent.  */
+            error ("Could not enable debugging on gpu_id %d.",
+                   sysfs_node.gpu_id);
+        }
+
+      if (agent->debug_trap_enabled ())
+        {
+          amd_dbgapi_status_t status
+              = set_wave_launch_mode (*agent, m_wave_launch_mode);
+          if (status != AMD_DBGAPI_STATUS_SUCCESS)
+            error ("Could not set the wave launch mode for gpu_id %d (rc=%d).",
+                   sysfs_node.gpu_id, status);
         }
     }
 
@@ -688,6 +781,23 @@ process_t::disable_debug_trap (const agent_t &agent)
 }
 
 amd_dbgapi_status_t
+process_t::set_wave_launch_mode (const agent_t &agent, wave_launch_mode_t mode)
+{
+  /* KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_MODE (#2)
+     data1: mode (0=normal, 1=halt, 2=kill, 3=single-step, 4=disable)  */
+
+  kfd_ioctl_dbg_trap_args args{ 0 };
+  args.gpu_id = agent.gpu_id ();
+  args.data1 = static_cast<std::underlying_type<decltype (mode)>::type> (mode);
+
+  int err = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_MODE, &args);
+  if (err < 0)
+    return AMD_DBGAPI_STATUS_ERROR;
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
+amd_dbgapi_status_t
 process_t::query_debug_event (const agent_t &agent,
                               queue_t::kfd_queue_id_t *kfd_queue_id,
                               uint32_t *queue_status)
@@ -722,7 +832,8 @@ process_t::query_debug_event (const agent_t &agent,
 }
 
 amd_dbgapi_status_t
-process_t::suspend_queues (const std::vector<queue_t *> &queues)
+process_t::suspend_queues (const std::vector<queue_t *> &queues,
+                           queue_t::update_waves_flag_t flags)
 {
   if (queues.empty ())
     return AMD_DBGAPI_STATUS_SUCCESS;
@@ -778,7 +889,7 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues)
       queue->set_suspended (true);
       if (queue->kfd_queue_type () == KFD_IOC_QUEUE_TYPE_COMPUTE_AQL)
         {
-          amd_dbgapi_status_t status = queue->update_waves (!m_initialized);
+          amd_dbgapi_status_t status = queue->update_waves (flags);
           if (status != AMD_DBGAPI_STATUS_SUCCESS)
             warning ("%s update_waves failed (rc=%d)",
                      to_string (queue->id ()).c_str (), status);
@@ -1123,7 +1234,8 @@ process_t::attach ()
     /* Suspend the newly create queues to update the waves, then resume them.
        We could have attached to the process while wavefronts were executing.
      */
-    status = suspend_queues (queues);
+    status = suspend_queues (
+        queues, queue_t::update_waves_flag_t::FORCE_ASSIGN_WAVE_IDS);
     if (status != AMD_DBGAPI_STATUS_SUCCESS)
       error ("suspend_queues failed (rc=%d)", status);
 
@@ -1496,13 +1608,53 @@ amd_dbgapi_process_set_progress (amd_dbgapi_process_id_t process_id,
   TRY;
   TRACE (process_id, progress);
 
+  if (!amd::dbgapi::is_initialized)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+
   process_t *process = process_t::find (process_id);
 
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-  return process->set_forward_progress_needed (
-      progress != AMD_DBGAPI_PROGRESS_NO_FORWARD);
+  switch (progress)
+    {
+    case AMD_DBGAPI_PROGRESS_NORMAL:
+      return process->set_forward_progress_needed (true);
+    case AMD_DBGAPI_PROGRESS_NO_FORWARD:
+      return process->set_forward_progress_needed (false);
+    default:
+      return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+    }
+  CATCH;
+}
+
+amd_dbgapi_status_t AMD_DBGAPI
+amd_dbgapi_process_set_wave_creation (amd_dbgapi_process_id_t process_id,
+                                      amd_dbgapi_wave_creation_t creation)
+{
+  TRY;
+  TRACE (process_id, creation);
+
+  if (!amd::dbgapi::is_initialized)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+
+  process_t *process = process_t::find (process_id);
+
+  if (!process)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
+
+  switch (creation)
+    {
+    case AMD_DBGAPI_WAVE_CREATION_NORMAL:
+      return process->set_wave_launch_mode (
+          process_t::wave_launch_mode_t::NORMAL);
+    case AMD_DBGAPI_WAVE_CREATION_STOP:
+      return process->set_wave_launch_mode (
+          process_t::wave_launch_mode_t::HALT);
+    default:
+      return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+    }
+
   CATCH;
 }
 

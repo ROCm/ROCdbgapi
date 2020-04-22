@@ -299,6 +299,51 @@ private:
 
 } /* namespace utils */
 
+template <typename T, bool = std::is_enum<T>::value> struct is_flag;
+template <typename T> struct is_flag<T, true> : std::false_type
+{
+};
+
+/* To enable bitwise operators on enum classes use:
+   template <> struct is_flag<my_enum_class> : std::true_type;
+*/
+
+template <typename T>
+typename std::enable_if<is_flag<T>::value, bool>::type operator! (T flag)
+{
+  using t = typename std::underlying_type<T>::type;
+  return static_cast<t> (flag) == t{};
+}
+
+template <typename T>
+typename std::enable_if<is_flag<T>::value, T>::type
+operator| (T lhs, T rhs)
+{
+  using t = typename std::underlying_type<T>::type;
+  return static_cast<T> (static_cast<t> (lhs) | static_cast<t> (rhs));
+}
+
+template <typename T>
+typename std::enable_if<is_flag<T>::value, T>::type &
+operator|= (T &lhs, T rhs)
+{
+  return lhs = lhs | rhs;
+}
+
+template <typename T>
+typename std::enable_if<is_flag<T>::value, T>::type operator& (T lhs, T rhs)
+{
+  using t = typename std::underlying_type<T>::type;
+  return static_cast<T> (static_cast<t> (lhs) & static_cast<t> (rhs));
+}
+
+template <typename T>
+typename std::enable_if<is_flag<T>::value, T>::type &
+operator&= (T &lhs, T rhs)
+{
+  return lhs = lhs & rhs;
+}
+
 /* A monotonic counter with wrap-around detection. Type must be an integral
    unsigned type. The WrapAroundCheck functor returns true if the counter has
    wrapped around. The default functor is (new_value > old_value).  */

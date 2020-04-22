@@ -46,8 +46,17 @@ class process_t;
 class wave_t : public detail::handle_object<amd_dbgapi_wave_id_t>
 {
 public:
-  static constexpr amd_dbgapi_wave_id_t ignored_wave_id
-      = mark_id<amd_dbgapi_wave_id_t> ();
+  /* New waves are always created by the hardware with an undefined wave_id.
+     A wave with an undefined wave_id could be halted at launch if the launch
+     mode was set to process_t::wave_launch_mode_t::HALT when it was created.
+     Waves halted at launch do not have a trap/exception raised by the trap
+     handler.  */
+  static constexpr amd_dbgapi_wave_id_t undefined = { 0 };
+  /* Ignored waves are waves that are terminating (about to execute a s_endpgm
+     instruction). These waves should never be reported to the client and will
+     be destroyed in the next mark and sweep when they finally terminate.  */
+  static constexpr amd_dbgapi_wave_id_t ignored_wave
+      = sentinel_id<amd_dbgapi_wave_id_t, 0> ();
 
   wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t &dispatch,
           uint32_t vgpr_count, uint32_t accvgpr_count, uint32_t sgpr_count,
@@ -69,8 +78,8 @@ public:
   amd_dbgapi_status_t park ();
   amd_dbgapi_status_t unpark ();
 
-  amd_dbgapi_status_t
-  update (amd_dbgapi_global_address_t context_save_address);
+  amd_dbgapi_status_t update (amd_dbgapi_global_address_t context_save_address,
+                              bool unhide_waves_halted_at_launch);
 
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }

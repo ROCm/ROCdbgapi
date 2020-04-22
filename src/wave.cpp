@@ -47,8 +47,9 @@ namespace amd
 namespace dbgapi
 {
 
-/* ignored_wave_id is ODR-used by the operator==.  */
-constexpr amd_dbgapi_wave_id_t wave_t::ignored_wave_id;
+/* These are ODR-used by operator==.  */
+constexpr amd_dbgapi_wave_id_t wave_t::undefined;
+constexpr amd_dbgapi_wave_id_t wave_t::ignored_wave;
 
 wave_t::wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t &dispatch,
                 uint32_t vgpr_count, uint32_t accvgpr_count,
@@ -120,7 +121,8 @@ wave_t::unpark ()
 }
 
 amd_dbgapi_status_t
-wave_t::update (amd_dbgapi_global_address_t context_save_address)
+wave_t::update (amd_dbgapi_global_address_t context_save_address,
+                bool unhide_waves_halted_at_launch)
 {
   dbgapi_assert (queue ().suspended ());
   process_t &process = this->process ();
@@ -165,6 +167,15 @@ wave_t::update (amd_dbgapi_global_address_t context_save_address)
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
 
+      /* Resume the wave if it is a brand new wave (first_update) and if it
+         is halted at launch.  */
+      if (unhide_waves_halted_at_launch && first_update
+          && m_state == AMD_DBGAPI_WAVE_STATE_STOP
+          && m_stop_reason == AMD_DBGAPI_WAVE_STOP_REASON_NONE)
+        {
+          set_state (AMD_DBGAPI_WAVE_STATE_RUN);
+        }
+
       /* If the wave is not stopped, we'll need to reload the hwregs cache
          during the next update.  */
       m_reload_hwregs_cache = (m_state != AMD_DBGAPI_WAVE_STATE_STOP);
@@ -172,7 +183,7 @@ wave_t::update (amd_dbgapi_global_address_t context_save_address)
       if (m_stop_reason && m_state == AMD_DBGAPI_WAVE_STATE_STOP
           && saved_state != AMD_DBGAPI_WAVE_STATE_STOP)
         {
-          if (m_stop_reason == AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT
+          if ((m_stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT) != 0
               && !architecture ().can_halt_at (
                   architecture ().breakpoint_instruction ()))
             {

@@ -42,6 +42,8 @@ namespace dbgapi
 using utils::bit_extract;
 
 #define SQ_WAVE_TRAPSTS_XNACK_ERROR(x) bit_extract ((x), 28, 28)
+#define SQ_WAVE_STATUS_HALT_MASK utils::bit_mask (13, 13)
+#define TTMP11_TRAP_HANDLER_EVENTS_MASK utils::bit_mask (7, 8)
 
 /* COMPUTE_RELAUNCH register fields.  */
 #define COMPUTE_RELAUNCH_PAYLOAD_VGPRS(x) bit_extract ((x), 0, 5)
@@ -113,7 +115,7 @@ queue_t::~queue_t ()
 }
 
 amd_dbgapi_status_t
-queue_t::update_waves (bool always_assign_wave_ids)
+queue_t::update_waves (update_waves_flag_t flags)
 {
   process_t &process = this->process ();
   const epoch_t wave_mark = m_next_wave_mark++;
@@ -121,6 +123,11 @@ queue_t::update_waves (bool always_assign_wave_ids)
 
   dbgapi_assert (kfd_queue_type () == KFD_IOC_QUEUE_TYPE_COMPUTE_AQL
                  && "queue_t::update_waves can only decode AQL queues");
+
+  const bool force_assign_wave_ids
+      = !!(flags & update_waves_flag_t::FORCE_ASSIGN_WAVE_IDS);
+  const bool unhide_waves_halted_at_launch
+      = !!(flags & update_waves_flag_t::UNHIDE_WAVES_HALTED_AT_LAUNCH);
 
   /* Read the queue's write_dispatch_id and read_dispatch_id.  */
 
@@ -276,13 +283,20 @@ queue_t::update_waves (bool always_assign_wave_ids)
 
       wave_area_address -= wave_area_size;
 
-      const amd_dbgapi_global_address_t ttmps_address
+      const amd_dbgapi_global_address_t hwregs_address
           = wave_area_address
             + (n_vgprs + n_accvgprs) * sizeof (uint32_t) * wave_lanes
-            + n_sgprs * sizeof (uint32_t) + n_hwregs * sizeof (uint32_t);
+            + n_sgprs * sizeof (uint32_t);
 
-      uint64_t wave_id = 0;
-      if (!always_assign_wave_ids)
+      const amd_dbgapi_global_address_t ttmps_address
+          = hwregs_address + n_hwregs * sizeof (uint32_t);
+
+      amd_dbgapi_wave_id_t wave_id = wave_t::undefined;
+
+      /* We will never have hidden waves when force assigning wave ids. All
+         waves seen in the control stack get a new wave_t instance with a new
+         wave id.  */
+      if (!force_assign_wave_ids)
         {
           /* The wave id is preserved in registers ttmp[4:5].  */
           const amd_dbgapi_global_address_t ttmp4_5_address
@@ -295,27 +309,63 @@ queue_t::update_waves (bool always_assign_wave_ids)
           if (status != AMD_DBGAPI_STATUS_SUCCESS)
             return status;
 
-          if (wave_id == wave_t::ignored_wave_id.handle)
-            continue;
-        }
-
-      wave_t *wave;
-      if (wave_id)
-        {
-          /* The wave already exists, so we should find it and update its
-             context save area address.  */
-          wave = process.find (amd_dbgapi_wave_id_t{ wave_id });
-          if (!wave)
+          /* A wave should be ignored if its wave_id is wave_t::ignored_wave,
+             or if its wave_id is wave_t::undefined and it is halted without
+             having entered the trap handler.  */
+          if (wave_id == wave_t::undefined && !unhide_waves_halted_at_launch)
             {
-              warning ("wave_%ld not found in the process map", wave_id);
-              /* TODO: Enable the creation of possibly corrupted wavefronts,
-                 or wavefronts for which the debug features aren't enabled,
-                 so that they are reported to the debugger.  Still keep the
-                 warning.  */
+              uint32_t status_reg;
+              const amd_dbgapi_global_address_t status_reg_address
+                  = hwregs_address
+                    + (amdgpu_regnum_t::STATUS - amdgpu_regnum_t::FIRST_HWREG)
+                          * sizeof (uint32_t);
+
+              status = process.read_global_memory (
+                  status_reg_address, &status_reg, sizeof (status_reg));
+              if (status != AMD_DBGAPI_STATUS_SUCCESS)
+                return status;
+
+              const bool halted = !!(status_reg & SQ_WAVE_STATUS_HALT_MASK);
+
+              const amd_dbgapi_global_address_t ttmp11_address
+                  = ttmps_address
+                    + (amdgpu_regnum_t::TTMP11 - amdgpu_regnum_t::FIRST_TTMP)
+                          * sizeof (uint32_t);
+
+              uint32_t ttmp11;
+              status = process.read_global_memory (ttmp11_address, &ttmp11,
+                                                   sizeof (ttmp11));
+              if (status != AMD_DBGAPI_STATUS_SUCCESS)
+                return status;
+
+              /* trap_handler_events is true if the trap handler was entered
+                 because of a trap instruction or an exception.  */
+              const bool trap_handler_events
+                  = !!(ttmp11 & TTMP11_TRAP_HANDLER_EVENTS_MASK);
+
+              /* Waves halted at launch do not have trap handler events).  */
+              if (halted && !trap_handler_events)
+                continue;
+            }
+          else if (wave_id == wave_t::ignored_wave)
+            {
               continue;
             }
         }
-      else
+
+      wave_t *wave = nullptr;
+
+      if (wave_id != wave_t::undefined)
+        {
+          /* The wave already exists, so we should find it and update its
+             context save area address.  */
+          wave = process.find (wave_id);
+          if (!wave)
+            warning ("%s not found in the process map",
+                     to_string (wave_id).c_str ());
+        }
+
+      if (!wave)
         {
           /* The dispatch_ptr is preserved in registers ttmp[6:7].  */
           const amd_dbgapi_global_address_t ttmp6_7_address
@@ -409,7 +459,7 @@ queue_t::update_waves (bool always_assign_wave_ids)
                                           wave_lanes); /* lane_count  */
         }
 
-      status = wave->update (wave_area_address);
+      status = wave->update (wave_area_address, unhide_waves_halted_at_launch);
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
 

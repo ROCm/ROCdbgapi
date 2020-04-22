@@ -68,6 +68,15 @@ class process_t
   int dbg_trap_ioctl (uint32_t action, kfd_ioctl_dbg_trap_args *args);
 
 public:
+  enum class wave_launch_mode_t : uint32_t
+  {
+    NORMAL = 0,      /* Waves launch normally.  */
+    HALT = 1,        /* Waves launch in halted mode.  */
+    KILL = 2,        /* Waves terminate before executing any instructions.  */
+    SINGLE_STEP = 3, /* Waves launch in single-step mode.  */
+    DISABLE = 4,     /* Disable launching any new waves.  */
+  };
+
   process_t (amd_dbgapi_client_process_id_t client_process_id,
              amd_dbgapi_process_id_t process_id);
   ~process_t () {}
@@ -100,6 +109,10 @@ public:
   amd_dbgapi_status_t
   set_forward_progress_needed (bool forward_progress_needed);
 
+  wave_launch_mode_t wave_launch_mode () const { return m_wave_launch_mode; }
+  amd_dbgapi_status_t
+  set_wave_launch_mode (wave_launch_mode_t wave_launch_mode);
+
   amd_dbgapi_status_t update_agents (bool enable_debug_trap);
   amd_dbgapi_status_t update_queues ();
   amd_dbgapi_status_t update_code_objects ();
@@ -122,8 +135,12 @@ public:
                                          queue_t::kfd_queue_id_t *kfd_queue_id,
                                          uint32_t *status);
 
-  amd_dbgapi_status_t suspend_queues (const std::vector<queue_t *> &queues);
+  amd_dbgapi_status_t suspend_queues (const std::vector<queue_t *> &queues,
+                                      queue_t::update_waves_flag_t flags = {});
   amd_dbgapi_status_t resume_queues (const std::vector<queue_t *> &queues);
+
+  amd_dbgapi_status_t set_wave_launch_mode (const agent_t &agent,
+                                            wave_launch_mode_t mode);
 
   static process_t *find (amd_dbgapi_process_id_t process_id,
                           bool flush_cache = false);
@@ -269,6 +286,7 @@ private:
   pid_t m_os_pid{ -1 };
   bool m_process_exited{ false };
 
+  wave_launch_mode_t m_wave_launch_mode{ wave_launch_mode_t::NORMAL };
   bool m_forward_progress_needed{ true };
   bool m_initialized{ false };
 
@@ -314,6 +332,27 @@ static inline void
 log_message (amd_dbgapi_log_level_t level, const char *message)
 {
   return (*process_callbacks.log_message) (level, message);
+}
+
+template <>
+inline std::string
+to_string (process_t::wave_launch_mode_t mode)
+{
+  switch (mode)
+    {
+    case process_t::wave_launch_mode_t::NORMAL:
+      return "WAVE_LAUNCH_MODE_NORMAL";
+    case process_t::wave_launch_mode_t::HALT:
+      return "WAVE_LAUNCH_MODE_HALT";
+    case process_t::wave_launch_mode_t::KILL:
+      return "WAVE_LAUNCH_MODE_KILL";
+    case process_t::wave_launch_mode_t::SINGLE_STEP:
+      return "WAVE_LAUNCH_MODE_SINGLE_STEP";
+    case process_t::wave_launch_mode_t::DISABLE:
+      return "WAVE_LAUNCH_MODE_DISABLE";
+    }
+  return to_string (make_hex (
+      static_cast<std::underlying_type<decltype (mode)>::type> (mode)));
 }
 
 #undef TRACE_CALLBACK

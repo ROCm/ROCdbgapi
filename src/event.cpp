@@ -232,7 +232,7 @@ amd_dbgapi_next_pending_event (amd_dbgapi_process_id_t process_id,
   if (!event)
     {
       std::vector<queue_t *> suspended_queues;
-      suspended_queues.reserve (process->count<agent_t> ());
+      suspended_queues.reserve (process->count<queue_t> ());
 
       /* We get our event notifications from the process event thread, so
          make sure it is still running, an exception may have caused it to
