@@ -1366,6 +1366,56 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_set_progress (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_progress_t progress);
 
+/**
+ * The kinds of wave creation supported by the hardware.
+ *
+ * The hardware creates new waves asynchronously as it executes dispatch
+ * packets.  If the client requires that all waves are stopped, it needs to
+ * first request that the hardware stops creating new waves, followed by halting
+ * all already created waves.  The wave creation setting allows controlling how
+ * the hardware creates new waves for dispatch packets on queues associated with
+ * agents belonging to a specific process.  It has no affect on waves that have
+ * already been created.
+ */
+typedef enum
+{
+  /**
+   * Normal wave creation allows new waves to be created.
+   */
+  AMD_DBGAPI_WAVE_CREATION_NORMAL = 0,
+  /**
+   * Stop wave creation prevents new waves from being created.
+   */
+  AMD_DBGAPI_WAVE_CREATION_STOP = 1
+} amd_dbgapi_wave_creation_t;
+
+/**
+ * Set the wave creation mode for a process.
+ *
+ * The setting applies to all agents of the specified process.
+ *
+ * \param[in] process_id The process being controlled.
+ *
+ * \param[in] creation The wave creation mode being set.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
+ * successfully and the wave creation mode has been set.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
+ * left uninitialized.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
+ * initialized.  The library is left uninitialized.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
+ * invalid.  The wave creation mode setting is not changed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p creation is invalid.
+ * The wave creation setting is not changed.
+ */
+amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_set_wave_creation (
+    amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_creation_t creation);
+
 /** @} */
 
 /** \defgroup code_object_group Code Objects
