@@ -47,6 +47,7 @@ public:
                     notify_callback_t on_load, notify_callback_t on_unload);
   ~shared_library_t ();
 
+  const std::string &name () const { return m_name; }
   bool is_valid () const { return m_is_valid; }
 
   void set_state (amd_dbgapi_shared_library_state_t state);
@@ -57,10 +58,10 @@ public:
 private:
   bool m_is_valid = false;
 
+  std::string const m_name;
   notify_callback_t const m_on_load;
   notify_callback_t const m_on_unload;
   amd_dbgapi_shared_library_state_t m_state;
-
   process_t &m_process;
 };
 

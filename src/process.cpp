@@ -29,6 +29,7 @@
 #include "logging.h"
 #include "process.h"
 #include "queue.h"
+#include "rocr_rdebug.h"
 
 #include <algorithm>
 #include <atomic>
@@ -48,7 +49,6 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <link.h>
 #include <poll.h>
 #include <signal.h>
 #include <sys/ioctl.h>
@@ -1093,7 +1093,7 @@ process_t::attach ()
       return AMD_DBGAPI_STATUS_ERROR_VERSION_MISMATCH;
     }
 
-  auto on_load_callback = [this] (const shared_library_t &library) {
+  auto on_rocr_load_callback = [this] (const shared_library_t &library) {
     amd_dbgapi_status_t status;
 
     status = update_agents (true);
@@ -1131,6 +1131,25 @@ process_t::attach ()
                             &m_r_debug_address)
         != AMD_DBGAPI_STATUS_SUCCESS)
       error ("Cannot find symbol `%s'", amdgpu_r_debug_symbol_name);
+
+    /* Check the r_version.  */
+    int r_version;
+    if (read_global_memory (m_r_debug_address
+                                + offsetof (struct r_debug, r_version),
+                            &r_version, sizeof (r_version))
+        != AMD_DBGAPI_STATUS_SUCCESS)
+      error ("read_global_memory failed");
+
+    if (r_version != ROCR_RDEBUG_VERSION)
+      {
+        warning ("%s: _amdgpu_r_debug.r_version not supported, "
+                 "expected %d got %d.",
+                 library.name ().c_str (), ROCR_RDEBUG_VERSION, r_version);
+        enqueue_event (
+            create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
+                             AMD_DBGAPI_RUNTIME_STATE_LOADED_UNSUPPORTED));
+        return;
+      }
 
     /* Install a breakpoint at _amd_r_debug.r_brk.  The ROCm Runtime calls
        this function before updating the code object list, and after completing
@@ -1184,7 +1203,7 @@ process_t::attach ()
           AMD_DBGAPI_EVENT_NONE));
   };
 
-  auto on_unload_callback = [this] (const shared_library_t &library) {
+  auto on_rocr_unload_callback = [this] (const shared_library_t &library) {
     process_t &process = library.process ();
 
     /* Remove the breakpoints we've inserted when the library was loaded.  */
@@ -1209,7 +1228,8 @@ process_t::attach ()
   /* Set/remove internal breakpoints when the ROCm Runtime is loaded/unloaded.
    */
   const shared_library_t &library = create<shared_library_t> (
-      *this, "/libhsa-runtime64.so.1", on_load_callback, on_unload_callback);
+      *this, "/libhsa-runtime64.so.1", on_rocr_load_callback,
+      on_rocr_unload_callback);
 
   /* If the ROCm Runtime is not yet loaded, create agents without enabling the
      debug trap.  */
