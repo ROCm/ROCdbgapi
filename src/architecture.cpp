@@ -160,6 +160,7 @@ protected:
   virtual bool is_cbranch (const std::vector<uint8_t> &bytes) const;
   virtual bool is_cbranch_i_fork (const std::vector<uint8_t> &bytes) const;
   virtual bool is_endpgm (const std::vector<uint8_t> &bytes) const override;
+  virtual bool is_trap (const std::vector<uint8_t> &bytes) const override;
 
   virtual amd_dbgapi_global_address_t
   branch_target (wave_t &wave, amd_dbgapi_global_address_t pc,
@@ -336,7 +337,24 @@ amdgcn_architecture_t::simulate_instruction (
   amd_dbgapi_global_address_t new_pc;
   amd_dbgapi_status_t status;
 
-  if (is_endpgm (instruction))
+  if (is_trap (instruction))
+    {
+      uint32_t status_reg;
+      status = wave.read_register (amdgpu_regnum_t::STATUS, &status_reg);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        return status;
+
+      /* Set the halt bit in the status register since that is what the trap
+         handler does when this instruction is executed.  */
+      status_reg |= SQ_WAVE_STATUS_HALT_MASK;
+
+      status = wave.write_register (amdgpu_regnum_t::STATUS, &status_reg);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        return status;
+
+      new_pc = pc;
+    }
+  else if (is_endpgm (instruction))
     {
       /* Mark the wave as invalid and un-halt it at an s_endpgm instruction.
          This allows the hardware to terminate the wave, while ensuring that
@@ -433,7 +451,7 @@ amdgcn_architecture_t::simulate_instruction (
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
 
-  if (!can_halt_at_endpgm () && is_endpgm (wave.instruction_at_pc ()))
+  if (!can_halt_at (wave.instruction_at_pc ()))
     wave.park ();
 
   return AMD_DBGAPI_STATUS_SUCCESS;
@@ -442,10 +460,9 @@ amdgcn_architecture_t::simulate_instruction (
 size_t
 amdgcn_architecture_t::displaced_stepping_buffer_size () const
 {
-  /* one displaced + 1 breakpoint instruction (if the architecture cannot halt
-     at an s_endpgm instruction).  */
-  return largest_instruction_size ()
-         + (!can_halt_at_endpgm () ? nop_instruction ().size () : 0);
+  /* 1 displaced instruction + 1 terminating breakpoint instruction.  The
+     terminating instruction is used to catch runaway waves.  */
+  return largest_instruction_size () + breakpoint_instruction ().size ();
 }
 
 bool
@@ -500,16 +517,12 @@ amdgcn_architecture_t::displaced_stepping_copy (
       *simulate = false;
     }
 
-  /* If the device cannot halt at an ENDPGM instruction (hardware bug), make
-     sure there isn't one following the displaced instruction by inserting
-     a NOP.  */
-  if (!can_halt_at_endpgm ())
-    {
-      if (process.write_global_memory (buffer, nop_instruction ().data (),
-                                       nop_instruction ().size ())
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        return false;
-    }
+  /* Insert a terminating instruction (breakpoint) in case the wave is
+     resumed before calling displaced_stepping_fixup.  */
+  if (process.write_global_memory (buffer, breakpoint_instruction ().data (),
+                                   breakpoint_instruction ().size ())
+      != AMD_DBGAPI_STATUS_SUCCESS)
+    return false;
 
   return true;
 }
@@ -543,7 +556,7 @@ amdgcn_architecture_t::displaced_stepping_fixup (
       != AMD_DBGAPI_STATUS_SUCCESS)
     return false;
 
-  if (!can_halt_at_endpgm () && is_endpgm (wave.instruction_at_pc ()))
+  if (!can_halt_at (wave.instruction_at_pc ()))
     wave.park ();
 
   return true;
@@ -830,8 +843,20 @@ amdgcn_architecture_t::is_endpgm (const std::vector<uint8_t> &bytes) const
 
   uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
 
-  /* s_call: SOPP Opcode 1 [10111111 10000001 SIMM16] */
+  /* s_endpgm: SOPP Opcode 1 [10111111 10000001 SIMM16] */
   return (encoding & 0xFFFF0000) == 0xBF810000;
+}
+
+bool
+amdgcn_architecture_t::is_trap (const std::vector<uint8_t> &bytes) const
+{
+  if (bytes.size () < sizeof (uint32_t))
+    return false;
+
+  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
+
+  /* s_trap: SOPP Opcode 18 [10111111 10010010 SIMM16] */
+  return (encoding & 0xFFFF0000) == 0xBF920000;
 }
 
 bool
@@ -1133,6 +1158,17 @@ architecture_t::find (elf_amdgpu_machine_t elf_amdgpu_machine)
       });
 
   return it != architecture_map.end () ? it->second : nullptr;
+}
+
+bool
+architecture_t::can_halt_at (const std::vector<uint8_t> &instruction) const
+{
+  /* A wave cannot halt at an s_endpgm instruction. An s_trap may be used as a
+     breakpoint instruction, and since it could be removed and the original
+     instruction restored, which could reveal an s_endpgm, we also
+     cannot halt at an s_strap. */
+  return can_halt_at_endpgm ()
+         || (!is_endpgm (instruction) && !is_trap (instruction));
 }
 
 std::string

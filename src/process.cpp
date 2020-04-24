@@ -217,7 +217,9 @@ process_t::detach ()
 
         suspend_queues (queues);
 
-        /* Resume all waves left in non run mode.  */
+        /* Resume the waves that were halted by a debug event (single-step,
+           breakpoint, watchpoint), but keep the waves halted because of an
+           exception running.  */
         for (auto &&wave : range<wave_t> ())
           {
             /* TODO: Move this to the architecture class.  Not absolutely
@@ -226,8 +228,18 @@ process_t::detach ()
             uint64_t zero = 0;
             wave.write_register (amdgpu_regnum_t::WAVE_ID, &zero);
 
-            if (wave.state () != AMD_DBGAPI_WAVE_STATE_RUN)
-              wave.set_state (AMD_DBGAPI_WAVE_STATE_RUN);
+            /* Resume the wave if it is single-stepping, or if it is stopped
+               because of a debug event (completed single-step, breakpoint,
+               watchpoint).  */
+            if ((wave.state () == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
+                || (wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
+                    && !(wave.stop_reason ()
+                         & ~(AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP
+                             | AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT
+                             | AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT))))
+              {
+                wave.set_state (AMD_DBGAPI_WAVE_STATE_RUN);
+              }
           }
 
         /* Resume all the queues.  */
@@ -236,17 +248,17 @@ process_t::detach ()
           queues.emplace_back (&queue);
 
         resume_queues (queues);
-
-        /* Stop the event thread before destructing the agents.  The event loop
-           polls the file descriptors returned by the KFD for each agent.  We
-           need to terminate the event loop before the files are closed.  */
-        if (stop_event_thread () != AMD_DBGAPI_STATUS_SUCCESS)
-          error ("Could not stop the event thread");
       }
     catch (...)
       {
         exception = std::current_exception ();
       }
+
+  /* Stop the event thread before destructing the agents.  The event loop polls
+     the file descriptors returned by the KFD for each agent.  We need to
+     terminate the event loop before the files are closed.  */
+  if (stop_event_thread () != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not stop the event thread");
 
   /* Destruct the waves, dispatches, queues, and agents, in this order.  */
   m_handle_object_sets.get<wave_t> ().clear ();

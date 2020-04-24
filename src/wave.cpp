@@ -173,7 +173,8 @@ wave_t::update (amd_dbgapi_global_address_t context_save_address)
           && saved_state != AMD_DBGAPI_WAVE_STATE_STOP)
         {
           if (m_stop_reason == AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT
-              && !architecture ().can_halt_at_endpgm ())
+              && !architecture ().can_halt_at (
+                  architecture ().breakpoint_instruction ()))
             {
               /* When a wave hits a breakpoint, we change its pc to point to
                  an immutable breakpoint instruction.  This guarantees that the
@@ -231,10 +232,8 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
   if (state == AMD_DBGAPI_WAVE_STATE_STOP
       && prev_state != AMD_DBGAPI_WAVE_STATE_STOP)
     {
-      /* We have to park the wave if the instruction at the current pc is an
-         ENDPGM and the architecture does not support halting at ENDPGM.  */
-      if (!m_parked && !architecture ().can_halt_at_endpgm ()
-          && architecture ().is_endpgm (instruction_at_pc ()))
+      /* We have to park the wave if we cannot halt at the current pc.  */
+      if (!m_parked && !architecture ().can_halt_at (instruction_at_pc ()))
         park ();
 
       m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
