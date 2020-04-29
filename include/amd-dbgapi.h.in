@@ -2944,53 +2944,49 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_resume (
 /** \defgroup displaced_stepping_group Displaced Stepping
  * Operations related to AMD GPU breakpoint displaced stepping.
  *
- * The AMD GPU does not support halting of wave creation since there is
- * fixed function hardware that performs wave creation of dispatches.  It is
- * therefore not possible to step over a breakpoint by halting all waves,
- * assuming that will also prevent new wave creation, removing the breakpoint
+ * The library supports displaced stepping buffers.  These allow an instruction
+ * that is overwritten by a breakpoint instruction to be copied to a buffer and
+ * single stepped in that buffer.  This avoids needing to remove the breakpoint
  * instruction by replacing it with the original instruction bytes, single
- * stepping it, and finally replacing the breakpoint instruction.  Doing so may
- * result in newly created waves missing the removed breakpoint.
+ * stepping the original instruction, and finally restoring the breakpoint
+ * instruction.
  *
- * Instead the library supports displaced stepping buffers.  These allow the
- * instruction that is overwritten by a breakpoint instruction to be copied to
- * a buffer and single stepped in the buffer.  This does not require the
- * breakpoint instruction to be removed and so breakpoints cannot be missed
- * even if other waves are executing or are created.  It also avoids having to
- * stop all other waves.
+ * This allows a client to support non-stop debugging where waves are left
+ * executing while others are halted after hitting a breakpoint.  If resuming
+ * from a breakpoint involved removing the breakpoint, it could result in the
+ * running waves missing the removed breakpoint.
  *
  * When an instruction is copied into a displaced stepping buffer, it may be
  * necessary to modify the instruction, or its register inputs to account for
  * the fact that it is executing at a different address.  Similarly, after
- * single stepping it, registers and program counter may need adjusting.  It
- * may also be possible to simply know the effect of an instruction and avoid
- * single stepping it at all and simply update the wave state directly.  For
- * example, branches can be trivial to emulate this way.
+ * single stepping it, registers and program counter may need adjusting.  It may
+ * also be possible to know the effect of an instruction and avoid single
+ * stepping it at all and simply update the wave state directly.  For example,
+ * branches can be trivial to emulate this way.
  *
  * The operations in this section allow displaced stepping buffers to be
  * allocated and used.  They will take care of all the architecture specific
  * details described above.
  *
- * The number of displaced stepping buffers supported by the library is not
- * fixed, but there is always at least one.  It may be possible for the library
- * to share the same displaced stepping buffer with multiple waves.  For
- * example, if the waves are at the same breakpoint.  The library will
- * determine when this is possible, but the client should not rely on this.
- * Some waves at the same breakpoint may be able to share while others may
- * not.  The client must handle the case when there are no more displaced
- * stepping buffers available.  The client may be able to maximize the number
- * of waves it can single step at once by requesting displaced stepping
- * buffers for all waves at the same breakpoint.  Just because there is no
- * displaced stepping buffer for one wave, does not mean another wave cannot
- * be assigned to a displaced stepping buffer through sharing.
+ * The number of displaced stepping buffers supported by the library is
+ * unspecified, but there is always at least one.  It may be possible for the
+ * library to share the same displaced stepping buffer with multiple waves.  For
+ * example, if the waves are at the same breakpoint.  The library will determine
+ * when this is possible, but the client should not rely on this. Some waves at
+ * the same breakpoint may be able to share while others may not.  In general,
+ * it is best for the client to single step as many waves as possible to
+ * minimize the time to get all waves stepped over the breakpoints.
+ *
+ * The client may be able to maximize the number of waves it can single step at
+ * once by requesting displaced stepping buffers for all waves at the same
+ * breakpoint.  Just because there is no displaced stepping buffer for one wave,
+ * does not mean another wave cannot be assigned to a displaced stepping buffer
+ * through sharing, or through buffers being associated with specific agents or
+ * queues.
  *
  * If allocating a displaced stepping buffer indicates that the wave has
  * already been single stepped over the breakpoint, the client can simply
  * resume the wave normally.
- *
- * If allocating a displaced stepping buffer indicates no more are available,
- * the client must complete using the previously allocated buffers and release
- * them before trying again.
  *
  * If allocating a displaced stepping buffer is successful, then the client
  * must resume the wave in single step mode.  When the single step has
@@ -3001,7 +2997,31 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_resume (
  * leave the wave still at the breakpoint, and the client can retry stepping
  * over the breakpoint later.
  *
- * \sa ::amd_dbgapi_wave_resume, ::amd_dbgapi_wave_stop
+ * If allocating a displaced stepping buffer indicates no more are available,
+ * the client must complete using the previously allocated buffers.  It can do
+ * that by ensuring the allocated waves are resumed in single step mode, ensure
+ * that the waves will make forward progress, and process any reported pending
+ * events.  This allows waves to perform the single step, report the single step
+ * has completed by an event, and the client's processing of the event will
+ * complete the displaced stepping buffer.  That may free up a displaced
+ * stepping buffer for use by the client for other waves.  Since there is always
+ * at least one displaced stepping buffer, in general, the worst case is that
+ * one wave at a time can be single stepped over a breakpoint using a displaced
+ * stepping buffer.
+ *
+ * However, the weak forward progress of AMD GPU execution can result in no
+ * waves that have successfully been allocated a displaced stepping buffer from
+ * actually reporting completion of the single step.  For example, this can
+ * happen if the waves being single stepped are prevented from becoming resident
+ * on the hardware due to other waves that are halted.  The waves being single
+ * stepped can be stopped before completing the single step to release the
+ * displaced stepping buffer for use by a different set of waves.  In the worst
+ * case, the user may have to continue halted waves and allow them to terminate
+ * before other waves can make forward progress to complete the single step
+ * using a displaced stepping buffer.
+ *
+ * \sa ::amd_dbgapi_wave_resume, ::amd_dbgapi_wave_stop,
+ * ::amd_dbgapi_process_set_progress, ::amd_dbgapi_next_pending_event
  *
  * @{
  */
