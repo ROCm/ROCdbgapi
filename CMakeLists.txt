@@ -21,7 +21,7 @@
 cmake_minimum_required(VERSION 3.2.0)
 include(GNUInstallDirs)
 
-project(AMD_DBGAPI VERSION 0.20.0)
+project(AMD_DBGAPI VERSION 0.20.1)
 
 # The project command does not set the <PROJECT-NAME>_NAME variable so must set
 # it explicitly.
@@ -33,6 +33,10 @@ find_package(Threads REQUIRED)
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/amd-dbgapi.h.in
   ${CMAKE_CURRENT_BINARY_DIR}/include/amd-dbgapi.h @ONLY)
+
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/exportmap.in
+  ${CMAKE_CURRENT_BINARY_DIR}/src/exportmap @ONLY)
 
 file(GLOB SOURCES "src/*.cpp")
 add_library(amd-dbgapi SHARED ${SOURCES})
@@ -112,7 +116,7 @@ target_include_directories(amd-dbgapi
     $<INSTALL_INTERFACE:include>)
 
 target_link_libraries(amd-dbgapi
-  PRIVATE -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/src/exportmap -Wl,--no-undefined)
+  PRIVATE -Wl,--version-script=${CMAKE_CURRENT_BINARY_DIR}/src/exportmap -Wl,--no-undefined)
 
 set(AMD_DBGAPI_CONFIG_NAME amd-dbgapi-config.cmake)
 set(AMD_DBGAPI_TARGETS_NAME amd-dbgapi-targets.cmake)

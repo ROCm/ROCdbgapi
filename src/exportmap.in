@@ -1,4 +1,4 @@
-ROCM_DBGAPI_1.0 {
+@AMD_DBGAPI_NAME@_0.1 {
 global: amd_dbgapi_get_status_string;
         amd_dbgapi_get_version;
         amd_dbgapi_get_build_name;
@@ -59,3 +59,7 @@ global: amd_dbgapi_get_status_string;
         amd_dbgapi_report_breakpoint_hit;
 local:  *;
 };
+
+@AMD_DBGAPI_NAME@_0.20 {
+global: amd_dbgapi_process_set_wave_creation;
+} @AMD_DBGAPI_NAME@_0.1;
