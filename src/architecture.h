@@ -28,6 +28,7 @@
 #include "utils.h"
 
 #include <memory>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -46,6 +47,8 @@ class wave_t;
 
 class architecture_t
 {
+  using handle_object_sets_t = handle_object_set_tuple_t<register_class_t>;
+
 public:
   /* See https://llvm.org/docs/AMDGPUUsage.html#amdgpu-ef-amdgpu-mach-table  */
   enum elf_amdgpu_machine_t : uint32_t
@@ -76,10 +79,11 @@ private:
 
 protected:
   architecture_t (int gfxip_major, int gfxip_minor, int gfxip_stepping);
-
-  virtual ~architecture_t ();
+  virtual void initialize () = 0;
 
 public:
+  virtual ~architecture_t ();
+
   /* Disallow copying architecture instances.  */
   architecture_t (const architecture_t &) = delete;
   architecture_t &operator= (const architecture_t &) = delete;
@@ -130,12 +134,16 @@ public:
   int gfxip_stepping () const { return m_gfxip_stepping; }
   std::string name () const { return m_name; }
 
+  template <typename ArchitectureType, typename... Args>
+  static std::unique_ptr<architecture_t> create_architecture (Args &&... args);
+
   static const architecture_t *
-  find (amd_dbgapi_architecture_id_t architecture_id);
+  find (amd_dbgapi_architecture_id_t architecture_id, int ignore = 0);
   static const architecture_t *find (elf_amdgpu_machine_t elf_amdgpu_machine);
   static const architecture_t *find (int gfxip_major, int gfxip_minor,
                                      int gfxip_stepping);
 
+  std::set<amdgpu_regnum_t> register_set () const;
   std::string register_name (amdgpu_regnum_t regnum) const;
   std::string register_type (amdgpu_regnum_t regnum) const;
 
@@ -148,6 +156,37 @@ public:
   amd_dbgapi_status_t get_info (amd_dbgapi_architecture_info_t query,
                                 size_t value_size, void *value) const;
 
+  template <typename Object, typename... Args> Object &create (Args &&... args)
+  {
+    return m_handle_object_sets.get<Object> ().create_object (args...);
+  }
+
+  /* Return an Object range. A range implements begin () and end (), and
+     can be used to iterate the Objects.  */
+  template <typename Object>
+  typename handle_object_set_t<Object>::const_range_t range () const
+  {
+    return m_handle_object_sets.get<Object> ().range ();
+  }
+
+  /* Return the element count for the sub-Object.  */
+  template <typename Object> size_t count () const
+  {
+    return m_handle_object_sets.get<Object> ().size ();
+  }
+
+  /* Find an object with the given handle.  */
+  template <typename Handle>
+  const typename handle_object_sets_t::find_object_type_from_handle<
+      Handle>::type *
+  find (Handle id) const
+  {
+    using object_type =
+        typename handle_object_sets_t::find_object_type_from_handle<
+            Handle>::type;
+    return m_handle_object_sets.get<object_type> ().find (id);
+  }
+
 private:
   amd_dbgapi_architecture_id_t const m_architecture_id;
   std::unique_ptr<amd_comgr_disassembly_info_t> m_disassembly_info;
@@ -157,14 +196,29 @@ private:
   int const m_gfxip_stepping;
   std::string const m_name;
 
+  handle_object_sets_t m_handle_object_sets;
+
+private:
   static monotonic_counter_t<decltype (amd_dbgapi_architecture_id_t::handle)>
       s_next_architecture_id;
 
   static std::unordered_map<amd_dbgapi_architecture_id_t,
-                            const architecture_t *,
+                            std::unique_ptr<const architecture_t>,
                             hash<amd_dbgapi_architecture_id_t>>
-      architecture_map;
+      s_architecture_map;
 };
+
+template <typename ArchitectureType, typename... Args>
+std::unique_ptr<architecture_t>
+architecture_t::create_architecture (Args &&... args)
+{
+  auto *arch = new ArchitectureType (std::forward<Args> (args)...);
+  if (!arch)
+    error ("could not create architecture");
+
+  arch->initialize ();
+  return std::unique_ptr<architecture_t> (arch);
+}
 
 } /* namespace dbgapi */
 } /* namespace amd */

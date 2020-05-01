@@ -219,8 +219,8 @@ public:
     using const_pointer = const Object *;
     using iterator_category = std::forward_iterator_tag;
 
-    const_iterator (typename map_type::iterator it) : m_it (it) {}
-    typename map_type::iterator get () const { return m_it; }
+    const_iterator (typename map_type::const_iterator it) : m_it (it) {}
+    typename map_type::const_iterator get () const { return m_it; }
     self_type operator++ ()
     {
       self_type i = *this;
@@ -238,7 +238,7 @@ public:
     bool operator!= (const self_type &rhs) const { return m_it != rhs.m_it; }
 
   private:
-    typename map_type::iterator m_it;
+    typename map_type::const_iterator m_it;
   };
 
   class range_t
@@ -321,10 +321,10 @@ public:
   }
 
   iterator begin () { return iterator (m_map.begin ()); }
-  const_iterator begin () const { return const_iterator (m_map.begin ()); }
+  const_iterator begin () const { return const_iterator (m_map.cbegin ()); }
 
   iterator end () { return iterator (m_map.end ()); }
-  const_iterator end () const { return const_iterator (m_map.end ()); }
+  const_iterator end () const { return const_iterator (m_map.cend ()); }
 
   range_t range () { return range_t{ this }; }
   const_range_t range () const { return const_range_t{ this }; }
@@ -492,6 +492,13 @@ typename std::enable_if<amd::dbgapi::is_handle_type<Handle>::value, bool>::type
 operator!= (const Handle &lhs, const Handle &rhs)
 {
   return !(lhs == rhs);
+}
+
+template <typename Handle>
+typename std::enable_if<amd::dbgapi::is_handle_type<Handle>::value, bool>::type
+operator! (const Handle &handle)
+{
+  return handle == Handle{};
 }
 
 #endif /* _AMD_DBGAPI_HANDLE_OBJECT_H */

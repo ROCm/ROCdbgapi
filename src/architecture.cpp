@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -88,10 +89,6 @@ constexpr uint32_t __maybe_unused__ SQ_WAVE_TRAPSTS_EXCP_HI_MASK = 0x7000;
 monotonic_counter_t<decltype (amd_dbgapi_architecture_id_t::handle)>
     architecture_t::s_next_architecture_id{ 1 };
 
-std::unordered_map<amd_dbgapi_architecture_id_t, const architecture_t *,
-                   hash<amd_dbgapi_architecture_id_t>>
-    architecture_t::architecture_map;
-
 /* Base class for all AMDGCN architectures.  */
 
 class amdgcn_architecture_t : public architecture_t
@@ -104,6 +101,8 @@ protected:
   }
 
 public:
+  virtual void initialize () override;
+
   virtual size_t displaced_stepping_buffer_size () const override;
 
   virtual bool
@@ -191,6 +190,64 @@ decltype (amdgcn_architecture_t::cbranch_opcodes_map)
       { 25, cbranch_cond_t::CDBGSYS_OR_USER },
       { 26, cbranch_cond_t::CDBGSYS_AND_USER },
     };
+
+void
+amdgcn_architecture_t::initialize ()
+{
+  /* Scalar registers: [s0-s111]  */
+  register_class_t::register_map_t scalar_registers;
+  scalar_registers.emplace (amdgpu_regnum_t::FIRST_SGPR,
+                            amdgpu_regnum_t::LAST_SGPR);
+  create<register_class_t> ("scalar", scalar_registers);
+
+  /* Vector registers: [v0-v255, acc0-acc255]  */
+  register_class_t::register_map_t vector_registers;
+  if (has_wave32_vgprs ())
+    vector_registers.emplace (amdgpu_regnum_t::FIRST_VGPR_32,
+                              amdgpu_regnum_t::LAST_VGPR_32);
+  if (has_wave64_vgprs ())
+    vector_registers.emplace (amdgpu_regnum_t::FIRST_VGPR_64,
+                              amdgpu_regnum_t::LAST_VGPR_64);
+  if (has_acc_vgprs ())
+    vector_registers.emplace (amdgpu_regnum_t::FIRST_ACCVGPR_64,
+                              amdgpu_regnum_t::LAST_ACCVGPR_64);
+  create<register_class_t> ("vector", vector_registers);
+
+  /* System registers: [hwreg0-hwreg15, flat_scratch, xnack_mask]  */
+  register_class_t::register_map_t system_registers;
+  system_registers.emplace (amdgpu_regnum_t::FIRST_HWREG,
+                            amdgpu_regnum_t::LAST_HWREG);
+  system_registers.emplace (amdgpu_regnum_t::FIRST_TTMP,
+                            amdgpu_regnum_t::LAST_TTMP);
+  system_registers.emplace (amdgpu_regnum_t::FLAT_SCRATCH,
+                            amdgpu_regnum_t::FLAT_SCRATCH);
+  system_registers.emplace (amdgpu_regnum_t::XNACK_MASK_64,
+                            amdgpu_regnum_t::XNACK_MASK_64);
+  create<register_class_t> ("system", system_registers);
+
+  /* General registers: [{scalar}, {vector}, pc, exec, vcc]  */
+  register_class_t::register_map_t general_registers;
+  general_registers.insert (scalar_registers.begin (),
+                            scalar_registers.end ());
+  general_registers.insert (vector_registers.begin (),
+                            vector_registers.end ());
+  general_registers.emplace (amdgpu_regnum_t::PC, amdgpu_regnum_t::PC);
+  if (has_wave32_vgprs ())
+    {
+      general_registers.emplace (amdgpu_regnum_t::EXEC_32,
+                                 amdgpu_regnum_t::EXEC_32);
+      general_registers.emplace (amdgpu_regnum_t::VCC_32,
+                                 amdgpu_regnum_t::VCC_32);
+    }
+  if (has_wave64_vgprs ())
+    {
+      general_registers.emplace (amdgpu_regnum_t::EXEC_64,
+                                 amdgpu_regnum_t::EXEC_64);
+      general_registers.emplace (amdgpu_regnum_t::VCC_64,
+                                 amdgpu_regnum_t::VCC_64);
+    }
+  create<register_class_t> ("general", general_registers);
+}
 
 size_t
 amdgcn_architecture_t::minimum_instruction_alignment () const
@@ -1037,7 +1094,7 @@ public:
 
 /* Vega10 Architecture.  */
 
-static class gfx900_t final : public gfx9_base_t
+class gfx900_t final : public gfx9_base_t
 {
 public:
   gfx900_t () : gfx9_base_t (0, 0) {}
@@ -1046,11 +1103,11 @@ public:
   {
     return EF_AMDGPU_MACH_AMDGCN_GFX900;
   }
-} gfx900_instance;
+};
 
 /* Raven Architecture.  */
 
-static class gfx902_t final : public gfx9_base_t
+class gfx902_t final : public gfx9_base_t
 {
 public:
   gfx902_t () : gfx9_base_t (0, 2) {}
@@ -1059,11 +1116,11 @@ public:
   {
     return EF_AMDGPU_MACH_AMDGCN_GFX902;
   }
-} gfx902_instance;
+};
 
 /* Vega12 Architecture.  */
 
-static class gfx904_t final : public gfx9_base_t
+class gfx904_t final : public gfx9_base_t
 {
 public:
   gfx904_t () : gfx9_base_t (0, 4) {}
@@ -1072,11 +1129,11 @@ public:
   {
     return EF_AMDGPU_MACH_AMDGCN_GFX904;
   }
-} gfx904_instance;
+};
 
 /* Vega20 Architecture.  */
 
-static class gfx906_t final : public gfx9_base_t
+class gfx906_t final : public gfx9_base_t
 {
 public:
   gfx906_t () : gfx9_base_t (0, 6) {}
@@ -1085,11 +1142,11 @@ public:
   {
     return EF_AMDGPU_MACH_AMDGCN_GFX906;
   }
-} gfx906_instance;
+};
 
 /* Arcturus Architecture.  */
 
-static class gfx908_t final : public gfx9_base_t
+class gfx908_t final : public gfx9_base_t
 {
 public:
   gfx908_t () : gfx9_base_t (0, 8) {}
@@ -1105,7 +1162,7 @@ public:
   {
     return EF_AMDGPU_MACH_AMDGCN_GFX908;
   }
-} gfx908_instance;
+};
 
 class gfx10_base_t : public amdgcn_architecture_t
 {
@@ -1128,7 +1185,7 @@ public:
   }
 };
 
-static class gfx1010_t final : public gfx10_base_t
+class gfx1010_t final : public gfx10_base_t
 {
 public:
   gfx1010_t () : gfx10_base_t (1, 0) {}
@@ -1137,9 +1194,9 @@ public:
   {
     return EF_AMDGPU_MACH_AMDGCN_GFX1010;
   }
-} gfx1010_instance;
+};
 
-static class gfx1011_t final : public gfx10_base_t
+class gfx1011_t final : public gfx10_base_t
 {
 public:
   gfx1011_t () : gfx10_base_t (1, 1) {}
@@ -1148,9 +1205,9 @@ public:
   {
     return EF_AMDGPU_MACH_AMDGCN_GFX1011;
   }
-} gfx1011_instance;
+};
 
-static class gfx1012_t final : public gfx10_base_t
+class gfx1012_t final : public gfx10_base_t
 {
 public:
   gfx1012_t () : gfx10_base_t (1, 2) {}
@@ -1159,7 +1216,7 @@ public:
   {
     return EF_AMDGPU_MACH_AMDGCN_GFX1012;
   }
-} gfx1012_instance;
+};
 
 architecture_t::architecture_t (int gfxip_major, int gfxip_minor,
                                 int gfxip_stepping)
@@ -1172,8 +1229,6 @@ architecture_t::architecture_t (int gfxip_major, int gfxip_minor,
           "amdgcn-amd-amdhsa--gfx%d%d%c", gfxip_major, gfxip_minor,
           gfxip_stepping < 10 ? '0' + gfxip_stepping : 'a' + gfxip_stepping))
 {
-  /* Register this architecture.  */
-  architecture_map[m_architecture_id] = this;
 }
 
 architecture_t::~architecture_t ()
@@ -1183,36 +1238,36 @@ architecture_t::~architecture_t ()
 }
 
 const architecture_t *
-architecture_t::find (amd_dbgapi_architecture_id_t architecture_id)
+architecture_t::find (amd_dbgapi_architecture_id_t architecture_id, int ignore)
 {
-  auto it = architecture_map.find (architecture_id);
-  return it != architecture_map.end () ? it->second : nullptr;
+  auto it = s_architecture_map.find (architecture_id);
+  return it != s_architecture_map.end () ? it->second.get () : nullptr;
 }
 
 const architecture_t *
 architecture_t::find (int gfxip_major, int gfxip_minor, int gfxip_stepping)
 {
   auto it = std::find_if (
-      architecture_map.begin (), architecture_map.end (),
-      [&] (const decltype (architecture_map)::value_type &value) {
+      s_architecture_map.begin (), s_architecture_map.end (),
+      [&] (const decltype (s_architecture_map)::value_type &value) {
         return value.second->gfxip_major () == gfxip_major
                && value.second->gfxip_minor () == gfxip_minor
                && value.second->gfxip_stepping () == gfxip_stepping;
       });
 
-  return it != architecture_map.end () ? it->second : nullptr;
+  return it != s_architecture_map.end () ? it->second.get () : nullptr;
 }
 
 const architecture_t *
 architecture_t::find (elf_amdgpu_machine_t elf_amdgpu_machine)
 {
   auto it = std::find_if (
-      architecture_map.begin (), architecture_map.end (),
-      [&] (const decltype (architecture_map)::value_type &value) {
+      s_architecture_map.begin (), s_architecture_map.end (),
+      [&] (const decltype (s_architecture_map)::value_type &value) {
         return value.second->elf_amdgpu_machine () == elf_amdgpu_machine;
       });
 
-  return it != architecture_map.end () ? it->second : nullptr;
+  return it != s_architecture_map.end () ? it->second.get () : nullptr;
 }
 
 bool
@@ -1224,6 +1279,20 @@ architecture_t::can_halt_at (const std::vector<uint8_t> &instruction) const
      cannot halt at an s_strap. */
   return can_halt_at_endpgm ()
          || (!is_endpgm (instruction) && !is_trap (instruction));
+}
+
+std::set<amdgpu_regnum_t>
+architecture_t::register_set () const
+{
+  std::set<amdgpu_regnum_t> all_registers;
+
+  for (auto &&register_class : range<register_class_t> ())
+    {
+      auto class_registers = register_class.register_set ();
+      all_registers.insert (class_registers.begin (), class_registers.end ());
+    }
+
+  return all_registers;
 }
 
 std::string
@@ -1516,6 +1585,55 @@ architecture_t::get_info (amd_dbgapi_architecture_info_t query,
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
+
+namespace detail
+{
+
+template <class ElementType, std::size_t N> struct initializer_list_t
+{
+  /* Move the elements out of the temporary container.  */
+  template <class T> operator T () &&
+  {
+    return { std::make_move_iterator (elements.begin ()),
+             std::make_move_iterator (elements.end ()) };
+  }
+  /* Temporary container.  */
+  std::array<ElementType, N> elements;
+};
+
+/* Create a container to hold the map values.  */
+template <class... Keys, class... Values, std::size_t... I>
+initializer_list_t<
+    std::pair<amd_dbgapi_architecture_id_t, std::unique_ptr<architecture_t>>,
+    sizeof...(I)>
+make_architecture_initializer_list (std::tuple<Keys...> keys,
+                                    std::tuple<Values &...> values,
+                                    std::index_sequence<I...>)
+{
+  return { { { std::make_pair (std::get<I> (keys),
+                               std::move (std::get<I> (values)))... } } };
+}
+
+} /* namespace detail */
+
+/* Helper function to create an initializer list with movable elements.  */
+template <class... Args>
+auto
+make_architecture_initializer_list (Args... args)
+{
+  return detail::make_architecture_initializer_list (
+      std::make_tuple (args->id ()...), std::tie (args...),
+      std::make_index_sequence<sizeof...(Args)>{});
+}
+
+std::unordered_map<amd_dbgapi_architecture_id_t,
+                   std::unique_ptr<const architecture_t>,
+                   hash<amd_dbgapi_architecture_id_t>>
+    architecture_t::s_architecture_map = make_architecture_initializer_list (
+        create_architecture<gfx900_t> (), create_architecture<gfx902_t> (),
+        create_architecture<gfx904_t> (), create_architecture<gfx906_t> (),
+        create_architecture<gfx908_t> (), create_architecture<gfx1010_t> (),
+        create_architecture<gfx1011_t> (), create_architecture<gfx1012_t> ());
 
 } /* namespace dbgapi */
 } /* namespace amd */
