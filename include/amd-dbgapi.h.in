@@ -368,6 +368,7 @@ extern "C" {
 #endif /* __linux__ */
 
 #include <stdint.h>
+#include <stddef.h>
 
 /** \defgroup symbol_versions_group Symbol Versions
  *
@@ -1042,6 +1043,14 @@ amd_dbgapi_get_architecture (
     AMD_DBGAPI_VERSION_0_1;
 
 /**
+ * Opaque client symbolizer handle.
+ *
+ * A pointer to client data associated with a symbolizer.  This pointer is passed
+ * to the ::amd_dbgapi_disassemble_instruction \p symbolizer callback.
+ */
+typedef struct amd_dbgapi_symbolizer_id_s *amd_dbgapi_symbolizer_id_t;
+
+/**
  * Disassemble a single instruction.
  *
  * \param[in] architecture_id The architecture to use to perform the
@@ -1066,64 +1075,79 @@ amd_dbgapi_get_architecture (
  * allocated using the amd_dbgapi_callbacks_s::allocate_memory callback and is
  * owned by the client.
  *
- * \param[out] address_operand_count The number of operands in the disassembled
- * instruction that were memory addresses.  If NULL, no value is returned.
+ * \param[in] symbolizer_id The client handle that is passed to any invocation
+ * of the \p symbolizer callback made while disassembling the instruction.
  *
- * \param[out] address_operands Pointer to an array of \p address_operand_count
- * ::amd_dbgapi_global_address_t values.  Each one corresponds to an operand of
- * the disassembled instruction that is a memory address, ordered left to
- * right.  The client can choose to determine a symbol for the address and
- * append it as a comment to the disassembled instruction text.  The memory is
- * allocated using the amd_dbgapi_callbacks_s::allocate_memory callback and is
- * owned by the client.  If NULL, no value is returned.  Either both \p
- * address_operand_count and \p address_operands must be NULL or both must be
- * non-NULL.
+ * \param[in] symbolizer A callback that is invoked for any operand of the
+ * disassembled instruction that is a memory address.  It allows the client to
+ * provide a symbolic representation of the address as a textual symbol that
+ * will be used in the returned \p instruction_text.
+ *
+ * If \p symbolizer is NULL, then no symbolization will be performed and any
+ * memory addresses will be shown as their numeric address.
+ *
+ * If \p symbolizer is non-NULL, the \p symbolizer function will be called with
+ * \p symbolizer_id having the value of the above \p symbolizer_id operand, and
+ * with \p address having the value of the address of the disassembled
+ * instruction's operand.
+ *
+ * If the \p symbolizer callback wishes to report a symbol text it must allocate
+ * and assign memory for a non-empty NUL terminated \p char* string using a
+ * memory allocator that can be deallocated using the
+ * amd_dbgapi_callbacks_s::deallocate_memory callback.  If must assign the
+ * pointer to \p symbol_text, and return ::AMD_DBGAPI_STATUS_SUCCESS.
+ *
+ * If the \p symbolizer callback does not wish to report a symbol it must return
+ * ::AMD_DBGAPI_STATUS_ERROR_SYMBOL_NOT_FOUND.
+ *
+ * Any \p symbol_text strings returned by the \p symbolizer callbacks reporting
+ * ::AMD_DBGAPI_STATUS_SUCCESS are deallocated using the
+ * amd_dbgapi_callbacks_s::deallocate_memory callback before
+ * ::amd_dbgapi_disassemble_instruction returns.
  *
  * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
- * successfully and the result is stored in \p size, \p instruction_text, \p
- * address_operand_count, and \p address_operands.
+ * successfully and the result is stored in \p size and \p instruction_text.
  *
  * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
- * left uninitialized; and \p size, \p instruction_text, \p
- * address_operand_count, and \p address_operands are unaltered.
+ * left uninitialized and \p size and \p instruction_text are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
- * initialized.  The library is left uninitialized; and \p size, \p
- * instruction_text, \p address_operand_count, and \p address_operands are
- * unaltered.
+ * initialized.  The library is left uninitialized and \p size and \p
+ * instruction_text are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID \p architecture_id
- * is invalid.  \p size, \p instruction_text, \p address_operand_count, and \p
- * address_operands are unaltered.
+ * is invalid.  \p size and \p instruction_text are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p size, \p memory, or \p
- * instruction_text are NULL; \p size is 0; or \p address_operand_count and \p
- * address_operands are not both NULL or not both non-NULL.  \p size, \p
- * instruction_text, \p address_operand_count, and \p address_operands are
- * unaltered.
+ * instruction_text are NULL; or \p size is 0.  \p size and \p instruction_text
+ * are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR Encountered an error disassembling the
- * instruction.  The bytes may or may not be a legal instruction.  \p size, \p
- * instruction_text, \p address_operand_count, and \p address_operands are
- * unaltered.
+ * instruction, a \p symbolizer callback returned ::AMD_DBGAPI_STATUS_SUCCESS
+ * with a NULL or empty \p symbol_text string. The bytes may or may not be a
+ * legal instruction. \p size and \p instruction_text are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION The bytes starting at
  * \p address, when up to \p size bytes are available, are not a legal
- * instruction for the architecture.  \p size, \p instruction_text, \p
- * address_operand_count, and \p address_operands are unaltered.
+ * instruction for the architecture.  \p size and \p instruction_text are
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be reported if
  * the amd_dbgapi_callbacks_s::allocate_memory callback used to allocate \p
- * instruction_text and \p address_operands returns NULL.  \p size, \p
- * instruction_text, \p address_operand_count, and \p address_operands are
- * unaltered.
+ * instruction_text returns NULL, or a \p symbolizer callback returns a status
+ * other than ::AMD_DBGAPI_STATUS_SUCCESS and
+ * ::AMD_DBGAPI_STATUS_ERROR_SYMBOL_NOT_FOUND.  \p size and \p instruction_text
+ * are unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_disassemble_instruction (
     amd_dbgapi_architecture_id_t architecture_id,
     amd_dbgapi_global_address_t address, amd_dbgapi_size_t *size,
-    const void *memory, char **instruction_text, size_t *address_operand_count,
-    amd_dbgapi_global_address_t **address_operands)
-    AMD_DBGAPI_VERSION_0_1;
+    const void *memory, char **instruction_text,
+    amd_dbgapi_symbolizer_id_t symbolizer_id,
+    amd_dbgapi_status_t (*symbolizer) (
+        amd_dbgapi_symbolizer_id_t symbolizer_id,
+        amd_dbgapi_global_address_t address, char **symbol_text))
+    AMD_DBGAPI_VERSION_0_20;
 
 /**
  * The kinds of instruction classifications.
@@ -1714,7 +1738,7 @@ typedef enum
   /**
    * The difference between the address in the ELF shared object and the address
    * the code object is loaded in memory.  The type of this attributes is
-   * \p int64_t.
+   * \p ptrdiff_t.
    */
   AMD_DBGAPI_CODE_OBJECT_INFO_LOAD_ADDRESS = 2
 } amd_dbgapi_code_object_info_t;

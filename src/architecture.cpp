@@ -31,7 +31,9 @@
 
 #include <algorithm>
 #include <cstring>
+#include <iomanip>
 #include <set>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -1989,14 +1991,16 @@ amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_disassemble_instruction (
     amd_dbgapi_architecture_id_t architecture_id,
     amd_dbgapi_global_address_t address, amd_dbgapi_size_t *size,
-    const void *memory, char **instruction_text, size_t *address_operand_count,
-    amd_dbgapi_global_address_t **address_operands)
+    const void *memory, char **instruction_text,
+    amd_dbgapi_symbolizer_id_t symbolizer_id,
+    amd_dbgapi_status_t (*symbolizer) (
+        amd_dbgapi_symbolizer_id_t symbolizer_id,
+        amd_dbgapi_global_address_t address, char **symbol_text))
 {
   TRY;
   TRACE (architecture_id, address, size);
 
-  if (!memory || !size || !instruction_text
-      || !address_operands != !address_operand_count)
+  if (!memory || !size || !instruction_text)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   const architecture_t *architecture = architecture_t::find (architecture_id);
@@ -2012,6 +2016,37 @@ amd_dbgapi_disassemble_instruction (
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
 
+  std::string operand_str;
+  for (auto addr : operands_vec)
+    {
+      operand_str += operand_str.empty () ? "  # " : ", ";
+
+      if (symbolizer)
+        {
+          char *symbol_text = nullptr;
+          status = (*symbolizer) (symbolizer_id, addr, &symbol_text);
+          if (status == AMD_DBGAPI_STATUS_SUCCESS)
+            {
+              if (!symbol_text)
+                return AMD_DBGAPI_STATUS_ERROR;
+              std::string symbol_string = symbol_text;
+              deallocate_memory (symbol_text);
+              if (symbol_string.empty ())
+                return AMD_DBGAPI_STATUS_ERROR;
+              operand_str += symbol_string;
+              continue;
+          }
+          else if (status != AMD_DBGAPI_STATUS_ERROR_SYMBOL_NOT_FOUND)
+            return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
+        }
+
+      std::stringstream sstream;
+      sstream << std::showbase << std::hex << std::setfill ('0')
+              << std::setw (sizeof (addr) * 2) << addr;
+      operand_str += sstream.str ();
+    }
+  instruction_str += operand_str;
+
   /* Return the instruction text in client allocated memory.  */
   void *mem;
   size_t mem_size = instruction_str.length () + 1;
@@ -2021,25 +2056,6 @@ amd_dbgapi_disassemble_instruction (
 
   memcpy (mem, instruction_str.c_str (), mem_size);
   *instruction_text = static_cast<char *> (mem);
-
-  /* Return the operands in client allocated memory.  */
-  if (address_operands)
-    {
-      mem_size = operands_vec.size () * sizeof (amd_dbgapi_global_address_t);
-      mem = allocate_memory (mem_size);
-      if (mem_size && !mem)
-        {
-          amd::dbgapi::deallocate_memory (*instruction_text);
-          *instruction_text = nullptr;
-          return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
-        }
-
-      memcpy (mem, operands_vec.data (), mem_size);
-      *address_operands = static_cast<amd_dbgapi_global_address_t *> (mem);
-    }
-
-  if (address_operand_count)
-    *address_operand_count = operands_vec.size ();
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;

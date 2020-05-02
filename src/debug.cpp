@@ -25,6 +25,7 @@
 #include "utils.h"
 
 #include <cstdarg>
+#include <iomanip>
 #include <sstream>
 #include <string>
 
@@ -80,8 +81,9 @@ full_callback (void *data, uintptr_t pc, const char *filename, int lineno,
   backtrace_info *info = static_cast<backtrace_info *> (data);
   int status;
 
-  info->sstream << std::endl << "    #" << std::dec << info->depth++;
-  info->sstream << " 0x" << std::hex << pc;
+  info->sstream << std::endl << "    #" << std::dec << info->depth++ << ' '
+                << std::showbase << std::hex << std::setfill ('0')
+                << std::setw (sizeof (pc) * 2) << pc;
 
   if (!function)
     backtrace_syminfo (info->state, pc, syminfo_callback, error_callback,

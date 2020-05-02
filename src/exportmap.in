@@ -6,7 +6,6 @@ global: amd_dbgapi_get_status_string;
         amd_dbgapi_finalize;
         amd_dbgapi_architecture_get_info;
         amd_dbgapi_get_architecture;
-        amd_dbgapi_disassemble_instruction;
         amd_dbgapi_process_get_info;
         amd_dbgapi_process_attach;
         amd_dbgapi_process_detach;
@@ -61,6 +60,7 @@ local:  *;
 };
 
 @AMD_DBGAPI_NAME@_0.20 {
-global: amd_dbgapi_classify_instruction;
+global: amd_dbgapi_disassemble_instruction;
+        amd_dbgapi_classify_instruction;
         amd_dbgapi_process_set_wave_creation;
 } @AMD_DBGAPI_NAME@_0.1;
