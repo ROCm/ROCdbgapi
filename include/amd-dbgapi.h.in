@@ -1714,10 +1714,13 @@ typedef enum
    *
    * The URI name syntax is defined by the following BNF syntax:
    *
-   *     uri ::== file_uri
-   *     file_uri ::== "file://" file_path [ [ "#" | "?" ] "offset=" number ]
-   *     file_path ::= URI_ENCODED_OS_FILE_PATH
-   *     number ::= HEX_NUMBER | DECIMAL_NUMBER | OCTAL_NUMBER
+   *     code_object_uri ::== file_uri | memory_uri
+   *     file_uri        ::== "file://" file_path [ range_specifier ]
+   *     memory_uri      ::== "memory://" process_id range_specifier
+   *     range_specifier ::== [ "#" | "?" ] "offset=" number "&" "size=" number
+   *     file_path       ::== URI_ENCODED_OS_FILE_PATH
+   *     process_id      ::== DECIMAL_NUMBER
+   *     number          ::== HEX_NUMBER | DECIMAL_NUMBER | OCTAL_NUMBER
    *
    * ``number`` is a C integral literal where hexadecimal values are prefixed by
    * "0x" or "0X", and octal values by "0".
@@ -1727,12 +1730,23 @@ typedef enum
    * ``[a-zA-Z0-9/_.~-]`` is encoded as two uppercase hexidecimal digits
    * proceeded by "%".  Directories in the path are separated by "/".
    *
-   * ``offset`` is a 0-based byte offset from the start of the file specified by
-   * the ``file_path``.  If omitted the ``offset`` of 0 is used.
+   * ``offset`` is a 0-based byte offset to the start of the code object.  For a
+   * file URI, it is from the start of the file specified by the ``file_path``,
+   * and if omitted defaults to 0. For a memory URI, it is the memory address
+   * and is required.
    *
-   * If the code object is loaded from memory, then the process file system can
-   * be used.  For example, on Linux:
-   * ``file:///proc/123/mem#offset=0x2000``.
+   * ``size`` is the number of bytes in the code object.  For a file URI, if
+   * omitted it defaults to the size of the file.  It is required for a memory
+   * URI.
+   *
+   * ``process_id`` is the identity of the process owning the memory.  For Linux
+   * it is the C unsigned integral decimal literal for the process ID (PID).
+   *
+   * For example:
+   *
+   *     file:///dir1/dir2/file1
+   *     file:///dir3/dir4/file2#offset=0x2000&size=3000
+   *     memory://1234#offset=0x20000&size=3000
    */
   AMD_DBGAPI_CODE_OBJECT_INFO_URI_NAME = 1,
   /**
