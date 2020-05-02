@@ -24,6 +24,7 @@
 #include "defs.h"
 
 #include "handle_object.h"
+#include "memory.h"
 #include "register.h"
 #include "utils.h"
 
@@ -47,7 +48,9 @@ class wave_t;
 
 class architecture_t
 {
-  using handle_object_sets_t = handle_object_set_tuple_t<register_class_t>;
+  using handle_object_sets_t
+      = handle_object_set_tuple_t<address_space_t, address_class_t,
+                                  register_class_t>;
 
 public:
   /* See https://llvm.org/docs/AMDGPUUsage.html#amdgpu-ef-amdgpu-mach-table  */
@@ -84,9 +87,11 @@ protected:
 public:
   virtual ~architecture_t ();
 
-  /* Disallow copying architecture instances.  */
+  /* Disallow copying & moving architecture instances.  */
   architecture_t (const architecture_t &) = delete;
+  architecture_t (architecture_t &&) = delete;
   architecture_t &operator= (const architecture_t &) = delete;
+  architecture_t &operator= (architecture_t &&) = delete;
 
   /* FIXME: add SQ prefetch instruction bytes size.  */
 
@@ -98,6 +103,33 @@ public:
   virtual bool is_endpgm (const std::vector<uint8_t> &bytes) const = 0;
   virtual bool is_trap (const std::vector<uint8_t> &bytes,
                         uint16_t *trap_id = nullptr) const = 0;
+
+  virtual amd_dbgapi_status_t
+  convert_address_space (const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
+                         const address_space_t &from_address_space,
+                         const address_space_t &to_address_space,
+                         amd_dbgapi_segment_address_t from_address,
+                         amd_dbgapi_segment_address_t *to_address) const = 0;
+
+  virtual void lower_address_space (
+      const wave_t &wave, amd_dbgapi_lane_id_t *lane_id,
+      const address_space_t &original_address_space,
+      const address_space_t **lowered_address_space,
+      amd_dbgapi_segment_address_t original_address,
+      amd_dbgapi_segment_address_t *lowered_address) const = 0;
+
+  virtual bool
+  address_is_in_address_class (const wave_t &wave,
+                               amd_dbgapi_lane_id_t lane_id,
+                               const address_space_t &address_space,
+                               amd_dbgapi_segment_address_t segment_address,
+                               const address_class_t &address_class) const = 0;
+
+  virtual bool
+  address_spaces_may_alias (const address_space_t &address_space1,
+                            const address_space_t &address_space2) const = 0;
+
+  virtual const address_space_t &default_global_address_space () const = 0;
 
   virtual elf_amdgpu_machine_t elf_amdgpu_machine () const = 0;
   virtual size_t largest_instruction_size () const = 0;
@@ -185,6 +217,18 @@ public:
         typename handle_object_sets_t::find_object_type_from_handle<
             Handle>::type;
     return m_handle_object_sets.get<object_type> ().find (id);
+  }
+
+  /* Find an object for which the unary predicate f returns true.  */
+  template <typename Func>
+  const typename std::decay<
+      typename utils::first_argument_type<Func>::type>::type *
+  find_if (Func predicate) const
+  {
+    return m_handle_object_sets
+        .get<typename std::decay<
+            typename utils::first_argument_type<Func>::type>::type> ()
+        .find_if (predicate);
   }
 
 private:

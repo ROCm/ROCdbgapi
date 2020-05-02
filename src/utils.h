@@ -141,7 +141,11 @@ constexpr Integral
 bit_mask (int first, int last)
 {
   dbgapi_assert (last >= first && "invalid argument");
-  return ((Integral{ 1 } << (last - first + 1)) - 1) << first;
+  size_t num_bits = last - first + 1;
+  return ((num_bits >= sizeof (Integral) * 8)
+              ? ~Integral{ 0 } /* num_bits exceed the size of Integral */
+              : ((Integral{ 1 } << num_bits) - 1))
+         << first;
 }
 
 template <typename Integral>

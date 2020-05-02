@@ -29,6 +29,8 @@
 #include "queue.h"
 #include "utils.h"
 
+#include <hsa/amd_hsa_kernel_code.h>
+
 #include <cstring>
 
 namespace amd
@@ -45,28 +47,28 @@ dispatch_t::dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id, queue_t &queue,
   if (process ().read_global_memory (packet_address, &m_packet,
                                      sizeof (m_packet))
       != AMD_DBGAPI_STATUS_SUCCESS)
-    dbgapi_assert_not_reached ("process_t::read_memory failed");
+    error ("Could not read the dispatch's packet");
 
-  struct
-  {
-    uint32_t group_segment_fixed_size;
-    uint32_t private_segment_fixed_size;
-    uint8_t reserved0[8];
-    int64_t kernel_code_entry_byte_offset;
-    uint8_t reserved1[20];
-    uint32_t compute_pgm_rsrc3;
-    uint32_t compute_pgm_rsrc1;
-    uint32_t compute_pgm_rsrc2;
-    uint16_t kernel_code_properties;
-    uint8_t reserved2[6];
-  } kd;
-
-  if (process ().read_global_memory (m_packet.kernel_object, &kd, sizeof (kd))
+  if (process ().read_global_memory (m_packet.kernel_object,
+                                     &m_kernel_descriptor,
+                                     sizeof (m_kernel_descriptor))
       != AMD_DBGAPI_STATUS_SUCCESS)
-    dbgapi_assert_not_reached ("process_t::read_memory failed");
+    error ("Could not read the dispatch's kernel descriptor");
+}
 
-  m_kernel_entry_address
-      = m_packet.kernel_object + kd.kernel_code_entry_byte_offset;
+amd_dbgapi_global_address_t
+dispatch_t::kernel_entry_address () const
+{
+  return m_packet.kernel_object
+         + m_kernel_descriptor.kernel_code_entry_byte_offset;
+}
+
+bool
+dispatch_t::scratch_enabled () const
+{
+  return !!(
+      m_kernel_descriptor.compute_pgm_rsrc2
+      & AMD_COMPUTE_PGM_RSRC_TWO_ENABLE_SGPR_PRIVATE_SEGMENT_WAVE_BYTE_OFFSET);
 }
 
 amd_dbgapi_status_t
@@ -85,7 +87,7 @@ dispatch_t::get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
       return utils::get_info (value_size, value, architecture ().id ());
 
     case AMD_DBGAPI_DISPATCH_INFO_KERNEL_ENTRY_ADDRESS:
-      return utils::get_info (value_size, value, m_kernel_entry_address);
+      return utils::get_info (value_size, value, kernel_entry_address ());
 
     case AMD_DBGAPI_DISPATCH_INFO_WORK_GROUP_SIZES:
       return utils::get_info (value_size, value,

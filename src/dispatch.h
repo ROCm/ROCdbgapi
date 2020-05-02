@@ -41,6 +41,20 @@ class process_t;
 
 class dispatch_t : public detail::handle_object<amd_dbgapi_dispatch_id_t>
 {
+  struct kernel_descriptor_t
+  {
+    uint32_t group_segment_fixed_size;
+    uint32_t private_segment_fixed_size;
+    uint8_t reserved0[8];
+    int64_t kernel_code_entry_byte_offset;
+    uint8_t reserved1[20];
+    uint32_t compute_pgm_rsrc3;
+    uint32_t compute_pgm_rsrc1;
+    uint32_t compute_pgm_rsrc2;
+    uint16_t kernel_code_properties;
+    uint8_t reserved2[6];
+  };
+
 public:
   dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id, queue_t &queue,
               amd_dbgapi_queue_packet_id_t queue_packet_id,
@@ -49,6 +63,8 @@ public:
   ~dispatch_t () {}
 
   uint64_t queue_packet_id () const { return m_queue_packet_id; }
+  amd_dbgapi_global_address_t kernel_entry_address () const;
+  bool scratch_enabled () const;
 
   amd_dbgapi_status_t get_info (amd_dbgapi_dispatch_info_t query,
                                 size_t value_size, void *value) const;
@@ -63,9 +79,9 @@ public:
 
 private:
   amd_dbgapi_queue_packet_id_t const m_queue_packet_id;
-  amd_dbgapi_global_address_t m_kernel_entry_address;
   hsa_kernel_dispatch_packet_t m_packet;
 
+  kernel_descriptor_t m_kernel_descriptor;
   queue_t &m_queue;
 };
 

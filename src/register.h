@@ -23,8 +23,11 @@
 
 #include "defs.h"
 
+#include "handle_object.h"
+
 #include <map>
 #include <set>
+#include <string>
 
 namespace amd
 {
@@ -120,7 +123,7 @@ enum class amdgpu_regnum_t : decltype (amd_dbgapi_register_id_t::handle)
   LAST_PSEUDO = WAVE_ID,
 };
 
-constexpr ssize_t
+constexpr size_t
 operator- (amdgpu_regnum_t lhs, amdgpu_regnum_t rhs)
 {
   return static_cast<decltype (amd_dbgapi_register_id_t::handle)> (lhs)
@@ -195,8 +198,8 @@ public:
   std::set<amdgpu_regnum_t> register_set () const;
 
 private:
-  const std::string m_name;
-  const register_map_t m_register_map;
+  std::string const m_name;
+  register_map_t const m_register_map;
 };
 
 } /* namespace dbgapi */

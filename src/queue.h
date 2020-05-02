@@ -76,7 +76,7 @@ public:
   uint32_t kfd_queue_type () const { return m_kfd_queue_info.queue_type; }
 
   bool suspended () const { return m_suspended; }
-  void set_suspended (bool suspended) { m_suspended = suspended; }
+  void set_suspended (bool suspended);
 
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }
@@ -96,8 +96,27 @@ public:
     return m_endpgm_buffer_address;
   }
 
-  amd_dbgapi_global_address_t scratch_backing_memory_address () const;
-  amd_dbgapi_size_t scratch_backing_memory_size () const;
+  amd_dbgapi_global_address_t scratch_backing_memory_address () const
+  {
+    dbgapi_assert (m_scratch_backing_memory_address);
+    return m_scratch_backing_memory_address;
+  }
+  amd_dbgapi_size_t scratch_backing_memory_size () const
+  {
+    dbgapi_assert (m_scratch_backing_memory_size);
+    return m_scratch_backing_memory_size;
+  }
+
+  amd_dbgapi_global_address_t shared_address_space_aperture ()
+  {
+    dbgapi_assert (m_local_address_space_aperture);
+    return m_local_address_space_aperture;
+  }
+  amd_dbgapi_global_address_t private_address_space_aperture ()
+  {
+    dbgapi_assert (m_private_address_space_aperture);
+    return m_private_address_space_aperture;
+  }
 
   amd_dbgapi_status_t get_info (amd_dbgapi_queue_info_t query,
                                 size_t value_size, void *value) const;
@@ -115,6 +134,12 @@ private:
   amd_dbgapi_global_address_t m_parked_wave_buffer_address{ 0 };
   amd_dbgapi_global_address_t m_endpgm_buffer_address{ 0 };
   amd_dbgapi_global_address_t m_context_save_start_address;
+
+  amd_dbgapi_global_address_t m_scratch_backing_memory_address{ 0 };
+  amd_dbgapi_global_address_t m_scratch_backing_memory_size{ 0 };
+
+  amd_dbgapi_global_address_t m_local_address_space_aperture{ 0 };
+  amd_dbgapi_global_address_t m_private_address_space_aperture{ 0 };
 
   epoch_t m_mark{ 0 };
   bool m_suspended{ false };

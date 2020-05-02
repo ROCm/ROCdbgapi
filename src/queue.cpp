@@ -62,43 +62,81 @@ queue_t::queue_t (amd_dbgapi_queue_id_t queue_id, agent_t &agent,
     : handle_object (queue_id), m_kfd_queue_info (kfd_queue_info),
       m_agent (agent)
 {
-  if (kfd_queue_type () == KFD_IOC_QUEUE_TYPE_COMPUTE_AQL)
+  if (kfd_queue_type () != KFD_IOC_QUEUE_TYPE_COMPUTE_AQL)
     {
-      m_context_save_start_address = m_kfd_queue_info.ctx_save_restore_address
-                                     + sizeof (context_save_area_header_s);
-
-      /* FIXME: This is only temporary, we are using the free space in the
-         queue control stack memory. The control stack grows from high to
-         low address, so we can steal bytes between the context save area
-         header and the top of stack limit. queue_t::update_waves () checks
-         that the area is not overwritten.  */
-
-      m_displaced_stepping_buffer_address = m_context_save_start_address;
-      m_context_save_start_address
-          += architecture ().displaced_stepping_buffer_size ();
-
-      m_parked_wave_buffer_address = m_context_save_start_address;
-      m_context_save_start_address
-          += architecture ().breakpoint_instruction ().size ();
-
-      if (process ().write_global_memory (
-              m_parked_wave_buffer_address,
-              architecture ().breakpoint_instruction ().data (),
-              architecture ().breakpoint_instruction ().size ())
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("Could not write to the parked wave instruction buffer");
-
-      m_endpgm_buffer_address = m_context_save_start_address;
-      m_context_save_start_address
-          += architecture ().endpgm_instruction ().size ();
-
-      if (process ().write_global_memory (
-              m_endpgm_buffer_address,
-              architecture ().endpgm_instruction ().data (),
-              architecture ().endpgm_instruction ().size ())
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("Could not write to the endpgm instruction buffer");
+      m_is_valid = true;
+      return;
     }
+
+  m_context_save_start_address = m_kfd_queue_info.ctx_save_restore_address
+                                 + sizeof (context_save_area_header_s);
+
+  /* FIXME: This is only temporary, we are using the free space in the queue
+     control stack memory. The control stack grows from high to low address, so
+     we can steal bytes between the context save area header and the top of
+     stack limit. queue_t::update_waves () checks that the area is not
+     overwritten.  */
+
+  m_displaced_stepping_buffer_address = m_context_save_start_address;
+  m_context_save_start_address
+      += architecture ().displaced_stepping_buffer_size ();
+
+  m_parked_wave_buffer_address = m_context_save_start_address;
+  m_context_save_start_address
+      += architecture ().breakpoint_instruction ().size ();
+
+  if (process ().write_global_memory (
+          m_parked_wave_buffer_address,
+          architecture ().breakpoint_instruction ().data (),
+          architecture ().breakpoint_instruction ().size ())
+      != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not write to the parked wave instruction buffer");
+
+  m_endpgm_buffer_address = m_context_save_start_address;
+  m_context_save_start_address
+      += architecture ().endpgm_instruction ().size ();
+
+  if (process ().write_global_memory (
+          m_endpgm_buffer_address,
+          architecture ().endpgm_instruction ().data (),
+          architecture ().endpgm_instruction ().size ())
+      != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not write to the endpgm instruction buffer");
+
+  /* Read the local and private apertures.  */
+
+  /* The group_segment_aperture_base_hi is stored in the ABI-stable part of the
+     amd_queue_t. Since we know the address of the read_dispatch_id (obtained
+     from the KFD through the queue snapshot info), which is also stored in the
+     ABI-stable part of the amd_queue_t, we can calculate the address of the
+     pointer to the group_segment_aperture_base_hi and read it.   */
+
+  uint32_t group_segment_aperture_base_hi;
+  if (process ().read_global_memory (
+          m_kfd_queue_info.read_pointer_address
+              + offsetof (amd_queue_t, group_segment_aperture_base_hi)
+              - offsetof (amd_queue_t, read_dispatch_id),
+          &group_segment_aperture_base_hi,
+          sizeof (group_segment_aperture_base_hi))
+      != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not read the queue's group_segment_aperture_base_hi");
+
+  m_local_address_space_aperture
+      = amd_dbgapi_global_address_t{ group_segment_aperture_base_hi } << 32;
+
+  uint32_t private_segment_aperture_base_hi;
+  if (process ().read_global_memory (
+          m_kfd_queue_info.read_pointer_address
+              + offsetof (amd_queue_t, private_segment_aperture_base_hi)
+              - offsetof (amd_queue_t, read_dispatch_id),
+          &private_segment_aperture_base_hi,
+          sizeof (private_segment_aperture_base_hi))
+      != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not read the queue's private_segment_aperture_base_hi");
+
+  m_private_address_space_aperture
+      = amd_dbgapi_global_address_t{ private_segment_aperture_base_hi } << 32;
+
   m_is_valid = true;
 }
 
@@ -190,6 +228,7 @@ queue_t::update_waves (update_waves_flag_t flags)
   uint32_t wave_lanes = 0, n_vgprs = 0, n_accvgprs = 0, n_sgprs = 0,
            lds_size = 0, padding = 0;
   constexpr uint32_t n_ttmps = 16, n_hwregs = 16;
+  wave_t *group_leader = nullptr;
 
   for (size_t i = 2; /* Skip the 2 PM4 packets at the top of the stack.  */
        i < header.ctrl_stack_size / sizeof (uint32_t); ++i)
@@ -291,6 +330,9 @@ queue_t::update_waves (update_waves_flag_t flags)
 
       const amd_dbgapi_global_address_t ttmps_address
           = hwregs_address + n_hwregs * sizeof (uint32_t);
+
+      const amd_dbgapi_global_address_t lds_address
+          = ttmps_address + n_ttmps * sizeof (uint32_t);
 
       amd_dbgapi_wave_id_t wave_id = wave_t::undefined;
 
@@ -453,16 +495,37 @@ queue_t::update_waves (update_waves_flag_t flags)
                 queue_packet_id, /* queue_packet_id  */
                 dispatch_ptr);   /* packet_address  */
 
-          wave = &process.create<wave_t> (*dispatch,   /* dispatch  */
-                                          n_vgprs,     /* vgpr_count  */
-                                          n_accvgprs,  /* accvgpr_count */
-                                          n_sgprs,     /* sgpr_count  */
+          amd_dbgapi_size_t lds_offset = lds_address - wave_area_address;
+          wave = &process.create<wave_t> (*dispatch,  /* dispatch  */
+                                          n_vgprs,    /* vgpr_count  */
+                                          n_accvgprs, /* accvgpr_count */
+                                          n_sgprs,    /* sgpr_count  */
+                                          lds_offset, /* local_memory_offset */
+                                          lds_size,   /* local_memory_size  */
                                           wave_lanes); /* lane_count  */
         }
 
-      status = wave->update (wave_area_address, unhide_waves_halted_at_launch);
+      /* The first wave in the group is the group leader.  The group leader
+         owns the backing store for the group memory (LDS).  */
+      if (first_in_group)
+        group_leader = wave;
+
+      if (!group_leader)
+        error ("No group_leader, the control stack may be corrupted");
+
+      status = wave->update (*group_leader, wave_area_address,
+                             unhide_waves_halted_at_launch);
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
+
+      /* This was the last wave in the group. Make sure we have a new group
+         leader for the remaining waves.  */
+      if (COMPUTE_RELAUNCH_PAYLOAD_LAST_WAVE (relaunch))
+        group_leader = nullptr;
+
+      /* Check that the wave is in the same group as its group leader.  */
+      if (wave->group_ids () != wave->group_leader ().group_ids ())
+        error ("wave is not in the same group as group_leader");
 
       wave->set_mark (wave_mark);
     }
@@ -505,44 +568,41 @@ queue_t::update_waves (update_waves_flag_t flags)
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
-amd_dbgapi_global_address_t
-queue_t::scratch_backing_memory_address () const
+void
+queue_t::set_suspended (bool suspended)
 {
-  amd_dbgapi_global_address_t address;
+  m_suspended = suspended;
 
-  /* The scratch backing memory address is stored in the ABI-stable part
-     of the amd_queue_t. Since we know the address of the read_dispatch_id
-     (obtained from the KFD through the queue snapshot info), which is also
-     stored in the ABI-stable part of the amd_queue_t, we can calculate the
-     address of the pointer to the scratch_backing_memory_location and read
-     it.  We cannot cache this value as the runtime may change the allocation
-     dynamically.  */
-  if (process ().read_global_memory (
-          m_kfd_queue_info.read_pointer_address
-              + offsetof (amd_queue_t, scratch_backing_memory_location)
-              - offsetof (amd_queue_t, read_dispatch_id),
-          &address, sizeof (address))
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("read_global_memory failed");
+  /* Refresh the scratch_backing_memory_location and
+     scratch_backing_memory_size everytime we suspend the queue.  */
+  if (suspended)
+    {
+      /* The scratch backing memory address is stored in the ABI-stable part
+         of the amd_queue_t. Since we know the address of the read_dispatch_id
+         (obtained from the KFD through the queue snapshot info), which is also
+         stored in the ABI-stable part of the amd_queue_t, we can calculate the
+         address of the pointer to the scratch_backing_memory_location and read
+         it.  We cannot cache this value as the runtime may change the
+         allocation dynamically.  */
 
-  return address;
-}
+      amd_dbgapi_global_address_t address;
+      if (process ().read_global_memory (
+              m_kfd_queue_info.read_pointer_address
+                  + offsetof (amd_queue_t, scratch_backing_memory_location)
+                  - offsetof (amd_queue_t, read_dispatch_id),
+              &address, sizeof (address))
+          != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("Could not read the queue's scratch_backing_memory_location");
 
-amd_dbgapi_size_t
-queue_t::scratch_backing_memory_size () const
-{
-  size_t size;
-
-  /* See comment is queue_t::scratch_backing_memory_address.  */
-  if (process ().read_global_memory (
-          m_kfd_queue_info.read_pointer_address
-              + offsetof (amd_queue_t, scratch_backing_memory_byte_size)
-              - offsetof (amd_queue_t, read_dispatch_id),
-          &size, sizeof (size))
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("read_global_memory failed");
-
-  return size;
+      size_t size;
+      if (process ().read_global_memory (
+              m_kfd_queue_info.read_pointer_address
+                  + offsetof (amd_queue_t, scratch_backing_memory_byte_size)
+                  - offsetof (amd_queue_t, read_dispatch_id),
+              &size, sizeof (size))
+          != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("Could not read the queue's scratch_backing_memory_size");
+    }
 }
 
 amd_dbgapi_status_t

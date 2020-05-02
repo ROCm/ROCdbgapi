@@ -61,15 +61,8 @@ template <typename Handle> class handle_object
 public:
   using handle_type = Handle;
 
-private:
-  /* handle_objects are not heap objects.  */
-  static void *operator new (std::size_t);
-  static void *operator new[] (std::size_t);
-  static void operator delete (void *);
-  static void operator delete[] (void *);
-
 protected:
-  handle_object (const handle_type &id) : m_id (id) {}
+  explicit handle_object (const handle_type &id) : m_id (id) {}
   ~handle_object () = default;
 
   /* Disable copies and move assignments.  */
@@ -77,6 +70,12 @@ protected:
   handle_object (handle_object &&) = delete;
   handle_object &operator= (const handle_object &) = delete;
   handle_object &operator= (handle_object &&) = delete;
+
+  /* handle_objects are not heap objects.  */
+  static void *operator new (std::size_t) = delete;
+  static void *operator new[] (std::size_t) = delete;
+  static void operator delete (void *) = delete;
+  static void operator delete[] (void *) = delete;
 
 public:
   handle_type id () const { return m_id; }
@@ -315,7 +314,16 @@ public:
   {
     auto it = std::find_if (m_map.begin (), m_map.end (),
                             [=] (const typename map_type::value_type &value) {
-                              return bool (predicate (value.second));
+                              return bool{ predicate (value.second) };
+                            });
+    return it != m_map.end () ? &it->second : nullptr;
+  }
+
+  template <typename Functor> const Object *find_if (Functor predicate) const
+  {
+    auto it = std::find_if (m_map.begin (), m_map.end (),
+                            [=] (const typename map_type::value_type &value) {
+                              return bool{ predicate (value.second) };
                             });
     return it != m_map.end () ? &it->second : nullptr;
   }
