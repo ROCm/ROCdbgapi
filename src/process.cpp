@@ -136,7 +136,7 @@ process_t::dbg_trap_ioctl (uint32_t action, kfd_ioctl_dbg_trap_args *args)
   args->pid = m_os_pid;
   args->op = action;
 
-  int ret = ::ioctl (m_kfd_fd, AMDKFD_IOC_DBG_TRAP, args);
+  int ret = ::ioctl (m_kfd_fd, AMDKFD_IOC_DBG_TRAP_old, args);
   if (ret < 0 && errno == ESRCH)
     {
       /* The target process does not exist, it must have exited.  */
@@ -146,7 +146,7 @@ process_t::dbg_trap_ioctl (uint32_t action, kfd_ioctl_dbg_trap_args *args)
       return -ESRCH;
     }
 
-  return ret < 0 ? -errno : 0;
+  return ret < 0 ? -errno : ret;
 }
 
 process_t::process_t (amd_dbgapi_client_process_id_t client_process_id,
@@ -250,10 +250,6 @@ process_t::detach ()
           }
 
         /* Resume all the queues.  */
-        queues.clear ();
-        for (auto &&queue : range<queue_t> ())
-          queues.emplace_back (&queue);
-
         set_forward_progress_needed (true);
       }
     catch (...)
@@ -413,7 +409,7 @@ process_t::write_global_memory (amd_dbgapi_global_address_t address,
                                   : AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
 }
 
-amd_dbgapi_status_t
+void
 process_t::set_forward_progress_needed (bool forward_progress_needed)
 {
   m_forward_progress_needed = forward_progress_needed;
@@ -427,12 +423,8 @@ process_t::set_forward_progress_needed (bool forward_progress_needed)
         if (queue.suspended ())
           queues.emplace_back (&queue);
 
-      amd_dbgapi_status_t status = resume_queues (queues);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
+      resume_queues (queues);
     }
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 amd_dbgapi_status_t
@@ -474,42 +466,15 @@ process_t::set_wave_launch_mode (wave_launch_mode_t wave_launch_mode)
             queues.emplace_back (&queue);
         }
 
-      while (true)
-        {
-          amd_dbgapi_status_t status = suspend_queues (
-              queues,
-              queue_t::update_waves_flag_t::UNHIDE_WAVES_HALTED_AT_LAUNCH);
-          if (status == AMD_DBGAPI_STATUS_SUCCESS)
-            break;
-
-          /* Some queues may have become invalid since we retrieved the
-              event, so remove them from the list and try again.  */
-          bool invalid_queue = false;
-          for (auto it = queues.begin (); it != queues.end ();)
-            {
-              if ((*it)->is_valid ())
-                ++it;
-              else
-                {
-                  destroy (*it);
-                  it = queues.erase (it);
-                  invalid_queue = true;
-                }
-            }
-          if (!invalid_queue)
-            error ("process::suspend_queues failed (rc=%d)", status);
-        }
+      suspend_queues (
+          queues, queue_t::update_waves_flag_t::UNHIDE_WAVES_HALTED_AT_LAUNCH);
 
       /* Suspending the queues causes all the waves to be updated which will
          unhalt waves halted at launch. We now resume them if forward progress
          is needed.  */
 
       if (forward_progress_needed ())
-        {
-          amd_dbgapi_status_t status = resume_queues (queues);
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
-            return status;
-        }
+        resume_queues (queues);
     }
 
   return AMD_DBGAPI_STATUS_SUCCESS;
@@ -835,20 +800,19 @@ process_t::query_debug_event (const agent_t &agent,
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
-amd_dbgapi_status_t
+size_t
 process_t::suspend_queues (const std::vector<queue_t *> &queues,
                            queue_t::update_waves_flag_t flags)
 {
   if (queues.empty ())
-    return AMD_DBGAPI_STATUS_SUCCESS;
+    return 0;
 
   std::vector<queue_t::kfd_queue_id_t> queue_ids;
   queue_ids.reserve (queues.size ());
 
   for (auto *queue : queues)
     {
-      dbgapi_assert (queue->is_valid () && !queue->suspended ()
-                     && "queue is invalid, or already suspended");
+      dbgapi_assert (!queue->suspended () && "already suspended");
       queue_ids.emplace_back (queue->kfd_queue_id ());
       dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "suspending %s",
                   to_string (queue->id ()).c_str ());
@@ -865,23 +829,30 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
   args.data2 = static_cast<uint32_t> (queue_ids.size ());
   args.ptr = reinterpret_cast<uint64_t> (queue_ids.data ());
 
-  int err = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_SUSPEND, &args);
-  if (err < 0)
+  size_t num_suspended_queues
+      = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_SUSPEND, &args);
+
+  if (num_suspended_queues < 0)
+    error ("dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_SUSPEND) failed.");
+
+  if (num_suspended_queues != queue_ids.size ())
     {
-      /* The ioctl may have failed because some queues may no longer exist so
+      /* Some queues may have failed to suspend because they no longer exist so
          check the queue_ids returned by KFD and invalidate queues which have
          been marked as invalid.  */
-      bool invalid_queue = false;
+      bool __maybe_unused__ invalid_queue = false;
 
       for (size_t i = 0; i < queue_ids.size (); ++i)
-        if (queue_ids[i] == KFD_INVALID_QUEUEID)
+        if (queue_ids[i] & KFD_DBG_QUEUE_ERROR_MASK)
+          error ("failed to suspend %s",
+                 to_string (queues[i]->id ()).c_str ());
+        else if (queue_ids[i] & KFD_DBG_QUEUE_INVALID_MASK)
           {
             queues[i]->invalidate ();
             invalid_queue = true;
           }
 
-      if (!invalid_queue)
-        return AMD_DBGAPI_STATUS_ERROR;
+      dbgapi_assert (invalid_queue && "should have seen an invalid queue");
     }
 
   /* Update the waves that have been context switched.  */
@@ -900,14 +871,14 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
         }
     }
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+  return num_suspended_queues;
 }
 
-amd_dbgapi_status_t
+size_t
 process_t::resume_queues (const std::vector<queue_t *> &queues)
 {
   if (queues.empty ())
-    return AMD_DBGAPI_STATUS_SUCCESS;
+    return 0;
 
   std::vector<queue_t::kfd_queue_id_t> queue_ids;
   queue_ids.reserve (queues.size ());
@@ -930,14 +901,36 @@ process_t::resume_queues (const std::vector<queue_t *> &queues)
   args.data2 = static_cast<uint32_t> (queue_ids.size ());
   args.ptr = reinterpret_cast<uint64_t> (queue_ids.data ());
 
-  int err = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_RESUME, &args);
-  if (err < 0)
-    return AMD_DBGAPI_STATUS_ERROR;
+  size_t num_resumed_queues
+      = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_RESUME, &args);
+
+  if (num_resumed_queues < 0)
+    error ("dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_RESUME) failed.");
+
+  if (num_resumed_queues != queue_ids.size ())
+    {
+      /* Some queues may have failed to resume because they no longer exist so
+         check the queue_ids returned by KFD and invalidate queues which have
+         been marked as invalid.  */
+      bool __maybe_unused__ invalid_queue = false;
+
+      for (size_t i = 0; i < queue_ids.size (); ++i)
+        if (queue_ids[i] & KFD_DBG_QUEUE_ERROR_MASK)
+          error ("failed to resume %s", to_string (queues[i]->id ()).c_str ());
+        else if (queue_ids[i] & KFD_DBG_QUEUE_INVALID_MASK)
+          {
+            queues[i]->invalidate ();
+            invalid_queue = true;
+          }
+
+      dbgapi_assert (invalid_queue && "should have seen an invalid queue");
+    }
 
   for (auto *queue : queues)
-    queue->set_suspended (false);
+    if (queue->is_valid ())
+      queue->set_suspended (false);
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+  return num_resumed_queues;
 }
 
 amd_dbgapi_status_t
@@ -1082,7 +1075,7 @@ process_t::update_queues ()
 
   auto &&queue_range = range<queue_t> ();
   for (auto it = queue_range.begin (); it != queue_range.end ();)
-    if (it->mark () < queue_mark)
+    if (!it->is_valid () || it->mark () < queue_mark)
       it = destroy (it);
     else
       ++it;
@@ -1198,10 +1191,11 @@ process_t::attach ()
        requires KFD_IOCTL_DBG >= 1.1
      - Clearing the queue status on queue suspend requires version >= 1.3
      - 1.4 Fixes an issue with kfifo free exposed by a user mode change.
+     - 2.0 Returns number of queues suspended/resumed and invalid array slots
    */
   static_assert (KFD_IOCTL_DBG_MAJOR_VERSION > 1
-                     || (KFD_IOCTL_DBG_MAJOR_VERSION == 1
-                         && KFD_IOCTL_DBG_MINOR_VERSION >= 4),
+                     || (KFD_IOCTL_DBG_MAJOR_VERSION == 2
+                         && KFD_IOCTL_DBG_MINOR_VERSION >= 0),
                  "KFD_IOCTL_DBG >= 1.4 required");
 
   /* Check that the KFD dbg trap major == IOCTL dbg trap major,
@@ -1235,14 +1229,9 @@ process_t::attach ()
     /* Suspend the newly create queues to update the waves, then resume them.
        We could have attached to the process while wavefronts were executing.
      */
-    status = suspend_queues (
-        queues, queue_t::update_waves_flag_t::FORCE_ASSIGN_WAVE_IDS);
-    if (status != AMD_DBGAPI_STATUS_SUCCESS)
-      error ("suspend_queues failed (rc=%d)", status);
-
-    status = resume_queues (queues);
-    if (status != AMD_DBGAPI_STATUS_SUCCESS)
-      error ("resume_queues failed (rc=%d)", status);
+    suspend_queues (queues,
+                    queue_t::update_waves_flag_t::FORCE_ASSIGN_WAVE_IDS);
+    resume_queues (queues);
 
     status = start_event_thread ();
     if (status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -1620,12 +1609,14 @@ amd_dbgapi_process_set_progress (amd_dbgapi_process_id_t process_id,
   switch (progress)
     {
     case AMD_DBGAPI_PROGRESS_NORMAL:
-      return process->set_forward_progress_needed (true);
+      process->set_forward_progress_needed (true);
     case AMD_DBGAPI_PROGRESS_NO_FORWARD:
-      return process->set_forward_progress_needed (false);
+      process->set_forward_progress_needed (false);
     default:
       return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
     }
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
 }
 

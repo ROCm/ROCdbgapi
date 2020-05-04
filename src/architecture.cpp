@@ -47,12 +47,6 @@ namespace amd
 namespace dbgapi
 {
 
-#if defined(__GNUC__)
-#define __maybe_unused__ __attribute__ ((unused))
-#else /* !defined(__GNUC__) */
-#define __maybe_unused__
-#endif /* !defined(__GNUC__) */
-
 constexpr uint32_t SQ_WAVE_STATUS_SCC_MASK = (1 << 0);
 constexpr uint32_t SQ_WAVE_STATUS_EXECZ_MASK = (1 << 9);
 constexpr uint32_t SQ_WAVE_STATUS_VCCZ_MASK = (1 << 10);

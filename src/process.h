@@ -106,8 +106,7 @@ public:
                                    std::string *string, size_t size);
 
   bool forward_progress_needed () const { return m_forward_progress_needed; }
-  amd_dbgapi_status_t
-  set_forward_progress_needed (bool forward_progress_needed);
+  void set_forward_progress_needed (bool forward_progress_needed);
 
   wave_launch_mode_t wave_launch_mode () const { return m_wave_launch_mode; }
   amd_dbgapi_status_t
@@ -135,9 +134,9 @@ public:
                                          queue_t::kfd_queue_id_t *kfd_queue_id,
                                          uint32_t *status);
 
-  amd_dbgapi_status_t suspend_queues (const std::vector<queue_t *> &queues,
-                                      queue_t::update_waves_flag_t flags = {});
-  amd_dbgapi_status_t resume_queues (const std::vector<queue_t *> &queues);
+  size_t suspend_queues (const std::vector<queue_t *> &queues,
+                         queue_t::update_waves_flag_t flags = {});
+  size_t resume_queues (const std::vector<queue_t *> &queues);
 
   amd_dbgapi_status_t set_wave_launch_mode (const agent_t &agent,
                                             wave_launch_mode_t mode);

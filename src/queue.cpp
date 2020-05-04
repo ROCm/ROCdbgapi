@@ -750,8 +750,7 @@ scoped_queue_suspend_t::scoped_queue_suspend_t (queue_t &queue)
   if (!m_queue)
     return;
 
-  if (m_queue->process ().suspend_queues ({ m_queue })
-      != AMD_DBGAPI_STATUS_SUCCESS)
+  if (m_queue->process ().suspend_queues ({ m_queue }) != 1)
     error ("process::suspend_queues failed");
 }
 
@@ -760,8 +759,7 @@ scoped_queue_suspend_t::~scoped_queue_suspend_t ()
   if (!m_queue || !m_queue->process ().forward_progress_needed ())
     return;
 
-  if (m_queue->process ().resume_queues ({ m_queue })
-      != AMD_DBGAPI_STATUS_SUCCESS)
+  if (m_queue->process ().resume_queues ({ m_queue }) != 1)
     error ("process::resume_queues failed");
 }
 

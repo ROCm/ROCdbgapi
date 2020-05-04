@@ -26,6 +26,12 @@
 #include <cstdint>
 #include <list>
 
+#if defined(__GNUC__)
+#define __maybe_unused__ __attribute__ ((unused))
+#else /* !defined(__GNUC__) */
+#define __maybe_unused__
+#endif /* !defined(__GNUC__) */
+
 namespace amd
 {
 namespace dbgapi

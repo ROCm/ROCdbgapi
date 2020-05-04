@@ -313,28 +313,14 @@ amd_dbgapi_next_pending_event (amd_dbgapi_process_id_t process_id,
 
           /* Suspend the queues that have pending events which will cause all
              events to be created for any waves that have pending events.  */
-          while (true)
+          if (process->suspend_queues (queues) != queues.size ())
             {
-              amd_dbgapi_status_t status = process->suspend_queues (queues);
-              if (status == AMD_DBGAPI_STATUS_SUCCESS)
-                break;
-
               /* Some queues may have become invalid since we retrieved the
-                  event, so remove them from the list and try again.  */
-              bool invalid_queue = false;
+                 event, failed to suspend, and marked by suspend_queues () as
+                 invalid. Remove such queues from our list, they will be
+                 destroyed next time we update the queues.  */
               for (auto it = queues.begin (); it != queues.end ();)
-                {
-                  if ((*it)->is_valid ())
-                    ++it;
-                  else
-                    {
-                      process->destroy (*it);
-                      it = queues.erase (it);
-                      invalid_queue = true;
-                    }
-                }
-              if (!invalid_queue)
-                error ("process::suspend_queues failed (rc=%d)", status);
+                it = (*it)->is_valid () ? std::next (it) : queues.erase (it);
             }
 
           /* Exit the loop if we did not add any new queues to suspend in
