@@ -61,5 +61,6 @@ local:  *;
 };
 
 @AMD_DBGAPI_NAME@_0.20 {
-global: amd_dbgapi_process_set_wave_creation;
+global: amd_dbgapi_classify_instruction;
+        amd_dbgapi_process_set_wave_creation;
 } @AMD_DBGAPI_NAME@_0.1;

@@ -28,6 +28,7 @@
 #include "process.h"
 #include "queue.h"
 #include "register.h"
+#include "utils.h"
 #include "wave.h"
 
 #include <hsa/amd_hsa_queue.h>

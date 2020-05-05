@@ -148,9 +148,9 @@ template amd_dbgapi_status_t get_handle_list<dispatch_t> (
     amd_dbgapi_dispatch_id_t **objects, amd_dbgapi_changed_t *changed);
 
 template amd_dbgapi_status_t
-get_handle_list<wave_t> (amd_dbgapi_process_id_t process_id,
-                         size_t *object_count, amd_dbgapi_wave_id_t **objects,
-                         amd_dbgapi_changed_t *changed);
+get_handle_list<wave_t> (
+    amd_dbgapi_process_id_t process_id, size_t *object_count,
+    amd_dbgapi_wave_id_t **objects, amd_dbgapi_changed_t *changed);
 
 } /* namespace utils */
 
