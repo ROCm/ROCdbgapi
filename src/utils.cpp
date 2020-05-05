@@ -43,6 +43,31 @@ namespace dbgapi
 
 namespace utils
 {
+namespace detail
+{
+/* Make sure the storage size of enums passed by reference matches the
+   specification.
+ */
+
+using amd_dbgapi_enum_underlying_type_t = uint32_t;
+
+static_assert (
+    sizeof (amd_dbgapi_changed_t) == sizeof (amd_dbgapi_enum_underlying_type_t)
+        && sizeof (amd_dbgapi_register_class_state_t)
+               == sizeof (amd_dbgapi_enum_underlying_type_t)
+        && sizeof (amd_dbgapi_address_space_alias_t)
+               == sizeof (amd_dbgapi_enum_underlying_type_t)
+        && sizeof (amd_dbgapi_address_class_state_t)
+               == sizeof (amd_dbgapi_enum_underlying_type_t)
+        && sizeof (amd_dbgapi_event_kind_t)
+               == sizeof (amd_dbgapi_enum_underlying_type_t)
+        && sizeof (amd_dbgapi_breakpoint_action_t)
+               == sizeof (amd_dbgapi_enum_underlying_type_t)
+        && sizeof (amd_dbgapi_shared_library_state_t)
+               == sizeof (amd_dbgapi_enum_underlying_type_t),
+    "an enum type is not compatible with the dbgapi enum underlying type");
+
+} /* namespace detail */
 
 template <>
 amd_dbgapi_status_t
