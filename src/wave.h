@@ -117,6 +117,7 @@ public:
     return std::tie (m_group_ids[0], m_group_ids[1], m_group_ids[2]);
   }
 
+  uint64_t exec_mask () const;
   amd_dbgapi_global_address_t pc () const;
   amd_dbgapi_global_address_t saved_pc () const { return m_saved_pc; }
   std::vector<uint8_t> instruction_at_pc () const;

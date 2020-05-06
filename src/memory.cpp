@@ -43,12 +43,8 @@ address_class_t::get_info (amd_dbgapi_address_class_info_t query,
 
     case AMD_DBGAPI_ADDRESS_CLASS_INFO_ADDRESS_SPACE:
       return utils::get_info (value_size, value, m_address_space.id ());
-
-    default:
-      return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
     }
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
+  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }
 
 amd_dbgapi_status_t
@@ -68,12 +64,8 @@ address_space_t::get_info (amd_dbgapi_address_space_info_t query,
 
     case AMD_DBGAPI_ADDRESS_SPACE_INFO_ACCESS:
       return utils::get_info (value_size, value, m_access);
-
-    default:
-      return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
     }
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
+  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }
 
 } /* namespace dbgapi */
@@ -121,13 +113,13 @@ amd_dbgapi_architecture_address_class_list (
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
+  if (!address_class_count || !address_classes)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
   const architecture_t *architecture = architecture_t::find (architecture_id);
 
   if (!architecture)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID;
-
-  if (!address_class_count || !address_classes)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   size_t count = architecture->count<address_class_t> ();
 
@@ -159,13 +151,13 @@ amd_dbgapi_dwarf_address_class_to_address_class (
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
+  if (!address_class_id)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
   const architecture_t *architecture = architecture_t::find (architecture_id);
 
   if (!architecture)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID;
-
-  if (!address_class_id)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   const address_class_t *address_class
       = architecture->find_if ([=] (const address_class_t &address_class) {
@@ -221,13 +213,13 @@ amd_dbgapi_architecture_address_space_list (
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
+  if (!address_space_count || !address_spaces)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
   const architecture_t *architecture = architecture_t::find (architecture_id);
 
   if (!architecture)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID;
-
-  if (!address_space_count || !address_spaces)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   size_t count = architecture->count<address_space_t> ();
 
@@ -259,13 +251,13 @@ amd_dbgapi_dwarf_address_space_to_address_space (
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
+  if (!address_space_id)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
   const architecture_t *architecture = architecture_t::find (architecture_id);
 
   if (!architecture)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID;
-
-  if (!address_space_id)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   const address_space_t *address_space
       = architecture->find_if ([=] (const address_space_t &address_space) {
@@ -536,6 +528,7 @@ amd_dbgapi_set_memory_precision (
   TRY;
   TRACE (process_id, agent_id, memory_precision);
 
-  return AMD_DBGAPI_STATUS_ERROR;
+  warning ("amd_dbgapi_set_memory_precision is not yet implemented");
+  return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
   CATCH;
 }

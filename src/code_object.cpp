@@ -43,12 +43,8 @@ code_object_t::get_info (amd_dbgapi_code_object_info_t query,
 
     case AMD_DBGAPI_CODE_OBJECT_INFO_LOAD_ADDRESS:
       return utils::get_info (value_size, value, m_load_address);
-
-    default:
-      return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
     }
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
+  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }
 
 } /* namespace dbgapi */
@@ -64,6 +60,9 @@ amd_dbgapi_code_object_get_info (amd_dbgapi_process_id_t process_id,
 {
   TRY;
   TRACE (process_id, code_object_id, query, value_size, value);
+
+  if (!amd::dbgapi::is_initialized)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   process_t *process = process_t::find (process_id);
 

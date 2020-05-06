@@ -62,6 +62,28 @@ wave_t::wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t &dispatch,
 {
 }
 
+uint64_t
+wave_t::exec_mask () const
+{
+  if (lane_count () == 32)
+    {
+      uint32_t exec;
+      if (read_register (amdgpu_regnum_t::EXEC_32, &exec)
+          != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("Could not read the EXEC_32 register");
+      return exec;
+    }
+  else if (lane_count () == 64)
+    {
+      uint64_t exec;
+      if (read_register (amdgpu_regnum_t::EXEC_64, &exec)
+          != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("Could not read the EXEC_64 register");
+      return exec;
+    }
+  error ("Not a valid lane_count for EXEC mask: %zu", lane_count ());
+}
+
 amd_dbgapi_global_address_t
 wave_t::pc () const
 {
@@ -840,11 +862,11 @@ wave_t::get_info (amd_dbgapi_wave_info_t query, size_t value_size,
     case AMD_DBGAPI_WAVE_INFO_STATE:
       return utils::get_info (value_size, value, m_state);
 
-    case AMD_DBGAPI_WAVE_INFO_DISPATCH:
-      return utils::get_info (value_size, value, dispatch ().id ());
-
     case AMD_DBGAPI_WAVE_INFO_STOP_REASON:
       return utils::get_info (value_size, value, m_stop_reason);
+
+    case AMD_DBGAPI_WAVE_INFO_DISPATCH:
+      return utils::get_info (value_size, value, dispatch ().id ());
 
     case AMD_DBGAPI_WAVE_INFO_QUEUE:
       return utils::get_info (value_size, value, queue ().id ());
@@ -855,20 +877,26 @@ wave_t::get_info (amd_dbgapi_wave_info_t query, size_t value_size,
     case AMD_DBGAPI_WAVE_INFO_ARCHITECTURE:
       return utils::get_info (value_size, value, architecture ().id ());
 
+    case AMD_DBGAPI_WAVE_INFO_PC:
+      return utils::get_info (value_size, value, pc ());
+
+    case AMD_DBGAPI_WAVE_INFO_EXEC_MASK:
+      return utils::get_info (value_size, value, exec_mask ());
+
     case AMD_DBGAPI_WAVE_INFO_WORK_GROUP_COORD:
       return utils::get_info (value_size, value, m_group_ids);
 
     case AMD_DBGAPI_WAVE_INFO_WAVE_NUMBER_IN_WORK_GROUP:
       return utils::get_info (value_size, value, m_wave_in_group);
 
-    case AMD_DBGAPI_WAVE_INFO_PC:
-      return utils::get_info (value_size, value, pc ());
+    case AMD_DBGAPI_WAVE_INFO_WATCHPOINTS:
+      warning ("wave_t::get_info(WATCHPOINTS, ...) not yet implemented");
+      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
 
-    default:
-      return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+    case AMD_DBGAPI_WAVE_INFO_LANE_COUNT:
+      return utils::get_info (value_size, value, lane_count ());
     }
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
+  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }
 
 } /* namespace dbgapi */

@@ -66,9 +66,6 @@ amd_dbgapi_finalize ()
   TRY;
   TRACE ();
 
-  if (!process_callbacks.get_symbol_address)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
-
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 

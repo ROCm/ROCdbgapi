@@ -241,6 +241,9 @@ template <typename T>
 amd_dbgapi_status_t
 get_info (size_t value_size, void *ret, const T &value)
 {
+  if (!ret)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
   if (value_size != sizeof (T))
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE;
 

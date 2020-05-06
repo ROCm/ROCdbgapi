@@ -145,14 +145,22 @@ agent_t::get_info (amd_dbgapi_agent_info_t query, size_t value_size,
 {
   switch (query)
     {
-    case AMD_DBGAPI_AGENT_INFO_PCIE_SLOT:
-      return utils::get_info (value_size, value, m_properties.location_id);
-
     case AMD_DBGAPI_AGENT_INFO_NAME:
       return utils::get_info (value_size, value, m_properties.name);
 
     case AMD_DBGAPI_AGENT_INFO_ARCHITECTURE:
       return utils::get_info (value_size, value, architecture ().id ());
+
+    case AMD_DBGAPI_AGENT_INFO_PCIE_SLOT:
+      return utils::get_info (value_size, value, m_properties.location_id);
+
+    case AMD_DBGAPI_AGENT_INFO_PCIE_VENDOR_ID:
+      warning ("agent_t::get_info(PCIE_VENDOR_ID, ...) not yet implemented");
+      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+
+    case AMD_DBGAPI_AGENT_INFO_PCIE_DEVICE_ID:
+      warning ("agent_t::get_info(PCIE_DEVICE_ID, ...) not yet implemented");
+      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
 
     case AMD_DBGAPI_AGENT_INFO_SHADER_ENGINE_COUNT:
       return utils::get_info (value_size, value,
@@ -169,12 +177,8 @@ agent_t::get_info (amd_dbgapi_agent_info_t query, size_t value_size,
     case AMD_DBGAPI_AGENT_INFO_MAX_WAVES_PER_SIMD:
       return utils::get_info (value_size, value,
                               m_properties.max_waves_per_simd);
-
-    default:
-      return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
     }
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
+  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }
 
 } /* namespace dbgapi */
@@ -190,6 +194,9 @@ amd_dbgapi_agent_get_info (amd_dbgapi_process_id_t process_id,
 {
   TRY;
   TRACE (process_id, agent_id, query, value_size, value);
+
+  if (!amd::dbgapi::is_initialized)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   process_t *process = process_t::find (process_id);
 

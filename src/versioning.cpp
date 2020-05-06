@@ -189,8 +189,10 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
       string = "The address is not within the shared library";
       break;
     case AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED:
-      string = "The requested operation is not implemented";
+      string = "The operation is not currently implemented";
       break;
+      /* Don't add a default here, so that we can catch at compile time when an
+         enum value is missing.  */
     }
 
   if (!string)

@@ -1870,9 +1870,6 @@ architecture_t::get_info (amd_dbgapi_architecture_info_t query,
       return utils::get_info (value_size, value,
                               minimum_instruction_alignment ());
 
-    case AMD_DBGAPI_ARCHITECTURE_INFO_PC_REGISTER:
-      return utils::get_info (value_size, value, amdgpu_regnum_t::PC);
-
     case AMD_DBGAPI_ARCHITECTURE_INFO_BREAKPOINT_INSTRUCTION_SIZE:
       return utils::get_info (value_size, value,
                               breakpoint_instruction ().size ());
@@ -1884,15 +1881,34 @@ architecture_t::get_info (amd_dbgapi_architecture_info_t query,
       return utils::get_info (value_size, value,
                               breakpoint_instruction_pc_adjust ());
 
+    case AMD_DBGAPI_ARCHITECTURE_INFO_PC_REGISTER:
+      return utils::get_info (value_size, value, amdgpu_regnum_t::PC);
+
+    case AMD_DBGAPI_ARCHITECTURE_INFO_EXECUTION_MASK_REGISTER:
+      warning ("architecture_t::get_info(EXECUTION_MASK_REGISTER, ...) not "
+               "yet implemented");
+      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+
+    case AMD_DBGAPI_ARCHITECTURE_INFO_WATCHPOINT_COUNT:
+      warning ("architecture_t::get_info(WATCHPOINT_COUNT, ...) not yet "
+               "implemented");
+      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+
+    case AMD_DBGAPI_ARCHITECTURE_INFO_WATCHPOINT_SHARE:
+      warning ("architecture_t::get_info(WATCHPOINT_SHARE, ...) not yet "
+               "implemented");
+      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+
     case AMD_DBGAPI_ARCHITECTURE_INFO_DEFAULT_GLOBAL_ADDRESS_SPACE:
       return utils::get_info (value_size, value,
                               default_global_address_space ().id ());
 
-    default:
-      return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+    case AMD_DBGAPI_ARCHITECTURE_INFO_PRECISE_MEMORY_SUPPORTED:
+      warning ("architecture_t::get_info(PRECISE_MEMORY_SUPPORTED, ...) not "
+               "yet implemented");
+      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
     }
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
+  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }
 
 namespace detail
@@ -1956,6 +1972,9 @@ amd_dbgapi_get_architecture (uint32_t elf_amdgpu_machine,
   TRY;
   TRACE (elf_amdgpu_machine);
 
+  if (!amd::dbgapi::is_initialized)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+
   if (!architecture_id)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
@@ -1979,6 +1998,9 @@ amd_dbgapi_architecture_get_info (amd_dbgapi_architecture_id_t architecture_id,
   TRY;
   TRACE (architecture_id, query, value_size, value);
 
+  if (!amd::dbgapi::is_initialized)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+
   const architecture_t *architecture = architecture_t::find (architecture_id);
 
   if (!architecture)
@@ -2000,6 +2022,9 @@ amd_dbgapi_disassemble_instruction (
 {
   TRY;
   TRACE (architecture_id, address, size);
+
+  if (!amd::dbgapi::is_initialized)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   if (!memory || !size || !instruction_text)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
@@ -2049,9 +2074,8 @@ amd_dbgapi_disassemble_instruction (
   instruction_str += operand_str;
 
   /* Return the instruction text in client allocated memory.  */
-  void *mem;
   size_t mem_size = instruction_str.length () + 1;
-  mem = allocate_memory (mem_size);
+  void *mem = allocate_memory (mem_size);
   if (!mem)
     return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
 

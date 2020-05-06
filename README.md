@@ -113,3 +113,43 @@ If the ROCdbgapi library PDF documentation has been generated, ``make install``
 will place it in:
 
 - ``../install/share/doc/amd-dbgapi/amd-dbgapi.pdf``
+
+Known Limitations and Restrictions
+----------------------------------
+
+The AMD Debugger API library implementation is currently a prototype and has the
+following restrictions.  Future releases aim to address these restrictions.
+
+1.  The following *_get_info queries are not yet implemented:
+
+    - AMD_DBGAPI_AGENT_INFO_PCIE_DEVICE_ID
+    - AMD_DBGAPI_AGENT_INFO_PCIE_VENDOR_ID
+    - AMD_DBGAPI_ARCHITECTURE_INFO_EXECUTION_MASK_REGISTER
+    - AMD_DBGAPI_ARCHITECTURE_INFO_PRECISE_MEMORY_SUPPORTED
+    - AMD_DBGAPI_ARCHITECTURE_INFO_WATCHPOINT_COUNT
+    - AMD_DBGAPI_ARCHITECTURE_INFO_WATCHPOINT_SHARE
+    - AMD_DBGAPI_DISPATCH_INFO_ACQUIRE_FENCE
+    - AMD_DBGAPI_DISPATCH_INFO_BARRIER
+    - AMD_DBGAPI_DISPATCH_INFO_GRID_DIMENSIONS
+    - AMD_DBGAPI_DISPATCH_INFO_GROUP_SEGMENT_SIZE
+    - AMD_DBGAPI_DISPATCH_INFO_KERNEL_ARGUMENT_SEGMENT_ADDRESS
+    - AMD_DBGAPI_DISPATCH_INFO_PACKET_ID
+    - AMD_DBGAPI_DISPATCH_INFO_PRIVATE_SEGMENT_SIZE
+    - AMD_DBGAPI_DISPATCH_INFO_RELEASE_FENCE
+    - AMD_DBGAPI_EVENT_INFO_RUNTIME_VERSION
+    - AMD_DBGAPI_QUEUE_INFO_ERROR_REASON
+    - AMD_DBGAPI_QUEUE_INFO_STATE
+    - AMD_DBGAPI_QUEUE_TYPE
+    - AMD_DBGAPI_WAVE_INFO_EXEC_MASK
+    - AMD_DBGAPI_WAVE_INFO_LANE_COUNT
+    - AMD_DBGAPI_WAVE_INFO_WATCHPOINTS
+
+2.  The following functions are not yet implemented:
+
+    - amd_dbgapi_queue_packet_list
+    - amd_dbgapi_remove_watchpoint
+    - amd_dbgapi_set_memory_precision
+    - amd_dbgapi_set_watchpoint
+
+3.  On a AMD_DBGAPI_STATUS_FATAL error the library does fully reset the internal
+    state and so subsequent functions may not operate correctly.

@@ -196,6 +196,9 @@ public:
   bool contains (amdgpu_regnum_t regnum) const;
   std::set<amdgpu_regnum_t> register_set () const;
 
+  amd_dbgapi_status_t get_info (amd_dbgapi_register_class_info_t query,
+                                size_t value_size, void *value) const;
+
 private:
   std::string const m_name;
   register_map_t const m_register_map;

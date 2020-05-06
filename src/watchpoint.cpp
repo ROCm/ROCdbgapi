@@ -32,6 +32,8 @@ namespace dbgapi
 } /* namespace dbgapi */
 } /* namespace amd */
 
+using namespace amd::dbgapi;
+
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
                            amd_dbgapi_agent_id_t agent_id,
@@ -45,10 +47,8 @@ amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
   TRY;
   TRACE (process_id, agent_id, address, size, kind);
 
-  /* FIXME: not implemented.  */
-  dbgapi_assert_not_reached ("Not implemented");
-
-  return AMD_DBGAPI_STATUS_ERROR;
+  warning ("amd_dbgapi_set_watchpoint is not yet implemented");
+  return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
   CATCH;
 }
 
@@ -60,9 +60,7 @@ amd_dbgapi_remove_watchpoint (amd_dbgapi_process_id_t process_id,
   TRY;
   TRACE (process_id, agent_id, watchpoint_id);
 
-  /* FIXME: not implemented.  */
-  dbgapi_assert_not_reached ("Not implemented");
-
-  return AMD_DBGAPI_STATUS_ERROR;
+  warning ("amd_dbgapi_remove_watchpoint is not yet implemented");
+  return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
   CATCH;
 }

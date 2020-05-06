@@ -193,11 +193,10 @@ event_t::get_info (amd_dbgapi_event_info_t query, size_t value_size,
       return utils::get_info (value_size, value,
                               m_data.runtime_event.runtime_state);
 
-    default:
-      return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+    case AMD_DBGAPI_EVENT_INFO_RUNTIME_VERSION:
+      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
     }
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
+  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }
 
 } /* namespace dbgapi */

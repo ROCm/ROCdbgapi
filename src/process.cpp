@@ -1669,6 +1669,9 @@ amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
   static monotonic_counter_t<decltype (amd_dbgapi_process_id_t::handle)>
       next_process_id = { 1 };
 
+  if (!amd::dbgapi::is_initialized)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+
   if (!client_process_id || !process_id)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
@@ -1711,6 +1714,9 @@ amd_dbgapi_process_detach (amd_dbgapi_process_id_t process_id)
   TRY;
   TRACE (process_id);
 
+  if (!amd::dbgapi::is_initialized)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+
   process_t *process
       = process_t::find (process_id, true); /* Flush the cache.  */
 
@@ -1736,6 +1742,9 @@ amd_dbgapi_process_get_info (amd_dbgapi_process_id_t process_id,
 {
   TRY;
   TRACE (process_id, query, value_size, value);
+
+  if (!amd::dbgapi::is_initialized)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   process_t *process = process_t::find (process_id);
 

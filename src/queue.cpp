@@ -617,11 +617,12 @@ queue_t::get_info (amd_dbgapi_queue_info_t query, size_t value_size,
     case AMD_DBGAPI_QUEUE_INFO_ARCHITECTURE:
       return utils::get_info (value_size, value, architecture ().id ());
 
-    default:
-      return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+    case AMD_DBGAPI_QUEUE_TYPE:
+    case AMD_DBGAPI_QUEUE_INFO_STATE:
+    case AMD_DBGAPI_QUEUE_INFO_ERROR_REASON:
+      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
     }
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
+  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }
 
 scoped_queue_suspend_t::scoped_queue_suspend_t (queue_t &queue)
@@ -658,6 +659,9 @@ amd_dbgapi_queue_get_info (amd_dbgapi_process_id_t process_id,
 {
   TRY;
   TRACE (process_id, queue_id, query, value_size, value);
+
+  if (!amd::dbgapi::is_initialized)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   process_t *process = process_t::find (process_id);
 
@@ -702,9 +706,7 @@ amd_dbgapi_queue_packet_list (amd_dbgapi_process_id_t process_id,
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
-  /* FIXME: not implemented.  */
-  dbgapi_assert_not_reached ("Not implemented");
-
-  return AMD_DBGAPI_STATUS_ERROR;
+  warning ("amd_dbgapi_queue_packet_list is not yet implemented");
+  return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
   CATCH;
 }
