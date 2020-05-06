@@ -38,13 +38,13 @@ shared_library_t::shared_library_t (amd_dbgapi_shared_library_id_t library_id,
                                     process_t &process, std::string name,
                                     notify_callback_t on_load,
                                     notify_callback_t on_unload)
-    : handle_object (library_id), m_name (name), m_on_load (on_load),
-      m_on_unload (on_unload),
+    : handle_object (library_id), m_name (std::move (name)),
+      m_on_load (on_load), m_on_unload (on_unload),
       m_state (AMD_DBGAPI_SHARED_LIBRARY_STATE_UNLOADED), m_process (process)
 {
   amd_dbgapi_shared_library_state_t state;
 
-  if (m_process.enable_notify_shared_library (name.c_str (), library_id,
+  if (m_process.enable_notify_shared_library (m_name.c_str (), library_id,
                                               &state)
       != AMD_DBGAPI_STATUS_SUCCESS)
     return;

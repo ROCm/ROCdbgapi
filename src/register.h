@@ -185,10 +185,9 @@ public:
   using register_map_t = std::map<amdgpu_regnum_t, amdgpu_regnum_t>;
 
   register_class_t (amd_dbgapi_register_class_id_t register_class_id,
-                    const std::string &name,
-                    const register_map_t &register_map)
-      : handle_object (register_class_id), m_name (name),
-        m_register_map (register_map)
+                    std::string name, register_map_t register_map)
+      : handle_object (register_class_id), m_name (std::move (name)),
+        m_register_map (std::move (register_map))
   {
   }
 

@@ -213,7 +213,8 @@ public:
 
   template <typename Object, typename... Args> Object &create (Args &&... args)
   {
-    return m_handle_object_sets.get<Object> ().create_object (args...);
+    return m_handle_object_sets.get<Object> ().create_object (
+        std::forward<Args> (args)...);
   }
 
   /* Destroy the given object.  */

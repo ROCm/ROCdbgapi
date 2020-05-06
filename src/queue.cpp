@@ -546,7 +546,7 @@ queue_t::update_waves (update_waves_flag_t flags)
      queue current read dispatch id are now retired, so remove them from
      the process.  */
 
-  auto dispatch_range = process.range<dispatch_t> ();
+  auto &&dispatch_range = process.range<dispatch_t> ();
   for (auto dispatch_it = dispatch_range.begin ();
        dispatch_it != dispatch_range.end ();)
     if (dispatch_it->queue ().id () == id ()
@@ -558,7 +558,7 @@ queue_t::update_waves (update_waves_flag_t flags)
   /* Iterate all waves belonging to this queue, and prune those with a mark
      older than the current mark.  */
 
-  auto wave_range = process.range<wave_t> ();
+  auto &&wave_range = process.range<wave_t> ();
   for (auto wave_it = wave_range.begin (); wave_it != wave_range.end ();)
     if (wave_it->queue ().id () == id () && wave_it->mark () < wave_mark)
       wave_it = process.destroy (wave_it);

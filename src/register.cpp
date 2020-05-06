@@ -57,7 +57,7 @@ register_class_t::register_set () const
 {
   std::set<amdgpu_regnum_t> all_registers;
 
-  for (auto &&interval : m_register_map)
+  for (auto interval : m_register_map)
     for (amdgpu_regnum_t regnum = interval.first; regnum <= interval.second;
          ++regnum)
       all_registers.insert (regnum);

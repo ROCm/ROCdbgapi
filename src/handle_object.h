@@ -279,7 +279,7 @@ public:
 
   template <typename... Args> Object &create_object (Args &&... args)
   {
-    return create_object (handle_type{ 0 }, args...);
+    return create_object (handle_type{ 0 }, std::forward<Args> (args)...);
   }
 
   void destroy (Object *object)
@@ -383,9 +383,9 @@ handle_object_set_t<Object>::create_object (handle_type id, Args &&... args)
 
   dbgapi_assert (id.handle && "must not be null");
 
-  auto result
-      = m_map.emplace (std::piecewise_construct, std::forward_as_tuple (id),
-                       std::forward_as_tuple (id, args...));
+  auto result = m_map.emplace (
+      std::piecewise_construct, std::forward_as_tuple (id),
+      std::forward_as_tuple (id, std::forward<Args> (args)...));
 
   if (!result.second)
     error ("could not create new object");

@@ -2036,7 +2036,7 @@ amd_dbgapi_disassemble_instruction (
                 return AMD_DBGAPI_STATUS_ERROR;
               operand_str += symbol_string;
               continue;
-          }
+            }
           else if (status != AMD_DBGAPI_STATUS_ERROR_SYMBOL_NOT_FOUND)
             return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
         }

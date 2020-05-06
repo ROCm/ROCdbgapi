@@ -70,13 +70,14 @@ public:
   };
 
   address_space_t (amd_dbgapi_address_space_id_t address_space_id,
-                   const std::string name, address_space_kind_t kind,
+                   std::string name, address_space_kind_t kind,
                    uint64_t dwarf_value, amd_dbgapi_size_t address_size,
                    amd_dbgapi_segment_address_t null_address,
                    amd_dbgapi_address_space_access_t access)
-      : handle_object (address_space_id), m_name (name), m_kind (kind),
-        m_dwarf_value (dwarf_value), m_address_size (address_size),
-        m_null_address (null_address), m_access (access)
+      : handle_object (address_space_id), m_name (std::move (name)),
+        m_kind (kind), m_dwarf_value (dwarf_value),
+        m_address_size (address_size), m_null_address (null_address),
+        m_access (access)
   {
   }
 
@@ -103,9 +104,9 @@ class address_class_t
 {
 public:
   address_class_t (amd_dbgapi_address_class_id_t address_class_id,
-                   const std::string &name, uint64_t dwarf_value,
+                   std::string name, uint64_t dwarf_value,
                    const address_space_t &address_space)
-      : handle_object (address_class_id), m_name (name),
+      : handle_object (address_class_id), m_name (std::move (name)),
         m_dwarf_value (dwarf_value), m_address_space (address_space)
   {
   }

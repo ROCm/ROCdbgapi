@@ -441,7 +441,7 @@ process_t::set_wave_launch_mode (wave_launch_mode_t wave_launch_mode)
   if (m_wave_launch_mode == wave_launch_mode)
     return AMD_DBGAPI_STATUS_SUCCESS;
 
-  auto agent_range = range<agent_t> ();
+  auto &&agent_range = range<agent_t> ();
   for (auto it = agent_range.begin (); it != agent_range.end (); ++it)
     {
       amd_dbgapi_status_t status
@@ -727,7 +727,7 @@ process_t::update_agents (bool enable_debug_trap)
     }
 
   /* Delete agents that are no longer present in this process. */
-  auto agent_range = range<agent_t> ();
+  auto &&agent_range = range<agent_t> ();
   for (auto it = agent_range.begin (); it != agent_range.end ();)
     if (std::find_if (
             sysfs_nodes.begin (), sysfs_nodes.end (),
@@ -841,7 +841,7 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
   std::vector<queue_t::kfd_queue_id_t> queue_ids;
   queue_ids.reserve (queues.size ());
 
-  for (auto &&queue : queues)
+  for (auto *queue : queues)
     {
       dbgapi_assert (queue->is_valid () && !queue->suspended ()
                      && "queue is invalid, or already suspended");
@@ -881,7 +881,7 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
     }
 
   /* Update the waves that have been context switched.  */
-  for (auto &&queue : queues)
+  for (auto *queue : queues)
     {
       if (!queue->is_valid ())
         continue;
@@ -908,7 +908,7 @@ process_t::resume_queues (const std::vector<queue_t *> &queues)
   std::vector<queue_t::kfd_queue_id_t> queue_ids;
   queue_ids.reserve (queues.size ());
 
-  for (auto &&queue : queues)
+  for (auto *queue : queues)
     {
       dbgapi_assert (queue->suspended () && "queue is not suspended");
       queue_ids.emplace_back (queue->kfd_queue_id ());
@@ -930,7 +930,7 @@ process_t::resume_queues (const std::vector<queue_t *> &queues)
   if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
-  for (auto &&queue : queues)
+  for (auto *queue : queues)
     queue->set_suspended (false);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
@@ -1076,7 +1076,7 @@ process_t::update_queues ()
   /* Iterate all queues belonging to this process, and prune those with a mark
      older than the current mark.  */
 
-  auto queue_range = range<queue_t> ();
+  auto &&queue_range = range<queue_t> ();
   for (auto it = queue_range.begin (); it != queue_range.end ();)
     if (it->mark () < queue_mark)
       it = destroy (it);
@@ -1331,7 +1331,7 @@ process_t::attach ()
     process_t &process = library.process ();
 
     /* Remove the breakpoints we've inserted when the library was loaded.  */
-    auto breakpoint_range = process.range<breakpoint_t> ();
+    auto &&breakpoint_range = process.range<breakpoint_t> ();
     for (auto it = breakpoint_range.begin (); it != breakpoint_range.end ();)
       if (it->shared_library ().id () == library.id ())
         it = process.destroy (it);

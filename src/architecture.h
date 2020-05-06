@@ -164,7 +164,7 @@ public:
   int gfxip_major () const { return m_gfxip_major; }
   int gfxip_minor () const { return m_gfxip_minor; }
   int gfxip_stepping () const { return m_gfxip_stepping; }
-  std::string name () const { return m_name; }
+  const std::string &name () const { return m_name; }
 
   template <typename ArchitectureType, typename... Args>
   static std::unique_ptr<architecture_t> create_architecture (Args &&... args);
@@ -190,7 +190,8 @@ public:
 
   template <typename Object, typename... Args> Object &create (Args &&... args)
   {
-    return m_handle_object_sets.get<Object> ().create_object (args...);
+    return m_handle_object_sets.get<Object> ().create_object (
+        std::forward<Args> (args)...);
   }
 
   /* Return an Object range. A range implements begin () and end (), and
