@@ -689,7 +689,13 @@ typedef enum
   /**
    * The address is not within the shared library.
    */
-  AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS = -42
+  AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS = -42,
+  /**
+   * The operation is not currently implemented.  This error may be reported by
+   * any function.  Check the \p README.md file of the library implementation
+   * to determine the status of its implementation of the interface.
+   */
+  AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED = INT32_MIN
 } amd_dbgapi_status_t;
 
 /**
