@@ -94,7 +94,7 @@ Generating the AMD Debugger API documentation has the following prerequisites:
 
    ````shell
    zypper in doxygen graphviz texlive-scheme-medium texlive-hanging \
-     texlive-stackengine texlive-tocloft texlive-etoc
+     texlive-stackengine texlive-tocloft texlive-etoc texlive-tabu
    ````
 
 An example command-line to generate the HTML and PDF documentation after running
