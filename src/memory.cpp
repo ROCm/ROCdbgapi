@@ -459,7 +459,6 @@ amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
   utils::optional<scoped_queue_suspend_t> suspend;
   if (address_space->kind () == address_space_t::LOCAL)
     {
-      /* FIXME: How can we optimize this?  */
       suspend.emplace (wave->queue ());
 
       /* Look for the wave_id again, the wave may have exited.  */

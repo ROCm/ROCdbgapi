@@ -263,7 +263,8 @@ amdgcn_architecture_t::initialize ()
                              DW_ASPACE_AMDGPU_private_lane0 + i, 32,
                              0x00000000, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
-  m_default_global_address_space = &as_generic; // FIXME: &as_global;
+  /* Make generic the default address space.  */
+  m_default_global_address_space = &as_generic;
 
   /* Create address classes.  */
 
