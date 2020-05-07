@@ -639,21 +639,21 @@ queue_t::set_suspended (bool suspended)
          it.  We cannot cache this value as the runtime may change the
          allocation dynamically.  */
 
-      amd_dbgapi_global_address_t address;
       if (process ().read_global_memory (
               m_kfd_queue_info.read_pointer_address
                   + offsetof (amd_queue_t, scratch_backing_memory_location)
                   - offsetof (amd_queue_t, read_dispatch_id),
-              &address, sizeof (address))
+              &m_scratch_backing_memory_address,
+              sizeof (m_scratch_backing_memory_address))
           != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not read the queue's scratch_backing_memory_location");
 
-      size_t size;
       if (process ().read_global_memory (
               m_kfd_queue_info.read_pointer_address
                   + offsetof (amd_queue_t, scratch_backing_memory_byte_size)
                   - offsetof (amd_queue_t, read_dispatch_id),
-              &size, sizeof (size))
+              &m_scratch_backing_memory_size,
+              sizeof (m_scratch_backing_memory_size))
           != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not read the queue's scratch_backing_memory_size");
     }

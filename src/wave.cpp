@@ -698,6 +698,9 @@ wave_t::xfer_private_memory_swizzled (
     amd_dbgapi_segment_address_t segment_address, amd_dbgapi_lane_id_t lane_id,
     void *read, const void *write, size_t *size)
 {
+  if (!dispatch ().scratch_enabled ())
+    return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
+
   amd_dbgapi_size_t limit = queue ().scratch_backing_memory_size ();
   amd_dbgapi_global_address_t scratch_base
       = queue ().scratch_backing_memory_address ();
@@ -762,6 +765,9 @@ wave_t::xfer_private_memory_unswizzled (
     amd_dbgapi_segment_address_t segment_address, void *read,
     const void *write, size_t *size)
 {
+  if (!dispatch ().scratch_enabled ())
+    return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
+
   amd_dbgapi_size_t limit = queue ().scratch_backing_memory_size ();
   amd_dbgapi_size_t offset
       = m_scratch_offset + segment_address * lane_count ();

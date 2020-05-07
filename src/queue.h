@@ -107,7 +107,6 @@ public:
   }
   amd_dbgapi_size_t scratch_backing_memory_size () const
   {
-    dbgapi_assert (m_scratch_backing_memory_size);
     return m_scratch_backing_memory_size;
   }
 
