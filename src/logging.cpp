@@ -495,7 +495,10 @@ to_string (amd_dbgapi_wave_state_t wave_state)
   return to_string (make_hex (wave_state));
 }
 
-static inline std::string
+namespace
+{
+
+inline std::string
 one_stop_reason_to_string (amd_dbgapi_wave_stop_reason_t stop_reason)
 {
   switch (stop_reason)
@@ -523,6 +526,8 @@ one_stop_reason_to_string (amd_dbgapi_wave_stop_reason_t stop_reason)
     }
   return to_string (make_hex (stop_reason));
 }
+
+} /* namespace */
 
 template <>
 std::string

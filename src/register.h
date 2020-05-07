@@ -144,14 +144,14 @@ operator- (amdgpu_regnum_t lhs, int rhs)
       static_cast<decltype (amd_dbgapi_register_id_t::handle)> (lhs) - rhs);
 }
 
-static inline amdgpu_regnum_t
+constexpr amdgpu_regnum_t
 operator++ (amdgpu_regnum_t &regnum)
 {
   regnum = regnum + 1;
   return regnum;
 }
 
-static inline amdgpu_regnum_t
+constexpr amdgpu_regnum_t
 operator++ (amdgpu_regnum_t &regnum, int)
 {
   amdgpu_regnum_t prev = regnum;

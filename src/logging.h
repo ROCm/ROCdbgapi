@@ -92,7 +92,7 @@ template <typename T> struct hex
 } /* namespace detail  */
 
 template <typename T>
-static inline detail::hex<T>
+detail::hex<T>
 make_hex (T value)
 {
   return detail::hex<T>{ value };

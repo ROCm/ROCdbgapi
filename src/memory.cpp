@@ -528,7 +528,26 @@ amd_dbgapi_set_memory_precision (
   TRY;
   TRACE (process_id, agent_id, memory_precision);
 
-  warning ("amd_dbgapi_set_memory_precision is not yet implemented");
-  return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+  if (!amd::dbgapi::is_initialized)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+
+  process_t *process = process_t::find (process_id);
+
+  if (!process)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
+
+  agent_t *agent = process->find (agent_id);
+
+  if (!agent)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_AGENT_ID;
+
+  switch (memory_precision)
+    {
+    case AMD_DBGAPI_MEMORY_PRECISION_NONE:
+      return AMD_DBGAPI_STATUS_SUCCESS;
+    case AMD_DBGAPI_MEMORY_PRECISION_PRECISE:
+      return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
+    }
+  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
   CATCH;
 }

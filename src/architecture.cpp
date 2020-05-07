@@ -332,11 +332,14 @@ amdgcn_architecture_t::initialize ()
   create<register_class_t> ("general", general_registers);
 }
 
+namespace
+{
+
 /* Helper routine to return the address space for a given generic address. The
    returned address space can only be one of LOCAL, PRIVATE_SWIZZLED or GLOBAL
    address space. The queue_t is used to retrieve the apertures.
  */
-static inline const address_space_t &
+const address_space_t &
 address_space_for_generic_address (
     const wave_t &wave, amd_dbgapi_segment_address_t generic_address)
 {
@@ -366,7 +369,7 @@ address_space_for_generic_address (
    other than LOCAL, PRIVATE_SWIZZLED or GLOBAL is invalid, and an error is
    returned.  The queue_t is used to retrieve the apertures.
  */
-static inline std::pair<amd_dbgapi_segment_address_t, bool>
+std::pair<amd_dbgapi_segment_address_t, bool>
 generic_address_for_address_space (
     const wave_t &wave, const address_space_t &segment_address_space,
     amd_dbgapi_segment_address_t segment_address)
@@ -389,6 +392,8 @@ generic_address_for_address_space (
 
   return std::make_pair (aperture | segment_address, true);
 }
+
+} /* namespace */
 
 amd_dbgapi_status_t
 amdgcn_architecture_t::convert_address_space (
@@ -1904,9 +1909,8 @@ architecture_t::get_info (amd_dbgapi_architecture_info_t query,
                               default_global_address_space ().id ());
 
     case AMD_DBGAPI_ARCHITECTURE_INFO_PRECISE_MEMORY_SUPPORTED:
-      warning ("architecture_t::get_info(PRECISE_MEMORY_SUPPORTED, ...) not "
-               "yet implemented");
-      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+      return utils::get_info (value_size, value,
+                              AMD_DBGAPI_MEMORY_PRECISION_NONE);
     }
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }

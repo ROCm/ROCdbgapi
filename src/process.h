@@ -315,21 +315,21 @@ private:
   handle_object_sets_t m_handle_object_sets;
 };
 
-static inline void *
+inline void *
 allocate_memory (size_t byte_size)
 {
   TRACE_CALLBACK (byte_size);
   return (*process_callbacks.allocate_memory) (byte_size);
 }
 
-static inline void
+inline void
 deallocate_memory (void *data)
 {
   TRACE_CALLBACK (data);
   (*process_callbacks.deallocate_memory) (data);
 }
 
-static inline void
+inline void
 log_message (amd_dbgapi_log_level_t level, const char *message)
 {
   return (*process_callbacks.log_message) (level, message);

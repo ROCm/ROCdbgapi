@@ -123,7 +123,6 @@ following restrictions.  Future releases aim to address these restrictions.
 1.  The following *_get_info queries are not yet implemented:
 
     - AMD_DBGAPI_ARCHITECTURE_INFO_EXECUTION_MASK_REGISTER
-    - AMD_DBGAPI_ARCHITECTURE_INFO_PRECISE_MEMORY_SUPPORTED
     - AMD_DBGAPI_ARCHITECTURE_INFO_WATCHPOINT_COUNT
     - AMD_DBGAPI_ARCHITECTURE_INFO_WATCHPOINT_SHARE
     - AMD_DBGAPI_EVENT_INFO_RUNTIME_VERSION
@@ -135,7 +134,6 @@ following restrictions.  Future releases aim to address these restrictions.
 
     - amd_dbgapi_classify_instruction
     - amd_dbgapi_remove_watchpoint
-    - amd_dbgapi_set_memory_precision
     - amd_dbgapi_set_watchpoint
 
 3.  On a AMD_DBGAPI_STATUS_FATAL error the library does fully reset the internal
@@ -143,3 +141,6 @@ following restrictions.  Future releases aim to address these restrictions.
 
 4.  Detaching from a process does not currently generate events for outstanding
     wave requests.
+
+5.  The AMD_DBGAPI_MEMORY_PRECISION_PRECISE memory precision is not supported.
+    The default memory precision is AMD_DBGAPI_MEMORY_PRECISION_NONE.
