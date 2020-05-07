@@ -31,6 +31,8 @@
 
 #include <hsa/hsa.h>
 
+#include <vector>
+
 namespace amd
 {
 namespace dbgapi
@@ -44,6 +46,8 @@ class process_t;
 class queue_t : public detail::handle_object<amd_dbgapi_queue_id_t>
 {
 private:
+  static constexpr uint64_t aql_packet_size = 64;
+
   struct context_save_area_header_s
   {
     uint32_t ctrl_stack_offset;
@@ -84,6 +88,9 @@ public:
 
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }
+
+  std::pair<amd_dbgapi_queue_packet_id_t, std::vector<uint8_t>>
+  packets () const;
 
   amd_dbgapi_status_t update_waves (update_waves_flag_t flags = {});
 

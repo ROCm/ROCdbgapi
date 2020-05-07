@@ -496,13 +496,12 @@ queue_t::update_waves (update_waves_flag_t flags)
           /* Calculate the monotonic dispatch id for this packet.  It is
              between read_dispatch_id and write_dispatch_id.  */
 
-          constexpr uint64_t aql_packet_size = 64;
           amd_dbgapi_queue_packet_id_t queue_packet_id
               = (dispatch_ptr - m_kfd_queue_info.ring_base_address)
                 / aql_packet_size;
 
           /* Check that 0 <= queue_packet_id < queue_size.  */
-          if (queue_packet_id >= m_kfd_queue_info.ring_size)
+          if (queue_packet_id >= m_kfd_queue_info.ring_size / aql_packet_size)
             {
               warning ("invalid queue_packet_id (%#lx)", queue_packet_id);
               /* TODO: See comment above for corrupted wavefronts. This could
@@ -620,6 +619,70 @@ queue_t::update_waves (update_waves_flag_t flags)
       ++wave_it;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
+std::pair<amd_dbgapi_queue_packet_id_t, std::vector<uint8_t>>
+queue_t::packets () const
+{
+  dbgapi_assert (suspended ());
+
+  uint64_t read_dispatch_id;
+  if (process ().read_global_memory (m_kfd_queue_info.read_pointer_address,
+                                     &read_dispatch_id,
+                                     sizeof (read_dispatch_id))
+      != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not read the queue's read_dispatch_id");
+
+  uint64_t write_dispatch_id;
+  if (process ().read_global_memory (m_kfd_queue_info.write_pointer_address,
+                                     &write_dispatch_id,
+                                     sizeof (write_dispatch_id))
+      != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not read the queue's write_dispatch_id");
+
+  /* ring_size must be a power of 2.  */
+  if (!utils::is_power_of_two (m_kfd_queue_info.ring_size))
+    error ("ring_size is not a power of 2");
+
+  const uint64_t id_mask = m_kfd_queue_info.ring_size / aql_packet_size - 1;
+
+  amd_dbgapi_global_address_t read_dispatch_ptr
+      = m_kfd_queue_info.ring_base_address
+        + (read_dispatch_id & id_mask) * aql_packet_size;
+  amd_dbgapi_global_address_t write_dispatch_ptr
+      = m_kfd_queue_info.ring_base_address
+        + (write_dispatch_id & id_mask) * aql_packet_size;
+
+  std::vector<uint8_t> packets;
+  dbgapi_assert (write_dispatch_id >= read_dispatch_id);
+  packets.resize ((write_dispatch_id - read_dispatch_id) * aql_packet_size);
+
+  if (read_dispatch_ptr < write_dispatch_ptr)
+    {
+      if (process ().read_global_memory (read_dispatch_ptr, &packets[0],
+                                         packets.size ())
+          != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("Could not read the queue's packets");
+    }
+  else if (read_dispatch_ptr > write_dispatch_ptr)
+    {
+      size_t size = m_kfd_queue_info.ring_base_address
+                    + m_kfd_queue_info.ring_size - read_dispatch_ptr;
+
+      if (process ().read_global_memory (read_dispatch_ptr, &packets[0], size)
+          != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("Could not read the queue's packets");
+
+      size_t offset = size;
+      size = write_dispatch_ptr - m_kfd_queue_info.ring_base_address;
+
+      if (process ().read_global_memory (m_kfd_queue_info.ring_base_address,
+                                         &packets[offset], size)
+          != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("Could not read the queue's packets");
+    }
+
+  return std::make_pair (read_dispatch_id, std::move (packets));
 }
 
 void
@@ -762,7 +825,33 @@ amd_dbgapi_queue_packet_list (amd_dbgapi_process_id_t process_id,
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
-  warning ("amd_dbgapi_queue_packet_list is not yet implemented");
-  return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+  if (!first_packet_id || !packets_byte_size || !packets_bytes)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
+  process_t *process = process_t::find (process_id);
+
+  if (!process)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
+
+  queue_t *queue = process->find (queue_id);
+
+  if (!queue)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_QUEUE_ID;
+
+  scoped_queue_suspend_t suspend (*queue);
+
+  std::vector<uint8_t> packets;
+  std::tie (*first_packet_id, packets) = queue->packets ();
+
+  void *retval = amd::dbgapi::allocate_memory (packets.size ());
+  if (packets.size () && !retval)
+    return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
+
+  memcpy (retval, packets.data (), packets.size ());
+
+  *packets_bytes = retval;
+  *packets_byte_size = packets.size ();
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
 }

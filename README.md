@@ -134,7 +134,6 @@ following restrictions.  Future releases aim to address these restrictions.
 2.  The following functions are not yet implemented:
 
     - amd_dbgapi_classify_instruction
-    - amd_dbgapi_queue_packet_list
     - amd_dbgapi_remove_watchpoint
     - amd_dbgapi_set_memory_precision
     - amd_dbgapi_set_watchpoint
