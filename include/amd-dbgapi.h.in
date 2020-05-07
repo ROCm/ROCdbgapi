@@ -2204,7 +2204,7 @@ typedef enum
    * addition, dispatches are able to use global wave synchronization (GWS)
    * operations.
    */
-  AMD_DBGAPI_QUEUE_TYPE_HSA_KERNEL_DISPATCH_MULTIPLE_PRODUCER_COOPERATIVE = 3,
+  AMD_DBGAPI_QUEUE_TYPE_HSA_KERNEL_DISPATCH_COOPERATIVE = 3,
   /**
    * Queue supports the AMD PM4 protocol.
    */

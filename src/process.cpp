@@ -627,21 +627,25 @@ process_t::update_agents (bool enable_debug_trap)
       uint64_t prop_value;
       while (props_ifs >> prop_name >> prop_value)
         {
-          if (!prop_name.compare ("location_id"))
+          if (prop_name == "location_id")
             props.location_id = static_cast<uint32_t> (prop_value);
-          else if (!prop_name.compare ("simd_count"))
+          else if (prop_name == "simd_count")
             props.simd_count = static_cast<uint32_t> (prop_value);
-          else if (!prop_name.compare ("array_count"))
+          else if (prop_name == "array_count")
             props.shader_engine_count = static_cast<uint32_t> (prop_value);
-          else if (!prop_name.compare ("simd_arrays_per_engine"))
+          else if (prop_name == "simd_arrays_per_engine")
             props.simd_arrays_per_engine = static_cast<uint32_t> (prop_value);
-          else if (!prop_name.compare ("cu_per_simd_array"))
+          else if (prop_name == "cu_per_simd_array")
             props.cu_per_simd_array = static_cast<uint32_t> (prop_value);
-          else if (!prop_name.compare ("simd_per_cu"))
+          else if (prop_name == "simd_per_cu")
             props.simd_per_cu = static_cast<uint32_t> (prop_value);
-          else if (!prop_name.compare ("max_waves_per_simd"))
+          else if (prop_name == "max_waves_per_simd")
             props.max_waves_per_simd = static_cast<uint32_t> (prop_value);
-          else if (!prop_name.compare ("fw_version"))
+          else if (prop_name == "vendor_id")
+            props.vendor_id = static_cast<uint32_t> (prop_value);
+          else if (prop_name == "device_id")
+            props.device_id = static_cast<uint32_t> (prop_value);
+          else if (prop_name == "fw_version")
             props.fw_version = static_cast<uint16_t> (prop_value);
         }
 

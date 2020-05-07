@@ -379,6 +379,7 @@ to_string (amd_dbgapi_queue_type_t queue_type)
       CASE (QUEUE_TYPE_UNKNOWN);
       CASE (QUEUE_TYPE_HSA_KERNEL_DISPATCH_MULTIPLE_PRODUCER);
       CASE (QUEUE_TYPE_HSA_KERNEL_DISPATCH_SINGLE_PRODUCER);
+      CASE (QUEUE_TYPE_HSA_KERNEL_DISPATCH_COOPERATIVE);
       CASE (QUEUE_TYPE_AMD_PM4);
     }
   return to_string (make_hex (queue_type));

@@ -155,12 +155,10 @@ agent_t::get_info (amd_dbgapi_agent_info_t query, size_t value_size,
       return utils::get_info (value_size, value, m_properties.location_id);
 
     case AMD_DBGAPI_AGENT_INFO_PCIE_VENDOR_ID:
-      warning ("agent_t::get_info(PCIE_VENDOR_ID, ...) not yet implemented");
-      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+      return utils::get_info (value_size, value, m_properties.vendor_id);
 
     case AMD_DBGAPI_AGENT_INFO_PCIE_DEVICE_ID:
-      warning ("agent_t::get_info(PCIE_DEVICE_ID, ...) not yet implemented");
-      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+      return utils::get_info (value_size, value, m_properties.device_id);
 
     case AMD_DBGAPI_AGENT_INFO_SHADER_ENGINE_COUNT:
       return utils::get_info (value_size, value,

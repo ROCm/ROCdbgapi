@@ -86,6 +86,43 @@ dispatch_t::get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
     case AMD_DBGAPI_DISPATCH_INFO_ARCHITECTURE:
       return utils::get_info (value_size, value, architecture ().id ());
 
+    case AMD_DBGAPI_DISPATCH_INFO_PACKET_ID:
+      return utils::get_info (value_size, value, m_queue_packet_id);
+
+    case AMD_DBGAPI_DISPATCH_INFO_BARRIER:
+      return utils::get_info (value_size, value,
+                              m_packet.header & HSA_PACKET_HEADER_BARRIER
+                                  ? AMD_DBGAPI_DISPATCH_BARRIER_PRESENT
+                                  : AMD_DBGAPI_DISPATCH_BARRIER_NONE);
+
+    case AMD_DBGAPI_DISPATCH_INFO_ACQUIRE_FENCE:
+      static_assert ((int)AMD_DBGAPI_DISPATCH_FENCE_SCOPE_NONE
+                         == (int)HSA_FENCE_SCOPE_NONE,
+                     "amd_dbgapi_dispatch_fence_scope_t != hsa_fence_scope_t");
+      static_assert ((int)AMD_DBGAPI_DISPATCH_FENCE_SCOPE_AGENT
+                         == (int)HSA_FENCE_SCOPE_AGENT,
+                     "amd_dbgapi_dispatch_fence_scope_t != hsa_fence_scope_t");
+      static_assert ((int)AMD_DBGAPI_DISPATCH_FENCE_SCOPE_SYSTEM
+                         == (int)HSA_FENCE_SCOPE_SYSTEM,
+                     "amd_dbgapi_dispatch_fence_scope_t != hsa_fence_scope_t");
+
+      return utils::get_info (
+          value_size, value,
+          static_cast<amd_dbgapi_dispatch_fence_scope_t> (
+              utils::bit_extract (m_packet.header, 9, 10)));
+
+    case AMD_DBGAPI_DISPATCH_INFO_RELEASE_FENCE:
+      return utils::get_info (
+          value_size, value,
+          static_cast<amd_dbgapi_dispatch_fence_scope_t> (
+              utils::bit_extract (m_packet.header, 11, 12)));
+
+    case AMD_DBGAPI_DISPATCH_INFO_GRID_DIMENSIONS:
+      return utils::get_info (value_size, value,
+                              (uint32_t[3]){ m_packet.grid_size_x,
+                                             m_packet.grid_size_y,
+                                             m_packet.grid_size_z });
+
     case AMD_DBGAPI_DISPATCH_INFO_WORK_GROUP_SIZES:
       return utils::get_info (value_size, value,
                               (uint16_t[3]){ m_packet.workgroup_size_x,
@@ -95,44 +132,18 @@ dispatch_t::get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
     case AMD_DBGAPI_DISPATCH_INFO_GRID_SIZES:
       return utils::get_info (value_size, value, m_packet.grid_size_x);
 
-    case AMD_DBGAPI_DISPATCH_INFO_KERNEL_ENTRY_ADDRESS:
-      return utils::get_info (value_size, value, kernel_entry_address ());
-
-    case AMD_DBGAPI_DISPATCH_INFO_PACKET_ID:
-      warning ("dispatch_t::get_info(PACKET_ID, ...) not yet implemented");
-      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
-
-    case AMD_DBGAPI_DISPATCH_INFO_BARRIER:
-      warning ("dispatch_t::get_info(BARRIER, ...) not yet implemented");
-      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
-
-    case AMD_DBGAPI_DISPATCH_INFO_ACQUIRE_FENCE:
-      warning ("dispatch_t::get_info(ACQUIRE_FENCE, ...) not yet implemented");
-      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
-
-    case AMD_DBGAPI_DISPATCH_INFO_RELEASE_FENCE:
-      warning ("dispatch_t::get_info(RELEASE_FENCE, ...) not yet implemented");
-      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
-
-    case AMD_DBGAPI_DISPATCH_INFO_GRID_DIMENSIONS:
-      warning (
-          "dispatch_t::get_info(GRID_DIMENSIONS, ...) not yet implemented");
-      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
-
     case AMD_DBGAPI_DISPATCH_INFO_PRIVATE_SEGMENT_SIZE:
-      warning ("dispatch_t::get_info(PRIVATE_SEGMENT_SIZE, ...) not yet "
-               "implemented");
-      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+      return utils::get_info (value_size, value,
+                              m_packet.private_segment_size);
 
     case AMD_DBGAPI_DISPATCH_INFO_GROUP_SEGMENT_SIZE:
-      warning (
-          "dispatch_t::get_info(GROUP_SEGMENT_SIZE, ...) not yet implemented");
-      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+      return utils::get_info (value_size, value, m_packet.group_segment_size);
 
     case AMD_DBGAPI_DISPATCH_INFO_KERNEL_ARGUMENT_SEGMENT_ADDRESS:
-      warning ("dispatch_t::get_info(ARGUMENT_SEGMENT_ADDRESS, ...) not yet "
-               "implemented");
-      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+      return utils::get_info (value_size, value, m_packet.kernarg_address);
+
+    case AMD_DBGAPI_DISPATCH_INFO_KERNEL_ENTRY_ADDRESS:
+      return utils::get_info (value_size, value, kernel_entry_address ());
     }
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }

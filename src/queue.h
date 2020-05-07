@@ -29,6 +29,8 @@
 
 #include "linux/kfd_ioctl.h"
 
+#include <hsa/hsa.h>
+
 namespace amd
 {
 namespace dbgapi
@@ -74,6 +76,8 @@ public:
 
   kfd_queue_id_t kfd_queue_id () const { return m_kfd_queue_info.queue_id; }
   uint32_t kfd_queue_type () const { return m_kfd_queue_info.queue_type; }
+
+  amd_dbgapi_queue_type_t type () const;
 
   bool suspended () const { return m_suspended; }
   void set_suspended (bool suspended);
@@ -130,6 +134,8 @@ public:
 
 private:
   kfd_queue_snapshot_entry const m_kfd_queue_info;
+  hsa_queue_t m_hsa_queue;
+
   amd_dbgapi_global_address_t m_displaced_stepping_buffer_address{ 0 };
   amd_dbgapi_global_address_t m_parked_wave_buffer_address{ 0 };
   amd_dbgapi_global_address_t m_endpgm_buffer_address{ 0 };

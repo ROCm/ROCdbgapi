@@ -2085,3 +2085,18 @@ amd_dbgapi_disassemble_instruction (
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
 }
+
+amd_dbgapi_status_t AMD_DBGAPI
+amd_dbgapi_classify_instruction (
+    amd_dbgapi_architecture_id_t architecture_id,
+    amd_dbgapi_global_address_t address, amd_dbgapi_size_t *size,
+    const void *memory, amd_dbgapi_instruction_kind_t *instruction_kind,
+    void **instruction_properties)
+{
+  TRY;
+  TRACE (architecture_id, address);
+
+  warning ("amd_dbgapi_classify_instruction is not yet implemented");
+  return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+  CATCH;
+}

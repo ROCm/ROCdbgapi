@@ -137,6 +137,37 @@ queue_t::queue_t (amd_dbgapi_queue_id_t queue_id, agent_t &agent,
   m_private_address_space_aperture
       = amd_dbgapi_global_address_t{ private_segment_aperture_base_hi } << 32;
 
+  /* Read the hsa_queue_t at the top of the amd_queue_t. Since the amd_queue_t
+    structure could change, it can only be accessed by calculating its address
+    from the address of the read_dispatch_id by subtracting
+    read_dispatch_id_field_base_byte_offset .  */
+
+  uint32_t read_dispatch_id_field_base_byte_offset;
+  if (process ().read_global_memory (
+          m_kfd_queue_info.read_pointer_address
+              + offsetof (amd_queue_t, read_dispatch_id_field_base_byte_offset)
+              - offsetof (amd_queue_t, read_dispatch_id),
+          &read_dispatch_id_field_base_byte_offset,
+          sizeof (read_dispatch_id_field_base_byte_offset))
+      != AMD_DBGAPI_STATUS_SUCCESS)
+    error (
+        "Could not read the queue's read_dispatch_id_field_base_byte_offset");
+
+  amd_dbgapi_global_address_t hsa_queue_address
+      = m_kfd_queue_info.read_pointer_address
+        - read_dispatch_id_field_base_byte_offset;
+  if (process ().read_global_memory (hsa_queue_address, &m_hsa_queue,
+                                     sizeof (m_hsa_queue))
+      != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not read the hsa_queue_t struct");
+
+  if (reinterpret_cast<uintptr_t> (m_hsa_queue.base_address)
+      != m_kfd_queue_info.ring_base_address)
+    error ("hsa_queue_t base address != kfd queue info base address");
+
+  if ((m_hsa_queue.size * 64) != m_kfd_queue_info.ring_size)
+    error ("hsa_queue_t size != kfd queue info ring size");
+
   m_is_valid = true;
 }
 
@@ -151,6 +182,29 @@ queue_t::~queue_t ()
      or stop requests that were submitted, but the queue was
      destroyed before reporting the event, we still need to notify
      the application, so that it does not wait forever.  */
+}
+
+amd_dbgapi_queue_type_t
+queue_t::type () const
+{
+  if (kfd_queue_type () == KFD_IOC_QUEUE_TYPE_COMPUTE)
+    {
+      return AMD_DBGAPI_QUEUE_TYPE_AMD_PM4;
+    }
+  else if (kfd_queue_type () == KFD_IOC_QUEUE_TYPE_COMPUTE_AQL)
+    {
+      switch (m_hsa_queue.type)
+        {
+        case HSA_QUEUE_TYPE_SINGLE:
+          return AMD_DBGAPI_QUEUE_TYPE_HSA_KERNEL_DISPATCH_SINGLE_PRODUCER;
+        case HSA_QUEUE_TYPE_MULTI:
+          return AMD_DBGAPI_QUEUE_TYPE_HSA_KERNEL_DISPATCH_MULTIPLE_PRODUCER;
+        case HSA_QUEUE_TYPE_COOPERATIVE:
+          return AMD_DBGAPI_QUEUE_TYPE_HSA_KERNEL_DISPATCH_COOPERATIVE;
+        }
+    }
+
+  return AMD_DBGAPI_QUEUE_TYPE_UNKNOWN;
 }
 
 amd_dbgapi_status_t
@@ -618,6 +672,8 @@ queue_t::get_info (amd_dbgapi_queue_info_t query, size_t value_size,
       return utils::get_info (value_size, value, architecture ().id ());
 
     case AMD_DBGAPI_QUEUE_TYPE:
+      return utils::get_info (value_size, value, type ());
+
     case AMD_DBGAPI_QUEUE_INFO_STATE:
     case AMD_DBGAPI_QUEUE_INFO_ERROR_REASON:
       return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;

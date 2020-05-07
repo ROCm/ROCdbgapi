@@ -61,6 +61,10 @@ public:
     uint32_t simd_per_cu{ 0 };
     /* Maximum number of launched waves per SIMD.  */
     uint32_t max_waves_per_simd{ 0 };
+    /* PCI vendor id.  */
+    uint32_t vendor_id{ 0 };
+    /* PCI device id.  */
+    uint32_t device_id{ 0 };
     /* ucode version.  */
     uint32_t fw_version{ 0 };
   };
