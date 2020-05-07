@@ -2196,9 +2196,19 @@ typedef enum
    */
   AMD_DBGAPI_QUEUE_TYPE_HSA_KERNEL_DISPATCH_SINGLE_PRODUCER = 2,
   /**
+   * Queue supports HSA kernel dispatch with multiple producers protocol that
+   * supports cooperative dispatches.
+   *
+   * Queues of this type follow the same protocol as
+   * ::AMD_DBGAPI_QUEUE_TYPE_HSA_KERNEL_DISPATCH_MULTIPLE_PRODUCER.  In
+   * addition, dispatches are able to use global wave synchronization (GWS)
+   * operations.
+   */
+  AMD_DBGAPI_QUEUE_TYPE_HSA_KERNEL_DISPATCH_MULTIPLE_PRODUCER_COOPERATIVE = 3,
+  /**
    * Queue supports the AMD PM4 protocol.
    */
-  AMD_DBGAPI_QUEUE_TYPE_AMD_PM4 = 3
+  AMD_DBGAPI_QUEUE_TYPE_AMD_PM4 = 257
 } amd_dbgapi_queue_type_t;
 
 /**
