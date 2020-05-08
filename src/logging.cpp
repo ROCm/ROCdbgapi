@@ -397,18 +397,54 @@ to_string (amd_dbgapi_queue_state_t queue_state)
   return to_string (make_hex (queue_state));
 }
 
-template <>
-std::string
-to_string (amd_dbgapi_queue_error_reason_t queue_error_reason)
+namespace
+{
+
+inline std::string
+one_queue_error_reason_to_string (
+    amd_dbgapi_queue_error_reason_t queue_error_reason)
 {
   switch (queue_error_reason)
     {
+      CASE (QUEUE_ERROR_REASON_NONE);
       CASE (QUEUE_ERROR_REASON_INVALID_PACKET);
       CASE (QUEUE_ERROR_REASON_MEMORY_VIOLATION);
       CASE (QUEUE_ERROR_REASON_ASSERT_TRAP);
       CASE (QUEUE_ERROR_REASON_WAVE_ERROR);
     }
   return to_string (make_hex (queue_error_reason));
+}
+
+} /* namespace */
+
+template <>
+std::string
+to_string (amd_dbgapi_queue_error_reason_t queue_error_reason)
+{
+  std::ostringstream ss;
+  bool first = true;
+
+  if (!queue_error_reason)
+    return one_queue_error_reason_to_string (queue_error_reason);
+
+  while (queue_error_reason)
+    {
+      if (!first)
+        ss << " | ";
+
+      amd_dbgapi_queue_error_reason_t one_bit
+          = static_cast<amd_dbgapi_queue_error_reason_t> (
+              queue_error_reason
+              ^ (queue_error_reason & (queue_error_reason - 1)));
+      ss << one_queue_error_reason_to_string (one_bit);
+
+      queue_error_reason = static_cast<amd_dbgapi_queue_error_reason_t> (
+          queue_error_reason ^ one_bit);
+
+      first = false;
+    }
+
+  return ss.str ();
 }
 
 template <>

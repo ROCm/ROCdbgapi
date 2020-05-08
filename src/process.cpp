@@ -755,7 +755,7 @@ process_t::enable_debug_trap (const agent_t &agent, file_desc_t *poll_fd)
      data1: [in] enable/disable (1/0)
      data3: [out] poll_fd  */
 
-  kfd_ioctl_dbg_trap_args args{ 0 };
+  kfd_ioctl_dbg_trap_args args{};
   args.gpu_id = agent.gpu_id ();
   args.data1 = 1; /* enable  */
 
@@ -773,7 +773,7 @@ process_t::disable_debug_trap (const agent_t &agent)
   /* KFD_IOC_DBG_TRAP_ENABLE (#0):
      data1: [in] enable/disable (1/0)  */
 
-  kfd_ioctl_dbg_trap_args args{ 0 };
+  kfd_ioctl_dbg_trap_args args{};
   args.gpu_id = agent.gpu_id ();
   args.data1 = 0; /* disable  */
 
@@ -790,7 +790,7 @@ process_t::set_wave_launch_mode (const agent_t &agent, wave_launch_mode_t mode)
   /* KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_MODE (#2)
      data1: mode (0=normal, 1=halt, 2=kill, 3=single-step, 4=disable)  */
 
-  kfd_ioctl_dbg_trap_args args{ 0 };
+  kfd_ioctl_dbg_trap_args args{};
   args.gpu_id = agent.gpu_id ();
   args.data1 = static_cast<std::underlying_type<decltype (mode)>::type> (mode);
 
@@ -813,7 +813,7 @@ process_t::query_debug_event (const agent_t &agent,
      data2: [in] flags
      data3: [out] new_queue[3:3], suspended[2:2], event_type [1:0]  */
 
-  kfd_ioctl_dbg_trap_args args{ 0 };
+  kfd_ioctl_dbg_trap_args args{};
   args.gpu_id = agent.gpu_id ();
   args.data1 = KFD_INVALID_QUEUEID;
   args.data2 = KFD_DBG_EV_FLAG_CLEAR_STATUS;
@@ -860,7 +860,7 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
      data3: [in] grace period
      ptr:   [in] queue ids  */
 
-  kfd_ioctl_dbg_trap_args args{ 0 };
+  kfd_ioctl_dbg_trap_args args{};
   args.data1 = KFD_DBG_EV_FLAG_CLEAR_STATUS;
   args.data2 = static_cast<uint32_t> (queue_ids.size ());
   args.ptr = reinterpret_cast<uint64_t> (queue_ids.data ());
@@ -925,7 +925,7 @@ process_t::resume_queues (const std::vector<queue_t *> &queues)
      data2: [in] number of queues
      ptr:   [in] queue ids  */
 
-  kfd_ioctl_dbg_trap_args args{ 0 };
+  kfd_ioctl_dbg_trap_args args{};
   args.data1 = 0;
   args.data2 = static_cast<uint32_t> (queue_ids.size ());
   args.ptr = reinterpret_cast<uint64_t> (queue_ids.data ());
@@ -966,7 +966,7 @@ process_t::update_queues ()
          data2: [in/out] number of queues snapshots
          ptr:   [in] user buffer  */
 
-      kfd_ioctl_dbg_trap_args args{ 0 };
+      kfd_ioctl_dbg_trap_args args{};
       args.data1 = 0;
       args.data2 = snapshot_count;
       args.ptr = reinterpret_cast<uint64_t> (snapshots.get ());
@@ -1175,7 +1175,7 @@ amd_dbgapi_status_t
 process_t::attach ()
 {
   /* Check that the KFD major == IOCTL major, and KFD minor >= IOCTL minor.  */
-  kfd_ioctl_get_version_args get_version_args{ 0 };
+  kfd_ioctl_get_version_args get_version_args{};
   if (ioctl (m_kfd_fd, AMDKFD_IOC_GET_VERSION, &get_version_args)
       || get_version_args.major_version != KFD_IOCTL_MAJOR_VERSION
       || get_version_args.minor_version < KFD_IOCTL_MINOR_VERSION)
@@ -1190,12 +1190,9 @@ process_t::attach ()
      data1: [out] major version
      data2: [out] minor version */
 
-  kfd_ioctl_dbg_trap_args dbg_trap_args = {
-    .ptr = 0, /* unused */
-    .pid = static_cast<uint32_t> (getpid ()),
-    .gpu_id = 0, /* unused  */
-    .op = KFD_IOC_DBG_TRAP_GET_VERSION,
-  };
+  kfd_ioctl_dbg_trap_args dbg_trap_args{};
+  dbg_trap_args.pid = static_cast<uint32_t> (getpid ());
+  dbg_trap_args.op = KFD_IOC_DBG_TRAP_GET_VERSION;
 
   /* - Enabling debug mode before the target process opens the KFD device
        requires KFD_IOCTL_DBG >= 1.1

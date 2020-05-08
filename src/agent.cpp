@@ -114,7 +114,7 @@ agent_t::next_kfd_event (amd_dbgapi_queue_id_t *queue_id,
 
           /* Create a "dummy" queue instance (with a null agent), to reserve
              the unique queue_id.  */
-          kfd_queue_snapshot_entry queue_info{ 0 };
+          kfd_queue_snapshot_entry queue_info{};
           queue_info.queue_id = kfd_queue_id;
 
           *queue_id = process.create<queue_t> (*this, queue_info).id ();

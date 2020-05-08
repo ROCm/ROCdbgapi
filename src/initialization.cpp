@@ -75,7 +75,7 @@ amd_dbgapi_finalize ()
 
   process_list.clear ();
 
-  process_callbacks = { 0 };
+  process_callbacks = {};
   amd::dbgapi::is_initialized = false;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
