@@ -80,15 +80,19 @@ Generating the AMD Debugger API documentation has the following prerequisites:
    ````
 
    NOTE: The ``doxygen`` 1.8.13 that is installed by Ubuntu 18.04 has a bug that
-   prevents the PDF from being created. Both ``doxygen`` 1.8.11 and 1.8.17 can
-   be built from source to avoid the issue.
+   prevents the PDF from being created. Both ``doxygen`` 1.8.11 can be built
+   from source to avoid the issue.
 
 2. For CentOS 8.1 and RHEL 8.1 the following adds the needed packages:
 
    ````shell
    yum install -y doxygen graphviz texlive texlive-xtab texlive-multirow \
-     texlive-sectsty texlive-tocloft
+     texlive-sectsty texlive-tocloft texlive-tabu texlive-adjustbox
    ````
+
+   NOTE: The ``doxygen`` 1.8.14 that is installed by CentOS 8.1 and RHEL 8.1,
+   has a bug that prevents the PDF from being created. ``doxygen`` 1.8.11 can be
+   built from source to avoid the issue.
 
 3. For SLES 15 Service Pack 15 the following adds the needed packages:
 
