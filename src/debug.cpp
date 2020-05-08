@@ -82,7 +82,7 @@ full_callback (void *data, uintptr_t pc, const char *filename, int lineno,
   int status;
 
   info->sstream << std::endl << "    #" << std::dec << info->depth++ << ' '
-                << std::showbase << std::hex << std::setfill ('0')
+                << "0x" << std::hex << std::setfill ('0')
                 << std::setw (sizeof (pc) * 2) << pc;
 
   if (!function)

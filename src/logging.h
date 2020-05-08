@@ -103,7 +103,7 @@ std::string
 to_string (detail::hex<T> v)
 {
   std::ostringstream ss;
-  ss << std::showbase << std::hex << v.value;
+  ss << "0x" << std::hex << v.value;
   return ss.str ();
 }
 

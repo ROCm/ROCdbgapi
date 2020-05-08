@@ -2071,7 +2071,7 @@ amd_dbgapi_disassemble_instruction (
         }
 
       std::stringstream sstream;
-      sstream << std::showbase << std::hex << std::setfill ('0')
+      sstream << "0x" << std::hex << std::setfill ('0')
               << std::setw (sizeof (addr) * 2) << addr;
       operand_str += sstream.str ();
     }
