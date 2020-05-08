@@ -2099,8 +2099,9 @@ typedef enum
    */
   AMD_DBGAPI_QUEUE_INFO_STATE = 4,
   /**
-   * Return the reason the queue is in error as a bit set.  The type of this
-   * attribute is \p uint64_t with values defined by
+   * Return the reason the queue is in error as a bit set. If the queue is not
+   * in the error state then ::AMD_DBGAPI_QUEUE_ERROR_REASON_NONE is returned.
+   * The type of this attribute is \p uint64_t with values defined by
    * ::amd_dbgapi_queue_error_reason_t.
    */
   AMD_DBGAPI_QUEUE_INFO_ERROR_REASON = 5
@@ -2235,6 +2236,10 @@ typedef enum
  */
 typedef enum
 {
+  /**
+   * If none of the bits are set, then the queue is not in the error state.
+   */
+  AMD_DBGAPI_QUEUE_ERROR_REASON_NONE = 0,
   /**
    * A packet on the queue is invalid.
    */
