@@ -1889,11 +1889,6 @@ architecture_t::get_info (amd_dbgapi_architecture_info_t query,
     case AMD_DBGAPI_ARCHITECTURE_INFO_PC_REGISTER:
       return utils::get_info (value_size, value, amdgpu_regnum_t::PC);
 
-    case AMD_DBGAPI_ARCHITECTURE_INFO_EXECUTION_MASK_REGISTER:
-      warning ("architecture_t::get_info(EXECUTION_MASK_REGISTER, ...) not "
-               "yet implemented");
-      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
-
     case AMD_DBGAPI_ARCHITECTURE_INFO_WATCHPOINT_COUNT:
       warning ("architecture_t::get_info(WATCHPOINT_COUNT, ...) not yet "
                "implemented");

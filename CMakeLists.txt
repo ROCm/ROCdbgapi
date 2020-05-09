@@ -21,7 +21,7 @@
 cmake_minimum_required(VERSION 3.2.0)
 include(GNUInstallDirs)
 
-project(AMD_DBGAPI VERSION 0.20.3)
+project(AMD_DBGAPI VERSION 0.21.0)
 
 # The project command does not set the <PROJECT-NAME>_NAME variable so must set
 # it explicitly.

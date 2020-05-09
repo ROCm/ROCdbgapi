@@ -942,35 +942,28 @@ typedef enum
    */
   AMD_DBGAPI_ARCHITECTURE_INFO_PC_REGISTER = 8,
   /**
-   * Return the register handle for the execution mask for the architecture.
-   * The type of this attribute is ::amd_dbgapi_register_id_t.  Return
-   * ::AMD_DBGAPI_REGISTER_NONE if the architecture does not use an execution
-   * mask.
-   */
-  AMD_DBGAPI_ARCHITECTURE_INFO_EXECUTION_MASK_REGISTER = 9,
-  /**
    * Return the number of data watchpoints supported by the architecture.  Zero
    * is returned if data watchpoints are not supported.  The type of this
    * attribute is \p size_t.
    */
-  AMD_DBGAPI_ARCHITECTURE_INFO_WATCHPOINT_COUNT = 10,
+  AMD_DBGAPI_ARCHITECTURE_INFO_WATCHPOINT_COUNT = 9,
   /**
    * Return how watchpoints are shared between processes.  The type of this
    * attribute is \p uint32_t with the values defined by
    * ::amd_dbgapi_watchpoint_share_kind_t.
    */
-  AMD_DBGAPI_ARCHITECTURE_INFO_WATCHPOINT_SHARE = 11,
+  AMD_DBGAPI_ARCHITECTURE_INFO_WATCHPOINT_SHARE = 10,
   /**
    * Return the default address space for global memory.  The type of this
    * attribute is ::amd_dbgapi_address_space_id_t.
    */
-  AMD_DBGAPI_ARCHITECTURE_INFO_DEFAULT_GLOBAL_ADDRESS_SPACE = 12,
+  AMD_DBGAPI_ARCHITECTURE_INFO_DEFAULT_GLOBAL_ADDRESS_SPACE = 11,
   /**
    * Return if the architecture supports controlling memory precision.  The
    * type of this attribute is \p uint32_t with the values defined by
    * ::amd_dbgapi_memory_precision_t.
    */
-  AMD_DBGAPI_ARCHITECTURE_INFO_PRECISE_MEMORY_SUPPORTED = 13
+  AMD_DBGAPI_ARCHITECTURE_INFO_PRECISE_MEMORY_SUPPORTED = 12
 } amd_dbgapi_architecture_info_t;
 
 /**

@@ -126,7 +126,6 @@ following restrictions.  Future releases aim to address these restrictions.
 
 1.  The following *_get_info queries are not yet implemented:
 
-    - AMD_DBGAPI_ARCHITECTURE_INFO_EXECUTION_MASK_REGISTER
     - AMD_DBGAPI_ARCHITECTURE_INFO_WATCHPOINT_COUNT
     - AMD_DBGAPI_ARCHITECTURE_INFO_WATCHPOINT_SHARE
     - AMD_DBGAPI_EVENT_INFO_RUNTIME_VERSION
