@@ -1006,7 +1006,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_get_info (
     amd_dbgapi_architecture_id_t architecture_id,
     amd_dbgapi_architecture_info_t query, size_t value_size, void *value)
-    AMD_DBGAPI_VERSION_0_1;
+    AMD_DBGAPI_VERSION_0_20;
 
 /**
  * Get an architecture from the AMD GPU ELF \p EF_AMDGPU_MACH value
