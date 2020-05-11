@@ -91,48 +91,6 @@ extern std::string string_printf (const char *format, ...)
 #endif /* defined (__GNUC__) */
     ;
 
-namespace detail
-{
-
-template <typename Functor, typename Return, typename First, typename... Rest>
-First first_argument_type_helper_t (Return (Functor::*) (First, Rest...));
-
-template <typename Functor, typename Return, typename First, typename... Rest>
-First first_argument_type_helper_t (Return (Functor::*) (First, Rest...)
-                                        const);
-
-template <typename What, size_t Index, typename... Types>
-struct find_type_index_helper_t;
-
-/* Holds the result (Index) of the type search, and checks that no other types
-   match in the remaining type list.  */
-template <typename What, size_t Index, typename... Types>
-struct find_type_index_helper_result_t
-{
-  static constexpr size_t value = Index;
-  static_assert (find_type_index_helper_t<What, Index, Types...>::value == -1,
-                 "more than one match in type list");
-};
-
-/* Partial specialization for not match found.  */
-template <typename What, size_t Index>
-struct find_type_index_helper_t<What, Index>
-{
-  static constexpr size_t value = -1;
-};
-
-/* Partial specialization for recursive search.  */
-template <typename What, size_t Index, typename FirstType, typename... Rest>
-struct find_type_index_helper_t<What, Index, FirstType, Rest...>
-{
-  static constexpr size_t value = std::conditional<
-      std::is_same<What, FirstType>::value,
-      find_type_index_helper_result_t<What, Index, Rest...>,
-      find_type_index_helper_t<What, Index + 1, Rest...>>::type::value;
-};
-
-} /* namespace detail */
-
 namespace utils
 {
 
@@ -155,8 +113,8 @@ bit_count (Integral x)
   /* Count the number of one bits using sideways additions. Works for integral
      types up to 128-bit wide.  */
   static_assert (sizeof (Integral) <= 16, "Integral type is too wide");
-  using T = typename std::conditional<sizeof (Integral) >= sizeof (uint32_t),
-                                      Integral, uint32_t>::type;
+  using T = std::conditional_t<sizeof (Integral) >= sizeof (uint32_t),
+                               Integral, uint32_t>;
 
   x = x - ((x >> 1) & ~T{ 0 } / 3);
   x = (x & ~T{ 0 } / 15 * 3) + ((x >> 2) & ~T{ 0 } / 15 * 3);
@@ -165,14 +123,14 @@ bit_count (Integral x)
 }
 
 template <typename Integral>
-constexpr typename std::make_unsigned<Integral>::type
+constexpr std::make_unsigned_t<Integral>
 zero_extend (Integral x, int width)
 {
   return x & bit_mask (0, width - 1);
 }
 
 template <typename Integral>
-constexpr typename std::make_signed<Integral>::type
+constexpr std::make_signed_t<Integral>
 sign_extend (Integral x, int width)
 {
   Integral sign_mask = bit_mask (width - 1, sizeof (Integral) * 8 - 1);
@@ -210,31 +168,55 @@ align_up (Integral x, int alignment)
   return (x + alignment - 1) & -alignment;
 }
 
+namespace detail
+{
+
+template <typename Functor, typename Return, typename First, typename... Rest>
+First first_argument_of_helper_t (Return (Functor::*) (First, Rest...));
+
+template <typename Functor, typename Return, typename First, typename... Rest>
+First first_argument_of_helper_t (Return (Functor::*) (First, Rest...) const);
+
+} /* namespace detail */
+
 /* Holds the type of the Functor's first argument.  */
-template <typename Functor> struct first_argument_type
+template <typename Functor>
+using first_argument_of_t
+    = decltype (detail::first_argument_of_helper_t (&Functor::operator()));
+
+namespace detail
 {
-  using type
-      = decltype (detail::first_argument_type_helper_t (&Functor::operator()));
+
+template <typename...> using void_t = void;
+
+template <typename AlwaysVoid, template <typename...> class Op,
+          typename... Args>
+struct detector : std::false_type
+{
+  static_assert (std::is_same<AlwaysVoid, void>::value, "must be void");
+  struct type
+  {
+    type () = delete;
+    ~type () = delete;
+  };
 };
 
-/* Holds the index of the one and only type that matches in the type list.
-   This fails to compile if there is no match, or if there are more than one
-   match.  */
-template <typename What, typename... Types> struct find_type_index_t
+template <template <typename...> class Op, typename... Args>
+struct detector<void_t<Op<Args...>>, Op, Args...> : std::true_type
 {
-  static constexpr size_t value
-      = detail::find_type_index_helper_t<What, 0, Types...>::value;
-  static_assert (value != -1, "type not found");
+  using type = Op<Args...>;
 };
 
-/* Return the tuple element whose type matches Type. This fails to compile if
-   there is no match, or if there are more than one match.  */
-template <typename What, typename... Types>
-constexpr What &
-get (std::tuple<Types...> &tuple)
-{
-  return std::get<find_type_index_t<What, Types...>::value> (tuple);
-}
+} /* namespace detail */
+
+template <template <typename...> class Op, typename... Args>
+using is_detected = detail::detector<void, Op, Args...>;
+
+template <template <typename...> class Op, typename... Args>
+constexpr bool is_detected_v = is_detected<Op, Args...>::value;
+
+template <template <typename...> class Op, typename... Args>
+using detected_t = typename is_detected<Op, Args...>::type;
 
 /* Check the size, and copy `value' into the memory pointed to by `ret'.  */
 template <typename T>
@@ -315,37 +297,39 @@ template <typename T> struct is_flag<T, true> : std::false_type
    template <> struct is_flag<my_enum_class> : std::true_type;
 */
 
-template <typename T>
-typename std::enable_if<is_flag<T>::value, bool>::type operator! (T flag)
+template <typename T> constexpr bool is_flag_v = is_flag<T>::value;
+
+template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
+bool operator! (T flag)
 {
-  using t = typename std::underlying_type<T>::type;
+  using t = std::underlying_type_t<T>;
   return static_cast<t> (flag) == t{};
 }
 
-template <typename T>
-typename std::enable_if<is_flag<T>::value, T>::type
+template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
+T
 operator| (T lhs, T rhs)
 {
-  using t = typename std::underlying_type<T>::type;
+  using t = std::underlying_type_t<T>;
   return static_cast<T> (static_cast<t> (lhs) | static_cast<t> (rhs));
 }
 
-template <typename T>
-typename std::enable_if<is_flag<T>::value, T>::type &
+template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
+T &
 operator|= (T &lhs, T rhs)
 {
   return lhs = lhs | rhs;
 }
 
-template <typename T>
-typename std::enable_if<is_flag<T>::value, T>::type operator& (T lhs, T rhs)
+template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
+T operator& (T lhs, T rhs)
 {
-  using t = typename std::underlying_type<T>::type;
+  using t = std::underlying_type_t<T>;
   return static_cast<T> (static_cast<t> (lhs) & static_cast<t> (rhs));
 }
 
-template <typename T>
-typename std::enable_if<is_flag<T>::value, T>::type &
+template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
+T &
 operator&= (T &lhs, T rhs)
 {
   return lhs = lhs & rhs;

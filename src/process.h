@@ -60,11 +60,6 @@ class process_t
   using notify_shared_library_callback_t = std::function<void (
       amd_dbgapi_shared_library_id_t, amd_dbgapi_shared_library_state_t)>;
 
-  using handle_object_sets_t
-      = handle_object_set_tuple_t<agent_t, breakpoint_t, code_object_t,
-                                  dispatch_t, displaced_stepping_t, event_t,
-                                  queue_t, shared_library_t, wave_t>;
-
   int dbg_trap_ioctl (uint32_t action, kfd_ioctl_dbg_trap_args *args);
 
 public:
@@ -210,16 +205,17 @@ public:
         m_client_process_id, breakpoint_id, breakpoint_state);
   }
 
-  template <typename Object, typename... Args> Object &create (Args &&... args)
+  template <typename Object, typename... Args> auto &create (Args &&... args)
   {
-    return m_handle_object_sets.get<Object> ().create_object (
-        std::forward<Args> (args)...);
+    return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
+        .create_object (std::forward<Args> (args)...);
   }
 
   /* Destroy the given object.  */
   template <typename Object> void destroy (Object *object)
   {
-    m_handle_object_sets.get<Object> ().destroy (object);
+    std::get<handle_object_set_t<Object>> (m_handle_object_sets)
+        .destroy (object);
   }
 
   /* Destroy the object at object_it.  This should be used instead of
@@ -228,22 +224,24 @@ public:
   template <typename ObjectIterator>
   ObjectIterator destroy (ObjectIterator object_it)
   {
-    return m_handle_object_sets.get<typename ObjectIterator::value_type> ()
+    return std::get<handle_object_set_t<typename ObjectIterator::value_type>> (
+               m_handle_object_sets)
         .destroy (object_it);
   }
 
   /* Return an Object range. A range implements begin () and end (), and
      can be used to iterate the Objects.  */
-  template <typename Object>
-  typename handle_object_set_t<Object>::range_t range ()
+  template <typename Object> auto range ()
   {
-    return m_handle_object_sets.get<Object> ().range ();
+    return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
+        .range ();
   }
 
   /* Return the element count for the sub-Object.  */
   template <typename Object> size_t count () const
   {
-    return m_handle_object_sets.get<Object> ().size ();
+    return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
+        .size ();
   }
 
   /* Set the flag that indicates whether the Objects have changed. Return its
@@ -251,28 +249,26 @@ public:
      destroyed, or invalidated.  */
   template <typename Object> bool set_changed (bool changed)
   {
-    return m_handle_object_sets.get<Object> ().set_changed (changed);
+    return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
+        .set_changed (changed);
   }
 
   /* Find an object with the given handle.  */
-  template <typename Handle>
-  typename handle_object_sets_t::find_object_type_from_handle<Handle>::type *
-  find (Handle id)
+  template <typename Handle> auto *find (Handle id)
   {
-    using object_type =
-        typename handle_object_sets_t::find_object_type_from_handle<
-            Handle>::type;
-    return m_handle_object_sets.get<object_type> ().find (id);
+    using object_type
+        = object_type_from_handle_t<Handle, decltype (m_handle_object_sets)>;
+
+    return std::get<handle_object_set_t<object_type>> (m_handle_object_sets)
+        .find (id);
   }
 
   /* Find an object for which the unary predicate f returns true.  */
-  template <typename Func>
-  typename std::decay<typename utils::first_argument_type<Func>::type>::type *
-  find_if (Func predicate)
+  template <typename Functor> auto *find_if (Functor predicate)
   {
-    return m_handle_object_sets
-        .get<typename std::decay<
-            typename utils::first_argument_type<Func>::type>::type> ()
+    using object_type = std::decay_t<utils::first_argument_of_t<Functor>>;
+
+    return std::get<handle_object_set_t<object_type>> (m_handle_object_sets)
         .find_if (predicate);
   }
 
@@ -311,7 +307,13 @@ private:
      will be deleted, as these code objects are not longer loaded.  */
   monotonic_counter_t<epoch_t> m_next_code_object_mark{ 1 };
 
-  handle_object_sets_t m_handle_object_sets;
+  std::tuple<
+      handle_object_set_t<agent_t>, handle_object_set_t<breakpoint_t>,
+      handle_object_set_t<code_object_t>, handle_object_set_t<dispatch_t>,
+      handle_object_set_t<displaced_stepping_t>, handle_object_set_t<event_t>,
+      handle_object_set_t<queue_t>, handle_object_set_t<shared_library_t>,
+      handle_object_set_t<wave_t>>
+      m_handle_object_sets;
 };
 
 inline void *
@@ -351,8 +353,8 @@ to_string (process_t::wave_launch_mode_t mode)
     case process_t::wave_launch_mode_t::DISABLE:
       return "WAVE_LAUNCH_MODE_DISABLE";
     }
-  return to_string (make_hex (
-      static_cast<std::underlying_type<decltype (mode)>::type> (mode)));
+  return to_string (
+      make_hex (static_cast<std::underlying_type_t<decltype (mode)>> (mode)));
 }
 
 #undef TRACE_CALLBACK

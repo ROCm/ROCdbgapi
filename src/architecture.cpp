@@ -1916,29 +1916,30 @@ template <class ElementType, std::size_t N> struct initializer_list_t
   std::array<ElementType, N> elements;
 };
 
+using architecture_map_value_type
+    = std::pair<amd_dbgapi_architecture_id_t, std::unique_ptr<architecture_t>>;
+
 /* Create a container to hold the map values.  */
-template <class... Keys, class... Values, std::size_t... I>
-initializer_list_t<
-    std::pair<amd_dbgapi_architecture_id_t, std::unique_ptr<architecture_t>>,
-    sizeof...(I)>
-make_architecture_initializer_list (std::tuple<Keys...> keys,
-                                    std::tuple<Values &...> values,
-                                    std::index_sequence<I...>)
+template <class... Keys, class... Values, std::size_t... Is>
+initializer_list_t<architecture_map_value_type, sizeof...(Is)>
+make_architecture_initializer_list_impl (std::tuple<Keys...> keys,
+                                         std::tuple<Values &...> values,
+                                         std::index_sequence<Is...>)
 {
-  return { { { std::make_pair (std::get<I> (keys),
-                               std::move (std::get<I> (values)))... } } };
+  return { { { architecture_map_value_type{
+      std::get<Is> (keys), std::move (std::get<Is> (values)) }... } } };
 }
 
 } /* namespace detail */
 
 /* Helper function to create an initializer list with movable elements.  */
-template <class... Args>
+template <class... Args,
+          typename Is = std::make_index_sequence<sizeof...(Args)>>
 auto
 make_architecture_initializer_list (Args... args)
 {
-  return detail::make_architecture_initializer_list (
-      std::make_tuple (args->id ()...), std::tie (args...),
-      std::make_index_sequence<sizeof...(Args)>{});
+  return detail::make_architecture_initializer_list_impl (
+      std::make_tuple (args->id ()...), std::forward_as_tuple (args...), Is{});
 }
 
 std::unordered_map<amd_dbgapi_architecture_id_t,

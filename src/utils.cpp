@@ -128,7 +128,7 @@ get_handle_list (amd_dbgapi_process_id_t process_id, size_t *object_count,
   count = 0;
   for (auto &&object : process->range<Object> ())
     {
-      if (!detail::is_valid (object))
+      if (!is_valid (object))
         continue;
       retval[count++] = object.id ();
     }

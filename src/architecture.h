@@ -48,10 +48,6 @@ class wave_t;
 
 class architecture_t
 {
-  using handle_object_sets_t
-      = handle_object_set_tuple_t<address_space_t, address_class_t,
-                                  register_class_t>;
-
 public:
   /* See https://llvm.org/docs/AMDGPUUsage.html#amdgpu-ef-amdgpu-mach-table  */
   enum elf_amdgpu_machine_t : uint32_t
@@ -75,7 +71,7 @@ public:
   };
 
 private:
-  static_assert (is_handle_type<amd_dbgapi_architecture_id_t>::value,
+  static_assert (is_handle_type_v<amd_dbgapi_architecture_id_t>,
                  "amd_dbgapi_architecture_id_t is not a handle type");
 
   amd_comgr_disassembly_info_t disassembly_info () const;
@@ -188,47 +184,43 @@ public:
   amd_dbgapi_status_t get_info (amd_dbgapi_architecture_info_t query,
                                 size_t value_size, void *value) const;
 
-  template <typename Object, typename... Args> Object &create (Args &&... args)
+  template <typename Object, typename... Args> auto &create (Args &&... args)
   {
-    return m_handle_object_sets.get<Object> ().create_object (
-        std::forward<Args> (args)...);
+    return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
+        .create_object (std::forward<Args> (args)...);
   }
 
   /* Return an Object range. A range implements begin () and end (), and
      can be used to iterate the Objects.  */
-  template <typename Object>
-  typename handle_object_set_t<Object>::const_range_t range () const
+  template <typename Object> auto range () const
   {
-    return m_handle_object_sets.get<Object> ().range ();
+    return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
+        .range ();
   }
 
   /* Return the element count for the sub-Object.  */
   template <typename Object> size_t count () const
   {
-    return m_handle_object_sets.get<Object> ().size ();
+    return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
+        .size ();
   }
 
   /* Find an object with the given handle.  */
-  template <typename Handle>
-  const typename handle_object_sets_t::find_object_type_from_handle<
-      Handle>::type *
-  find (Handle id) const
+  template <typename Handle> const auto *find (Handle id) const
   {
-    using object_type =
-        typename handle_object_sets_t::find_object_type_from_handle<
-            Handle>::type;
-    return m_handle_object_sets.get<object_type> ().find (id);
+    using object_type
+        = object_type_from_handle_t<Handle, decltype (m_handle_object_sets)>;
+
+    return std::get<handle_object_set_t<object_type>> (m_handle_object_sets)
+        .find (id);
   }
 
   /* Find an object for which the unary predicate f returns true.  */
-  template <typename Func>
-  const typename std::decay<
-      typename utils::first_argument_type<Func>::type>::type *
-  find_if (Func predicate) const
+  template <typename Functor> const auto *find_if (Functor predicate) const
   {
-    return m_handle_object_sets
-        .get<typename std::decay<
-            typename utils::first_argument_type<Func>::type>::type> ()
+    using object_type = std::decay_t<utils::first_argument_of_t<Functor>>;
+
+    return std::get<handle_object_set_t<object_type>> (m_handle_object_sets)
         .find_if (predicate);
   }
 
@@ -241,7 +233,10 @@ private:
   int const m_gfxip_stepping;
   std::string const m_name;
 
-  handle_object_sets_t m_handle_object_sets;
+  std::tuple<handle_object_set_t<address_space_t>,
+             handle_object_set_t<address_class_t>,
+             handle_object_set_t<register_class_t>>
+      m_handle_object_sets;
 
 private:
   static monotonic_counter_t<decltype (amd_dbgapi_architecture_id_t::handle)>

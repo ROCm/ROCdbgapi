@@ -264,15 +264,16 @@ process_t::detach ()
     error ("Could not stop the event thread");
 
   /* Destruct the waves, dispatches, queues, and agents, in this order.  */
-  m_handle_object_sets.get<wave_t> ().clear ();
-  m_handle_object_sets.get<dispatch_t> ().clear ();
-  m_handle_object_sets.get<queue_t> ().clear ();
-  m_handle_object_sets.get<agent_t> ().clear ();
+  std::get<handle_object_set_t<wave_t>> (m_handle_object_sets).clear ();
+  std::get<handle_object_set_t<dispatch_t>> (m_handle_object_sets).clear ();
+  std::get<handle_object_set_t<queue_t>> (m_handle_object_sets).clear ();
+  std::get<handle_object_set_t<agent_t>> (m_handle_object_sets).clear ();
 
   /* Destruct the breakpoints before the shared libraries and code objects  */
-  m_handle_object_sets.get<breakpoint_t> ().clear ();
-  m_handle_object_sets.get<shared_library_t> ().clear ();
-  m_handle_object_sets.get<code_object_t> ().clear ();
+  std::get<handle_object_set_t<breakpoint_t>> (m_handle_object_sets).clear ();
+  std::get<handle_object_set_t<code_object_t>> (m_handle_object_sets).clear ();
+  std::get<handle_object_set_t<shared_library_t>> (m_handle_object_sets)
+      .clear ();
 
   if (m_proc_mem_fd != -1)
     {
@@ -757,7 +758,7 @@ process_t::set_wave_launch_mode (const agent_t &agent, wave_launch_mode_t mode)
 
   kfd_ioctl_dbg_trap_args args{};
   args.gpu_id = agent.gpu_id ();
-  args.data1 = static_cast<std::underlying_type<decltype (mode)>::type> (mode);
+  args.data1 = static_cast<std::underlying_type_t<decltype (mode)>> (mode);
 
   int err = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_MODE, &args);
   if (err < 0)
@@ -1075,7 +1076,7 @@ process_t::update_queues ()
 
   auto &&queue_range = range<queue_t> ();
   for (auto it = queue_range.begin (); it != queue_range.end ();)
-    if (!it->is_valid () || it->mark () < queue_mark)
+    if (it->mark () < queue_mark)
       it = destroy (it);
     else
       ++it;
@@ -1329,7 +1330,8 @@ process_t::attach ()
         ++it;
 
     /* Destruct the code objects.  */
-    m_handle_object_sets.get<code_object_t> ().clear ();
+    std::get<handle_object_set_t<code_object_t>> (m_handle_object_sets)
+        .clear ();
 
     enqueue_event (
         create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED,

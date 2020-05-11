@@ -94,74 +94,80 @@ template <typename Type> struct handle_has_wrapped_around
   }
 };
 
-template <typename Type, typename = int> struct has_is_valid : std::false_type
+/* Type of Object::is_valid ()  */
+template <typename Object>
+using is_valid_t = decltype (std::declval<Object> ().is_valid ());
+
+/* Default is_valid_helper_t::is_valid always returns true.  */
+template <typename AlwaysVoid, typename Object> struct is_valid_helper_t
 {
-};
-template <typename Type>
-struct has_is_valid<Type, decltype ((void)&Type::is_valid, 0)> : std::true_type
-{
+  static_assert (std::is_same<AlwaysVoid, void>::value, "must be void");
+  static constexpr bool is_valid (Object &&object) { return true; }
 };
 
-/* Call is_valid () if Object implements it, return true otherwise.  */
+/* Partial specialization calls is_valid () if Object implements it.   */
 template <typename Object>
-constexpr typename std::enable_if<has_is_valid<Object>::value, bool>::type
-is_valid (Object &object)
+struct is_valid_helper_t<
+    std::enable_if_t<utils::is_detected_v<is_valid_t, Object>, void>, Object>
 {
-  return object.is_valid ();
-}
-template <typename Object>
-constexpr typename std::enable_if<has_is_valid<Object>::value, bool>::type
-is_valid (const Object &object)
-{
-  return object.is_valid ();
-}
-template <typename Object>
-constexpr typename std::enable_if<!has_is_valid<Object>::value, bool>::type
-is_valid (const Object &object)
-{
-  return true;
-}
+  static constexpr bool is_valid (Object &&object)
+  {
+    return object.is_valid ();
+  }
+};
 
 } /* namespace detail */
 
+/* TODO: This could be simplified with a if constexpr (is_detected...).  */
+template <typename Object>
+constexpr bool
+is_valid (Object &&object)
+{
+  return detail::is_valid_helper_t<void, Object>::is_valid (
+      std::forward<Object> (object));
+}
+
 /* A handle type is a type that has an unsigned integral handle data member. */
-template <typename Type, typename = int>
-struct is_handle_type : std::false_type
+
+namespace detail
 {
-};
+
+/* Type of Handle::handle  */
+template <typename Type>
+using id_handle_t = decltype (std::declval<Type> ().handle);
+
+} /* namespace detail */
 
 template <typename Type>
-struct is_handle_type<Type, decltype ((void)Type::handle, 0)>
-    : std::integral_constant<
-          bool, std::is_integral<decltype (Type::handle)>::value
-                    && std::is_unsigned<decltype (Type::handle)>::value>
-{
-};
-
-/* A handle object type is a class that implements the id() member function,
-   and the return type of the id() function is a handle type.  */
-template <typename Type, typename = int>
-struct is_handle_object_type : std::false_type
-{
-};
-
-template <typename Type>
-struct is_handle_object_type<Type, decltype ((void)&Type::id, 0)>
-    : std::integral_constant<bool,
-                             is_handle_type<typename std::result_of<decltype (
-                                 &Type::id) (Type)>::type>::value>
-{
-};
+constexpr bool is_handle_type_v
+    = std::is_integral<utils::detected_t<detail::id_handle_t, Type>>::value &&
+        std::is_unsigned<utils::detected_t<detail::id_handle_t, Type>>::value;
 
 /* Hash function for handle types.  */
-template <typename Handle> struct hash
+template <typename Handle, std::enable_if_t<is_handle_type_v<Handle>, int> = 0>
+struct hash
 {
-  typename std::enable_if<is_handle_type<Handle>::value, std::size_t>::type
-  operator() (const Handle &rhs) const noexcept
+  std::size_t operator() (const Handle &rhs) const noexcept
   {
     return std::hash<decltype (rhs.handle)>{}(rhs.handle);
   }
 };
+
+/* A handle object type is a class that implements the id() member function,
+   and the return type of the id() function is a handle type.  */
+
+namespace detail
+{
+
+/* Type of Object::id ()  */
+template <typename Type>
+using object_id_t = decltype (std::declval<Type> ().id ());
+
+} /* namespace detail */
+
+template <typename Type>
+constexpr bool is_handle_object_type_v
+    = is_handle_type_v<utils::detected_t<detail::object_id_t, Type>>;
 
 /* A set container type that holds objects that are referenced using handles.
    If the Object type supports the is_valid concept, then when creating objects
@@ -169,15 +175,14 @@ template <typename Handle> struct hash
  */
 template <typename Object> class handle_object_set_t
 {
-  static_assert (is_handle_object_type<Object>::value,
+  static_assert (is_handle_object_type_v<Object>,
                  "Object is not a handle object");
 
-  using handle_type =
-      typename std::result_of<decltype (&Object::id) (Object)>::type;
-
+public:
+  using object_type = Object;
+  using handle_type = utils::detected_t<detail::object_id_t, Object>;
   using map_type = std::unordered_map<handle_type, Object, hash<handle_type>>;
 
-public:
   class iterator
   {
   public:
@@ -301,7 +306,7 @@ public:
   Object *find (handle_type id)
   {
     auto it = m_map.find (id);
-    if (it == m_map.end () || !detail::is_valid (it->second))
+    if (it == m_map.end () || !is_valid (it->second))
       return nullptr;
     return &it->second;
   }
@@ -309,7 +314,7 @@ public:
   const Object *find (handle_type id) const
   {
     auto it = m_map.find (id);
-    if (it == m_map.end () || !detail::is_valid (it->second))
+    if (it == m_map.end () || !is_valid (it->second))
       return nullptr;
     return &it->second;
   }
@@ -320,7 +325,7 @@ public:
                             [=] (const typename map_type::value_type &value) {
                               return bool{ predicate (value.second) };
                             });
-    if (it == m_map.end () || !detail::is_valid (it->second))
+    if (it == m_map.end () || !is_valid (it->second))
       return nullptr;
     return &it->second;
   }
@@ -331,7 +336,7 @@ public:
                             [=] (const typename map_type::value_type &value) {
                               return bool{ predicate (value.second) };
                             });
-    if (it == m_map.end () || !detail::is_valid (it->second))
+    if (it == m_map.end () || !is_valid (it->second))
       return nullptr;
     return &it->second;
   }
@@ -398,7 +403,7 @@ handle_object_set_t<Object>::create_object (handle_type id, Args &&... args)
   if (!result.second)
     error ("could not create new object");
 
-  if (!detail::is_valid (result.first->second))
+  if (!is_valid (result.first->second))
     {
       m_map.erase (result.first);
       error ("object is not valid");
@@ -410,109 +415,60 @@ handle_object_set_t<Object>::create_object (handle_type id, Args &&... args)
 
 namespace detail
 {
+/* Helper struct to return the object type associated with a handle type, e.g.
+   process_t and amd_dbgapi_process_id_t.  It uses the handle_object_set tuple
+   to match a given handle type with the return type of the id () function
+   implemented by the tuple elements.  */
 
-template <typename Handle, typename...> struct object_type_helper_t
+template <typename Handle, typename Tuple, size_t I>
+struct object_type_from_handle;
+
+template <typename Handle, typename Tuple>
+struct object_type_from_handle<Handle, Tuple, 0>
 {
-  using type = void;
+  using element_0_type = typename std::tuple_element<0, Tuple>::type;
+  using type = typename element_0_type::object_type;
 };
 
-template <typename Handle, typename FirstObject, typename... RemainingObjects>
-struct object_type_helper_t<Handle, FirstObject, RemainingObjects...>
+template <typename Handle, typename Tuple, size_t I>
+struct object_type_from_handle
 {
-  using FirstObjectHandle =
-      typename std::result_of<decltype (&FirstObject::id) (FirstObject)>::type;
-
-  using type = typename std::conditional<
-      std::is_same<Handle, FirstObjectHandle>::value, FirstObject,
-      typename object_type_helper_t<Handle, RemainingObjects...>::type>::type;
+  using element_I_type = typename std::tuple_element<I, Tuple>::type;
+  using type = std::conditional_t<
+      std::is_same<Handle, typename element_I_type::handle_type>::value,
+      typename element_I_type::object_type,
+      typename object_type_from_handle<Handle, Tuple, I - 1>::type>;
 };
 
 } /* namespace detail */
 
-template <typename...> class handle_object_set_tuple_t
-{
-public:
-  void clear () {}
-};
-
-/* A tuple of distinct typed elements that can be accessed by the element type.
-   TODO: maybe move this as a detail of process_t, since it is the only one
-   needing this.  */
-template <typename Head, typename... Tail>
-class handle_object_set_tuple_t<Head, Tail...>
-{
-public:
-  /* Helper struct to find the Object type whose handle type is equivalent
-     to Handle.  */
-  template <typename Handle> struct find_object_type_from_handle
-  {
-    using type =
-        typename detail::object_type_helper_t<Handle, Head, Tail...>::type;
-  };
-
-  /* Getters if Object and Head types are equivalent.  */
-  template <typename Object>
-  typename std::enable_if<std::is_same<Object, Head>::value,
-                          handle_object_set_t<Object>>::type &
-  get ()
-  {
-    return m_head;
-  }
-  template <typename Object>
-  const typename std::enable_if<std::is_same<Object, Head>::value,
-                                handle_object_set_t<Object>>::type &
-  get () const
-  {
-    return m_head;
-  }
-
-  /* Getters if Object and Head types are not equivalent.  */
-  template <typename Object>
-  typename std::enable_if<!std::is_same<Object, Head>::value,
-                          handle_object_set_t<Object>>::type &
-  get ()
-  {
-    return m_tail.template get<Object> ();
-  }
-  template <typename Object>
-  const typename std::enable_if<!std::is_same<Object, Head>::value,
-                                handle_object_set_t<Object>>::type &
-  get () const
-  {
-    return m_tail.template get<Object> ();
-  }
-
-  void clear ()
-  {
-    m_head.clear ();
-    m_tail.clear ();
-  }
-
-private:
-  handle_object_set_t<Head> m_head;
-  handle_object_set_tuple_t<Tail...> m_tail;
-};
+template <typename Handle, typename Tuple,
+          size_t I = std::tuple_size<Tuple>::value - 1>
+using object_type_from_handle_t =
+    typename detail::object_type_from_handle<Handle, Tuple, I>::type;
 
 } /* namespace dbgapi */
 } /* namespace amd */
 
-template <typename Handle>
-typename std::enable_if<amd::dbgapi::is_handle_type<Handle>::value, bool>::type
+template <typename Handle,
+          std::enable_if_t<amd::dbgapi::is_handle_type_v<Handle>, int> = 0>
+bool
 operator== (const Handle &lhs, const Handle &rhs)
 {
   return lhs.handle == rhs.handle;
 }
 
-template <typename Handle>
-typename std::enable_if<amd::dbgapi::is_handle_type<Handle>::value, bool>::type
+template <typename Handle,
+          std::enable_if_t<amd::dbgapi::is_handle_type_v<Handle>, int> = 0>
+bool
 operator!= (const Handle &lhs, const Handle &rhs)
 {
   return !(lhs == rhs);
 }
 
-template <typename Handle>
-typename std::enable_if<amd::dbgapi::is_handle_type<Handle>::value, bool>::type
-operator! (const Handle &handle)
+template <typename Handle,
+          std::enable_if_t<amd::dbgapi::is_handle_type_v<Handle>, int> = 0>
+bool operator! (const Handle &handle)
 {
   return handle == Handle{};
 }

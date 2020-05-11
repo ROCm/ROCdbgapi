@@ -331,7 +331,7 @@ amd_dbgapi_dwarf_register_to_register (
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   *register_id = amd_dbgapi_register_id_t{
-    static_cast<std::underlying_type<decltype (regnum)>::type> (regnum)
+    static_cast<std::underlying_type_t<decltype (regnum)>> (regnum)
   };
 
   return AMD_DBGAPI_STATUS_SUCCESS;
