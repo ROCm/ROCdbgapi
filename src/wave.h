@@ -53,11 +53,22 @@ public:
      Waves halted at launch do not have a trap/exception raised by the trap
      handler.  */
   static constexpr amd_dbgapi_wave_id_t undefined = { 0 };
-  /* Ignored waves are waves that are terminating (about to execute a s_endpgm
-     instruction). These waves should never be reported to the client and will
-     be destroyed in the next mark and sweep when they finally terminate.  */
-  static constexpr amd_dbgapi_wave_id_t ignored_wave
-      = sentinel_id<amd_dbgapi_wave_id_t, 0> ();
+
+  enum class visibility_t
+  {
+    VISIBLE,
+    /* Waves with HIDDEN_HALTED_AT_LAUNCH visibility are waves that are halted
+       at launch because the launch mode was set to
+       process_t::wave_launch_mode_t::HALT when they were created. These waves
+       should not be reported to the client until the launch mode is changed
+       to process_t::wave_launch_mode_t::NORMAL.  */
+    HIDDEN_HALTED_AT_LAUNCH,
+    /* Waves with HIDDEN_AT_ENDPGM visibility are waves that are terminating
+       (about to execute a s_endpgm instruction). These waves should never be
+       reported to the client and will be destroyed in the next mark and sweep
+       when they finally terminate.  */
+    HIDDEN_AT_ENDPGM
+  };
 
 private:
   amd_dbgapi_status_t read_pseudo_register (amdgpu_regnum_t regnum,
@@ -85,6 +96,11 @@ public:
           size_t vgpr_count, size_t accvgpr_count, size_t sgpr_count,
           amd_dbgapi_size_t local_memory_offset,
           amd_dbgapi_size_t local_memory_size, size_t lane_count);
+
+  visibility_t visibility () const { return m_visibility; }
+  void set_visibility (visibility_t visibility);
+
+  bool is_valid () const { return visibility () == visibility_t::VISIBLE; }
 
   const wave_t &group_leader () const
   {
@@ -125,9 +141,9 @@ public:
   amd_dbgapi_status_t park ();
   amd_dbgapi_status_t unpark ();
 
-  amd_dbgapi_status_t update (const wave_t &group_leader,
-                              amd_dbgapi_global_address_t context_save_address,
-                              bool unhide_waves_halted_at_launch);
+  amd_dbgapi_status_t
+  update (const wave_t &group_leader,
+          amd_dbgapi_global_address_t context_save_address);
 
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }
@@ -199,6 +215,7 @@ public:
 private:
   epoch_t m_mark{ 0 };
   amd_dbgapi_wave_state_t m_state{ AMD_DBGAPI_WAVE_STATE_RUN };
+  visibility_t m_visibility{ visibility_t::VISIBLE };
   amd_dbgapi_wave_stop_reason_t m_stop_reason{
     AMD_DBGAPI_WAVE_STOP_REASON_NONE
   };

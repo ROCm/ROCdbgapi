@@ -246,12 +246,12 @@ public:
     return m_handle_object_sets.get<Object> ().size ();
   }
 
-  /* Return whether the Objects have changed since the last time changed
-     was called. The flag is set whenever objects are created or destroyed,
-     and cleared when it is queried.  */
-  template <typename Object> bool reset_changed ()
+  /* Set the flag that indicates whether the Objects have changed. Return its
+     previous value. The flag is set whenever objects are created, or
+     destroyed, or invalidated.  */
+  template <typename Object> bool set_changed (bool changed)
   {
-    return m_handle_object_sets.get<Object> ().reset_changed ();
+    return m_handle_object_sets.get<Object> ().set_changed (changed);
   }
 
   /* Find an object with the given handle.  */

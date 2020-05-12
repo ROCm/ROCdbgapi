@@ -49,7 +49,6 @@ namespace dbgapi
 
 /* These are ODR-used by operator==.  */
 constexpr amd_dbgapi_wave_id_t wave_t::undefined;
-constexpr amd_dbgapi_wave_id_t wave_t::ignored_wave;
 
 wave_t::wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t &dispatch,
                 size_t vgpr_count, size_t accvgpr_count, size_t sgpr_count,
@@ -60,6 +59,19 @@ wave_t::wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t &dispatch,
       m_lane_count (lane_count), m_local_memory_offset (local_memory_offset),
       m_local_memory_size (local_memory_size), m_dispatch (dispatch)
 {
+}
+
+void
+wave_t::set_visibility (visibility_t visibility)
+{
+  if (m_visibility == visibility)
+    return;
+
+  m_visibility = visibility;
+
+  /* Since the visibility of this wave has changed, the list of waves returned
+     by the process has also changed.  */
+  process ().set_changed<wave_t> (true);
 }
 
 uint64_t
@@ -146,8 +158,7 @@ wave_t::unpark ()
 
 amd_dbgapi_status_t
 wave_t::update (const wave_t &group_leader,
-                amd_dbgapi_global_address_t context_save_address,
-                bool unhide_waves_halted_at_launch)
+                amd_dbgapi_global_address_t context_save_address)
 {
   dbgapi_assert (queue ().suspended ());
   process_t &process = this->process ();
@@ -202,15 +213,6 @@ wave_t::update (const wave_t &group_leader,
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
 
-      /* Resume the wave if it is a brand new wave (first_update) and if it
-         is halted at launch.  */
-      if (unhide_waves_halted_at_launch && first_update
-          && m_state == AMD_DBGAPI_WAVE_STATE_STOP
-          && m_stop_reason == AMD_DBGAPI_WAVE_STOP_REASON_NONE)
-        {
-          set_state (AMD_DBGAPI_WAVE_STATE_RUN);
-        }
-
       /* If the wave is not stopped, we'll need to reload the hwregs cache
          during the next update.  */
       m_reload_hwregs_cache = (m_state != AMD_DBGAPI_WAVE_STATE_STOP);
@@ -231,8 +233,9 @@ wave_t::update (const wave_t &group_leader,
                 return status;
             }
 
-          process.enqueue_event (process.create<event_t> (
-              process, AMD_DBGAPI_EVENT_KIND_WAVE_STOP, id ()));
+          if (visibility () == visibility_t::VISIBLE)
+            process.enqueue_event (process.create<event_t> (
+                process, AMD_DBGAPI_EVENT_KIND_WAVE_STOP, id ()));
         }
     }
 
@@ -283,6 +286,10 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
         park ();
 
       m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
+
+      dbgapi_assert (visibility_t () == visibility_t::VISIBLE
+                     && "cannot set the state of an hidden wave");
+
       process ().enqueue_event (process ().create<event_t> (
           process (), AMD_DBGAPI_EVENT_KIND_WAVE_STOP, id ()));
     }

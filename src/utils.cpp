@@ -104,7 +104,10 @@ get_handle_list (amd_dbgapi_process_id_t process_id, size_t *object_count,
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-  if (changed && !process->reset_changed<Object> ())
+  /* Check whether the Objects have changed since the last time get_handle_list
+     was called. The flag is set whenever objects are created, or destroyed, or
+     invalidated, and cleared when get_handle_list is called.  */
+  if (changed && !process->set_changed<Object> (false))
     {
       *objects = nullptr;
       *object_count = 0;
@@ -115,15 +118,23 @@ get_handle_list (amd_dbgapi_process_id_t process_id, size_t *object_count,
   size_t count = process->count<Object> ();
   Handle *retval;
 
+  /* The size allocated includes space for all objects, so it is larger than
+     necessary if there are invalid objects, but that is conservatively safe.
+   */
   retval = static_cast<Handle *> (allocate_memory (count * sizeof (Handle)));
   if (count && !retval)
     return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
 
+  count = 0;
+  for (auto &&object : process->range<Object> ())
+    {
+      if (!detail::is_valid (object))
+        continue;
+      retval[count++] = object.id ();
+    }
+
   *objects = retval;
   *object_count = count;
-
-  for (auto &&object : process->range<Object> ())
-    *retval++ = object.id ();
 
   if (changed)
     *changed = AMD_DBGAPI_CHANGED_YES;
@@ -148,9 +159,9 @@ template amd_dbgapi_status_t get_handle_list<dispatch_t> (
     amd_dbgapi_dispatch_id_t **objects, amd_dbgapi_changed_t *changed);
 
 template amd_dbgapi_status_t
-get_handle_list<wave_t> (
-    amd_dbgapi_process_id_t process_id, size_t *object_count,
-    amd_dbgapi_wave_id_t **objects, amd_dbgapi_changed_t *changed);
+get_handle_list<wave_t> (amd_dbgapi_process_id_t process_id,
+                         size_t *object_count, amd_dbgapi_wave_id_t **objects,
+                         amd_dbgapi_changed_t *changed);
 
 } /* namespace utils */
 

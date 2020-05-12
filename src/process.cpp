@@ -1610,8 +1610,10 @@ amd_dbgapi_process_set_progress (amd_dbgapi_process_id_t process_id,
     {
     case AMD_DBGAPI_PROGRESS_NORMAL:
       process->set_forward_progress_needed (true);
+      break;
     case AMD_DBGAPI_PROGRESS_NO_FORWARD:
       process->set_forward_progress_needed (false);
+      break;
     default:
       return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
     }

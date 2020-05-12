@@ -389,6 +389,8 @@ queue_t::update_waves (update_waves_flag_t flags)
           = ttmps_address + n_ttmps * sizeof (uint32_t);
 
       amd_dbgapi_wave_id_t wave_id = wave_t::undefined;
+      wave_t::visibility_t visibility = wave_t::visibility_t::VISIBLE;
+      wave_t *wave = nullptr;
 
       /* We will never have hidden waves when force assigning wave ids. All
          waves seen in the control stack get a new wave_t instance with a new
@@ -406,10 +408,12 @@ queue_t::update_waves (update_waves_flag_t flags)
           if (status != AMD_DBGAPI_STATUS_SUCCESS)
             return status;
 
-          /* A wave should be ignored if its wave_id is wave_t::ignored_wave,
-             or if its wave_id is wave_t::undefined and it is halted without
-             having entered the trap handler.  */
-          if (wave_id == wave_t::undefined && !unhide_waves_halted_at_launch)
+          /* If this is a new wave, check its visibility.  Waves halted at
+             launch should remain hidden until the wave creation mode is
+             changed to NORMAL.  A wave is halted at launch if it is halted
+             without having entered the trap handler.
+           */
+          if (wave_id == wave_t::undefined)
             {
               uint32_t status_reg;
               const amd_dbgapi_global_address_t status_reg_address
@@ -442,15 +446,9 @@ queue_t::update_waves (update_waves_flag_t flags)
 
               /* Waves halted at launch do not have trap handler events).  */
               if (halted && !trap_handler_events)
-                continue;
-            }
-          else if (wave_id == wave_t::ignored_wave)
-            {
-              continue;
+                visibility = wave_t::visibility_t::HIDDEN_HALTED_AT_LAUNCH;
             }
         }
-
-      wave_t *wave = nullptr;
 
       if (wave_id != wave_t::undefined)
         {
@@ -477,12 +475,9 @@ queue_t::update_waves (update_waves_flag_t flags)
             return status;
 
           if (!dispatch_ptr)
-            {
-              warning ("invalid null dispatch_ptr at 0x%lx", ttmp6_7_address);
-              /* TODO: See comment above for corrupted wavefronts. This could
-                 be attached to a CORRUPT_DISPATCH instance.  */
-              continue;
-            }
+            /* TODO: See comment above for corrupted wavefronts. This could be
+               attached to a CORRUPT_DISPATCH instance.  */
+            error ("invalid null dispatch_ptr at 0x%lx", ttmp6_7_address);
 
           /* SPI only sends us the lower 40 bits of the dispatch_ptr, so we
              need to reconstitute it using the ring_base_address for the
@@ -493,6 +488,11 @@ queue_t::update_waves (update_waves_flag_t flags)
             dispatch_ptr = (dispatch_ptr & spi_mask)
                            | (m_kfd_queue_info.ring_base_address & ~spi_mask);
 
+          if ((dispatch_ptr % aql_packet_size) != 0)
+            /* TODO: See comment above for corrupted wavefronts. This could be
+               attached to a CORRUPT_DISPATCH instance.  */
+            error ("dispatch_ptr is not aligned on the packet size");
+
           /* Calculate the monotonic dispatch id for this packet.  It is
              between read_dispatch_id and write_dispatch_id.  */
 
@@ -502,12 +502,9 @@ queue_t::update_waves (update_waves_flag_t flags)
 
           /* Check that 0 <= queue_packet_id < queue_size.  */
           if (queue_packet_id >= m_kfd_queue_info.ring_size / aql_packet_size)
-            {
-              warning ("invalid queue_packet_id (%#lx)", queue_packet_id);
-              /* TODO: See comment above for corrupted wavefronts. This could
-                 be attached to a CORRUPT_DISPATCH instance.  */
-              continue;
-            }
+            /* TODO: See comment above for corrupted wavefronts. This could be
+               attached to a CORRUPT_DISPATCH instance.  */
+            error ("invalid queue_packet_id (%#lx)", queue_packet_id);
 
           /* ring_size must be a power of 2.  */
           if (!utils::is_power_of_two (m_kfd_queue_info.ring_size))
@@ -525,15 +522,11 @@ queue_t::update_waves (update_waves_flag_t flags)
           /* Check that read_dispatch_id <= dispatch_id < write_dispatch_id  */
           if (read_dispatch_id > queue_packet_id
               || queue_packet_id >= write_dispatch_id)
-            {
-              warning (
-                  "invalid dispatch id (%#lx), with read_dispatch_id=%#lx, "
-                  "and write_dispatch_id=%#lx",
-                  queue_packet_id, read_dispatch_id, write_dispatch_id);
-              /* TODO: See comment above for corrupted wavefronts. This could
-                 be attached to a CORRUPT_DISPATCH instance.  */
-              continue;
-            }
+            /* TODO: See comment above for corrupted wavefronts. This could be
+               attached to a CORRUPT_DISPATCH instance.  */
+            error ("invalid dispatch id (%#lx), with read_dispatch_id=%#lx, "
+                   "and write_dispatch_id=%#lx",
+                   queue_packet_id, read_dispatch_id, write_dispatch_id);
 
           /* Check if the dispatch already exists.  */
           dispatch_t *dispatch = process.find_if ([&] (const dispatch_t &x) {
@@ -556,6 +549,8 @@ queue_t::update_waves (update_waves_flag_t flags)
                                           lds_offset, /* local_memory_offset */
                                           lds_size,   /* local_memory_size  */
                                           wave_lanes); /* lane_count  */
+
+          wave->set_visibility (visibility);
         }
 
       /* The first wave in the group is the group leader.  The group leader
@@ -566,10 +561,19 @@ queue_t::update_waves (update_waves_flag_t flags)
       if (!group_leader)
         error ("No group_leader, the control stack may be corrupted");
 
-      status = wave->update (*group_leader, wave_area_address,
-                             unhide_waves_halted_at_launch);
+      status = wave->update (*group_leader, wave_area_address);
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
+
+      if (wave->visibility () == wave_t::visibility_t::HIDDEN_HALTED_AT_LAUNCH
+          && unhide_waves_halted_at_launch)
+        {
+          dbgapi_assert (wave->state () == AMD_DBGAPI_WAVE_STATE_STOP
+                         && wave->stop_reason ()
+                                == AMD_DBGAPI_WAVE_STOP_REASON_NONE);
+          wave->set_visibility (wave_t::visibility_t::VISIBLE);
+          wave->set_state (AMD_DBGAPI_WAVE_STATE_RUN);
+        }
 
       /* This was the last wave in the group. Make sure we have a new group
          leader for the remaining waves.  */

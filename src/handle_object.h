@@ -300,14 +300,18 @@ public:
 
   Object *find (handle_type id)
   {
-    auto object_it = m_map.find (id);
-    return (object_it != m_map.end ()) ? &object_it->second : nullptr;
+    auto it = m_map.find (id);
+    if (it == m_map.end () || !detail::is_valid (it->second))
+      return nullptr;
+    return &it->second;
   }
 
   const Object *find (handle_type id) const
   {
-    auto object_it = m_map.find (id);
-    return (object_it != m_map.end ()) ? &object_it->second : nullptr;
+    auto it = m_map.find (id);
+    if (it == m_map.end () || !detail::is_valid (it->second))
+      return nullptr;
+    return &it->second;
   }
 
   template <typename Functor> Object *find_if (Functor predicate)
@@ -316,7 +320,9 @@ public:
                             [=] (const typename map_type::value_type &value) {
                               return bool{ predicate (value.second) };
                             });
-    return it != m_map.end () ? &it->second : nullptr;
+    if (it == m_map.end () || !detail::is_valid (it->second))
+      return nullptr;
+    return &it->second;
   }
 
   template <typename Functor> const Object *find_if (Functor predicate) const
@@ -325,7 +331,9 @@ public:
                             [=] (const typename map_type::value_type &value) {
                               return bool{ predicate (value.second) };
                             });
-    return it != m_map.end () ? &it->second : nullptr;
+    if (it == m_map.end () || !detail::is_valid (it->second))
+      return nullptr;
+    return &it->second;
   }
 
   iterator begin () { return iterator (m_map.begin ()); }
@@ -339,10 +347,10 @@ public:
 
   size_t size () const { return m_map.size (); }
 
-  bool reset_changed ()
+  bool set_changed (bool changed)
   {
     bool ret = m_changed;
-    m_changed = false;
+    m_changed = changed;
     return ret;
   }
 

@@ -726,11 +726,8 @@ amdgcn_architecture_t::simulate_instruction (
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
 
-      /* Set the wave_id to the ignored_wave sentinel.  */
-      amd_dbgapi_wave_id_t wave_id = wave_t::ignored_wave;
-      status = wave.write_register (amdgpu_regnum_t::WAVE_ID, &wave_id);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
+      /* Hide this wave so that it isn't reported to the client.  */
+      wave.set_visibility (wave_t::visibility_t::HIDDEN_AT_ENDPGM);
 
       return wave.set_state (AMD_DBGAPI_WAVE_STATE_RUN);
     }
