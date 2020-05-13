@@ -136,7 +136,7 @@ process_t::dbg_trap_ioctl (uint32_t action, kfd_ioctl_dbg_trap_args *args)
   args->pid = m_os_pid;
   args->op = action;
 
-  int ret = ::ioctl (m_kfd_fd, AMDKFD_IOC_DBG_TRAP_old, args);
+  int ret = ::ioctl (m_kfd_fd, AMDKFD_IOC_DBG_TRAP, args);
   if (ret < 0 && errno == ESRCH)
     {
       /* The target process does not exist, it must have exited.  */
