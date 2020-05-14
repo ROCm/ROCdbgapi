@@ -1008,7 +1008,11 @@ process_t::update_queues ()
                  that we either did not create a queue when a new queue_id was
                  reported (we consumed the event without action), or KFD did
                  not report the new queue.  */
-              dbgapi_assert (queue);
+              if (!queue)
+                error (
+                    "kfd_queue_id %d should have been reported as a NEW_QUEUE "
+                    "before",
+                    queue_info.queue_id);
 
               /* FIXME: If we could select which flags get cleared by the
                  query_debug_event ioctl, we would not need to create a

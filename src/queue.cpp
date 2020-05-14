@@ -599,6 +599,18 @@ queue_t::update_waves (update_waves_flag_t flags)
              m_kfd_queue_info.ctx_save_restore_address
                  + header.wave_state_offset - wave_area_address);
 
+  /* Iterate all waves belonging to this queue, and prune those with a mark
+     older than the current mark.  Note that the waves must be pruned before
+     the dispatches to ensure there are no dangling pointers from waves to
+     pruned dispatches.  */
+
+  auto &&wave_range = process.range<wave_t> ();
+  for (auto wave_it = wave_range.begin (); wave_it != wave_range.end ();)
+    if (wave_it->queue ().id () == id () && wave_it->mark () < wave_mark)
+      wave_it = process.destroy (wave_it);
+    else
+      ++wave_it;
+
   /* Prune old dispatches. Dispatches with ids older (smaller) than the
      queue current read dispatch id are now retired, so remove them from
      the process.  */
@@ -611,16 +623,6 @@ queue_t::update_waves (update_waves_flag_t flags)
       dispatch_it = process.destroy (dispatch_it);
     else
       ++dispatch_it;
-
-  /* Iterate all waves belonging to this queue, and prune those with a mark
-     older than the current mark.  */
-
-  auto &&wave_range = process.range<wave_t> ();
-  for (auto wave_it = wave_range.begin (); wave_it != wave_range.end ();)
-    if (wave_it->queue ().id () == id () && wave_it->mark () < wave_mark)
-      wave_it = process.destroy (wave_it);
-    else
-      ++wave_it;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 }

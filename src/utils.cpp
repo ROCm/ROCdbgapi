@@ -239,7 +239,7 @@ pipe_t::flush ()
   if (ret == -1 && errno != EAGAIN)
     error ("read: %s", strerror (errno));
 
-  return ret == -1 ? errno : 0;
+  return ret == -1 ? -errno : 0;
 }
 
 int
@@ -259,7 +259,7 @@ pipe_t::mark ()
   if (ret == -1 && errno != EAGAIN)
     error ("write: %s", strerror (errno));
 
-  return ret == -1 ? errno : 0;
+  return ret == -1 ? -errno : 0;
 }
 
 } /* namespace dbgapi */
