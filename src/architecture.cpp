@@ -1901,55 +1901,33 @@ architecture_t::get_info (amd_dbgapi_architecture_info_t query,
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }
 
-namespace detail
-{
-
-template <class ElementType, std::size_t N> struct initializer_list_t
-{
-  /* Move the elements out of the temporary container.  */
-  template <class T> operator T () &&
-  {
-    return { std::make_move_iterator (elements.begin ()),
-             std::make_move_iterator (elements.end ()) };
-  }
-  /* Temporary container.  */
-  std::array<ElementType, N> elements;
-};
-
-using architecture_map_value_type
-    = std::pair<amd_dbgapi_architecture_id_t, std::unique_ptr<architecture_t>>;
-
-/* Create a container to hold the map values.  */
-template <class... Keys, class... Values, std::size_t... Is>
-initializer_list_t<architecture_map_value_type, sizeof...(Is)>
-make_architecture_initializer_list_impl (std::tuple<Keys...> keys,
-                                         std::tuple<Values &...> values,
-                                         std::index_sequence<Is...>)
-{
-  return { { { architecture_map_value_type{
-      std::get<Is> (keys), std::move (std::get<Is> (values)) }... } } };
-}
-
-} /* namespace detail */
-
-/* Helper function to create an initializer list with movable elements.  */
-template <class... Args,
-          typename Is = std::make_index_sequence<sizeof...(Args)>>
+template <typename ArchitectureType, typename... Args>
 auto
-make_architecture_initializer_list (Args... args)
+architecture_t::create_architecture (Args &&... args)
 {
-  return detail::make_architecture_initializer_list_impl (
-      std::make_tuple (args->id ()...), std::forward_as_tuple (args...), Is{});
+  auto *arch = new ArchitectureType (std::forward<Args> (args)...);
+  if (!arch)
+    error ("could not create architecture");
+
+  arch->initialize ();
+  return std::make_pair (arch->id (), std::unique_ptr<architecture_t> (arch));
 }
 
-std::unordered_map<amd_dbgapi_architecture_id_t,
-                   std::unique_ptr<const architecture_t>,
-                   hash<amd_dbgapi_architecture_id_t>>
-    architecture_t::s_architecture_map = make_architecture_initializer_list (
-        create_architecture<gfx900_t> (), create_architecture<gfx902_t> (),
-        create_architecture<gfx904_t> (), create_architecture<gfx906_t> (),
-        create_architecture<gfx908_t> (), create_architecture<gfx1010_t> (),
-        create_architecture<gfx1011_t> (), create_architecture<gfx1012_t> ());
+decltype (
+    architecture_t::s_architecture_map) architecture_t::s_architecture_map{
+  [] () {
+    decltype (s_architecture_map) map;
+    map.emplace (create_architecture<gfx900_t> ());
+    map.emplace (create_architecture<gfx902_t> ());
+    map.emplace (create_architecture<gfx904_t> ());
+    map.emplace (create_architecture<gfx906_t> ());
+    map.emplace (create_architecture<gfx908_t> ());
+    map.emplace (create_architecture<gfx1010_t> ());
+    map.emplace (create_architecture<gfx1011_t> ());
+    map.emplace (create_architecture<gfx1012_t> ());
+    return map;
+  }()
+};
 
 } /* namespace dbgapi */
 } /* namespace amd */

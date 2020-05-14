@@ -163,7 +163,7 @@ public:
   const std::string &name () const { return m_name; }
 
   template <typename ArchitectureType, typename... Args>
-  static std::unique_ptr<architecture_t> create_architecture (Args &&... args);
+  static auto create_architecture (Args &&... args);
 
   static const architecture_t *
   find (amd_dbgapi_architecture_id_t architecture_id, int ignore = 0);
@@ -247,18 +247,6 @@ private:
                             hash<amd_dbgapi_architecture_id_t>>
       s_architecture_map;
 };
-
-template <typename ArchitectureType, typename... Args>
-std::unique_ptr<architecture_t>
-architecture_t::create_architecture (Args &&... args)
-{
-  auto *arch = new ArchitectureType (std::forward<Args> (args)...);
-  if (!arch)
-    error ("could not create architecture");
-
-  arch->initialize ();
-  return std::unique_ptr<architecture_t> (arch);
-}
 
 } /* namespace dbgapi */
 } /* namespace amd */
