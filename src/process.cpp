@@ -71,11 +71,12 @@ constexpr struct gfxip_lookup_table
     uint8_t stepping; /* GFXIP Stepping info.  */
   } gfxip;
   uint16_t fw_version; /* Minimum required firmware version.  */
-} gfxip_lookup_table[]
-    = { { "vega10", { 9, 0, 0 }, 432 },  { "raven", { 9, 0, 2 }, 0 },
-        { "vega12", { 9, 0, 4 }, 0 },    { "vega20", { 9, 0, 6 }, 432 },
-        { "arcturus", { 9, 0, 8 }, 34 }, { "navi10", { 10, 1, 0 }, 0 },
-        { "navi12", { 10, 1, 1 }, 0 },   { "navi14", { 10, 1, 2 }, 0 } };
+} gfxip_lookup_table[]{
+  { "vega10", { 9, 0, 0 }, 432 },  { "raven", { 9, 0, 2 }, 0 },
+  { "vega12", { 9, 0, 4 }, 0 },    { "vega20", { 9, 0, 6 }, 432 },
+  { "arcturus", { 9, 0, 8 }, 34 }, { "navi10", { 10, 1, 0 }, 0 },
+  { "navi12", { 10, 1, 1 }, 0 },   { "navi14", { 10, 1, 2 }, 0 }
+};
 
 namespace detail
 {
@@ -1192,17 +1193,6 @@ process_t::attach ()
   dbg_trap_args.pid = static_cast<uint32_t> (getpid ());
   dbg_trap_args.op = KFD_IOC_DBG_TRAP_GET_VERSION;
 
-  /* - Enabling debug mode before the target process opens the KFD device
-       requires KFD_IOCTL_DBG >= 1.1
-     - Clearing the queue status on queue suspend requires version >= 1.3
-     - 1.4 Fixes an issue with kfifo free exposed by a user mode change.
-     - 2.0 Returns number of queues suspended/resumed and invalid array slots
-   */
-  static_assert (KFD_IOCTL_DBG_MAJOR_VERSION > 1
-                     || (KFD_IOCTL_DBG_MAJOR_VERSION == 2
-                         && KFD_IOCTL_DBG_MINOR_VERSION >= 0),
-                 "KFD_IOCTL_DBG >= 1.4 required");
-
   /* Check that the KFD dbg trap major == IOCTL dbg trap major,
      and KFD dbg trap minor >= IOCTL dbg trap minor.  */
   if (ioctl (m_kfd_fd, AMDKFD_IOC_DBG_TRAP, &dbg_trap_args)
@@ -1215,6 +1205,10 @@ process_t::attach ()
           KFD_IOCTL_DBG_MAJOR_VERSION, KFD_IOCTL_DBG_MINOR_VERSION);
       return AMD_DBGAPI_STATUS_ERROR_VERSION_MISMATCH;
     }
+
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+              "using KFD dbg trap ioctl version %d.%d", dbg_trap_args.data1,
+              dbg_trap_args.data2);
 
   auto on_rocr_load_callback = [this] (const shared_library_t &library) {
     amd_dbgapi_status_t status;

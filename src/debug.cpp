@@ -130,6 +130,7 @@ error (const char *format, ...)
   va_start (va, format);
 
   std::string message = string_vprintf (format, va);
+  va_end (va);
 
 #if defined(ENABLE_BACKTRACE)
   detail::backtrace_info info;
@@ -146,7 +147,6 @@ error (const char *format, ...)
   /* TODO: We should return a FATAL error here, and put the API
      in a finalized state (maybe the catch should do that). */
   throw exception_t (AMD_DBGAPI_STATUS_FATAL, message);
-  va_end (va);
 }
 
 } /* namespace dbgapi */

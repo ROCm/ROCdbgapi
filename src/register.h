@@ -85,7 +85,7 @@ enum class amdgpu_regnum_t : decltype (amd_dbgapi_register_id_t::handle)
   STATUS,           /* Status register.  */
   TRAPSTS,          /* Exception status registers.  */
   XNACK_MASK_LO,    /* XNACK mask (lower 32-bit).  */
-  XNACK_MASK_HI,    /* XNACK mask (lower 32-bit).  */
+  XNACK_MASK_HI,    /* XNACK mask (higher 32-bit).  */
   MODE,             /* Mode register.  */
   HWREG10,
   HWREG15 = HWREG10 + 5,

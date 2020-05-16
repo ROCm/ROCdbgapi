@@ -288,13 +288,12 @@ private:
 
 } /* namespace utils */
 
-template <typename T, bool = std::is_enum<T>::value> struct is_flag;
-template <typename T> struct is_flag<T, true> : std::false_type
+template <typename T> struct is_flag : std::false_type
 {
 };
 
 /* To enable bitwise operators on enum classes use:
-   template <> struct is_flag<my_enum_class> : std::true_type;
+   template <> struct is_flag<my_enum_class> : std::true_type {};
 */
 
 template <typename T> constexpr bool is_flag_v = is_flag<T>::value;

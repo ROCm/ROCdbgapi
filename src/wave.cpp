@@ -335,9 +335,9 @@ wave_t::register_offset_and_size (amdgpu_regnum_t regnum,
 
       return std::make_pair (vgprs_offset + vgpr_num * vgpr_size, vgpr_size);
     }
-  else if (lane_count () == 64 && regnum >= amdgpu_regnum_t::FIRST_VGPR_64
-           && regnum <= amdgpu_regnum_t::LAST_VGPR_64
-           && ((regnum - amdgpu_regnum_t::V0_64) < m_vgpr_count))
+  if (lane_count () == 64 && regnum >= amdgpu_regnum_t::FIRST_VGPR_64
+      && regnum <= amdgpu_regnum_t::LAST_VGPR_64
+      && ((regnum - amdgpu_regnum_t::V0_64) < m_vgpr_count))
     {
       size_t vgprs_offset = 0;
       size_t vgpr_size = sizeof (int32_t) * 64;
@@ -345,9 +345,20 @@ wave_t::register_offset_and_size (amdgpu_regnum_t regnum,
 
       return std::make_pair (vgprs_offset + vgpr_num * vgpr_size, vgpr_size);
     }
-  else if (lane_count () == 64 && regnum >= amdgpu_regnum_t::FIRST_ACCVGPR_64
-           && regnum <= amdgpu_regnum_t::LAST_ACCVGPR_64
-           && ((regnum - amdgpu_regnum_t::ACC0_64) < m_accvgpr_count))
+  if (lane_count () == 32 && regnum >= amdgpu_regnum_t::FIRST_ACCVGPR_32
+      && regnum <= amdgpu_regnum_t::LAST_ACCVGPR_32
+      && ((regnum - amdgpu_regnum_t::ACC0_32) < m_accvgpr_count))
+    {
+      size_t accvgprs_offset = m_vgpr_count * sizeof (int32_t) * m_lane_count;
+      size_t accvgpr_size = sizeof (int32_t) * m_lane_count;
+      size_t accvgpr_num = regnum - amdgpu_regnum_t::ACC0_32;
+
+      return std::make_pair (accvgprs_offset + accvgpr_num * accvgpr_size,
+                             accvgpr_size);
+    }
+  if (lane_count () == 64 && regnum >= amdgpu_regnum_t::FIRST_ACCVGPR_64
+      && regnum <= amdgpu_regnum_t::LAST_ACCVGPR_64
+      && ((regnum - amdgpu_regnum_t::ACC0_64) < m_accvgpr_count))
     {
       size_t accvgprs_offset = m_vgpr_count * sizeof (int32_t) * m_lane_count;
       size_t accvgpr_size = sizeof (int32_t) * m_lane_count;
@@ -356,13 +367,13 @@ wave_t::register_offset_and_size (amdgpu_regnum_t regnum,
       return std::make_pair (accvgprs_offset + accvgpr_num * accvgpr_size,
                              accvgpr_size);
     }
-  else if (regnum >= amdgpu_regnum_t::FIRST_SGPR
-           && regnum <= amdgpu_regnum_t::LAST_SGPR
-           && (regnum - amdgpu_regnum_t::S0) < std::min (
-                  102ul, m_sgpr_count -
-                             /* TODO: make an architecture query to return the
-                                number of special registers.  */
-                             (include_aliased_registers ? 0 : 2)))
+  if (regnum >= amdgpu_regnum_t::FIRST_SGPR
+      && regnum <= amdgpu_regnum_t::LAST_SGPR
+      && (regnum - amdgpu_regnum_t::S0) < std::min (
+             102ul, m_sgpr_count -
+                        /* TODO: make an architecture query to return the
+                           number of special registers.  */
+                        (include_aliased_registers ? 0 : 6)))
     {
       size_t sgprs_offset
           = (m_vgpr_count + m_accvgpr_count) * sizeof (int32_t) * m_lane_count;
@@ -371,8 +382,8 @@ wave_t::register_offset_and_size (amdgpu_regnum_t regnum,
       return std::make_pair (sgprs_offset + sgpr_num * sizeof (int32_t),
                              sizeof (int32_t));
     }
-  else if (regnum >= amdgpu_regnum_t::FIRST_HWREG
-           && regnum <= amdgpu_regnum_t::LAST_HWREG)
+  if (regnum >= amdgpu_regnum_t::FIRST_HWREG
+      && regnum <= amdgpu_regnum_t::LAST_HWREG)
     {
       size_t hwregs_offset
           = (m_vgpr_count + m_accvgpr_count) * sizeof (int32_t) * m_lane_count
@@ -383,8 +394,8 @@ wave_t::register_offset_and_size (amdgpu_regnum_t regnum,
       return std::make_pair (hwregs_offset + hwreg_num * sizeof (uint32_t),
                              hwreg_size);
     }
-  else if (regnum >= amdgpu_regnum_t::FIRST_TTMP
-           && regnum <= amdgpu_regnum_t::LAST_TTMP)
+  if (regnum >= amdgpu_regnum_t::FIRST_TTMP
+      && regnum <= amdgpu_regnum_t::LAST_TTMP)
     {
       size_t ttmps_offset
           = (m_vgpr_count + m_accvgpr_count) * sizeof (int32_t) * m_lane_count
@@ -394,23 +405,26 @@ wave_t::register_offset_and_size (amdgpu_regnum_t regnum,
       return std::make_pair (ttmps_offset + ttmp_num * sizeof (uint32_t),
                              sizeof (uint32_t));
     }
-  else if (regnum == amdgpu_regnum_t::PC)
+  if (regnum == amdgpu_regnum_t::PC)
     {
       return std::make_pair (-1, sizeof (void (*) ()));
     }
-  else if (regnum == amdgpu_regnum_t::WAVE_ID)
+  if (regnum == amdgpu_regnum_t::WAVE_ID
+      || regnum == amdgpu_regnum_t::FLAT_SCRATCH)
     {
       return std::make_pair (-1, sizeof (uint64_t));
     }
-  else if (lane_count () == 32
-           && (regnum == amdgpu_regnum_t::EXEC_32
-               || regnum == amdgpu_regnum_t::VCC_32))
+  if (lane_count () == 32
+      && (regnum == amdgpu_regnum_t::EXEC_32
+          || regnum == amdgpu_regnum_t::VCC_32
+          || regnum == amdgpu_regnum_t::XNACK_MASK_32))
     {
       return std::make_pair (-1, sizeof (uint32_t));
     }
-  else if (lane_count () == 64
-           && (regnum == amdgpu_regnum_t::EXEC_64
-               || regnum == amdgpu_regnum_t::VCC_64))
+  if (lane_count () == 64
+      && (regnum == amdgpu_regnum_t::EXEC_64
+          || regnum == amdgpu_regnum_t::VCC_64
+          || regnum == amdgpu_regnum_t::XNACK_MASK_64))
     {
       return std::make_pair (-1, sizeof (uint64_t));
     }
@@ -473,7 +487,8 @@ wave_t::read_pseudo_register (amdgpu_regnum_t regnum, size_t offset,
 
   if (lane_count () == 32
       && (regnum == amdgpu_regnum_t::EXEC_32
-          || regnum == amdgpu_regnum_t::VCC_32))
+          || regnum == amdgpu_regnum_t::VCC_32
+          || regnum == amdgpu_regnum_t::XNACK_MASK_32))
     {
       amdgpu_regnum_t regnum_lo;
 
@@ -485,6 +500,9 @@ wave_t::read_pseudo_register (amdgpu_regnum_t regnum, size_t offset,
         case amdgpu_regnum_t::VCC_32:
           regnum_lo = amdgpu_regnum_t::S0 + sgpr_count () - 2;
           break;
+        case amdgpu_regnum_t::XNACK_MASK_32:
+          regnum_lo = amdgpu_regnum_t::S0 + sgpr_count () - 4;
+          break;
         default:
           return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
         }
@@ -493,9 +511,11 @@ wave_t::read_pseudo_register (amdgpu_regnum_t regnum, size_t offset,
     }
   /* Read registers that are lo/hi pairs.  */
   else if (regnum == amdgpu_regnum_t::PC || regnum == amdgpu_regnum_t::WAVE_ID
+           || regnum == amdgpu_regnum_t::FLAT_SCRATCH
            || (lane_count () == 64
                && (regnum == amdgpu_regnum_t::EXEC_64
-                   || regnum == amdgpu_regnum_t::VCC_64)))
+                   || regnum == amdgpu_regnum_t::VCC_64
+                   || regnum == amdgpu_regnum_t::XNACK_MASK_64)))
     {
       amdgpu_regnum_t regnum_lo;
       uint32_t reg[2];
@@ -515,6 +535,12 @@ wave_t::read_pseudo_register (amdgpu_regnum_t regnum, size_t offset,
           break;
         case amdgpu_regnum_t::VCC_64:
           regnum_lo = amdgpu_regnum_t::S0 + sgpr_count () - 2;
+          break;
+        case amdgpu_regnum_t::XNACK_MASK_64:
+          regnum_lo = amdgpu_regnum_t::S0 + sgpr_count () - 4;
+          break;
+        case amdgpu_regnum_t::FLAT_SCRATCH:
+          regnum_lo = amdgpu_regnum_t::S0 + sgpr_count () - 6;
           break;
         default:
           return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
@@ -612,7 +638,8 @@ wave_t::write_pseudo_register (amdgpu_regnum_t regnum, size_t offset,
 
   if (lane_count () == 32
       && (regnum == amdgpu_regnum_t::EXEC_32
-          || regnum == amdgpu_regnum_t::VCC_32))
+          || regnum == amdgpu_regnum_t::VCC_32
+          || regnum == amdgpu_regnum_t::XNACK_MASK_32))
     {
       amdgpu_regnum_t regnum_lo;
 
@@ -624,6 +651,9 @@ wave_t::write_pseudo_register (amdgpu_regnum_t regnum, size_t offset,
         case amdgpu_regnum_t::VCC_32:
           regnum_lo = amdgpu_regnum_t::S0 + sgpr_count () - 2;
           break;
+        case amdgpu_regnum_t::XNACK_MASK_32:
+          regnum_lo = amdgpu_regnum_t::S0 + sgpr_count () - 4;
+          break;
         default:
           return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
         }
@@ -632,9 +662,11 @@ wave_t::write_pseudo_register (amdgpu_regnum_t regnum, size_t offset,
     }
   /* Write registers that are lo/hi pairs.  */
   else if (regnum == amdgpu_regnum_t::PC || regnum == amdgpu_regnum_t::WAVE_ID
+           || regnum == amdgpu_regnum_t::FLAT_SCRATCH
            || (lane_count () == 64
                && (regnum == amdgpu_regnum_t::EXEC_64
-                   || regnum == amdgpu_regnum_t::VCC_64)))
+                   || regnum == amdgpu_regnum_t::VCC_64
+                   || regnum == amdgpu_regnum_t::XNACK_MASK_64)))
     {
       amdgpu_regnum_t regnum_lo;
       uint32_t reg[2];
@@ -654,6 +686,12 @@ wave_t::write_pseudo_register (amdgpu_regnum_t regnum, size_t offset,
           break;
         case amdgpu_regnum_t::VCC_64:
           regnum_lo = amdgpu_regnum_t::S0 + sgpr_count () - 2;
+          break;
+        case amdgpu_regnum_t::XNACK_MASK_64:
+          regnum_lo = amdgpu_regnum_t::S0 + sgpr_count () - 4;
+          break;
+        case amdgpu_regnum_t::FLAT_SCRATCH:
+          regnum_lo = amdgpu_regnum_t::S0 + sgpr_count () - 6;
           break;
         default:
           return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;

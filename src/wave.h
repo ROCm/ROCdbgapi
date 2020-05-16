@@ -166,8 +166,6 @@ public:
            && (regnum == amdgpu_regnum_t::PC
                || regnum == amdgpu_regnum_t::EXEC_32
                || regnum == amdgpu_regnum_t::EXEC_64
-               || regnum == amdgpu_regnum_t::XNACK_MASK_32
-               || regnum == amdgpu_regnum_t::XNACK_MASK_64
                || (regnum >= amdgpu_regnum_t::FIRST_HWREG
                    && regnum <= amdgpu_regnum_t::LAST_HWREG));
   }
