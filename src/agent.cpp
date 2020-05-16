@@ -127,10 +127,6 @@ agent_t::next_kfd_event (amd_dbgapi_queue_id_t *queue_id,
              destroyed it if it isn't a supported queue type.  */
           if (process.find (*queue_id))
             return AMD_DBGAPI_STATUS_SUCCESS;
-
-          dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                      "skipping event for deleted kfd_queue_id %d",
-                      kfd_queue_id);
         }
       else if (queue)
         {
@@ -139,11 +135,19 @@ agent_t::next_kfd_event (amd_dbgapi_queue_id_t *queue_id,
         }
       else
         {
-          /* KFD did not report the new queue?  */
+          /* FIXME: Is it possible to reach here if the queue type isn't AQL.
+             We could have seen the queue before and ignored it.  Re-enable
+             this error when queue_t instances are created for all queue types.
+
           error ("kfd_queue_id %d should have been reported as a NEW_QUEUE "
                  "before",
                  kfd_queue_id);
+          */
         }
+
+      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+                  "skipping event for deleted/unsupported kfd_queue_id %d",
+                  kfd_queue_id);
     }
 }
 
