@@ -288,7 +288,7 @@ amd_dbgapi_next_pending_event (amd_dbgapi_process_id_t process_id,
                   /* Check that the queue suspend status returned by KFD
                      matches the status we are keeping for the queue_t.  */
                   dbgapi_assert (
-                      queue->suspended ()
+                      queue->is_suspended ()
                           == !!(queue_status & KFD_DBG_EV_STATUS_SUSPENDED)
                       && "inconsistent suspend status");
 
@@ -301,7 +301,7 @@ amd_dbgapi_next_pending_event (amd_dbgapi_process_id_t process_id,
                      and before that request has completed, or if the act of
                      suspending a wave generates a new event (such as for the
                      single step work-around in the CWSR handler).  */
-                  if (!queue->suspended ())
+                  if (!queue->is_suspended ())
                     {
                       /* Don't add a queue more than once.  */
                       if (std::find (queues.begin (), queues.end (), queue)

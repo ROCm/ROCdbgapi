@@ -131,7 +131,7 @@ close_kfd ()
 int
 process_t::dbg_trap_ioctl (uint32_t action, kfd_ioctl_dbg_trap_args *args)
 {
-  if (m_process_exited)
+  if (is_flag_set (flag_t::CLIENT_PROCESS_HAS_EXITED))
     return -ESRCH;
 
   args->pid = m_os_pid;
@@ -141,7 +141,7 @@ process_t::dbg_trap_ioctl (uint32_t action, kfd_ioctl_dbg_trap_args *args)
   if (ret < 0 && errno == ESRCH)
     {
       /* The target process does not exist, it must have exited.  */
-      m_process_exited = true;
+      set_flag (flag_t::CLIENT_PROCESS_HAS_EXITED);
       /* FIXME: We should tear down the process now, so that any operation
          executed after this point returns an error.  */
       return -ESRCH;
@@ -197,7 +197,7 @@ process_t::detach ()
   /* The client process could have exited, so refresh its os pid.  */
   amd_dbgapi_status_t status = get_os_pid (&m_os_pid);
   if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-    m_process_exited = true;
+    set_flag (flag_t::CLIENT_PROCESS_HAS_EXITED);
   else if (status != AMD_DBGAPI_STATUS_SUCCESS)
     error ("get_os_pid callback failed (rc=%d)", status);
 
@@ -206,7 +206,7 @@ process_t::detach ()
      catch any exception, and rethrow it later.
    */
 
-  if (!m_process_exited)
+  if (!is_flag_set (flag_t::CLIENT_PROCESS_HAS_EXITED))
     try
       {
         /* We don't need to resume the queues until we are done changing the
@@ -220,7 +220,7 @@ process_t::detach ()
 
         /* Suspend the queues that weren't already suspended.  */
         for (auto &&queue : range<queue_t> ())
-          if (!queue.suspended ())
+          if (!queue.is_suspended ())
             queues.emplace_back (&queue);
 
         suspend_queues (queues);
@@ -422,7 +422,7 @@ process_t::set_forward_progress_needed (bool forward_progress_needed)
       queues.reserve (count<queue_t> ());
 
       for (auto &&queue : range<queue_t> ())
-        if (queue.suspended ())
+        if (queue.is_suspended ())
           queues.emplace_back (&queue);
 
       resume_queues (queues);
@@ -448,32 +448,34 @@ process_t::set_wave_launch_mode (wave_launch_mode_t wave_launch_mode)
   wave_launch_mode_t saved_wave_launch_mode = m_wave_launch_mode;
   m_wave_launch_mode = wave_launch_mode;
 
+  /* When changing the wave launch mode from WAVE_LAUNCH_MODE_HALT, all waves
+     halted at launch need to be resumed and reported to the client.  */
   if (saved_wave_launch_mode == wave_launch_mode_t::HALT)
     {
-      /* We need to resume the waves that may be halted on launch.  Since we
-         don't know anything about these waves, we have to suspend the queues
-         and update the waves.  */
       update_queues ();
 
       std::vector<queue_t *> queues;
       queues.reserve (count<queue_t> ());
 
       for (auto &&queue : range<queue_t> ())
-        {
-          if (queue.suspended ())
-            /* If the queue is already suspended, just update its waves.  */
-            queue.update_waves (
-                queue_t::update_waves_flag_t::UNHIDE_WAVES_HALTED_AT_LAUNCH);
-          else
-            queues.emplace_back (&queue);
-        }
+        if (!queue.is_suspended ())
+          queues.emplace_back (&queue);
 
-      suspend_queues (
-          queues, queue_t::update_waves_flag_t::UNHIDE_WAVES_HALTED_AT_LAUNCH);
+      suspend_queues (queues);
 
-      /* Suspending the queues causes all the waves to be updated which will
-         unhalt waves halted at launch. We now resume them if forward progress
-         is needed.  */
+      /* For all waves in this process, resume the wave if it is halted at
+         launch.  */
+      for (auto &&wave : range<wave_t> ())
+        if (wave.visibility ()
+            == wave_t::visibility_t::HIDDEN_HALTED_AT_LAUNCH)
+          {
+            dbgapi_assert (wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
+                           && wave.stop_reason ()
+                                  == AMD_DBGAPI_WAVE_STOP_REASON_NONE);
+
+            wave.set_visibility (wave_t::visibility_t::VISIBLE);
+            wave.set_state (AMD_DBGAPI_WAVE_STATE_RUN);
+          }
 
       if (forward_progress_needed ())
         resume_queues (queues);
@@ -528,7 +530,7 @@ process_t::find (amd_dbgapi_client_process_id_t client_process_id,
 }
 
 amd_dbgapi_status_t
-process_t::update_agents (bool enable_debug_trap)
+process_t::update_agents ()
 {
   struct sysfs_node_t
   {
@@ -675,7 +677,8 @@ process_t::update_agents (bool enable_debug_trap)
                                   sysfs_node.architecture, /* architecture  */
                                   sysfs_node.properties);  /* properties  */
 
-      if (enable_debug_trap && !agent->debug_trap_enabled ())
+      if (is_flag_set (flag_t::ENABLE_AGENT_DEBUG_TRAP)
+          && !agent->debug_trap_enabled ())
         {
           amd_dbgapi_status_t status = agent->enable_debug_trap ();
           if (status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -684,6 +687,14 @@ process_t::update_agents (bool enable_debug_trap)
                same agent.  Remove this when KFD supports concurrent
                debugging on the same agent.  */
             error ("Could not enable debugging on gpu_id %d.",
+                   sysfs_node.gpu_id);
+        }
+      else if (!is_flag_set (flag_t::ENABLE_AGENT_DEBUG_TRAP)
+               && agent->debug_trap_enabled ())
+        {
+          amd_dbgapi_status_t status = agent->disable_debug_trap ();
+          if (status != AMD_DBGAPI_STATUS_SUCCESS)
+            error ("Could not disable debugging on gpu_id %d.",
                    sysfs_node.gpu_id);
         }
 
@@ -803,8 +814,7 @@ process_t::query_debug_event (const agent_t &agent,
 }
 
 size_t
-process_t::suspend_queues (const std::vector<queue_t *> &queues,
-                           queue_t::update_waves_flag_t flags)
+process_t::suspend_queues (const std::vector<queue_t *> &queues)
 {
   if (queues.empty ())
     return 0;
@@ -814,7 +824,7 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
 
   for (auto *queue : queues)
     {
-      dbgapi_assert (!queue->suspended () && "already suspended");
+      dbgapi_assert (!queue->is_suspended () && "already suspended");
       queue_ids.emplace_back (queue->kfd_queue_id ());
       dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "suspending %s",
                   to_string (queue->id ()).c_str ());
@@ -859,19 +869,8 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
 
   /* Update the waves that have been context switched.  */
   for (auto *queue : queues)
-    {
-      if (!queue->is_valid ())
-        continue;
-
-      queue->set_suspended (true);
-      if (queue->kfd_queue_type () == KFD_IOC_QUEUE_TYPE_COMPUTE_AQL)
-        {
-          amd_dbgapi_status_t status = queue->update_waves (flags);
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
-            warning ("%s update_waves failed (rc=%d)",
-                     to_string (queue->id ()).c_str (), status);
-        }
-    }
+    if (queue->is_valid ())
+      queue->set_state (queue_t::state_t::SUSPENDED);
 
   return num_suspended_queues;
 }
@@ -887,7 +886,7 @@ process_t::resume_queues (const std::vector<queue_t *> &queues)
 
   for (auto *queue : queues)
     {
-      dbgapi_assert (queue->suspended () && "queue is not suspended");
+      dbgapi_assert (queue->is_suspended () && "queue is not suspended");
       queue_ids.emplace_back (queue->kfd_queue_id ());
       dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "resuming %s",
                   to_string (queue->id ()).c_str ());
@@ -930,7 +929,7 @@ process_t::resume_queues (const std::vector<queue_t *> &queues)
 
   for (auto *queue : queues)
     if (queue->is_valid ())
-      queue->set_suspended (false);
+      queue->set_state (queue_t::state_t::RUNNING);
 
   return num_resumed_queues;
 }
@@ -982,12 +981,7 @@ process_t::update_queues ()
       for (uint32_t i = 0; i < std::min (queue_count, snapshot_count); ++i)
         {
           const kfd_queue_snapshot_entry &queue_info = snapshots[i];
-          amd_dbgapi_queue_id_t reuse_queue_id = AMD_DBGAPI_QUEUE_NONE;
-
-          /* Skip non-AQL queues. In the future, we may want to support
-             reporting other queue types.  */
-          if (snapshots[i].queue_type != KFD_IOC_QUEUE_TYPE_COMPUTE_AQL)
-            continue;
+          amd_dbgapi_queue_id_t queue_id = AMD_DBGAPI_QUEUE_NONE;
 
           /* Find the queue by matching its kfd_queue_id with the one
              returned by the ioctl.  */
@@ -1002,7 +996,7 @@ process_t::update_queues ()
               if (queue)
                 destroy (queue);
             }
-          else if (m_initialized)
+          else if (is_flag_set (flag_t::REQUIRE_NEW_QUEUE_BIT))
             {
               /* We should always have a valid queue for a given kfd_queue_id
                  after the process is initialized.  Not finding the queue means
@@ -1028,18 +1022,18 @@ process_t::update_queues ()
                 {
                   /* This is a partially initialized queue, re-create a fully
                      initialized instance with the same kfd_queue_id.  */
-                  reuse_queue_id = amd_dbgapi_queue_id_t{ queue->id () };
+                  queue_id = amd_dbgapi_queue_id_t{ queue->id () };
                   destroy (queue);
                 }
               else
                 {
                   dbgapi_assert (
                       !!(queue_info.queue_status & KFD_DBG_EV_STATUS_SUSPENDED)
-                          == queue->suspended ()
+                          == queue->is_suspended ()
                       && "queue state does not match queue_info");
 
                   /* This isn't a new queue, and it is fully initialized.
-                     mark it as active, and continue to the next snapshot.  */
+                     Mark it as active, and continue to the next snapshot.  */
                   queue->set_mark (queue_mark);
                   continue;
                 }
@@ -1047,31 +1041,28 @@ process_t::update_queues ()
 
           /* The queue could be new to us, and not have the new bit set if
              the process was previously attached and detached.  In that case,
-             when !m_initialized, we always create a new queue_t for every
-             queue_id reported by the snapshot ioctl.  */
+             we always create a new queue_t for every queue_id reported by the
+             snapshot ioctl.  */
 
           /* Find the agent for this queue. */
           agent_t *agent = find_if ([&] (const agent_t &x) {
             return x.gpu_id () == queue_info.gpu_id;
           });
 
-          /* Skip queues for agents that are not visible in this
-             process.  TODO: investigate when this could happen, e.g.
-             the debugger cgroups not matching the application cgroups?  */
+          /* TODO: investigate when this could happen, e.g. the debugger
+             cgroups not matching the application cgroups?  */
           if (!agent)
-            {
-              dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                          "could not find an agent (gpu_id=%d)",
-                          queue_info.gpu_id);
-              continue;
-            }
+            error ("could not find an agent for gpu_id %d", queue_info.gpu_id);
 
-          /* create<queue_t> will allocate a new queue_id if reuse_queue_id
-             is {0}.  */
-          create<queue_t> (reuse_queue_id, /* queue_id */
-                           *agent,         /* agent */
-                           queue_info)     /* queue_info */
-              .set_mark (queue_mark);
+          /* create<queue_t> requests a new id if queue_id is {0}.  */
+          queue = &create<queue_t> (queue_id,    /* queue_id */
+                                    *agent,      /* agent */
+                                    queue_info); /* queue_info */
+          queue->set_state (
+              !(queue_info.queue_status & KFD_DBG_EV_STATUS_SUSPENDED)
+                  ? queue_t::state_t::RUNNING
+                  : queue_t::state_t::SUSPENDED);
+          queue->set_mark (queue_mark);
         }
     }
   while (queue_count > snapshot_count);
@@ -1210,10 +1201,18 @@ process_t::attach ()
               "using KFD dbg trap ioctl version %d.%d", dbg_trap_args.data1,
               dbg_trap_args.data2);
 
+  /* When we first attach to the process, all waves already running need to be
+     assigned new wave_ids.  This flag will be cleared after the first call
+     to suspend the queues (and update the waves).  */
+  set_flag (flag_t::ASSIGN_NEW_IDS_TO_ALL_WAVES);
+
   auto on_rocr_load_callback = [this] (const shared_library_t &library) {
     amd_dbgapi_status_t status;
 
-    status = update_agents (true);
+    /* Now that the ROCr is loaded, enable the debug trap on all devices.  */
+    set_flag (flag_t::ENABLE_AGENT_DEBUG_TRAP);
+
+    status = update_agents ();
     if (status != AMD_DBGAPI_STATUS_SUCCESS)
       error ("update_agents failed (rc=%d)", status);
 
@@ -1221,15 +1220,18 @@ process_t::attach ()
     if (status != AMD_DBGAPI_STATUS_SUCCESS)
       error ("update_queues failed (rc=%d)", status);
 
+    /* From now on, new queues reported by kfd should have NEW_QUEUE set.  */
+    set_flag (flag_t::REQUIRE_NEW_QUEUE_BIT);
+
     std::vector<queue_t *> queues;
     for (auto &&queue : range<queue_t> ())
       queues.emplace_back (&queue);
 
-    /* Suspend the newly create queues to update the waves, then resume them.
+    /* Suspend the newly created queues to update the waves, then resume them.
        We could have attached to the process while wavefronts were executing.
      */
-    suspend_queues (queues,
-                    queue_t::update_waves_flag_t::FORCE_ASSIGN_WAVE_IDS);
+    suspend_queues (queues);
+    clear_flag (flag_t::ASSIGN_NEW_IDS_TO_ALL_WAVES);
     resume_queues (queues);
 
     status = start_event_thread ();
@@ -1331,6 +1333,13 @@ process_t::attach ()
     std::get<handle_object_set_t<code_object_t>> (m_handle_object_sets)
         .clear ();
 
+    /* Disable the debug trap on all devices.  */
+    clear_flag (flag_t::ENABLE_AGENT_DEBUG_TRAP);
+
+    amd_dbgapi_status_t status = update_agents ();
+    if (status != AMD_DBGAPI_STATUS_SUCCESS)
+      error ("update_agents failed (rc=%d)", status);
+
     enqueue_event (
         create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED,
                          AMD_DBGAPI_EVENT_NONE));
@@ -1349,12 +1358,11 @@ process_t::attach ()
      debug trap.  */
   if (library.state () != AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED)
     {
-      amd_dbgapi_status_t status = update_agents (false);
+      amd_dbgapi_status_t status = update_agents ();
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
     }
 
-  m_initialized = true;
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 

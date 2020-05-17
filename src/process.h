@@ -72,6 +72,24 @@ public:
     DISABLE = 4,     /* Disable launching any new waves.  */
   };
 
+  enum class flag_t : uint32_t
+  {
+    /* The client process has exited, and as a result the IOCTL calls are no
+       longer available.  */
+    CLIENT_PROCESS_HAS_EXITED = 1 << 0,
+    /* Enable the device debug mode when updating the agents.  */
+    ENABLE_AGENT_DEBUG_TRAP = 1 << 1,
+    /* Require the NEW_QUEUE bit to be set when a queue_id is reported for the
+       first time by kfd to this process. When attaching to an already running
+       process, a missing NEW_BIT may be ignored as it could have been cleared
+       by another debugger session.  */
+    REQUIRE_NEW_QUEUE_BIT = 1 << 2,
+    /* Assign new ids to all waves regardless of the content of their wave_id
+       register.  This is needed during attach as waves created before the
+       debugger attached to the process may have corrupted wave_ids.  */
+    ASSIGN_NEW_IDS_TO_ALL_WAVES = 1 << 3,
+  };
+
   process_t (amd_dbgapi_client_process_id_t client_process_id,
              amd_dbgapi_process_id_t process_id);
   ~process_t () {}
@@ -84,6 +102,10 @@ public:
   }
 
   pid_t os_pid () const { return m_os_pid; }
+
+  inline void set_flag (flag_t flags);
+  inline void clear_flag (flag_t flags);
+  inline bool is_flag_set (flag_t flags);
 
   amd_dbgapi_status_t
   read_global_memory_partial (amd_dbgapi_global_address_t address,
@@ -107,7 +129,7 @@ public:
   amd_dbgapi_status_t
   set_wave_launch_mode (wave_launch_mode_t wave_launch_mode);
 
-  amd_dbgapi_status_t update_agents (bool enable_debug_trap);
+  amd_dbgapi_status_t update_agents ();
   amd_dbgapi_status_t update_queues ();
   amd_dbgapi_status_t update_code_objects ();
 
@@ -129,8 +151,7 @@ public:
                                          queue_t::kfd_queue_id_t *kfd_queue_id,
                                          uint32_t *status);
 
-  size_t suspend_queues (const std::vector<queue_t *> &queues,
-                         queue_t::update_waves_flag_t flags = {});
+  size_t suspend_queues (const std::vector<queue_t *> &queues);
   size_t resume_queues (const std::vector<queue_t *> &queues);
 
   amd_dbgapi_status_t set_wave_launch_mode (const agent_t &agent,
@@ -279,12 +300,11 @@ private:
   amd_dbgapi_client_process_id_t const m_client_process_id;
   amd_dbgapi_global_address_t m_r_debug_address{ 0 };
 
+  flag_t m_flags{};
   pid_t m_os_pid{ -1 };
-  bool m_process_exited{ false };
 
   wave_launch_mode_t m_wave_launch_mode{ wave_launch_mode_t::NORMAL };
   bool m_forward_progress_needed{ true };
-  bool m_initialized{ false };
 
   file_desc_t m_kfd_fd{ -1 };
   file_desc_t m_proc_mem_fd{ -1 };
@@ -315,6 +335,31 @@ private:
       handle_object_set_t<wave_t>>
       m_handle_object_sets;
 };
+
+template <> struct is_flag<process_t::flag_t> : std::true_type
+{
+};
+
+inline void
+process_t::set_flag (flag_t flags)
+{
+  m_flags |= flags;
+}
+
+inline void
+process_t::clear_flag (flag_t flags)
+{
+  m_flags &= ~flags;
+}
+
+inline bool
+process_t::is_flag_set (flag_t flag)
+{
+  dbgapi_assert (utils::is_power_of_two (
+                     static_cast<std::underlying_type_t<flag_t>> (flag))
+                 && "can only check one flag at a time");
+  return !!(m_flags & flag);
+}
 
 inline void *
 allocate_memory (size_t byte_size)

@@ -307,6 +307,14 @@ bool operator! (T flag)
 
 template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
 T
+operator~ (T flag)
+{
+  using t = std::underlying_type_t<T>;
+  return static_cast<T> (~static_cast<t> (flag));
+}
+
+template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
+T
 operator| (T lhs, T rhs)
 {
   using t = std::underlying_type_t<T>;

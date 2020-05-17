@@ -160,7 +160,7 @@ amd_dbgapi_status_t
 wave_t::update (const wave_t &group_leader,
                 amd_dbgapi_global_address_t context_save_address)
 {
-  dbgapi_assert (queue ().suspended ());
+  dbgapi_assert (queue ().is_suspended ());
   process_t &process = this->process ();
   amd_dbgapi_status_t status;
 
@@ -471,7 +471,7 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
 
-  dbgapi_assert (queue ().suspended ());
+  dbgapi_assert (queue ().is_suspended ());
 
   return process ().read_global_memory (
       m_context_save_address + reg_offset + offset,
@@ -622,7 +622,7 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
                 + offset,
             static_cast<const char *> (value) + offset, value_size);
 
-  dbgapi_assert (queue ().suspended ());
+  dbgapi_assert (queue ().is_suspended ());
 
   return process ().write_global_memory (
       m_context_save_address + reg_offset + offset,
@@ -840,7 +840,7 @@ wave_t::xfer_local_memory (amd_dbgapi_segment_address_t segment_address,
                            void *read, const void *write, size_t *size)
 {
   /* The LDS is stored in the context save area.  */
-  dbgapi_assert (queue ().suspended ());
+  dbgapi_assert (queue ().is_suspended ());
 
   amd_dbgapi_size_t limit = local_memory_size ();
   amd_dbgapi_size_t offset = segment_address;

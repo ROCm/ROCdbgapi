@@ -31,6 +31,7 @@
 
 #include <hsa/hsa.h>
 
+#include <memory>
 #include <vector>
 
 namespace amd
@@ -46,53 +47,51 @@ class process_t;
 class queue_t : public detail::handle_object<amd_dbgapi_queue_id_t>
 {
 private:
-  static constexpr uint64_t aql_packet_size = 64;
+  class queue_impl_t; /* Base class for all queue implementations.  */
 
-  struct context_save_area_header_s
-  {
-    uint32_t ctrl_stack_offset;
-    uint32_t ctrl_stack_size;
-    uint32_t wave_state_offset;
-    uint32_t wave_state_size;
-  };
+  /* TODO: Move the specific implementations to the detail namespace in
+   * queue.cpp, need to expose access to queue_t's state from queue_impl_t.  */
+  class aql_queue_impl_t; /* AQL queue implementation.  */
+  class pm4_queue_impl_t; /* PM4 queue implemnatation.  */
 
 public:
   using kfd_queue_id_t = uint32_t;
 
-  enum class update_waves_flag_t : uint32_t
+  enum state_t
   {
-    /* Assign new ids to all waves regardless of the content of their wave_id
-       register.  This is needed during attach as waves created before the
-       debugger attached to the process may have corrupted wave_ids.  */
-    FORCE_ASSIGN_WAVE_IDS = 1 << 0,
-    /* When changing the wave launch mode from WAVE_LAUNCH_MODE_HALT, all waves
-       halted at launch need to be resumed and reported to the client.  */
-    UNHIDE_WAVES_HALTED_AT_LAUNCH = 1 << 1,
+    /* The queue is suspended.  */
+    SUSPENDED,
+    /* The queue is running.  */
+    RUNNING
   };
 
   queue_t (amd_dbgapi_queue_id_t queue_id, agent_t &agent,
            const kfd_queue_snapshot_entry &kfd_queue_info);
 
+  /* Construct a temporary queue instance that must be updated by the next
+     process_t::update_queues ().  */
+  queue_t (amd_dbgapi_queue_id_t queue_id, agent_t &agent,
+           kfd_queue_id_t kfd_queue_id);
+
   ~queue_t ();
 
   void invalidate () { m_is_valid = false; }
   bool is_valid () const { return m_is_valid; }
+  bool is_suspended () const { return m_state == state_t::SUSPENDED; }
 
   kfd_queue_id_t kfd_queue_id () const { return m_kfd_queue_info.queue_id; }
   uint32_t kfd_queue_type () const { return m_kfd_queue_info.queue_type; }
 
   amd_dbgapi_queue_type_t type () const;
 
-  bool suspended () const { return m_suspended; }
-  void set_suspended (bool suspended);
+  state_t state () const { return m_state; }
+  void set_state (state_t state);
 
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }
 
   std::pair<amd_dbgapi_queue_packet_id_t, std::vector<uint8_t>>
   packets () const;
-
-  amd_dbgapi_status_t update_waves (update_waves_flag_t flags = {});
 
   amd_dbgapi_global_address_t displaced_stepping_buffer_address () const
   {
@@ -140,12 +139,12 @@ public:
 
 private:
   kfd_queue_snapshot_entry const m_kfd_queue_info;
-  hsa_queue_t m_hsa_queue;
+  state_t m_state{ state_t::RUNNING };
+  bool m_is_valid{ true };
 
   amd_dbgapi_global_address_t m_displaced_stepping_buffer_address{ 0 };
   amd_dbgapi_global_address_t m_parked_wave_buffer_address{ 0 };
   amd_dbgapi_global_address_t m_endpgm_buffer_address{ 0 };
-  amd_dbgapi_global_address_t m_context_save_start_address;
 
   amd_dbgapi_global_address_t m_scratch_backing_memory_address{ 0 };
   amd_dbgapi_global_address_t m_scratch_backing_memory_size{ 0 };
@@ -154,19 +153,14 @@ private:
   amd_dbgapi_global_address_t m_private_address_space_aperture{ 0 };
 
   epoch_t m_mark{ 0 };
-  bool m_suspended{ false };
-  bool m_is_valid{ false };
 
   /* Value used to mark waves that are found in the context save area. When
      sweeping, any wave found with a mark less than the current mark will be
      deleted, as these waves are no longer active.  */
   monotonic_counter_t<epoch_t> m_next_wave_mark{ 1 };
 
+  std::unique_ptr<queue_impl_t> m_impl;
   agent_t &m_agent;
-};
-
-template <> struct is_flag<queue_t::update_waves_flag_t> : std::true_type
-{
 };
 
 /* Wraps a queue and provides a RAII mechanism to suspend it if it wasn't

@@ -175,3 +175,8 @@ following restrictions.  Future releases aim to address these restrictions.
 
 5.  The AMD_DBGAPI_MEMORY_PRECISION_PRECISE memory precision is not supported.
     The default memory precision is AMD_DBGAPI_MEMORY_PRECISION_NONE.
+
+6.  amd_dbgapi_next_pending_event returns AMD_DBGAPI_EVENT_KIND_WAVE_STOP events
+    only for AQL queues. PM4 queues that launch wavefronts are not supported.
+
+7.  amd_dbgapi_queue_packet_list returns packets only for AQL queues.
