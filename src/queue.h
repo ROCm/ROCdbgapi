@@ -75,7 +75,7 @@ public:
 
   ~queue_t ();
 
-  void invalidate () { m_is_valid = false; }
+  void invalidate ();
   bool is_valid () const { return m_is_valid; }
   bool is_suspended () const { return m_state == state_t::SUSPENDED; }
 
