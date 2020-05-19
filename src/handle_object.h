@@ -196,14 +196,14 @@ public:
     typename map_type::iterator get () const { return m_it; }
     self_type operator++ ()
     {
-      self_type i = *this;
       ++m_it;
-      return i;
+      return *this;
     }
     self_type operator++ (int)
     {
+      self_type i = *this;
       ++m_it;
-      return *this;
+      return i;
     }
     reference operator* () { return m_it->second; }
     pointer operator-> () { return &m_it->second; }
@@ -227,14 +227,14 @@ public:
     typename map_type::const_iterator get () const { return m_it; }
     self_type operator++ ()
     {
-      self_type i = *this;
       ++m_it;
-      return i;
+      return *this;
     }
     self_type operator++ (int)
     {
+      self_type i = *this;
       ++m_it;
-      return *this;
+      return i;
     }
     const_reference operator* () const { return m_it->second; }
     const_pointer operator-> () const { return &m_it->second; }

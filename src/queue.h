@@ -75,7 +75,7 @@ public:
 
   ~queue_t ();
 
-  void invalidate () { m_is_valid = false; }
+  void invalidate ();
   bool is_valid () const { return m_is_valid; }
 
   kfd_queue_id_t kfd_queue_id () const { return m_kfd_queue_info.queue_id; }

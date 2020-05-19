@@ -177,11 +177,9 @@ queue_t::~queue_t ()
     /* This is a partially initialized queue, skip it.  */
     return;
 
-  /* TODO: we need to iterate the waves belonging to this queue
-     and enqueue events for aborted requests.  i.e. single-step
-     or stop requests that were submitted, but the queue was
-     destroyed before reporting the event, we still need to notify
-     the application, so that it does not wait forever.  */
+  /* Invalidate the queue so that all dispatches and waves are destroyed, and
+     events for aborted requests are enqueued.  */
+  invalidate ();
 }
 
 amd_dbgapi_queue_type_t
@@ -728,6 +726,27 @@ queue_t::set_suspended (bool suspended)
     }
 }
 
+void
+queue_t::invalidate ()
+{
+  /* TODO: we need to iterate the waves belonging to this queue and enqueue
+     events for aborted requests.  i.e. single-step or stop requests that were
+     submitted, but the queue was invalidated/destroyed before reporting the
+     event, we still need to notify the application, so that it does not wait
+     forever.  */
+
+  /* FIXME: need to submit events for aborted requests.  */
+  auto &&wave_range = process ().range<wave_t> ();
+  for (auto it = wave_range.begin (); it != wave_range.end ();)
+    it = (it->queue ().id () == id ()) ? process ().destroy (it) : ++it;
+
+  auto &&dispatch_range = process ().range<dispatch_t> ();
+  for (auto it = dispatch_range.begin (); it != dispatch_range.end ();)
+    it = (it->queue ().id () == id ()) ? process ().destroy (it) : ++it;
+
+  m_is_valid = false;
+}
+
 amd_dbgapi_status_t
 queue_t::get_info (amd_dbgapi_queue_info_t query, size_t value_size,
                    void *value) const
@@ -756,7 +775,8 @@ scoped_queue_suspend_t::scoped_queue_suspend_t (queue_t &queue)
   if (!m_queue)
     return;
 
-  if (m_queue->process ().suspend_queues ({ m_queue }) != 1)
+  if (m_queue->process ().suspend_queues ({ m_queue }) != 1
+      && m_queue->is_valid ())
     error ("process::suspend_queues failed");
 }
 
@@ -765,7 +785,8 @@ scoped_queue_suspend_t::~scoped_queue_suspend_t ()
   if (!m_queue || !m_queue->process ().forward_progress_needed ())
     return;
 
-  if (m_queue->process ().resume_queues ({ m_queue }) != 1)
+  if (m_queue->process ().resume_queues ({ m_queue }) != 1
+      && m_queue->is_valid ())
     error ("process::resume_queues failed");
 }
 
