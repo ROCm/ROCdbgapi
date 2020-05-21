@@ -143,6 +143,7 @@ to_string (detail::hex<T> v)
   F (amd_dbgapi_wave_state_t)                                                 \
   F (amd_dbgapi_wave_stop_reason_t)                                           \
   F (amd_dbgapi_resume_mode_t)                                                \
+  F (amd_dbgapi_watchpoint_id_t)                                              \
   F (amd_dbgapi_watchpoint_share_kind_t)                                      \
   F (amd_dbgapi_watchpoint_kind_t)                                            \
   F (amd_dbgapi_register_class_info_t)                                        \

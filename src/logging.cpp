@@ -257,10 +257,7 @@ to_string (amd_dbgapi_architecture_info_t architecture_info)
       CASE (ARCHITECTURE_INFO_BREAKPOINT_INSTRUCTION);
       CASE (ARCHITECTURE_INFO_BREAKPOINT_INSTRUCTION_PC_ADJUST);
       CASE (ARCHITECTURE_INFO_PC_REGISTER);
-      CASE (ARCHITECTURE_INFO_WATCHPOINT_COUNT);
-      CASE (ARCHITECTURE_INFO_WATCHPOINT_SHARE);
       CASE (ARCHITECTURE_INFO_DEFAULT_GLOBAL_ADDRESS_SPACE);
-      CASE (ARCHITECTURE_INFO_PRECISE_MEMORY_SUPPORTED);
     }
   return to_string (make_hex (architecture_info));
 }
@@ -295,6 +292,9 @@ to_string (amd_dbgapi_process_info_t process_info)
   switch (process_info)
     {
       CASE (PROCESS_INFO_NOTIFIER);
+      CASE (PROCESS_INFO_WATCHPOINT_COUNT);
+      CASE (PROCESS_INFO_WATCHPOINT_SHARE);
+      CASE (PROCESS_INFO_PRECISE_MEMORY_SUPPORTED);
     }
   return to_string (make_hex (process_info));
 }
@@ -380,6 +380,8 @@ to_string (amd_dbgapi_queue_type_t queue_type)
       CASE (QUEUE_TYPE_HSA_KERNEL_DISPATCH_SINGLE_PRODUCER);
       CASE (QUEUE_TYPE_HSA_KERNEL_DISPATCH_COOPERATIVE);
       CASE (QUEUE_TYPE_AMD_PM4);
+      CASE (QUEUE_TYPE_AMD_SDMA);
+      CASE (QUEUE_TYPE_AMD_SDMA_XGMI);
     }
   return to_string (make_hex (queue_type));
 }
@@ -603,6 +605,13 @@ to_string (amd_dbgapi_resume_mode_t resume_mode)
       CASE (RESUME_MODE_SINGLE_STEP);
     }
   return to_string (make_hex (resume_mode));
+}
+
+template <>
+std::string
+to_string (amd_dbgapi_watchpoint_id_t watchpoint_id)
+{
+  return string_printf ("watchpoint_%ld", watchpoint_id.handle);
 }
 
 template <>

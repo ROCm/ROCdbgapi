@@ -392,10 +392,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_1
 
 /**
- * The function was introduced in version 0.20 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.20"``.
+ * The function was introduced in version 0.22 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.22"``.
  */
-#define AMD_DBGAPI_VERSION_0_20
+#define AMD_DBGAPI_VERSION_0_22
 
 /** @} */
 
@@ -942,28 +942,10 @@ typedef enum
    */
   AMD_DBGAPI_ARCHITECTURE_INFO_PC_REGISTER = 8,
   /**
-   * Return the number of data watchpoints supported by the architecture.  Zero
-   * is returned if data watchpoints are not supported.  The type of this
-   * attribute is \p size_t.
-   */
-  AMD_DBGAPI_ARCHITECTURE_INFO_WATCHPOINT_COUNT = 9,
-  /**
-   * Return how watchpoints are shared between processes.  The type of this
-   * attribute is \p uint32_t with the values defined by
-   * ::amd_dbgapi_watchpoint_share_kind_t.
-   */
-  AMD_DBGAPI_ARCHITECTURE_INFO_WATCHPOINT_SHARE = 10,
-  /**
    * Return the default address space for global memory.  The type of this
    * attribute is ::amd_dbgapi_address_space_id_t.
    */
-  AMD_DBGAPI_ARCHITECTURE_INFO_DEFAULT_GLOBAL_ADDRESS_SPACE = 11,
-  /**
-   * Return if the architecture supports controlling memory precision.  The
-   * type of this attribute is \p uint32_t with the values defined by
-   * ::amd_dbgapi_memory_precision_t.
-   */
-  AMD_DBGAPI_ARCHITECTURE_INFO_PRECISE_MEMORY_SUPPORTED = 12
+  AMD_DBGAPI_ARCHITECTURE_INFO_DEFAULT_GLOBAL_ADDRESS_SPACE = 9
 } amd_dbgapi_architecture_info_t;
 
 /**
@@ -1006,7 +988,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_get_info (
     amd_dbgapi_architecture_id_t architecture_id,
     amd_dbgapi_architecture_info_t query, size_t value_size, void *value)
-    AMD_DBGAPI_VERSION_0_20;
+    AMD_DBGAPI_VERSION_0_22;
 
 /**
  * Get an architecture from the AMD GPU ELF \p EF_AMDGPU_MACH value
@@ -1146,7 +1128,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_disassemble_instruction (
     amd_dbgapi_status_t (*symbolizer) (
         amd_dbgapi_symbolizer_id_t symbolizer_id,
         amd_dbgapi_global_address_t address, char **symbol_text))
-    AMD_DBGAPI_VERSION_0_20;
+    AMD_DBGAPI_VERSION_0_22;
 
 /**
  * The kinds of instruction classifications.
@@ -1320,7 +1302,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_classify_instruction (
     amd_dbgapi_global_address_t address, amd_dbgapi_size_t *size,
     const void *memory, amd_dbgapi_instruction_kind_t *instruction_kind,
     void **instruction_properties)
-    AMD_DBGAPI_VERSION_0_20;
+    AMD_DBGAPI_VERSION_0_22;
 
 /** @} */
 
@@ -1377,7 +1359,25 @@ typedef enum
    * The notifier for the process that indicates if pending events are
    * available.  The type of this attributes is ::amd_dbgapi_notifier_t.
    */
-  AMD_DBGAPI_PROCESS_INFO_NOTIFIER = 1
+  AMD_DBGAPI_PROCESS_INFO_NOTIFIER = 1,
+  /**
+   * Return the number of data watchpoints supported by the process.  Zero
+   * is returned if data watchpoints are not supported.  The type of this
+   * attribute is \p size_t.
+   */
+  AMD_DBGAPI_PROCESS_INFO_WATCHPOINT_COUNT = 2,
+  /**
+   * Return how watchpoints are shared between processes.  The type of this
+   * attribute is \p uint32_t with the values defined by
+   * ::amd_dbgapi_watchpoint_share_kind_t.
+   */
+  AMD_DBGAPI_PROCESS_INFO_WATCHPOINT_SHARE = 3,
+  /**
+   * Return if the architectures of all the agents of a process support
+   * controlling memory precision.  The type of this attribute is \p uint32_t
+   * with the values defined by ::amd_dbgapi_memory_precision_t.
+   */
+  AMD_DBGAPI_PROCESS_INFO_PRECISE_MEMORY_SUPPORTED = 4
 } amd_dbgapi_process_info_t;
 
 /**
@@ -1420,7 +1420,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_process_info_t query,
     size_t value_size, void *value)
-    AMD_DBGAPI_VERSION_0_1;
+    AMD_DBGAPI_VERSION_0_22;
 
 /**
  * Attach to a process in order to provide debug control of the AMD GPUs it
@@ -1655,7 +1655,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_set_wave_creation (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_creation_t creation)
-    AMD_DBGAPI_VERSION_0_20;
+    AMD_DBGAPI_VERSION_0_22;
 
 /** @} */
 
@@ -2145,7 +2145,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_queue_id_t queue_id,
     amd_dbgapi_queue_info_t query, size_t value_size, void *value)
-    AMD_DBGAPI_VERSION_0_1;
+    AMD_DBGAPI_VERSION_0_22;
 
 /**
  * Queue type.
@@ -2202,7 +2202,15 @@ typedef enum
   /**
    * Queue supports the AMD PM4 protocol.
    */
-  AMD_DBGAPI_QUEUE_TYPE_AMD_PM4 = 257
+  AMD_DBGAPI_QUEUE_TYPE_AMD_PM4 = 257,
+  /**
+   * Queue supports the AMD SDMA protocol.
+   */
+  AMD_DBGAPI_QUEUE_TYPE_AMD_SDMA = 513,
+  /**
+   * Queue supports the AMD SDMA XGMI protocol.
+   */
+  AMD_DBGAPI_QUEUE_TYPE_AMD_SDMA_XGMI = 514
 } amd_dbgapi_queue_type_t;
 
 /**
@@ -2657,11 +2665,15 @@ typedef enum
    */
   AMD_DBGAPI_WAVE_INFO_STOP_REASON = 2,
   /**
-   * Return the watchpoint(s) the wave triggered as a bit set.
-   * The type of this attribute is \p uint64_t with the least significant bit 1
-   * if the watchpoint with a ::amd_dbgapi_watchpoint_id_t value of 0 was
-   * triggered and so forth.  The agent of the triggered watchpoint(s) is the
-   * agent of the wave.
+   * Return the watchpoint(s) the wave triggered.  The type of this attribute is
+   * ::amd_dbgapi_watchpoint_list_t.  The amd_dbgapi_watchpoint_list_t::count
+   * field is set to the number of watchpoints that were triggered.  The
+   * amd_dbgapi_watchpoint_list_t::watchpoint_ids field is set to a pointer to
+   * an array of ::amd_dbgapi_watchpoint_id_t with
+   * amd_dbgapi_watchpoint_list_t::count elements comprising the triggered
+   * watchpoint handles.  The array is allocated by the
+   * amd_dbgapi_callbacks_s::allocate_memory callback and is owned by the
+   * client.
    */
   AMD_DBGAPI_WAVE_INFO_WATCHPOINTS = 3,
   /**
@@ -2821,7 +2833,7 @@ typedef enum
    */
   AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT = (1 << 0),
   /**
-   * The wave stopped due to triggering a data watch point.  The
+   * The wave stopped due to triggering a data watchpoint.  The
    * ::AMD_DBGAPI_WAVE_INFO_WATCHPOINTS query can be used to determine which
    * watchpoint(s) were triggered.
    *
@@ -3492,14 +3504,17 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_complete (
  * range.  The memory access will have been completed before the event is
  * reported.
  *
- * The granularity of base address and address range is architecture specific.
+ * The number of watchpoints, the granularity of base address, and the address
+ * range is process specific.  If a process has multiple agents, then the values
+ * are the lowest common denominator of the capabilities of the architectures of
+ * all the agents of a process.
  *
- * The number of watchpoints supported by an architecture is available using
- * the ::AMD_DBGAPI_ARCHITECTURE_INFO_WATCHPOINT_COUNT query and may be 0.
- * The ::AMD_DBGAPI_ARCHITECTURE_INFO_WATCHPOINT_SHARE query can be used to
- * determine if watchpoints are shared between processes using the same agent.
+ * The number of watchpoints supported by a process is available using the
+ * ::AMD_DBGAPI_PROCESS_INFO_WATCHPOINT_COUNT query and may be 0.  The
+ * ::AMD_DBGAPI_PROCESS_INFO_WATCHPOINT_SHARE query can be used to determine if
+ * watchpoints are shared between processes.
  *
- * When a wave stops due to a data watch point the stop reason will include
+ * When a wave stops due to a data watchpoint the stop reason will include
  * ::AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT.  The set of watchpoints triggered
  * can be queried using ::AMD_DBGAPI_WAVE_INFO_WATCHPOINTS.
  *
@@ -3507,19 +3522,19 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_complete (
  */
 
 /**
- * A hardware data watchpoint handle.
+ * Opaque hardware data watchpoint handle.
  *
- * Hardware data watchpoints are numbered from 0 to
- * ::AMD_DBGAPI_ARCHITECTURE_INFO_WATCHPOINT_COUNT minus 1.
- *
- * Only unique for a single agent of a single process.
+ * Only unique within a single process.
  */
-typedef uint32_t amd_dbgapi_watchpoint_id_t;
+typedef struct
+{
+  uint64_t handle;
+} amd_dbgapi_watchpoint_id_t;
 
 /**
- * The NULL watchpoint handle.
+ * The NULL hardware data watchpoint handle.
  */
-#define AMD_DBGAPI_WATCHPOINT_NONE ((amd_dbgapi_watchpoint_id_t) (-1))
+#define AMD_DBGAPI_WATCHPOINT_NONE (amd_dbgapi_watchpoint_id_t{ 0 })
 
 /**
  * The way watchpoints are shared between processes.
@@ -3534,15 +3549,14 @@ typedef enum
    */
   AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSUPPORTED = 0,
   /**
-   * The watchpoints of an agent are not shared across processes.  Every process
-   * using an agent can use all ::AMD_DBGAPI_ARCHITECTURE_INFO_WATCHPOINT_COUNT
-   * watchpoints.
+   * The watchpoints are not shared across processes.  Every process can use all
+   * ::AMD_DBGAPI_PROCESS_INFO_WATCHPOINT_COUNT watchpoints.
    */
   AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSHARED = 1,
   /**
-   * The watchpoints of an agent are shared between all processes using the
-   * agent.  The number of watchpoints for an agent available to a process may
-   * be reduced if watchpoints for that agent are used by another process.
+   * The watchpoints of a process are shared between all processes.  The number
+   * of watchpoints available to a process may be reduced if watchpoints are
+   * used by another process.
    */
   AMD_DBGAPI_WATCHPOINT_SHARE_KIND_SHARED = 2
 } amd_dbgapi_watchpoint_share_kind_t;
@@ -3576,25 +3590,36 @@ typedef enum
 } amd_dbgapi_watchpoint_kind_t;
 
 /**
+ * A set of watchpoints.
+ *
+ * Used by the ::AMD_DBGAPI_WAVE_INFO_WATCHPOINTS query to report the
+ * watchpoint(s) triggered by a wave.
+ */
+typedef struct
+{
+  size_t count;
+  amd_dbgapi_watchpoint_id_t *watchpoint_ids;
+} amd_dbgapi_watchpoint_list_t;
+
+/**
  * Set a hardware data watchpoint.
  *
  * The AMD GPU has limitations on the base address and size of hardware data
- * watchpoints that can be set, and the limitations may vary by architecture.
- * A watchpoint is created with the smallest range that covers the requested
- * range specified by \p address and \p size.  The range of the created
- * watchpoint is returned in \p watchpoint_address and \p watchpoint_size.
+ * watchpoints that can be set, and the limitations may vary by architecture. A
+ * watchpoint is created with the smallest range, supported by the architectures
+ * of all the agents of a process, that covers the requested range specified by
+ * \p address and \p size.  The range of the created watchpoint is returned in
+ * \p watchpoint_address and \p watchpoint_size.
  *
  * When a watchpoint is triggered, the client is responsible for determining if
  * the access was to the requested range.  For example, for writes the client
  * can compare the original value with the current value to determine if it
  * changed.
  *
- * Each agent has its own set of watchpoints.  Only waves executing on the
- * agent will trigger the watchpoints set on that agent.
+ * Each process has its own set of watchpoints.  Only waves executing on the
+ * agents of a process will trigger the watchpoints set on that process.
  *
- * \param[in] process_id The process to which the agent belongs.
- *
- * \param[in] agent_id Specify the agent to set the watchpoint.
+ * \param[in] process_id The process on which to set the watchpoint.
  *
  * \param[in] address The base address of memory area to set a watchpoint.
  *
@@ -3626,16 +3651,12 @@ typedef enum
  * invalid.  No watchpoint is set and \p watchpoint_id, \p watchpoint_address,
  * and \p watchpoint_size are unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_AGENT_ID \p agent_id is invalid.
- * No watchpoint is set and \p watchpoint_id, \p watchpoint_address, and \p
- * watchpoint_size are unaltered.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NO_WATCHPOINT_AVAILABLE No more
  * watchpoints are available.  No watchpoint is set and \p watchpoint_id, \p
  * watchpoint_address, and \p watchpoint_size are unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED Watchpoints are not
- * supported for the architecture of the agent.  No watchpoint is set and \p
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED Watchpoints are not supported
+ * for the architectures of all the agents.  No watchpoint is set and \p
  * watchpoint_id, \p watchpoint_address, and \p watchpoint_size are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p kind is invalid; or \p
@@ -3644,21 +3665,19 @@ typedef enum
  * watchpoint_size are unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_watchpoint (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_agent_id_t agent_id,
-    amd_dbgapi_global_address_t address, amd_dbgapi_size_t size,
-    amd_dbgapi_watchpoint_kind_t kind,
+    amd_dbgapi_process_id_t process_id, amd_dbgapi_global_address_t address,
+    amd_dbgapi_size_t size, amd_dbgapi_watchpoint_kind_t kind,
     amd_dbgapi_watchpoint_id_t *watchpoint_id,
     amd_dbgapi_global_address_t *watchpoint_address,
     amd_dbgapi_size_t *watchpoint_size)
-    AMD_DBGAPI_VERSION_0_1;
+    AMD_DBGAPI_VERSION_0_22;
+;
 
 /**
  * Remove a hardware data watchpoint previously set by
  * ::amd_dbgapi_set_watchpoint.
  *
- * \param[in] process_id The process to which the agent belongs.
- *
- * \param[in] agent_id Specify the agent that owns the watchpoint.
+ * \param[in] process_id The process that owns the watchpoint.
  *
  * \param[in] watchpoint_id The watchpoint to remove.
  *
@@ -3675,16 +3694,13 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_watchpoint (
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
  * invalid.  No watchpoint is removed.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_AGENT_ID \p agent_id is invalid.
- * No watchpoint is removed.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID \p watchpoint_id is
  * invalid.  No watchpoint is removed.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_remove_watchpoint (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_agent_id_t agent_id,
+    amd_dbgapi_process_id_t process_id,
     amd_dbgapi_watchpoint_id_t watchpoint_id)
-    AMD_DBGAPI_VERSION_0_1;
+    AMD_DBGAPI_VERSION_0_22;
 
 /** @} */
 
@@ -5256,9 +5272,9 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_memory (
  * stop event.  Enabling this mode can make execution of waves significantly
  * slower.
  *
- * The ::AMD_DBGAPI_ARCHITECTURE_INFO_PRECISE_MEMORY_SUPPORTED query can be
- * used to determine if an architecture supports controlling precise memory
- * accesses.
+ * The ::AMD_DBGAPI_PROCESS_INFO_PRECISE_MEMORY_SUPPORTED query can be used to
+ * determine if the architectures of all the agents of a process support
+ * controlling precise memory accesses.
  */
 typedef enum
 {
@@ -5277,48 +5293,45 @@ typedef enum
 /**
  * Control precision of memory access reporting.
  *
- * An agent can be set to ::AMD_DBGAPI_MEMORY_PRECISION_NONE to disable
+ * An process can be set to ::AMD_DBGAPI_MEMORY_PRECISION_NONE to disable
  * precise memory reporting.  Use the
- * ::AMD_DBGAPI_ARCHITECTURE_INFO_PRECISE_MEMORY_SUPPORTED query to
- * determine if an agent's architecture supports another memory precision.
+ * ::AMD_DBGAPI_PROCESS_INFO_PRECISE_MEMORY_SUPPORTED query to determine if the
+ * architectures of all the agents of a process support another memory
+ * precision.
  *
- * The memory precision is set independently for each agent, and only affects
- * the waves executing on that agent.  The setting may be changed at any time,
- * including when waves are executing, and takes effect immediately.
+ * The memory precision is set independently for each process, and only affects
+ * the waves executing on the agents of that process.  The setting may be
+ * changed at any time, including when waves are executing, and takes effect
+ * immediately.
  *
  * \param[in] process_id The process being configured.
- *
- * \param[in] agent_id The agent to configure.
  *
  * \param[in] memory_precision The memory precision to set.
  *
  * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
- * successfully and the agent has been configured.
+ * successfully and the agents of the process have been configured.
  *
  * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
  * left uninitialized.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
- * initialized.  The library is left uninitialized and no agent configuration
- * is changed.
+ * initialized.  The library is left uninitialized and no configuration is
+ * changed.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
- * invalid.  No agent configuration is changed.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_AGENT_ID \p agent_id is invalid.
- * No agent configuration is changed.
+ * invalid.  No configuration is changed.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED The requested
  * \p memory_precision is not supported for the architecture of the agent.  No
- * agent configuration is changed.
+ * configuration is changed.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p memory_precision is
- * an invalid value.  No agent configuration is changed.
+ * an invalid value.  No configuration is changed.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_memory_precision (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_agent_id_t agent_id,
+    amd_dbgapi_process_id_t process_id,
     amd_dbgapi_memory_precision_t memory_precision)
-    AMD_DBGAPI_VERSION_0_1;
+    AMD_DBGAPI_VERSION_0_22;
 
 /** @} */
 

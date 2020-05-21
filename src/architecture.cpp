@@ -1914,23 +1914,9 @@ architecture_t::get_info (amd_dbgapi_architecture_info_t query,
     case AMD_DBGAPI_ARCHITECTURE_INFO_PC_REGISTER:
       return utils::get_info (value_size, value, amdgpu_regnum_t::PC);
 
-    case AMD_DBGAPI_ARCHITECTURE_INFO_WATCHPOINT_COUNT:
-      warning ("architecture_t::get_info(WATCHPOINT_COUNT, ...) not yet "
-               "implemented");
-      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
-
-    case AMD_DBGAPI_ARCHITECTURE_INFO_WATCHPOINT_SHARE:
-      warning ("architecture_t::get_info(WATCHPOINT_SHARE, ...) not yet "
-               "implemented");
-      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
-
     case AMD_DBGAPI_ARCHITECTURE_INFO_DEFAULT_GLOBAL_ADDRESS_SPACE:
       return utils::get_info (value_size, value,
                               default_global_address_space ().id ());
-
-    case AMD_DBGAPI_ARCHITECTURE_INFO_PRECISE_MEMORY_SUPPORTED:
-      return utils::get_info (value_size, value,
-                              AMD_DBGAPI_MEMORY_PRECISION_NONE);
     }
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }

@@ -1559,6 +1559,20 @@ process_t::get_info (amd_dbgapi_process_info_t query, size_t value_size,
       return utils::get_info (value_size, value,
                               m_client_notifier_pipe.read_fd ());
 
+    case AMD_DBGAPI_PROCESS_INFO_WATCHPOINT_COUNT:
+      warning ("process_t::get_info(WATCHPOINT_COUNT, ...) not yet "
+               "implemented");
+      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+
+    case AMD_DBGAPI_PROCESS_INFO_WATCHPOINT_SHARE:
+      warning ("process_t::get_info(WATCHPOINT_SHARE, ...) not yet "
+               "implemented");
+      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+
+    case AMD_DBGAPI_PROCESS_INFO_PRECISE_MEMORY_SUPPORTED:
+      return utils::get_info (value_size, value,
+                              AMD_DBGAPI_MEMORY_PRECISION_NONE);
+
     default:
       return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
     }

@@ -33,20 +33,16 @@ global: amd_dbgapi_address_is_in_address_class;
         amd_dbgapi_prefetch_register;
         amd_dbgapi_process_attach;
         amd_dbgapi_process_detach;
-        amd_dbgapi_process_get_info;
         amd_dbgapi_process_set_progress;
-        amd_dbgapi_queue_get_info;
         amd_dbgapi_queue_list;
         amd_dbgapi_queue_packet_list;
         amd_dbgapi_read_memory;
         amd_dbgapi_read_register;
         amd_dbgapi_register_is_in_register_class;
-        amd_dbgapi_remove_watchpoint;
         amd_dbgapi_report_breakpoint_hit;
         amd_dbgapi_report_shared_library;
         amd_dbgapi_set_log_level;
         amd_dbgapi_set_memory_precision;
-        amd_dbgapi_set_watchpoint;
         amd_dbgapi_wave_get_info;
         amd_dbgapi_wave_list;
         amd_dbgapi_wave_register_get_info;
@@ -58,9 +54,13 @@ global: amd_dbgapi_address_is_in_address_class;
 local:  *;
 };
 
-@AMD_DBGAPI_NAME@_0.20 {
+@AMD_DBGAPI_NAME@_0.22 {
 global: amd_dbgapi_architecture_get_info;
         amd_dbgapi_classify_instruction;
         amd_dbgapi_disassemble_instruction;
+        amd_dbgapi_process_get_info;
         amd_dbgapi_process_set_wave_creation;
+        amd_dbgapi_queue_get_info;
+        amd_dbgapi_remove_watchpoint;
+        amd_dbgapi_set_watchpoint;
 } @AMD_DBGAPI_NAME@_0.1;
