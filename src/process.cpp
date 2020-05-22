@@ -18,18 +18,20 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#include "defs.h"
-
+#include "process.h"
+#include "agent.h"
 #include "architecture.h"
 #include "callbacks.h"
 #include "code_object.h"
 #include "debug.h"
 #include "event.h"
-#include "linux/kfd_ioctl.h"
+#include "initialization.h"
 #include "logging.h"
-#include "process.h"
+#include "os_driver.h"
 #include "queue.h"
+#include "register.h"
 #include "rocr_rdebug.h"
+#include "wave.h"
 
 #include <algorithm>
 #include <atomic>
@@ -49,15 +51,24 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
+#include <link.h>
 #include <poll.h>
 #include <signal.h>
-#include <sys/ioctl.h>
 #include <unistd.h>
+
+#if defined(__GNUC__)
+#define __maybe_unused__ __attribute__ ((unused))
+#else /* !defined(__GNUC__) */
+#define __maybe_unused__
+#endif /* !defined(__GNUC__) */
 
 namespace amd
 {
 namespace dbgapi
 {
+
+class dispatch_t;
 
 std::list<process_t *> process_list;
 
@@ -78,81 +89,10 @@ constexpr struct gfxip_lookup_table
   { "navi12", { 10, 1, 1 }, 0 },   { "navi14", { 10, 1, 2 }, 0 }
 };
 
-namespace detail
-{
-
-static size_t kfd_open_count{ 0 };
-static file_desc_t kfd_fd{ -1 };
-
-} /* namespace detail */
-
-/* Open the KFD device. The file descriptor is reference counted, multiple
-   calls to open_kfd are allowed, as long as the same number of open_kfd and
-   close_kfd are called.  The last call to close_kfd closes the device.  */
-
-static file_desc_t
-open_kfd ()
-{
-  using namespace detail;
-
-  if (!kfd_open_count)
-    {
-      dbgapi_assert (kfd_fd == -1 && "kfd_fd is already open");
-      if ((kfd_fd = ::open ("/dev/kfd", O_RDWR | O_CLOEXEC)) == -1)
-        return file_desc_t{ -1 };
-    }
-
-  ++kfd_open_count;
-  return kfd_fd;
-}
-
-static int
-close_kfd ()
-{
-  using namespace detail;
-
-  dbgapi_assert (kfd_open_count > 0 && "kfd_fd is already closed");
-
-  /* The last call to close_kfd closes the KFD device.  */
-  if (!--kfd_open_count)
-    {
-      dbgapi_assert (kfd_fd != -1 && "invalid kfd_fd");
-
-      file_desc_t fd = kfd_fd;
-      kfd_fd = file_desc_t{ -1 };
-
-      if (::close (fd))
-        return -1;
-    }
-
-  return 0;
-}
-
-int
-process_t::dbg_trap_ioctl (uint32_t action, kfd_ioctl_dbg_trap_args *args)
-{
-  if (is_flag_set (flag_t::CLIENT_PROCESS_HAS_EXITED))
-    return -ESRCH;
-
-  args->pid = m_os_pid;
-  args->op = action;
-
-  int ret = ::ioctl (m_kfd_fd, AMDKFD_IOC_DBG_TRAP, args);
-  if (ret < 0 && errno == ESRCH)
-    {
-      /* The target process does not exist, it must have exited.  */
-      set_flag (flag_t::CLIENT_PROCESS_HAS_EXITED);
-      /* FIXME: We should tear down the process now, so that any operation
-         executed after this point returns an error.  */
-      return -ESRCH;
-    }
-
-  return ret < 0 ? -errno : ret;
-}
-
 process_t::process_t (amd_dbgapi_client_process_id_t client_process_id,
                       amd_dbgapi_process_id_t process_id)
-    : m_process_id (process_id), m_client_process_id (client_process_id)
+    : m_process_id (process_id), m_client_process_id (client_process_id),
+      m_os_driver (*this)
 {
   if (get_os_pid (&m_os_pid) != AMD_DBGAPI_STATUS_SUCCESS)
     return;
@@ -164,10 +104,6 @@ process_t::process_t (amd_dbgapi_client_process_id_t client_process_id,
       == -1)
     warning ("Could not open `%s': %s", filename.c_str (), strerror (errno));
 
-  /* Open the /dev/kfd device.  */
-  if ((m_kfd_fd = open_kfd ()) == -1)
-    warning ("Could not open the KFD device: %s", strerror (errno));
-
   /* Create the notifier pipe.  */
   m_client_notifier_pipe.open ();
 
@@ -178,13 +114,13 @@ process_t::process_t (amd_dbgapi_client_process_id_t client_process_id,
 bool
 process_t::is_valid () const
 {
-  /* This process is ready if the /dev/kfd and /proc/pid/mem files are open,
-     and the notifier pipe (used to communicate with the client) is ready.
-     A process only exists in the not ready state while being created by the
+  /* This process is ready if /proc/pid/mem is open, the notifier pipe (used to
+     communicate with the client) is ready, and the os_driver is ready. A
+     process only exists in the not ready state while being created by the
      factory, and if not ready  will be destructed and never be put in the map
      of processes.
    */
-  return m_os_pid != -1 && m_kfd_fd != -1 && m_proc_mem_fd != -1
+  return m_os_pid != -1 && m_proc_mem_fd != -1 && m_os_driver.is_valid ()
          && m_client_notifier_pipe.is_valid ();
 }
 
@@ -214,7 +150,7 @@ process_t::detach ()
         set_forward_progress_needed (false);
 
         /* Resume all the waves halted at launch.  */
-        set_wave_launch_mode (wave_launch_mode_t::NORMAL);
+        set_wave_launch_mode (os_wave_launch_mode_t::NORMAL);
 
         update_queues ();
 
@@ -283,9 +219,6 @@ process_t::detach ()
     }
 
   m_client_notifier_pipe.close ();
-
-  if (m_kfd_fd != -1 && close_kfd ())
-    error ("Could not close the KFD device");
 
   if (exception)
     std::rethrow_exception (exception);
@@ -430,7 +363,7 @@ process_t::set_forward_progress_needed (bool forward_progress_needed)
 }
 
 amd_dbgapi_status_t
-process_t::set_wave_launch_mode (wave_launch_mode_t wave_launch_mode)
+process_t::set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode)
 {
   if (m_wave_launch_mode == wave_launch_mode)
     return AMD_DBGAPI_STATUS_SUCCESS;
@@ -439,18 +372,18 @@ process_t::set_wave_launch_mode (wave_launch_mode_t wave_launch_mode)
   for (auto it = agent_range.begin (); it != agent_range.end (); ++it)
     {
       amd_dbgapi_status_t status
-          = set_wave_launch_mode (*it, wave_launch_mode);
+          = os_driver ().set_wave_launch_mode (*it, wave_launch_mode);
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         error ("agent_t::set_wave_launch_mode (%s) failed (rc=%d)",
                to_string (wave_launch_mode).c_str (), status);
     }
 
-  wave_launch_mode_t saved_wave_launch_mode = m_wave_launch_mode;
+  os_wave_launch_mode_t saved_wave_launch_mode = m_wave_launch_mode;
   m_wave_launch_mode = wave_launch_mode;
 
   /* When changing the wave launch mode from WAVE_LAUNCH_MODE_HALT, all waves
      halted at launch need to be resumed and reported to the client.  */
-  if (saved_wave_launch_mode == wave_launch_mode_t::HALT)
+  if (saved_wave_launch_mode == os_wave_launch_mode_t::HALT)
     {
       update_queues ();
 
@@ -534,7 +467,7 @@ process_t::update_agents ()
 {
   struct sysfs_node_t
   {
-    agent_t::kfd_gpu_id_t gpu_id;
+    os_agent_id_t gpu_id;
     const architecture_t &architecture;
     agent_t::properties_t properties;
   };
@@ -565,7 +498,7 @@ process_t::update_agents ()
       if (!gpu_id_ifs.is_open ())
         continue;
 
-      agent_t::kfd_gpu_id_t gpu_id = 0;
+      os_agent_id_t gpu_id = 0;
       gpu_id_ifs >> gpu_id;
 
       if (!gpu_id)
@@ -701,7 +634,7 @@ process_t::update_agents ()
       if (agent->debug_trap_enabled ())
         {
           amd_dbgapi_status_t status
-              = set_wave_launch_mode (*agent, m_wave_launch_mode);
+              = os_driver ().set_wave_launch_mode (*agent, m_wave_launch_mode);
           if (status != AMD_DBGAPI_STATUS_SUCCESS)
             error ("Could not set the wave launch mode for gpu_id %d (rc=%d).",
                    sysfs_node.gpu_id, status);
@@ -724,128 +657,28 @@ process_t::update_agents ()
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
-amd_dbgapi_status_t
-process_t::enable_debug_trap (const agent_t &agent, file_desc_t *poll_fd)
-{
-  dbgapi_assert (poll_fd && "must not be null");
-
-  /* KFD_IOC_DBG_TRAP_ENABLE (#0):
-     data1: [in] enable/disable (1/0)
-     data3: [out] poll_fd  */
-
-  kfd_ioctl_dbg_trap_args args{};
-  args.gpu_id = agent.gpu_id ();
-  args.data1 = 1; /* enable  */
-
-  int err = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_ENABLE, &args);
-  if (err < 0)
-    return AMD_DBGAPI_STATUS_ERROR;
-
-  *poll_fd = args.data3;
-  return AMD_DBGAPI_STATUS_SUCCESS;
-}
-
-amd_dbgapi_status_t
-process_t::disable_debug_trap (const agent_t &agent)
-{
-  /* KFD_IOC_DBG_TRAP_ENABLE (#0):
-     data1: [in] enable/disable (1/0)  */
-
-  kfd_ioctl_dbg_trap_args args{};
-  args.gpu_id = agent.gpu_id ();
-  args.data1 = 0; /* disable  */
-
-  int err = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_ENABLE, &args);
-  if (err < 0)
-    return AMD_DBGAPI_STATUS_ERROR;
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
-}
-
-amd_dbgapi_status_t
-process_t::set_wave_launch_mode (const agent_t &agent, wave_launch_mode_t mode)
-{
-  /* KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_MODE (#2)
-     data1: mode (0=normal, 1=halt, 2=kill, 3=single-step, 4=disable)  */
-
-  kfd_ioctl_dbg_trap_args args{};
-  args.gpu_id = agent.gpu_id ();
-  args.data1 = static_cast<std::underlying_type_t<decltype (mode)>> (mode);
-
-  int err = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_MODE, &args);
-  if (err < 0)
-    return AMD_DBGAPI_STATUS_ERROR;
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
-}
-
-amd_dbgapi_status_t
-process_t::query_debug_event (const agent_t &agent,
-                              queue_t::kfd_queue_id_t *kfd_queue_id,
-                              uint32_t *queue_status)
-{
-  dbgapi_assert (kfd_queue_id && queue_status && "must not be null");
-
-  /* KFD_IOC_DBG_TRAP_QUERY_DEBUG_EVENT (#6):
-     data1: [in/out] queue id
-     data2: [in] flags
-     data3: [out] new_queue[3:3], suspended[2:2], event_type [1:0]  */
-
-  kfd_ioctl_dbg_trap_args args{};
-  args.gpu_id = agent.gpu_id ();
-  args.data1 = KFD_INVALID_QUEUEID;
-  args.data2 = KFD_DBG_EV_FLAG_CLEAR_STATUS;
-
-  int err = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_QUERY_DEBUG_EVENT, &args);
-  if (err == -EAGAIN)
-    {
-      /* There are no more events.  */
-      *kfd_queue_id = KFD_INVALID_QUEUEID;
-      *queue_status = 0;
-      return AMD_DBGAPI_STATUS_SUCCESS;
-    }
-  else if (err < 0)
-    return AMD_DBGAPI_STATUS_ERROR;
-
-  *kfd_queue_id = args.data1;
-  *queue_status = args.data3;
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
-}
-
 size_t
-process_t::suspend_queues (const std::vector<queue_t *> &queues)
+process_t::suspend_queues (const std::vector<queue_t *> &queues) const
 {
   if (queues.empty ())
     return 0;
 
-  std::vector<queue_t::kfd_queue_id_t> queue_ids;
+  std::vector<os_queue_id_t> queue_ids;
   queue_ids.reserve (queues.size ());
 
   for (auto *queue : queues)
     {
       dbgapi_assert (!queue->is_suspended () && "already suspended");
-      queue_ids.emplace_back (queue->kfd_queue_id ());
+      queue_ids.emplace_back (queue->os_queue_id ());
       dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "suspending %s",
                   to_string (queue->id ()).c_str ());
     }
 
-  /* KFD_IOC_DBG_TRAP_NODE_SUSPEND (#4):
-     data1: [in] flags
-     data2: [in] number of queues
-     data3: [in] grace period
-     ptr:   [in] queue ids  */
-
-  kfd_ioctl_dbg_trap_args args{};
-  args.data1 = KFD_DBG_EV_FLAG_CLEAR_STATUS;
-  args.data2 = static_cast<uint32_t> (queue_ids.size ());
-  args.ptr = reinterpret_cast<uint64_t> (queue_ids.data ());
-
   size_t num_suspended_queues
-      = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_SUSPEND, &args);
+      = os_driver ().suspend_queues (queue_ids.data (), queue_ids.size ());
 
   if (num_suspended_queues < 0)
-    error ("dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_SUSPEND) failed.");
+    error ("os_driver::suspend_queues failed.");
 
   if (num_suspended_queues != queue_ids.size ())
     {
@@ -855,10 +688,10 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues)
       bool __maybe_unused__ invalid_queue = false;
 
       for (size_t i = 0; i < queue_ids.size (); ++i)
-        if (queue_ids[i] & KFD_DBG_QUEUE_ERROR_MASK)
+        if (queue_ids[i] & OS_QUEUE_ERROR_MASK)
           error ("failed to suspend %s",
                  to_string (queues[i]->id ()).c_str ());
-        else if (queue_ids[i] & KFD_DBG_QUEUE_INVALID_MASK)
+        else if (queue_ids[i] & OS_QUEUE_INVALID_MASK)
           {
             queues[i]->invalidate ();
             invalid_queue = true;
@@ -876,37 +709,27 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues)
 }
 
 size_t
-process_t::resume_queues (const std::vector<queue_t *> &queues)
+process_t::resume_queues (const std::vector<queue_t *> &queues) const
 {
   if (queues.empty ())
     return 0;
 
-  std::vector<queue_t::kfd_queue_id_t> queue_ids;
+  std::vector<os_queue_id_t> queue_ids;
   queue_ids.reserve (queues.size ());
 
   for (auto *queue : queues)
     {
       dbgapi_assert (queue->is_suspended () && "queue is not suspended");
-      queue_ids.emplace_back (queue->kfd_queue_id ());
+      queue_ids.emplace_back (queue->os_queue_id ());
       dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "resuming %s",
                   to_string (queue->id ()).c_str ());
     }
 
-  /* KFD_IOC_DBG_TRAP_NODE_RESUME (#5):
-     data1: [in] flags
-     data2: [in] number of queues
-     ptr:   [in] queue ids  */
-
-  kfd_ioctl_dbg_trap_args args{};
-  args.data1 = 0;
-  args.data2 = static_cast<uint32_t> (queue_ids.size ());
-  args.ptr = reinterpret_cast<uint64_t> (queue_ids.data ());
-
   size_t num_resumed_queues
-      = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_RESUME, &args);
+      = os_driver ().resume_queues (queue_ids.data (), queue_ids.size ());
 
   if (num_resumed_queues < 0)
-    error ("dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_RESUME) failed.");
+    error ("os_driver::resume_queues failed.");
 
   if (num_resumed_queues != queue_ids.size ())
     {
@@ -916,9 +739,9 @@ process_t::resume_queues (const std::vector<queue_t *> &queues)
       bool __maybe_unused__ invalid_queue = false;
 
       for (size_t i = 0; i < queue_ids.size (); ++i)
-        if (queue_ids[i] & KFD_DBG_QUEUE_ERROR_MASK)
+        if (queue_ids[i] & OS_QUEUE_ERROR_MASK)
           error ("failed to resume %s", to_string (queues[i]->id ()).c_str ());
-        else if (queue_ids[i] & KFD_DBG_QUEUE_INVALID_MASK)
+        else if (queue_ids[i] & OS_QUEUE_INVALID_MASK)
           {
             queues[i]->invalidate ();
             invalid_queue = true;
@@ -938,11 +761,11 @@ amd_dbgapi_status_t
 process_t::update_queues ()
 {
   epoch_t queue_mark;
-  std::unique_ptr<kfd_queue_snapshot_entry[]> snapshots;
-  uint32_t snapshot_count;
+  std::unique_ptr<os_queue_snapshot_entry_t[]> snapshots;
+  size_t snapshot_count;
 
   /* Prime the queue count with the current number of queues.  */
-  uint32_t queue_count = count<queue_t> ();
+  size_t queue_count = count<queue_t> ();
 
   do
     {
@@ -953,26 +776,12 @@ process_t::update_queues ()
       /* We should allocate enough memory for the snapshots. Let's start with
          the current number of queues + 16.  */
       snapshot_count = queue_count + 16;
-      snapshots.reset (new kfd_queue_snapshot_entry[snapshot_count]);
+      snapshots.reset (new os_queue_snapshot_entry_t[snapshot_count]);
 
-      /* KFD_IOC_DBG_TRAP_GET_QUEUE_SNAPSHOT (#7):
-         data1: [in] flags
-         data2: [in/out] number of queues snapshots
-         ptr:   [in] user buffer  */
-
-      kfd_ioctl_dbg_trap_args args{};
-      args.data1 = 0;
-      args.data2 = snapshot_count;
-      args.ptr = reinterpret_cast<uint64_t> (snapshots.get ());
-
-      int err = dbg_trap_ioctl (KFD_IOC_DBG_TRAP_GET_QUEUE_SNAPSHOT, &args);
-      if (err < 0)
-        return AMD_DBGAPI_STATUS_ERROR;
-
-      /* KFD writes up to snapshot_count queue snapshots, but returns the
-         number of queues in the process so that we can check if we have
-         allocated enough memory to hold all the snapshots.  */
-      queue_count = args.data2;
+      amd_dbgapi_status_t status = os_driver ().queue_snapshot (
+          snapshots.get (), snapshot_count, &queue_count);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        return status;
 
       /* We have to process the snapshots returned by the ioctl now, even
          if the list is incomplete, because we only get notified once that
@@ -980,38 +789,38 @@ process_t::update_queues ()
 
       for (uint32_t i = 0; i < std::min (queue_count, snapshot_count); ++i)
         {
-          const kfd_queue_snapshot_entry &queue_info = snapshots[i];
+          const os_queue_snapshot_entry_t &queue_info = snapshots[i];
           amd_dbgapi_queue_id_t queue_id = AMD_DBGAPI_QUEUE_NONE;
 
-          /* Find the queue by matching its kfd_queue_id with the one
+          /* Find the queue by matching its os_queue_id with the one
              returned by the ioctl.  */
           queue_t *queue = find_if ([&] (const queue_t &x) {
-            return x.kfd_queue_id () == queue_info.queue_id;
+            return x.os_queue_id () == queue_info.queue_id;
           });
 
-          if (queue_info.queue_status & KFD_DBG_EV_STATUS_NEW_QUEUE)
+          if (!!(os_queue_status (queue_info) & os_queue_status_t::NEW_QUEUE))
             {
-              /* If there is a stale queue with the same kfd_queue_id,
+              /* If there is a stale queue with the same os_queue_id,
                  destroy it.  */
               if (queue)
                 destroy (queue);
             }
           else if (is_flag_set (flag_t::REQUIRE_NEW_QUEUE_BIT))
             {
-              /* We should always have a valid queue for a given kfd_queue_id
+              /* We should always have a valid queue for a given os_queue_id
                  after the process is initialized.  Not finding the queue means
                  that we either did not create a queue when a new queue_id was
                  reported (we consumed the event without action), or KFD did
                  not report the new queue.  */
               if (!queue)
                 error (
-                    "kfd_queue_id %d should have been reported as a NEW_QUEUE "
+                    "os_queue_id %d should have been reported as a NEW_QUEUE "
                     "before",
                     queue_info.queue_id);
 
               /* FIXME: If we could select which flags get cleared by the
                  query_debug_event ioctl, we would not need to create a
-                 partially initialized queue in agent_t::next_kfd_event, and
+                 partially initialized queue in agent_t::next_os_event, and
                  fix it here with the information contained in the queue
                  snapshots.  */
 
@@ -1021,16 +830,16 @@ process_t::update_queues ()
               if (!queue->mark ())
                 {
                   /* This is a partially initialized queue, re-create a fully
-                     initialized instance with the same kfd_queue_id.  */
+                     initialized instance with the same os_queue_id.  */
                   queue_id = amd_dbgapi_queue_id_t{ queue->id () };
                   destroy (queue);
                 }
               else
                 {
-                  dbgapi_assert (
-                      !!(queue_info.queue_status & KFD_DBG_EV_STATUS_SUSPENDED)
-                          == queue->is_suspended ()
-                      && "queue state does not match queue_info");
+                  dbgapi_assert (!!(os_queue_status (queue_info)
+                                    & os_queue_status_t::SUSPENDED)
+                                     == queue->is_suspended ()
+                                 && "queue state does not match queue_info");
 
                   /* This isn't a new queue, and it is fully initialized.
                      Mark it as active, and continue to the next snapshot.  */
@@ -1059,7 +868,7 @@ process_t::update_queues ()
                                     *agent,      /* agent */
                                     queue_info); /* queue_info */
           queue->set_state (
-              !(queue_info.queue_status & KFD_DBG_EV_STATUS_SUSPENDED)
+              !(os_queue_status (queue_info) & os_queue_status_t::SUSPENDED)
                   ? queue_t::state_t::RUNNING
                   : queue_t::state_t::SUSPENDED);
           queue->set_mark (queue_mark);
@@ -1164,42 +973,22 @@ process_t::update_code_objects ()
 amd_dbgapi_status_t
 process_t::attach ()
 {
-  /* Check that the KFD major == IOCTL major, and KFD minor >= IOCTL minor.  */
-  kfd_ioctl_get_version_args get_version_args{};
-  if (ioctl (m_kfd_fd, AMDKFD_IOC_GET_VERSION, &get_version_args)
-      || get_version_args.major_version != KFD_IOCTL_MAJOR_VERSION
-      || get_version_args.minor_version < KFD_IOCTL_MINOR_VERSION)
-    {
-      warning ("KFD ioctl version %d.%d does not match %d.%d+ requirement",
-               get_version_args.major_version, get_version_args.minor_version,
-               KFD_IOCTL_MAJOR_VERSION, KFD_IOCTL_MINOR_VERSION);
-      return AMD_DBGAPI_STATUS_ERROR_VERSION_MISMATCH;
-    }
-
-  /* KFD_IOC_DBG_TRAP_GET_VERSION (#8)
-     data1: [out] major version
-     data2: [out] minor version */
-
-  kfd_ioctl_dbg_trap_args dbg_trap_args{};
-  dbg_trap_args.pid = static_cast<uint32_t> (getpid ());
-  dbg_trap_args.op = KFD_IOC_DBG_TRAP_GET_VERSION;
-
+  uint32_t os_driver_major{}, os_driver_minor{};
   /* Check that the KFD dbg trap major == IOCTL dbg trap major,
      and KFD dbg trap minor >= IOCTL dbg trap minor.  */
-  if (ioctl (m_kfd_fd, AMDKFD_IOC_DBG_TRAP, &dbg_trap_args)
-      || dbg_trap_args.data1 != KFD_IOCTL_DBG_MAJOR_VERSION
-      || dbg_trap_args.data2 < KFD_IOCTL_DBG_MINOR_VERSION)
+  if (os_driver ().get_version (&os_driver_major, &os_driver_minor)
+      || os_driver_major != OS_DRIVER_MAJOR_VERSION
+      || os_driver_minor < OS_DRIVER_MINOR_VERSION)
     {
       warning (
-          "KFD dbg trap ioctl version %d.%d does not match %d.%d+ requirement",
-          dbg_trap_args.data1, dbg_trap_args.data2,
-          KFD_IOCTL_DBG_MAJOR_VERSION, KFD_IOCTL_DBG_MINOR_VERSION);
+          "debugger driver version %d.%d does not match %d.%d+ requirement",
+          os_driver_major, os_driver_minor, OS_DRIVER_MAJOR_VERSION,
+          OS_DRIVER_MINOR_VERSION);
       return AMD_DBGAPI_STATUS_ERROR_VERSION_MISMATCH;
     }
 
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-              "using KFD dbg trap ioctl version %d.%d", dbg_trap_args.data1,
-              dbg_trap_args.data2);
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "using debugger driver version %d.%d",
+              os_driver_major, os_driver_minor);
 
   /* When we first attach to the process, all waves already running need to be
      assigned new wave_ids.  This flag will be cleared after the first call
@@ -1480,7 +1269,7 @@ process_t::start_event_thread ()
   for (auto &&agent : range<agent_t> ())
     {
       file_descriptors.emplace_back (agent.poll_fd ());
-      notifiers.emplace_back (&agent.kfd_event_notifier ());
+      notifiers.emplace_back (&agent.os_event_notifier ());
     }
 
   /* Then add the read end of the exit_pipe.  */
@@ -1662,11 +1451,9 @@ amd_dbgapi_process_set_wave_creation (amd_dbgapi_process_id_t process_id,
   switch (creation)
     {
     case AMD_DBGAPI_WAVE_CREATION_NORMAL:
-      return process->set_wave_launch_mode (
-          process_t::wave_launch_mode_t::NORMAL);
+      return process->set_wave_launch_mode (os_wave_launch_mode_t::NORMAL);
     case AMD_DBGAPI_WAVE_CREATION_STOP:
-      return process->set_wave_launch_mode (
-          process_t::wave_launch_mode_t::HALT);
+      return process->set_wave_launch_mode (os_wave_launch_mode_t::HALT);
     default:
       return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
     }

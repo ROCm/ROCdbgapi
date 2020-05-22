@@ -21,17 +21,21 @@
 #ifndef _AMD_DBGAPI_ARCHITECTURE_H
 #define _AMD_DBGAPI_ARCHITECTURE_H 1
 
-#include "defs.h"
-
+#include "amd-dbgapi.h"
 #include "handle_object.h"
 #include "memory.h"
 #include "register.h"
 #include "utils.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <set>
 #include <string>
+#include <tuple>
+#include <type_traits>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <amd_comgr.h>

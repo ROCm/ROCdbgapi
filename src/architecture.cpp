@@ -18,29 +18,38 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#include "defs.h"
-
 #include "architecture.h"
 #include "debug.h"
 #include "displaced_stepping.h"
+#include "initialization.h"
 #include "logging.h"
+#include "memory.h"
 #include "process.h"
+#include "queue.h"
 #include "register.h"
 #include "utils.h"
 #include "wave.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <iomanip>
 #include <set>
 #include <sstream>
 #include <string>
+#include <sys/types.h>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include <amd_comgr.h>
 #include <ctype.h>
+
+#if defined(__GNUC__)
+#define __maybe_unused__ __attribute__ ((unused))
+#else /* !defined(__GNUC__) */
+#define __maybe_unused__
+#endif /* !defined(__GNUC__) */
 
 namespace amd
 {

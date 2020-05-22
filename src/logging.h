@@ -21,14 +21,13 @@
 #ifndef _AMD_DBGAPI_LOGGING_H
 #define _AMD_DBGAPI_LOGGING_H 1
 
-#include "defs.h"
-
-#include "utils.h"
+#include "amd-dbgapi.h"
 
 #include <cstdarg>
+#include <cstddef>
 #include <sstream>
-#include <stdexcept>
 #include <string>
+#include <utility>
 
 #define dbgapi_log(level, format, ...)                                        \
   do                                                                          \

@@ -21,16 +21,17 @@
 #ifndef _AMD_DBGAPI_UTILS_H
 #define _AMD_DBGAPI_UTILS_H 1
 
-#include "defs.h"
-
+#include "amd-dbgapi.h"
 #include "debug.h"
 
 #include <cstdarg>
+#include <cstdint>
 #include <cstring>
 #include <functional>
+#include <new>
 #include <string>
-#include <tuple>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #define TRY                                                                   \
@@ -83,6 +84,9 @@ namespace amd
 {
 namespace dbgapi
 {
+
+using epoch_t = uint64_t;
+using file_desc_t = int;
 
 extern std::string string_vprintf (const char *format, va_list va);
 extern std::string string_printf (const char *format, ...)
@@ -303,6 +307,20 @@ bool operator! (T flag)
 {
   using t = std::underlying_type_t<T>;
   return static_cast<t> (flag) == t{};
+}
+
+template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
+bool
+operator== (T flag, std::underlying_type_t<T> value)
+{
+  return static_cast<std::underlying_type_t<T>> (flag) == value;
+}
+
+template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
+bool
+operator!= (T flag, std::underlying_type_t<T> value)
+{
+  return !(flag == value);
 }
 
 template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>

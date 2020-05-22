@@ -21,10 +21,10 @@
 #ifndef _AMD_DBGAPI_EVENT_H
 #define _AMD_DBGAPI_EVENT_H 1
 
-#include "defs.h"
-
+#include "amd-dbgapi.h"
 #include "handle_object.h"
 
+#include <cstddef>
 #include <string>
 
 namespace amd

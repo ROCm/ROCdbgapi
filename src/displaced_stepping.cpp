@@ -18,17 +18,19 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#include "defs.h"
-
+#include "displaced_stepping.h"
 #include "architecture.h"
 #include "debug.h"
-#include "displaced_stepping.h"
+#include "initialization.h"
 #include "logging.h"
 #include "process.h"
 #include "queue.h"
 #include "register.h"
 #include "utils.h"
 #include "wave.h"
+
+#include <cstdint>
+#include <cstring>
 
 namespace amd
 {

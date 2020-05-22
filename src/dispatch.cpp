@@ -18,20 +18,17 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#include "defs.h"
-
+#include "dispatch.h"
 #include "agent.h"
 #include "architecture.h"
 #include "debug.h"
-#include "dispatch.h"
+#include "initialization.h"
 #include "logging.h"
 #include "process.h"
 #include "queue.h"
 #include "utils.h"
 
 #include <hsa/amd_hsa_kernel_code.h>
-
-#include <cstring>
 
 namespace amd
 {

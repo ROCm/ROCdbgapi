@@ -18,17 +18,17 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#include "defs.h"
-
+#include "wave.h"
 #include "architecture.h"
 #include "dispatch.h"
 #include "event.h"
+#include "initialization.h"
 #include "logging.h"
+#include "memory.h"
 #include "process.h"
 #include "queue.h"
 #include "register.h"
 #include "utils.h"
-#include "wave.h"
 
 #include <algorithm>
 #include <cstring>

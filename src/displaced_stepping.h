@@ -21,15 +21,13 @@
 #ifndef _AMD_DBGAPI_DISPLACED_STEPPING_H
 #define _AMD_DBGAPI_DISPLACED_STEPPING_H 1
 
-#include "defs.h"
-
 #include "agent.h"
+#include "amd-dbgapi.h"
 #include "handle_object.h"
 #include "queue.h"
 
+#include <cstdint>
 #include <vector>
-
-#include <hsa/hsa.h>
 
 namespace amd
 {

@@ -18,21 +18,21 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#include "defs.h"
-
+#include "register.h"
 #include "architecture.h"
 #include "debug.h"
+#include "initialization.h"
 #include "logging.h"
 #include "process.h"
 #include "queue.h"
-#include "register.h"
 #include "utils.h"
 #include "wave.h"
 
-#include <cstring>
+#include <cstdint>
 #include <map>
 #include <string>
-#include <utility> // for pair
+#include <type_traits>
+#include <utility>
 
 namespace amd
 {

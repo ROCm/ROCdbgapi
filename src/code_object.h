@@ -21,10 +21,11 @@
 #ifndef _AMD_DBGAPI_CODE_OBJECT_H
 #define _AMD_DBGAPI_CODE_OBJECT_H 1
 
-#include "defs.h"
-
+#include "amd-dbgapi.h"
 #include "handle_object.h"
+#include "utils.h"
 
+#include <cstddef>
 #include <string>
 
 namespace amd

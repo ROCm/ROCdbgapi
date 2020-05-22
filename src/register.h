@@ -21,13 +21,14 @@
 #ifndef _AMD_DBGAPI_REGISTER_H
 #define _AMD_DBGAPI_REGISTER_H 1
 
-#include "defs.h"
-
+#include "amd-dbgapi.h"
 #include "handle_object.h"
 
+#include <cstddef>
 #include <map>
 #include <set>
 #include <string>
+#include <utility>
 
 namespace amd
 {

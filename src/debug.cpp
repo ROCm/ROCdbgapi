@@ -18,8 +18,6 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#include "defs.h"
-
 #include "debug.h"
 #include "logging.h"
 #include "utils.h"
@@ -81,8 +79,9 @@ full_callback (void *data, uintptr_t pc, const char *filename, int lineno,
   backtrace_info *info = static_cast<backtrace_info *> (data);
   int status;
 
-  info->sstream << std::endl << "    #" << std::dec << info->depth++ << ' '
-                << "0x" << std::hex << std::setfill ('0')
+  info->sstream << std::endl
+                << "    #" << std::dec << info->depth++ << ' ' << "0x"
+                << std::hex << std::setfill ('0')
                 << std::setw (sizeof (pc) * 2) << pc;
 
   if (!function)

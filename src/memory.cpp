@@ -18,12 +18,13 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#include "defs.h"
-
-#include "architecture.h"
-#include "logging.h"
 #include "memory.h"
+#include "architecture.h"
+#include "debug.h"
+#include "initialization.h"
+#include "logging.h"
 #include "process.h"
+#include "queue.h"
 #include "utils.h"
 #include "wave.h"
 
@@ -31,6 +32,8 @@ namespace amd
 {
 namespace dbgapi
 {
+
+class agent_t;
 
 amd_dbgapi_status_t
 address_class_t::get_info (amd_dbgapi_address_class_info_t query,

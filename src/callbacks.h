@@ -21,9 +21,7 @@
 #ifndef _AMD_DBGAPI_CALLBACKS_H
 #define _AMD_DBGAPI_CALLBACKS_H 1
 
-#include "defs.h"
-
-#include "debug.h"
+#include "amd-dbgapi.h"
 #include "handle_object.h"
 
 #include <functional>

@@ -21,17 +21,21 @@
 #ifndef _AMD_DBGAPI_WAVE_H
 #define _AMD_DBGAPI_WAVE_H 1
 
-#include "defs.h"
-
 #include "agent.h"
+#include "amd-dbgapi.h"
 #include "debug.h"
 #include "dispatch.h"
 #include "handle_object.h"
 #include "queue.h"
 #include "register.h"
+#include "utils.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <string>
+#include <tuple>
 #include <utility>
+#include <vector>
 
 namespace amd
 {
@@ -49,9 +53,9 @@ class wave_t : public detail::handle_object<amd_dbgapi_wave_id_t>
 public:
   /* New waves are always created by the hardware with an undefined wave_id.
      A wave with an undefined wave_id could be halted at launch if the launch
-     mode was set to process_t::wave_launch_mode_t::HALT when it was created.
-     Waves halted at launch do not have a trap/exception raised by the trap
-     handler.  */
+     mode was set to os_wave_launch_mode_t::HALT when it was  created. Waves
+     halted at launch do not have a trap/exception raised by the
+     trap handler.  */
   static constexpr amd_dbgapi_wave_id_t undefined = { 0 };
 
   enum class visibility_t
@@ -59,9 +63,9 @@ public:
     VISIBLE,
     /* Waves with HIDDEN_HALTED_AT_LAUNCH visibility are waves that are halted
        at launch because the launch mode was set to
-       process_t::wave_launch_mode_t::HALT when they were created. These waves
-       should not be reported to the client until the launch mode is changed
-       to process_t::wave_launch_mode_t::NORMAL.  */
+       os_wave_launch_mode_t::HALT when they were created. These waves should
+       not be reported to the client until the launch mode is changed to
+       os_wave_launch_mode_t::NORMAL.  */
     HIDDEN_HALTED_AT_LAUNCH,
     /* Waves with HIDDEN_AT_ENDPGM visibility are waves that are terminating
        (about to execute a s_endpgm instruction). These waves should never be

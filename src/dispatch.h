@@ -21,11 +21,13 @@
 #ifndef _AMD_DBGAPI_DISPATCH_H
 #define _AMD_DBGAPI_DISPATCH_H 1
 
-#include "defs.h"
-
 #include "agent.h"
+#include "amd-dbgapi.h"
 #include "handle_object.h"
 #include "queue.h"
+
+#include <cstddef>
+#include <cstdint>
 
 #include <hsa/hsa.h>
 

@@ -21,10 +21,10 @@
 #ifndef _AMD_DBGAPI_DEBUG_H
 #define _AMD_DBGAPI_DEBUG_H 1
 
-#include "defs.h"
+#include "amd-dbgapi.h"
 
-#include <cstdarg>
 #include <stdexcept>
+#include <string>
 
 #if defined(NDEBUG)
 #define dbgapi_assert(expr) ((void)0)

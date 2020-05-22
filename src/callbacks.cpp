@@ -18,16 +18,16 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#include "defs.h"
-
 #include "callbacks.h"
 #include "debug.h"
+#include "initialization.h"
 #include "logging.h"
 #include "process.h"
 #include "utils.h"
 
 #include <functional>
 #include <string>
+#include <utility>
 
 namespace amd
 {

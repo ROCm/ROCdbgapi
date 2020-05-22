@@ -18,10 +18,11 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#include "defs.h"
-
+#include "amd-dbgapi.h"
 #include "logging.h"
 #include "utils.h"
+
+#include <cstdint>
 
 const char AMD_DBGAPI *
 amd_dbgapi_get_build_name (void)

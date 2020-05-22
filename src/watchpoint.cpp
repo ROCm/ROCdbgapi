@@ -18,8 +18,7 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#include "defs.h"
-
+#include "amd-dbgapi.h"
 #include "debug.h"
 #include "logging.h"
 #include "utils.h"

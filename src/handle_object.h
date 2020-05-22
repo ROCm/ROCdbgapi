@@ -21,8 +21,6 @@
 #ifndef _AMD_DBGAPI_HANDLE_OBJECT_H
 #define _AMD_DBGAPI_HANDLE_OBJECT_H 1
 
-#include "defs.h"
-
 #include "utils.h"
 
 #include <algorithm>

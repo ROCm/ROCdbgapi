@@ -21,11 +21,13 @@
 #ifndef _AMD_DBGAPI_MEMORY_H
 #define _AMD_DBGAPI_MEMORY_H 1
 
-#include "defs.h"
-
+#include "amd-dbgapi.h"
 #include "handle_object.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <string>
+#include <utility>
 
 namespace amd
 {

@@ -21,11 +21,14 @@
 #ifndef _AMD_DBGAPI_AGENT_H
 #define _AMD_DBGAPI_AGENT_H 1
 
-#include "defs.h"
-
+#include "amd-dbgapi.h"
 #include "handle_object.h"
+#include "os_driver.h"
+#include "utils.h"
 
 #include <atomic>
+#include <cstddef>
+#include <cstdint>
 #include <string>
 
 namespace amd
@@ -41,8 +44,6 @@ class process_t;
 class agent_t : public detail::handle_object<amd_dbgapi_agent_id_t>
 {
 public:
-  using kfd_gpu_id_t = uint32_t;
-
   struct properties_t
   {
     /* Public name of the "device".  */
@@ -70,18 +71,18 @@ public:
   };
 
   agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
-           kfd_gpu_id_t gpu_id, const architecture_t &architecture,
+           os_agent_id_t gpu_id, const architecture_t &architecture,
            const properties_t &properties);
   ~agent_t ();
 
-  kfd_gpu_id_t gpu_id () const { return m_gpu_id; }
+  os_agent_id_t gpu_id () const { return m_gpu_id; }
   const properties_t &properties () const { return m_properties; }
 
   file_desc_t poll_fd () const { return m_poll_fd; }
 
-  std::atomic<bool> &kfd_event_notifier () { return m_kfd_event_notifier; }
-  amd_dbgapi_status_t next_kfd_event (amd_dbgapi_queue_id_t *queue_id,
-                                      uint32_t *queue_status);
+  std::atomic<bool> &os_event_notifier () { return m_os_event_notifier; }
+  amd_dbgapi_status_t next_os_event (amd_dbgapi_queue_id_t *queue_id,
+                                     os_queue_status_t *queue_status);
 
   amd_dbgapi_status_t get_info (amd_dbgapi_agent_info_t query,
                                 size_t value_size, void *value) const;
@@ -94,11 +95,11 @@ public:
   bool debug_trap_enabled () const { return m_poll_fd != -1; }
 
 private:
-  kfd_gpu_id_t const m_gpu_id;
+  os_agent_id_t const m_gpu_id;
   properties_t const m_properties;
 
   file_desc_t m_poll_fd{ -1 };
-  std::atomic<bool> m_kfd_event_notifier{ false };
+  std::atomic<bool> m_os_event_notifier{ false };
 
   const architecture_t &m_architecture;
   process_t &m_process;

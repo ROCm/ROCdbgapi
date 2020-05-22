@@ -18,22 +18,17 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#include "defs.h"
-
 #include "agent.h"
 #include "architecture.h"
 #include "debug.h"
 #include "handle_object.h"
-#include "linux/kfd_ioctl.h"
+#include "initialization.h"
 #include "logging.h"
+#include "os_driver.h"
 #include "process.h"
 #include "queue.h"
 #include "utils.h"
 
-#include <cstring>
-
-#include <errno.h>
-#include <sys/ioctl.h>
 #include <unistd.h>
 
 namespace amd
@@ -42,7 +37,7 @@ namespace dbgapi
 {
 
 agent_t::agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
-                  kfd_gpu_id_t gpu_id, const architecture_t &architecture,
+                  os_agent_id_t gpu_id, const architecture_t &architecture,
                   const properties_t &properties)
     : handle_object (agent_id), m_gpu_id (gpu_id), m_properties (properties),
       m_architecture (architecture), m_process (process)
@@ -59,7 +54,7 @@ amd_dbgapi_status_t
 agent_t::enable_debug_trap ()
 {
   dbgapi_assert (m_poll_fd == -1 && "debug_trap is already enabled");
-  return m_process.enable_debug_trap (*this, &m_poll_fd);
+  return m_process.os_driver ().enable_debug_trap (*this, &m_poll_fd);
 }
 
 amd_dbgapi_status_t
@@ -70,52 +65,52 @@ agent_t::disable_debug_trap ()
   ::close (m_poll_fd);
   m_poll_fd = -1;
 
-  return m_process.disable_debug_trap (*this);
+  return m_process.os_driver ().disable_debug_trap (*this);
 }
 
 amd_dbgapi_status_t
-agent_t::next_kfd_event (amd_dbgapi_queue_id_t *queue_id,
-                         uint32_t *queue_status)
+agent_t::next_os_event (amd_dbgapi_queue_id_t *queue_id,
+                        os_queue_status_t *os_queue_status)
 {
-  dbgapi_assert (queue_id && queue_status && "must not be null");
+  dbgapi_assert (queue_id && os_queue_status && "must not be null");
   process_t &process = this->process ();
 
   while (true)
     {
-      queue_t::kfd_queue_id_t kfd_queue_id;
+      os_queue_id_t os_queue_id;
 
-      amd_dbgapi_status_t status
-          = process.query_debug_event (*this, &kfd_queue_id, queue_status);
+      amd_dbgapi_status_t status = process.os_driver ().query_debug_event (
+          *this, &os_queue_id, os_queue_status);
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
 
-      if (kfd_queue_id == KFD_INVALID_QUEUEID)
+      if (os_queue_id == OS_INVALID_QUEUEID)
         {
           /* There are no more events.  */
           *queue_id = AMD_DBGAPI_QUEUE_NONE;
           return AMD_DBGAPI_STATUS_SUCCESS;
         }
 
-      /* Find the queue by matching its kfd_queue_id with the one
+      /* Find the queue by matching its os_queue_id with the one
          returned by the ioctl.  */
 
-      queue_t *queue = process.find_if ([kfd_queue_id] (const queue_t &q) {
-        return q.kfd_queue_id () == kfd_queue_id;
+      queue_t *queue = process.find_if ([os_queue_id] (const queue_t &q) {
+        return q.os_queue_id () == os_queue_id;
       });
 
       /* If this is a new queue, update the queues to make sure we don't
-         return a stale queue with the same kfd_queue_id.  */
-      if (*queue_status & KFD_DBG_EV_STATUS_NEW_QUEUE)
+         return a stale queue with the same os_queue_id.  */
+      if ((*os_queue_status & os_queue_status_t::NEW_QUEUE) != 0)
         {
-          /* If there is a stale queue with the same kfd_queue_id, destroy it.
+          /* If there is a stale queue with the same os_queue_id, destroy it.
            */
           if (queue)
             process.destroy (queue);
 
           /* Create a temporary queue instance to reserve the unique queue_id,
              update_queues with fill in the missing information
-             (kfd_queue_snapshot_entry).  */
-          *queue_id = process.create<queue_t> (*this, kfd_queue_id).id ();
+             (os_queue_snapshot_entry_t).  */
+          *queue_id = process.create<queue_t> (*this, os_queue_id).id ();
           process.update_queues ();
 
           /* Check that the queue still exists, update_queues () may have
@@ -124,8 +119,8 @@ agent_t::next_kfd_event (amd_dbgapi_queue_id_t *queue_id,
             return AMD_DBGAPI_STATUS_SUCCESS;
 
           dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                      "skipping event %#x for deleted kfd_queue_id %d",
-                      *queue_status, kfd_queue_id);
+                      "skipping event (%s) for deleted os_queue_id %d",
+                      to_string (*os_queue_status).c_str (), os_queue_id);
         }
       else if (queue)
         {
@@ -134,9 +129,9 @@ agent_t::next_kfd_event (amd_dbgapi_queue_id_t *queue_id,
         }
       else
         {
-          error ("kfd_queue_id %d should have been reported as a NEW_QUEUE "
+          error ("os_queue_id %d should have been reported as a NEW_QUEUE "
                  "before",
-                 kfd_queue_id);
+                 os_queue_id);
         }
     }
 }

@@ -21,17 +21,17 @@
 #ifndef _AMD_DBGAPI_QUEUE_H
 #define _AMD_DBGAPI_QUEUE_H 1
 
-#include "defs.h"
-
 #include "agent.h"
+#include "amd-dbgapi.h"
+#include "debug.h"
 #include "handle_object.h"
+#include "os_driver.h"
 #include "utils.h"
 
-#include "linux/kfd_ioctl.h"
-
-#include <hsa/hsa.h>
-
+#include <cstddef>
+#include <cstdint>
 #include <memory>
+#include <utility>
 #include <vector>
 
 namespace amd
@@ -55,8 +55,6 @@ private:
   class pm4_queue_impl_t; /* PM4 queue implemnatation.  */
 
 public:
-  using kfd_queue_id_t = uint32_t;
-
   enum state_t
   {
     /* The queue is suspended.  */
@@ -66,12 +64,12 @@ public:
   };
 
   queue_t (amd_dbgapi_queue_id_t queue_id, agent_t &agent,
-           const kfd_queue_snapshot_entry &kfd_queue_info);
+           const os_queue_snapshot_entry_t &os_queue_info);
 
   /* Construct a temporary queue instance that must be updated by the next
      process_t::update_queues ().  */
   queue_t (amd_dbgapi_queue_id_t queue_id, agent_t &agent,
-           kfd_queue_id_t kfd_queue_id);
+           os_queue_id_t os_queue_id);
 
   ~queue_t ();
 
@@ -79,8 +77,11 @@ public:
   bool is_valid () const { return m_is_valid; }
   bool is_suspended () const { return m_state == state_t::SUSPENDED; }
 
-  kfd_queue_id_t kfd_queue_id () const { return m_kfd_queue_info.queue_id; }
-  uint32_t kfd_queue_type () const { return m_kfd_queue_info.queue_type; }
+  os_queue_id_t os_queue_id () const { return m_os_queue_info.queue_id; }
+  os_queue_type_t os_queue_type () const
+  {
+    return amd::dbgapi::os_queue_type (m_os_queue_info);
+  }
 
   amd_dbgapi_queue_type_t type () const;
 
@@ -138,7 +139,7 @@ public:
   }
 
 private:
-  kfd_queue_snapshot_entry const m_kfd_queue_info;
+  os_queue_snapshot_entry_t const m_os_queue_info;
   state_t m_state{ state_t::RUNNING };
   bool m_is_valid{ true };
 

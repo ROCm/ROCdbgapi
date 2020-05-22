@@ -1,4 +1,4 @@
-/* Copyright (c) 2019-2020 Advanced Micro Devices, Inc.
+/* Copyright (c) 2020 Advanced Micro Devices, Inc.
 
  Permission is hereby granted, free of charge, to any person obtaining a copy
  of this software and associated documentation files (the "Software"), to deal
@@ -18,33 +18,17 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#ifndef _AMD_DBGAPI_DEFS_H
-#define _AMD_DBGAPI_DEFS_H 1
-
-#include "amd-dbgapi.h"
-
-#include <cstdint>
-#include <list>
-
-#if defined(__GNUC__)
-#define __maybe_unused__ __attribute__ ((unused))
-#else /* !defined(__GNUC__) */
-#define __maybe_unused__
-#endif /* !defined(__GNUC__) */
+#ifndef _AMD_DBGAPI_INITIALIZATION_H
+#define _AMD_DBGAPI_INITIALIZATION_H 1
 
 namespace amd
 {
 namespace dbgapi
 {
 
-using epoch_t = uint64_t;
-using file_desc_t = int;
-
-extern amd_dbgapi_callbacks_s process_callbacks;
-extern std::list<class process_t *> process_list;
 extern bool is_initialized;
 
 } /* namespace dbgapi */
 } /* namespace amd */
 
-#endif /* _AMD_DBGAPI_DEFS_H */
+#endif /* _AMD_DBGAPI_INITIALIZATION_H */

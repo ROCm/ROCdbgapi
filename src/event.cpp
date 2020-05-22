@@ -18,19 +18,21 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#include "defs.h"
-
+#include "event.h"
 #include "agent.h"
 #include "debug.h"
-#include "event.h"
 #include "handle_object.h"
+#include "initialization.h"
 #include "logging.h"
 #include "process.h"
 #include "queue.h"
 #include "utils.h"
 #include "wave.h"
 
+#include <algorithm>
 #include <atomic>
+#include <cstdint>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -256,17 +258,17 @@ amd_dbgapi_next_pending_event (amd_dbgapi_process_id_t process_id,
             {
               /* Use an atomic exchange here since the value is written by the
                  event thread.  */
-              if (!agent.kfd_event_notifier ().exchange (
+              if (!agent.os_event_notifier ().exchange (
                       false, std::memory_order_relaxed))
                 continue;
 
               while (true)
                 {
                   amd_dbgapi_queue_id_t queue_id;
-                  uint32_t queue_status;
+                  os_queue_status_t queue_status;
 
                   amd_dbgapi_status_t status
-                      = agent.next_kfd_event (&queue_id, &queue_status);
+                      = agent.next_os_event (&queue_id, &queue_status);
                   if (status != AMD_DBGAPI_STATUS_SUCCESS)
                     return status;
 
@@ -289,12 +291,13 @@ amd_dbgapi_next_pending_event (amd_dbgapi_process_id_t process_id,
                      matches the status we are keeping for the queue_t.  */
                   dbgapi_assert (
                       queue->is_suspended ()
-                          == !!(queue_status & KFD_DBG_EV_STATUS_SUSPENDED)
+                          == !!(queue_status & os_queue_status_t::SUSPENDED)
                       && "inconsistent suspend status");
 
                   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                              "%s has pending events (%#x)",
-                              to_string (queue_id).c_str (), queue_status);
+                              "%s has pending events (%s)",
+                              to_string (queue_id).c_str (),
+                              to_string (queue_status).c_str ());
 
                   /* The queue may already be suspended. This can happen if an
                      event occurs after requesting the queue to be suspended
