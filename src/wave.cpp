@@ -814,8 +814,7 @@ wave_t::xfer_private_memory_unswizzled (
     return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
 
   amd_dbgapi_size_t limit = queue ().scratch_backing_memory_size ();
-  amd_dbgapi_size_t offset
-      = m_scratch_offset + segment_address * lane_count ();
+  amd_dbgapi_size_t offset = m_scratch_offset + segment_address;
 
   if ((offset + *size) > limit)
     {
