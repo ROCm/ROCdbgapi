@@ -118,6 +118,25 @@ public:
 
   virtual const address_space_t &default_global_address_space () const = 0;
 
+  /* Return the bits that can be programmed in the address watch mask.  */
+  virtual size_t watchpoint_mask_bits () const = 0;
+
+  /* Convert a watchpoint kind into this architecture address watch mode.  */
+  virtual utils::optional<os_watch_mode_t>
+  watchpoint_mode (amd_dbgapi_watchpoint_kind_t kind) const = 0;
+
+  virtual amd_dbgapi_watchpoint_share_kind_t
+  watchpoint_share_kind () const = 0;
+
+  /* Return the number of of address watch registers this architecture
+     supports.  */
+  virtual size_t watchpoint_count () const = 0;
+
+  /* Return the watchpoints for which an exception was generated in the given
+     stopped wave.  */
+  virtual std::vector<os_watch_id_t>
+  triggered_watchpoints (const wave_t &wave) const = 0;
+
   virtual size_t largest_instruction_size () const = 0;
   virtual size_t minimum_instruction_alignment () const = 0;
   virtual size_t breakpoint_instruction_pc_adjust () const = 0;
@@ -145,6 +164,11 @@ public:
                   amd_dbgapi_wave_stop_reason_t *stop_reason) const = 0;
   virtual amd_dbgapi_status_t
   set_wave_state (wave_t &wave, amd_dbgapi_wave_state_t state) const = 0;
+
+  virtual amd_dbgapi_status_t
+  enable_wave_traps (wave_t &wave, os_wave_launch_trap_mask_t mask) const = 0;
+  virtual amd_dbgapi_status_t
+  disable_wave_traps (wave_t &wave, os_wave_launch_trap_mask_t mask) const = 0;
 
   amd_dbgapi_architecture_id_t id () const { return m_architecture_id; }
   elf_amdgpu_machine_t elf_amdgpu_machine () const { return m_e_machine; }

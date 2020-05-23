@@ -109,6 +109,10 @@ get_info (size_t value_size, void *ret, const std::vector<T> &value)
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
+template amd_dbgapi_status_t
+get_info (size_t value_size, void *ret,
+          const std::vector<amd_dbgapi_watchpoint_id_t> &value);
+
 template amd_dbgapi_status_t get_info (size_t value_size, void *ret,
                                        const std::vector<uint8_t> &value);
 

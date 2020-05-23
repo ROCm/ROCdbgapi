@@ -41,16 +41,18 @@ dispatch_t::dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id, queue_t &queue,
     : handle_object (dispatch_id), m_queue_packet_id (queue_packet_id),
       m_queue (queue)
 {
-  if (process ().read_global_memory (packet_address, &m_packet,
-                                     sizeof (m_packet))
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not read the dispatch's packet");
+  amd_dbgapi_status_t status;
 
-  if (process ().read_global_memory (m_packet.kernel_object,
-                                     &m_kernel_descriptor,
-                                     sizeof (m_kernel_descriptor))
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not read the dispatch's kernel descriptor");
+  status = process ().read_global_memory (packet_address, &m_packet,
+                                          sizeof (m_packet));
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not read the dispatch's packet (rc=%d)", status);
+
+  status = process ().read_global_memory (m_packet.kernel_object,
+                                          &m_kernel_descriptor,
+                                          sizeof (m_kernel_descriptor));
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not read the dispatch's kernel descriptor (rc=%d)", status);
 }
 
 amd_dbgapi_global_address_t

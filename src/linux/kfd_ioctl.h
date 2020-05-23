@@ -26,8 +26,12 @@
 #include <linux/types.h>
 #include <linux/ioctl.h>
 
+/*
+ * - 1.1 - initial version
+ * - 1.3 - Add SMI events support
+ */
 #define KFD_IOCTL_MAJOR_VERSION 1
-#define KFD_IOCTL_MINOR_VERSION 2
+#define KFD_IOCTL_MINOR_VERSION 3
 
 /*
  * Debug revision change log
@@ -42,8 +46,10 @@
  * 1.5 - Fix ABA issue between queue snapshot and suspend
  * 2.0 - Return number of queues suspended/resumed and mask invalid/error
  *	 array slots
+ * 2.1 - Add Set Address Watch, and Clear Address Watch support.
+ * 3.0 - Overhaul set wave launch override API
  */
-#define KFD_IOCTL_DBG_MAJOR_VERSION	2
+#define KFD_IOCTL_DBG_MAJOR_VERSION	3
 #define KFD_IOCTL_DBG_MINOR_VERSION	0
 
 struct kfd_ioctl_get_version_args {
@@ -234,6 +240,22 @@ struct kfd_ioctl_dbg_wave_control_args {
 
 #define KFD_INVALID_QUEUEID	0xffffffff
 
+enum kfd_dbg_trap_override_mode {
+	KFD_DBG_TRAP_OVERRIDE_OR = 0,
+	KFD_DBG_TRAP_OVERRIDE_REPLACE = 1
+};
+enum kfd_dbg_trap_mask {
+	KFD_DBG_TRAP_MASK_FP_INVALID = 1,
+	KFD_DBG_TRAP_MASK_FP_INPUT_DENORMAL = 2,
+	KFD_DBG_TRAP_MASK_FP_DIVIDE_BY_ZERO = 4,
+	KFD_DBG_TRAP_MASK_FP_OVERFLOW = 8,
+	KFD_DBG_TRAP_MASK_FP_UNDERFLOW = 16,
+	KFD_DBG_TRAP_MASK_FP_INEXACT = 32,
+	KFD_DBG_TRAP_MASK_INT_DIVIDE_BY_ZERO = 64,
+	KFD_DBG_TRAP_MASK_DBG_ADDRESS_WATCH = 128,
+	KFD_DBG_TRAP_MASK_DBG_MEMORY_VIOLATION = 256
+};
+
 /* KFD_IOC_DBG_TRAP_ENABLE:
  * ptr:   unused
  * data1: 0=disable, 1=enable
@@ -244,9 +266,17 @@ struct kfd_ioctl_dbg_wave_control_args {
 
 /* KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_OVERRIDE:
  * ptr:   unused
- * data1: override mode: 0=OR, 1=REPLACE
- * data2: mask
- * data3: unused
+ * data1: override mode (see enum kfd_dbg_trap_override_mode)
+ * data2: [in/out] trap mask (see enum kfd_dbg_trap_mask)
+ * data3: [in] requested mask, [out] supported mask
+ *
+ * May fail with -EPERM if the requested mode is not supported.
+ *
+ * May fail with -EACCES if requested trap mask bits are not supported.
+ * In that case the supported trap mask bits are returned in data3.
+ *
+ * If successful, output parameters return the previous trap mask
+ * value and the hardware-dependent mask of supported trap mask bits.
  */
 #define KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_OVERRIDE 1
 
@@ -317,12 +347,28 @@ struct kfd_ioctl_dbg_wave_control_args {
 #define KFD_IOC_DBG_TRAP_GET_QUEUE_SNAPSHOT 6
 
 /* KFD_IOC_DBG_TRAP_GET_VERSION:
- * prt: unsused
+ * ptr: unsused
  * data1: major version (OUT)
  * data2: minor version (OUT)
  * data3: unused
  */
 #define KFD_IOC_DBG_TRAP_GET_VERSION	7
+
+/* KFD_IOC_DBG_TRAP_CLEAR_ADDRESS_WATCH:
+ * ptr: unused
+ * data1: watch ID
+ * data2: unused
+ * data3: unused
+ */
+#define KFD_IOC_DBG_TRAP_CLEAR_ADDRESS_WATCH 8
+
+/* KFD_IOC_DBG_TRAP_SET_ADDRESS_WATCH:
+ * ptr:   Watch address
+ * data1: Watch ID (OUT)
+ * data2: watch_mode: 0=read, 1=nonread, 2=atomic, 3=all
+ * data3: watch address mask
+ */
+#define KFD_IOC_DBG_TRAP_SET_ADDRESS_WATCH 9
 
 struct kfd_ioctl_dbg_trap_args {
 	__u64 ptr;     /* to KFD -- used for pointer arguments: queue arrays */
@@ -589,6 +635,17 @@ struct kfd_ioctl_import_dmabuf_args {
 	__u32 dmabuf_fd;	/* to KFD */
 };
 
+/*
+ * KFD SMI(System Management Interface) events
+ */
+/* Event type (defined by bitmask) */
+#define KFD_SMI_EVENT_VMFAULT     0x0000000000000001
+
+struct kfd_ioctl_smi_events_args {
+	__u32 gpuid;	/* to KFD */
+	__u32 anon_fd;	/* from KFD */
+};
+
 /* Register offset inside the remapped mmio page
  */
 enum kfd_mmio_remap {
@@ -740,20 +797,11 @@ struct kfd_ioctl_cross_memory_copy_args {
 #define AMDKFD_IOC_ALLOC_QUEUE_GWS		\
 		AMDKFD_IOWR(0x1E, struct kfd_ioctl_alloc_queue_gws_args)
 
-#define AMDKFD_IOC_IPC_IMPORT_HANDLE_old	\
-		AMDKFD_IOWR(0x1F, struct kfd_ioctl_ipc_import_handle_args)
-
-#define AMDKFD_IOC_IPC_EXPORT_HANDLE_old	\
-		AMDKFD_IOWR(0x20, struct kfd_ioctl_ipc_export_handle_args)
-
-#define AMDKFD_IOC_DBG_TRAP_old			\
-		AMDKFD_IOWR(0x21, struct kfd_ioctl_dbg_trap_args)
-
-#define AMDKFD_IOC_CROSS_MEMORY_COPY_old	\
-		AMDKFD_IOWR(0x22, struct kfd_ioctl_cross_memory_copy_args)
+#define AMDKFD_IOC_SMI_EVENTS			\
+		AMDKFD_IOWR(0x1F, struct kfd_ioctl_smi_events_args)
 
 #define AMDKFD_COMMAND_START		0x01
-#define AMDKFD_COMMAND_END		0x23
+#define AMDKFD_COMMAND_END		0x20
 
 /* non-upstream ioctls */
 #define AMDKFD_IOC_IPC_IMPORT_HANDLE                                    \

@@ -122,6 +122,7 @@ queue_t::aql_queue_impl_t::aql_queue_impl_t (queue_t &queue)
 {
   const architecture_t &architecture = m_queue.architecture ();
   process_t &process = m_queue.process ();
+  amd_dbgapi_status_t status;
 
   m_context_save_start_address
       = m_queue.m_os_queue_info.ctx_save_restore_address
@@ -140,21 +141,23 @@ queue_t::aql_queue_impl_t::aql_queue_impl_t (queue_t &queue)
   m_context_save_start_address
       += architecture.breakpoint_instruction ().size ();
 
-  if (process.write_global_memory (
-          m_queue.m_parked_wave_buffer_address,
-          architecture.breakpoint_instruction ().data (),
-          architecture.breakpoint_instruction ().size ())
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not write to the parked wave instruction buffer");
+  status = process.write_global_memory (
+      m_queue.m_parked_wave_buffer_address,
+      architecture.breakpoint_instruction ().data (),
+      architecture.breakpoint_instruction ().size ());
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not write to the parked wave instruction buffer (rc=%d)",
+           status);
 
   m_queue.m_endpgm_buffer_address = m_context_save_start_address;
   m_context_save_start_address += architecture.endpgm_instruction ().size ();
 
-  if (process.write_global_memory (m_queue.m_endpgm_buffer_address,
-                                   architecture.endpgm_instruction ().data (),
-                                   architecture.endpgm_instruction ().size ())
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not write to the endpgm instruction buffer");
+  status = process.write_global_memory (
+      m_queue.m_endpgm_buffer_address,
+      architecture.endpgm_instruction ().data (),
+      architecture.endpgm_instruction ().size ());
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not write to the endpgm instruction buffer (rc=%d)", status);
 
   /* Read the local and private apertures.  */
 
@@ -165,27 +168,30 @@ queue_t::aql_queue_impl_t::aql_queue_impl_t (queue_t &queue)
      pointer to the group_segment_aperture_base_hi and read it.   */
 
   uint32_t group_segment_aperture_base_hi;
-  if (process.read_global_memory (
-          m_queue.m_os_queue_info.read_pointer_address
-              + offsetof (amd_queue_t, group_segment_aperture_base_hi)
-              - offsetof (amd_queue_t, read_dispatch_id),
-          &group_segment_aperture_base_hi,
-          sizeof (group_segment_aperture_base_hi))
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not read the queue's group_segment_aperture_base_hi");
+  status = process.read_global_memory (
+      m_queue.m_os_queue_info.read_pointer_address
+          + offsetof (amd_queue_t, group_segment_aperture_base_hi)
+          - offsetof (amd_queue_t, read_dispatch_id),
+      &group_segment_aperture_base_hi,
+      sizeof (group_segment_aperture_base_hi));
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not read the queue's group_segment_aperture_base_hi (rc=%d)",
+           status);
 
   m_queue.m_local_address_space_aperture
       = amd_dbgapi_global_address_t{ group_segment_aperture_base_hi } << 32;
 
   uint32_t private_segment_aperture_base_hi;
-  if (process.read_global_memory (
-          m_queue.m_os_queue_info.read_pointer_address
-              + offsetof (amd_queue_t, private_segment_aperture_base_hi)
-              - offsetof (amd_queue_t, read_dispatch_id),
-          &private_segment_aperture_base_hi,
-          sizeof (private_segment_aperture_base_hi))
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not read the queue's private_segment_aperture_base_hi");
+  status = process.read_global_memory (
+      m_queue.m_os_queue_info.read_pointer_address
+          + offsetof (amd_queue_t, private_segment_aperture_base_hi)
+          - offsetof (amd_queue_t, read_dispatch_id),
+      &private_segment_aperture_base_hi,
+      sizeof (private_segment_aperture_base_hi));
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error (
+        "Could not read the queue's private_segment_aperture_base_hi (rc=%d)",
+        status);
 
   m_queue.m_private_address_space_aperture
       = amd_dbgapi_global_address_t{ private_segment_aperture_base_hi } << 32;
@@ -196,23 +202,24 @@ queue_t::aql_queue_impl_t::aql_queue_impl_t (queue_t &queue)
     read_dispatch_id_field_base_byte_offset .  */
 
   uint32_t read_dispatch_id_field_base_byte_offset;
-  if (process.read_global_memory (
-          m_queue.m_os_queue_info.read_pointer_address
-              + offsetof (amd_queue_t, read_dispatch_id_field_base_byte_offset)
-              - offsetof (amd_queue_t, read_dispatch_id),
-          &read_dispatch_id_field_base_byte_offset,
-          sizeof (read_dispatch_id_field_base_byte_offset))
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error (
-        "Could not read the queue's read_dispatch_id_field_base_byte_offset");
+  status = process.read_global_memory (
+      m_queue.m_os_queue_info.read_pointer_address
+          + offsetof (amd_queue_t, read_dispatch_id_field_base_byte_offset)
+          - offsetof (amd_queue_t, read_dispatch_id),
+      &read_dispatch_id_field_base_byte_offset,
+      sizeof (read_dispatch_id_field_base_byte_offset));
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not read the queue's "
+           "read_dispatch_id_field_base_byte_offset (rc=%d)",
+           status);
 
   amd_dbgapi_global_address_t hsa_queue_address
       = m_queue.m_os_queue_info.read_pointer_address
         - read_dispatch_id_field_base_byte_offset;
-  if (process.read_global_memory (hsa_queue_address, &m_hsa_queue,
-                                  sizeof (m_hsa_queue))
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not read the hsa_queue_t struct");
+  status = process.read_global_memory (hsa_queue_address, &m_hsa_queue,
+                                       sizeof (m_hsa_queue));
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not read the hsa_queue_t struct (rc=%d)", status);
 
   if (reinterpret_cast<uintptr_t> (m_hsa_queue.base_address)
       != m_queue.m_os_queue_info.ring_base_address)
@@ -633,25 +640,21 @@ queue_t::aql_queue_impl_t::update_waves ()
      pruned dispatches.  */
 
   auto &&wave_range = process.range<wave_t> ();
-  for (auto wave_it = wave_range.begin (); wave_it != wave_range.end ();)
-    if (wave_it->queue ().id () == m_queue.id ()
-        && wave_it->mark () < wave_mark)
-      wave_it = process.destroy (wave_it);
-    else
-      ++wave_it;
+  for (auto it = wave_range.begin (); it != wave_range.end ();)
+    it = (it->queue ().id () == m_queue.id () && it->mark () < wave_mark)
+             ? process.destroy (it)
+             : ++it;
 
   /* Prune old dispatches. Dispatches with ids older (smaller) than the
      queue current read dispatch id are now retired, so remove them from
      the process.  */
 
   auto &&dispatch_range = process.range<dispatch_t> ();
-  for (auto dispatch_it = dispatch_range.begin ();
-       dispatch_it != dispatch_range.end ();)
-    if (dispatch_it->queue ().id () == m_queue.id ()
-        && dispatch_it->queue_packet_id () < read_dispatch_id)
-      dispatch_it = process.destroy (dispatch_it);
-    else
-      ++dispatch_it;
+  for (auto it = dispatch_range.begin (); it != dispatch_range.end ();)
+    it = (it->queue ().id () == m_queue.id ()
+          && it->queue_packet_id () < read_dispatch_id)
+             ? process.destroy (it)
+             : ++it;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
@@ -661,19 +664,21 @@ queue_t::aql_queue_impl_t::packets () const
 {
   dbgapi_assert (m_queue.is_suspended ());
   process_t &process = m_queue.process ();
+  amd_dbgapi_status_t status;
 
   uint64_t read_dispatch_id;
-  if (process.read_global_memory (m_queue.m_os_queue_info.read_pointer_address,
-                                  &read_dispatch_id, sizeof (read_dispatch_id))
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not read the queue's read_dispatch_id");
+  status = process.read_global_memory (
+      m_queue.m_os_queue_info.read_pointer_address, &read_dispatch_id,
+      sizeof (read_dispatch_id));
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not read the queue's read_dispatch_id (rc=%d)", status);
 
   uint64_t write_dispatch_id;
-  if (process.read_global_memory (
-          m_queue.m_os_queue_info.write_pointer_address, &write_dispatch_id,
-          sizeof (write_dispatch_id))
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not read the queue's write_dispatch_id");
+  status = process.read_global_memory (
+      m_queue.m_os_queue_info.write_pointer_address, &write_dispatch_id,
+      sizeof (write_dispatch_id));
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not read the queue's write_dispatch_id (rc=%d)", status);
 
   /* ring_size must be a power of 2.  */
   if (!utils::is_power_of_two (m_queue.m_os_queue_info.ring_size))
@@ -695,28 +700,28 @@ queue_t::aql_queue_impl_t::packets () const
 
   if (read_dispatch_ptr < write_dispatch_ptr)
     {
-      if (process.read_global_memory (read_dispatch_ptr, &packets[0],
-                                      packets.size ())
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("Could not read the queue's packets");
+      status = process.read_global_memory (read_dispatch_ptr, &packets[0],
+                                           packets.size ());
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("Could not read the queue's packets (rc=%d)", status);
     }
   else if (read_dispatch_ptr > write_dispatch_ptr)
     {
       size_t size = m_queue.m_os_queue_info.ring_base_address
                     + m_queue.m_os_queue_info.ring_size - read_dispatch_ptr;
 
-      if (process.read_global_memory (read_dispatch_ptr, &packets[0], size)
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("Could not read the queue's packets");
+      status
+          = process.read_global_memory (read_dispatch_ptr, &packets[0], size);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("Could not read the queue's packets (rc=%d)", status);
 
       size_t offset = size;
       size = write_dispatch_ptr - m_queue.m_os_queue_info.ring_base_address;
 
-      if (process.read_global_memory (
-              m_queue.m_os_queue_info.ring_base_address, &packets[offset],
-              size)
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("Could not read the queue's packets");
+      status = process.read_global_memory (
+          m_queue.m_os_queue_info.ring_base_address, &packets[offset], size);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("Could not read the queue's packets (rc=%d)", status);
     }
 
   return std::make_pair (read_dispatch_id, std::move (packets));
@@ -743,6 +748,7 @@ queue_t::aql_queue_impl_t::state_changed (state_t state)
   if (state == state_t::SUSPENDED)
     {
       process_t &process = m_queue.process ();
+      amd_dbgapi_status_t status;
 
       /* Refresh the scratch_backing_memory_location and
        scratch_backing_memory_size everytime we suspend the queue.  */
@@ -755,26 +761,30 @@ queue_t::aql_queue_impl_t::state_changed (state_t state)
          it.  We cannot cache this value as the runtime may change the
          allocation dynamically.  */
 
-      if (process.read_global_memory (
-              m_queue.m_os_queue_info.read_pointer_address
-                  + offsetof (amd_queue_t, scratch_backing_memory_location)
-                  - offsetof (amd_queue_t, read_dispatch_id),
-              &m_queue.m_scratch_backing_memory_address,
-              sizeof (m_scratch_backing_memory_address))
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("Could not read the queue's scratch_backing_memory_location");
+      status = process.read_global_memory (
+          m_queue.m_os_queue_info.read_pointer_address
+              + offsetof (amd_queue_t, scratch_backing_memory_location)
+              - offsetof (amd_queue_t, read_dispatch_id),
+          &m_queue.m_scratch_backing_memory_address,
+          sizeof (m_scratch_backing_memory_address));
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("Could not read the queue's scratch_backing_memory_location "
+               "(rc=%d)",
+               status);
 
-      if (process.read_global_memory (
-              m_queue.m_os_queue_info.read_pointer_address
-                  + offsetof (amd_queue_t, scratch_backing_memory_byte_size)
-                  - offsetof (amd_queue_t, read_dispatch_id),
-              &m_queue.m_scratch_backing_memory_size,
-              sizeof (m_scratch_backing_memory_size))
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("Could not read the queue's scratch_backing_memory_size");
+      status = process.read_global_memory (
+          m_queue.m_os_queue_info.read_pointer_address
+              + offsetof (amd_queue_t, scratch_backing_memory_byte_size)
+              - offsetof (amd_queue_t, read_dispatch_id),
+          &m_queue.m_scratch_backing_memory_size,
+          sizeof (m_scratch_backing_memory_size));
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        error (
+            "Could not read the queue's scratch_backing_memory_size (rc=%d)",
+            status);
 
       /* Update the waves from the content of the queue's context save area. */
-      amd_dbgapi_status_t status = update_waves ();
+      status = update_waves ();
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         warning ("%s update_waves failed (rc=%d)",
                  to_string (m_queue.id ()).c_str (), status);

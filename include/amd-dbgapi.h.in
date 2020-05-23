@@ -311,17 +311,12 @@
  * 1.  The following *_get_info queries are not yet implemented:
  *
  *     - AMD_DBGAPI_EVENT_INFO_RUNTIME_VERSION
- *     - AMD_DBGAPI_PROCESS_INFO_WATCHPOINT_COUNT
- *     - AMD_DBGAPI_PROCESS_INFO_WATCHPOINT_SHARE
  *     - AMD_DBGAPI_QUEUE_INFO_ERROR_REASON
  *     - AMD_DBGAPI_QUEUE_INFO_STATE
- *     - AMD_DBGAPI_WAVE_INFO_WATCHPOINTS
  *
  * 2.  The following functions are not yet implemented:
  *
  *     - amd_dbgapi_classify_instruction
- *     - amd_dbgapi_remove_watchpoint
- *     - amd_dbgapi_set_watchpoint
  *
  * 3.  On a AMD_DBGAPI_STATUS_FATAL error the library does fully reset the
  *     internal state and so subsequent functions may not operate correctly.
@@ -469,6 +464,12 @@ extern "C" {
  * symbol version string of ``"@AMD_DBGAPI_NAME@_0.22"``.
  */
 #define AMD_DBGAPI_VERSION_0_22
+
+/**
+ * The function was introduced in version 0.23 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.23"``.
+ */
+#define AMD_DBGAPI_VERSION_0_23
 
 /** @} */
 
@@ -3755,7 +3756,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_watchpoint (
     amd_dbgapi_watchpoint_id_t *watchpoint_id,
     amd_dbgapi_global_address_t *watchpoint_address,
     amd_dbgapi_size_t *watchpoint_size)
-    AMD_DBGAPI_VERSION_0_22;
+    AMD_DBGAPI_VERSION_0_23;
 ;
 
 /**
@@ -3785,7 +3786,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_watchpoint (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_remove_watchpoint (
     amd_dbgapi_process_id_t process_id,
     amd_dbgapi_watchpoint_id_t watchpoint_id)
-    AMD_DBGAPI_VERSION_0_22;
+    AMD_DBGAPI_VERSION_0_23;
 
 /** @} */
 

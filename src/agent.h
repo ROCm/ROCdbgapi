@@ -28,6 +28,9 @@
 
 #include <atomic>
 #include <cstddef>
+#include <cstdint>
+#include <string>
+#include <unordered_map>
 
 namespace amd
 {
@@ -36,6 +39,7 @@ namespace dbgapi
 
 class architecture_t;
 class process_t;
+class watchpoint_t;
 
 /* ROCm Debug Agent.  */
 
@@ -48,6 +52,10 @@ public:
   ~agent_t ();
 
   os_agent_id_t gpu_id () const { return m_os_agent_info.os_agent_id; }
+  os_wave_launch_trap_mask_t supported_trap_mask () const
+  {
+    return m_supported_trap_mask;
+  }
 
   file_desc_t poll_fd () const
   {
@@ -65,15 +73,24 @@ public:
   const architecture_t &architecture () const { return m_architecture; }
   process_t &process () const { return m_process; }
 
-  amd_dbgapi_status_t enable_debug_trap (void);
-  amd_dbgapi_status_t disable_debug_trap (void);
+  amd_dbgapi_status_t enable_debug_trap ();
+  amd_dbgapi_status_t disable_debug_trap ();
   bool debug_trap_enabled () const { return m_poll_fd.has_value (); }
+
+  amd_dbgapi_status_t
+  insert_watchpoint (const watchpoint_t &watchpoint,
+                     amd_dbgapi_global_address_t adjusted_address,
+                     amd_dbgapi_global_address_t adjusted_mask);
+  amd_dbgapi_status_t remove_watchpoint (const watchpoint_t &watchpoint);
+  const watchpoint_t *find_watchpoint (os_watch_id_t os_watch_id) const;
 
 private:
   os_agent_snapshot_entry_t const m_os_agent_info;
+  os_wave_launch_trap_mask_t m_supported_trap_mask{};
 
   utils::optional<file_desc_t> m_poll_fd;
   std::atomic<bool> m_os_event_notifier{ false };
+  std::unordered_map<os_watch_id_t, const watchpoint_t *> m_watchpoint_map;
 
   const architecture_t &m_architecture;
   process_t &m_process;

@@ -40,6 +40,7 @@
 #include <exception>
 #include <future>
 #include <iterator>
+#include <limits>
 #include <list>
 #include <memory>
 #include <string>
@@ -66,6 +67,7 @@ namespace dbgapi
 {
 
 class dispatch_t;
+class watchpoint_t;
 
 std::list<process_t *> process_list;
 
@@ -105,7 +107,6 @@ void
 process_t::detach ()
 {
   std::exception_ptr exception;
-  std::vector<queue_t *> queues;
 
   /* If an exception is raised while attempting to detach, make sure we still
      destruct the handle objects in the correct order. To achieve this, we
@@ -114,6 +115,8 @@ process_t::detach ()
 
   try
     {
+      std::vector<queue_t *> queues;
+
       /* We don't need to resume the queues until we are done changing the
          state.  */
       set_forward_progress_needed (false);
@@ -121,6 +124,8 @@ process_t::detach ()
       /* Resume all the waves halted at launch.  */
       set_wave_launch_mode (os_wave_launch_mode_t::NORMAL);
 
+      /* Refresh the queues.  New queues may have been created, and waves may
+         have hit breakpoints.  */
       update_queues ();
 
       /* Suspend the queues that weren't already suspended.  */
@@ -129,6 +134,10 @@ process_t::detach ()
           queues.emplace_back (&queue);
 
       suspend_queues (queues);
+
+      /* Remove the watchpoints that may still be inserted.  */
+      for (auto &&watchpoint : range<watchpoint_t> ())
+        remove_watchpoint (watchpoint);
 
       /* Resume the waves that were halted by a debug event (single-step,
          breakpoint, watchpoint), but keep the waves halted because of an
@@ -166,10 +175,12 @@ process_t::detach ()
   /* Stop the event thread before destructing the agents.  The event loop polls
      the file descriptors returned by the KFD for each agent.  We need to
      terminate the event loop before the files are closed.  */
-  if (stop_event_thread () != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not stop the event thread");
+  amd_dbgapi_status_t status = stop_event_thread ();
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not stop the event thread (rc=%d)", status);
 
   /* Destruct the waves, dispatches, queues, and agents, in this order.  */
+  std::get<handle_object_set_t<watchpoint_t>> (m_handle_object_sets).clear ();
   std::get<handle_object_set_t<wave_t>> (m_handle_object_sets).clear ();
   std::get<handle_object_set_t<dispatch_t>> (m_handle_object_sets).clear ();
   std::get<handle_object_set_t<queue_t>> (m_handle_object_sets).clear ();
@@ -314,12 +325,13 @@ process_t::set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode)
   if (m_wave_launch_mode == wave_launch_mode)
     return AMD_DBGAPI_STATUS_SUCCESS;
 
-  auto &&agent_range = range<agent_t> ();
-  for (auto it = agent_range.begin (); it != agent_range.end (); ++it)
+  for (auto &&agent : range<agent_t> ())
     {
       amd_dbgapi_status_t status = os_driver ().set_wave_launch_mode (
-          it->gpu_id (), wave_launch_mode);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+          agent.gpu_id (), wave_launch_mode);
+      if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+        return status;
+      else if (status != AMD_DBGAPI_STATUS_SUCCESS)
         error ("agent_t::set_wave_launch_mode (%s) failed (rc=%d)",
                to_string (wave_launch_mode).c_str (), status);
     }
@@ -358,6 +370,39 @@ process_t::set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode)
 
       if (forward_progress_needed ())
         resume_queues (queues);
+    }
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
+amd_dbgapi_status_t
+process_t::set_wave_launch_trap_override (os_wave_launch_trap_mask_t mask,
+                                          os_wave_launch_trap_mask_t bits)
+{
+  /* Compute the mask that is supported by all agents.  */
+  os_wave_launch_trap_mask_t supported_trap_mask_bits{
+    ~os_wave_launch_trap_mask_t::NONE
+  };
+  for (auto &&agent : range<agent_t> ())
+    supported_trap_mask_bits &= agent.supported_trap_mask ();
+
+  /* Check that this operation is supported on all agents.  */
+  if ((bits & supported_trap_mask_bits) != bits)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
+
+  for (auto &&agent : range<agent_t> ())
+    {
+      os_wave_launch_trap_mask_t ignored;
+
+      amd_dbgapi_status_t status = os_driver ().set_wave_launch_trap_override (
+          agent.gpu_id (), os_wave_launch_trap_override_t::OR, mask, bits,
+          &ignored, &ignored);
+
+      if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+        return status;
+      else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("os_driver::set_wave_launch_trap_override failed (rc=%d)",
+               status);
     }
 
   return AMD_DBGAPI_STATUS_SUCCESS;
@@ -420,7 +465,6 @@ process_t::update_agents ()
 
       amd_dbgapi_status_t status = os_driver ().agent_snapshot (
           agent_infos.data (), agent_count, &agent_count);
-
       if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
         agent_count = 0;
       else if (status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -455,30 +499,33 @@ process_t::update_agents ()
           && !agent->debug_trap_enabled ())
         {
           amd_dbgapi_status_t status = agent->enable_debug_trap ();
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
+          if (status != AMD_DBGAPI_STATUS_SUCCESS
+              && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
             /* FIXME: We could not enable the debug mode for this agent.
                Another process may already have enabled debug mode for the
                same agent.  Remove this when KFD supports concurrent
                debugging on the same agent.  */
-            error ("Could not enable debugging on gpu_id %d.",
-                   agent_info.os_agent_id);
+            error ("Could not enable debugging on gpu_id %d (rc=%d)",
+                   agent->gpu_id (), status);
         }
       else if (!is_flag_set (flag_t::ENABLE_AGENT_DEBUG_TRAP)
                && agent->debug_trap_enabled ())
         {
           amd_dbgapi_status_t status = agent->disable_debug_trap ();
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
-            error ("Could not disable debugging on gpu_id %d.",
-                   agent_info.os_agent_id);
+          if (status != AMD_DBGAPI_STATUS_SUCCESS
+              && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+            error ("Could not disable debugging on gpu_id %d (rc=%d)",
+                   agent->gpu_id (), status);
         }
 
       if (agent->debug_trap_enabled ())
         {
           amd_dbgapi_status_t status = os_driver ().set_wave_launch_mode (
               agent->gpu_id (), m_wave_launch_mode);
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
+          if (status != AMD_DBGAPI_STATUS_SUCCESS
+              && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
             error ("Could not set the wave launch mode for gpu_id %d (rc=%d).",
-                   agent_info.os_agent_id, status);
+                   agent->gpu_id (), status);
         }
     }
 
@@ -499,6 +546,253 @@ process_t::update_agents ()
 }
 
 size_t
+process_t::watchpoint_count () const
+{
+  if (!count<agent_t> ())
+    return 0;
+
+  /* Return lowest watchpoint count amongst all the agents.  */
+
+  size_t count = std::numeric_limits<size_t>::max ();
+
+  for (auto &&agent : range<agent_t> ())
+    count = std::min (count, agent.architecture ().watchpoint_count ());
+
+  return count;
+}
+
+amd_dbgapi_watchpoint_share_kind_t
+process_t::watchpoint_shared_kind () const
+{
+  if (!count<agent_t> ())
+    return AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSUPPORTED;
+
+  /* Return the lowest capability is this order:
+     AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSUPPORTED
+     AMD_DBGAPI_WATCHPOINT_SHARE_KIND_SHARED
+     AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSHARED  */
+
+  amd_dbgapi_watchpoint_share_kind_t kind
+      = AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSHARED;
+
+  for (auto &&agent : range<agent_t> ())
+    {
+      switch (agent.architecture ().watchpoint_share_kind ())
+        {
+        case AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSUPPORTED:
+          return AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSUPPORTED;
+        case AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSHARED:
+          continue;
+        case AMD_DBGAPI_WATCHPOINT_SHARE_KIND_SHARED:
+          kind = AMD_DBGAPI_WATCHPOINT_SHARE_KIND_SHARED;
+          break;
+        }
+    }
+
+  return kind;
+}
+
+amd_dbgapi_status_t
+process_t::insert_watchpoint (const watchpoint_t &watchpoint,
+                              amd_dbgapi_global_address_t *adjusted_address,
+                              amd_dbgapi_global_address_t *adjusted_size)
+{
+  dbgapi_assert (adjusted_address && adjusted_size && "must not be null");
+
+  /* If this is the first watchpoint we are setting on this device, we need
+   to enable the address watch exception trap for all new waves as well as
+   update the existing waves.  */
+  const bool first_watchpoint = count<watchpoint_t> () == 1;
+  if (first_watchpoint)
+    {
+      amd_dbgapi_status_t status;
+
+      status = set_wave_launch_trap_override (
+          os_wave_launch_trap_mask_t::ADDRESS_WATCH,
+          os_wave_launch_trap_mask_t::ADDRESS_WATCH);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        return status;
+
+      status = update_queues ();
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("process_t::update_queues failed (rc=%d)", status);
+
+      std::vector<queue_t *> queues;
+      queues.reserve (count<queue_t> ());
+
+      for (auto &&queue : range<queue_t> ())
+        if (!queue.is_suspended ())
+          queues.emplace_back (&queue);
+
+      suspend_queues (queues);
+
+      for (auto &&wave : range<wave_t> ())
+        {
+          status = wave.architecture ().enable_wave_traps (
+              wave, os_wave_launch_trap_mask_t::ADDRESS_WATCH);
+          if (status != AMD_DBGAPI_STATUS_SUCCESS)
+            error ("architecture_t::enable_wave_traps failed (rc=%d)", status);
+        }
+
+      if (forward_progress_needed ())
+        resume_queues (queues);
+    }
+
+  dbgapi_assert (watchpoint.requested_size () && "requested size cannot be 0");
+
+  /* The mask used to match an address range is in the form:
+
+             47       39        Y       23       15        X     0
+     Mask:   11111111 11111111 11xxxxxx xxxxxxxx xxxxxxxx xx000000
+
+     Only the bits in mask[Y-1:X] (x`s) are user programmable. The x`s are what
+     this routine is computing before passing the mask to
+     agent_t::insert_watchpoint ().
+
+     architecture_t::watchpoint_mask_bits () returns a mask (XBits) with 1`s
+     where the x`s are located:
+
+             47       39        Y       23       15        X     0
+     XBits:  00000000 00000000 00111111 11111111 11111111 11000000
+             [        A         ][             B           ][  C ]
+
+     With the x`s determined for a given range, an address watch match is
+     checked with:
+
+     Match := (AccessAddress & Mask) == MatchedAddress
+
+     The mask required to match a given address range is obtained by replacing
+     the "Stable" bits between the first and last addresses of the range with
+     ones, e.g.:
+
+             47       39        Y       23       15        X     0
+     First:  01111111 11111110 11100111 00000100 00000000 01000100
+     Last:   01111111 11111110 11100111 00000100 00000000 01001000
+
+     Stable := ~(next_power_of_2 (Start ^ End) - 1)
+
+             47       39        Y       23       15        X     0
+     Stable: 11111111 11111111 11111111 11111111 11111111 11110000
+
+     If (Stable[47:Y] contains any 0 bits, a match cannot happen, and the
+     watchpoint is rejected.
+
+     The smallest adjusted_size is (1 << X).
+
+     The adjusted mask (aMask) and adjusted address (aAddr) sent to
+     agent_t::insert_watchpoint () are:
+
+             47       39        Y       23       15        X     0
+     aMask:  11111111 11111111 11111111 11111111 11111111 11000000
+     aAddr:  01111111 11111110 11100111 00000100 00000000 01000000
+   */
+
+  amd_dbgapi_global_address_t first_address = watchpoint.requested_address ();
+  amd_dbgapi_global_address_t last_address
+      = first_address + watchpoint.requested_size () - 1;
+
+  amd_dbgapi_global_address_t stable_bits
+      = ~(utils::next_power_of_two (first_address ^ last_address) - 1);
+
+  /* programmable_mask_bits is the intersection of all the process' agents
+     capabilities.  architecture_t::watchpoint_mask_bits returns a mask
+     with 1 bits in the positions that can be programmed (x`s).  */
+  amd_dbgapi_global_address_t programmable_mask_bits{
+    std::numeric_limits<decltype (programmable_mask_bits)>::max ()
+  };
+  for (auto &&agent : range<agent_t> ())
+    programmable_mask_bits &= agent.architecture ().watchpoint_mask_bits ();
+
+  amd_dbgapi_global_address_t field_B = programmable_mask_bits;
+  amd_dbgapi_global_address_t field_A = ~(field_B | (field_B - 1));
+  amd_dbgapi_global_address_t field_C = ~(field_A | field_B);
+
+  /* Check that the required mask is within the agents capabilities.  */
+  if (stable_bits < field_A)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
+  amd_dbgapi_global_address_t watch_mask = stable_bits & ~field_C;
+  amd_dbgapi_global_address_t watch_address
+      = watchpoint.requested_address () & watch_mask;
+
+  dbgapi_assert (
+      (watchpoint.requested_address () + watchpoint.requested_size ())
+          <= (watch_address - watch_mask)
+      && "the adjusted range does not contain the requested range");
+
+  /* Insert the watchpoint on all agents.  */
+  auto &&agent_range = range<agent_t> ();
+  for (auto it = agent_range.begin (); it != agent_range.end (); ++it)
+    {
+      amd_dbgapi_status_t status
+          = it->insert_watchpoint (watchpoint, watch_address, watch_mask);
+
+      /* If we fail, remove all the watchpoints inserted so far.  */
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        {
+          for (auto it2 = agent_range.begin (); it2 != it; ++it2)
+            it2->remove_watchpoint (watchpoint);
+          return status;
+        }
+    }
+
+  *adjusted_address = watch_address;
+  *adjusted_size = -watch_mask;
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
+void
+process_t::remove_watchpoint (const watchpoint_t &watchpoint)
+{
+  for (auto &&agent : range<agent_t> ())
+    {
+      amd_dbgapi_status_t status = agent.remove_watchpoint (watchpoint);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS
+          && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+        error ("failed to remove watchpoint (rc=%d)", status);
+    }
+
+  const bool last_watchpoint = count<watchpoint_t> () == 1;
+  if (last_watchpoint)
+    {
+      amd_dbgapi_status_t status;
+
+      status = set_wave_launch_trap_override (
+          os_wave_launch_trap_mask_t::NONE,
+          os_wave_launch_trap_mask_t::ADDRESS_WATCH);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS
+          && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+        error ("process_t::set_wave_launch_trap_override failed (rc=%d)",
+               status);
+
+      status = update_queues ();
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("process_t::update_queues failed (rc=%d)", status);
+
+      std::vector<queue_t *> queues;
+      queues.reserve (count<queue_t> ());
+
+      for (auto &&queue : range<queue_t> ())
+        if (!queue.is_suspended ())
+          queues.emplace_back (&queue);
+
+      suspend_queues (queues);
+
+      for (auto &&wave : range<wave_t> ())
+        {
+          status = wave.architecture ().disable_wave_traps (
+              wave, os_wave_launch_trap_mask_t::ADDRESS_WATCH);
+          if (status != AMD_DBGAPI_STATUS_SUCCESS)
+            error ("architecture_t::enable_wave_traps failed (rc=%d)", status);
+        }
+
+      if (forward_progress_needed ())
+        resume_queues (queues);
+    }
+}
+
+size_t
 process_t::suspend_queues (const std::vector<queue_t *> &queues) const
 {
   if (queues.empty ())
@@ -516,12 +810,17 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues) const
       queue_ids.emplace_back (queue->os_queue_id ());
     }
 
-  size_t num_suspended_queues
-      = os_driver ().suspend_queues (queue_ids.data (), queue_ids.size ());
+  int ret = os_driver ().suspend_queues (queue_ids.data (), queue_ids.size ());
+  if (ret == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    {
+      for (auto &&queue : queues)
+        queue->set_state (queue_t::state_t::INVALID);
+      return 0;
+    }
+  else if (ret < 0)
+    error ("os_driver::suspend_queues failed (rc=%d)", ret);
 
-  if (num_suspended_queues < 0)
-    error ("os_driver::suspend_queues failed.");
-
+  size_t num_suspended_queues = ret;
   bool __maybe_unused__ invalid_queue_seen = false;
   for (size_t i = 0; i < queue_ids.size (); ++i)
     {
@@ -532,8 +831,8 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues) const
 
       if (queue_ids[i] & OS_QUEUE_ERROR_MASK)
         {
-          error ("failed to suspend %s",
-                 to_string (queues[i]->id ()).c_str ());
+          error ("failed to suspend %s (%#x",
+                 to_string (queues[i]->id ()).c_str (), queue_ids[i]);
         }
       else if (queue_ids[i] & OS_QUEUE_INVALID_MASK)
         {
@@ -570,12 +869,17 @@ process_t::resume_queues (const std::vector<queue_t *> &queues) const
       queue_ids.emplace_back (queue->os_queue_id ());
     }
 
-  size_t num_resumed_queues
-      = os_driver ().resume_queues (queue_ids.data (), queue_ids.size ());
+  int ret = os_driver ().resume_queues (queue_ids.data (), queue_ids.size ());
+  if (ret == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    {
+      for (auto &&queue : queues)
+        queue->set_state (queue_t::state_t::INVALID);
+      return 0;
+    }
+  else if (ret < 0)
+    error ("os_driver::resume_queues failed (rc=%d)", ret);
 
-  if (num_resumed_queues < 0)
-    error ("os_driver::resume_queues failed.");
-
+  size_t num_resumed_queues = ret;
   bool __maybe_unused__ invalid_queue_seen = false;
   for (size_t i = 0; i < queue_ids.size (); ++i)
     {
@@ -586,7 +890,8 @@ process_t::resume_queues (const std::vector<queue_t *> &queues) const
 
       if (queue_ids[i] & OS_QUEUE_ERROR_MASK)
         {
-          error ("failed to resume %s", to_string (queues[i]->id ()).c_str ());
+          error ("failed to resume %s (%#x)",
+                 to_string (queues[i]->id ()).c_str (), queue_ids[i]);
         }
       else if (queue_ids[i] & OS_QUEUE_INVALID_MASK)
         {
@@ -770,12 +1075,13 @@ process_t::update_code_objects ()
                                        + sizeof ("#offset=0x&size=0x") - 1
                                        + 32;
   epoch_t code_object_mark = m_next_code_object_mark++;
+  amd_dbgapi_status_t status;
 
   decltype (r_debug::r_state) state;
-  if (read_global_memory (m_r_debug_address + offsetof (r_debug, r_state),
-                          &state, sizeof (state))
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("read_global_memory failed");
+  status = read_global_memory (m_r_debug_address + offsetof (r_debug, r_state),
+                               &state, sizeof (state));
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("read_global_memory failed (rc=%d)", status);
 
   /* If the state is not RT_CONSISTENT then that indicates there is a thread
      actively updating the code object list.  We cannot read the list as it is
@@ -786,29 +1092,31 @@ process_t::update_code_objects ()
     return AMD_DBGAPI_STATUS_SUCCESS;
 
   amd_dbgapi_global_address_t link_map_address;
-  if (read_global_memory (m_r_debug_address + offsetof (r_debug, r_map),
-                          &link_map_address, sizeof (link_map_address))
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("read_global_memory failed");
+  status = read_global_memory (m_r_debug_address + offsetof (r_debug, r_map),
+                               &link_map_address, sizeof (link_map_address));
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("read_global_memory failed (rc=%d)", status);
 
   while (link_map_address)
     {
       amd_dbgapi_global_address_t load_address;
-      if (read_global_memory (link_map_address + offsetof (link_map, l_addr),
-                              &load_address, sizeof (load_address))
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("read_global_memory failed");
+      status
+          = read_global_memory (link_map_address + offsetof (link_map, l_addr),
+                                &load_address, sizeof (load_address));
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("read_global_memory failed (rc=%d)", status);
 
       amd_dbgapi_global_address_t l_name_address;
-      if (read_global_memory (link_map_address + offsetof (link_map, l_name),
-                              &l_name_address, sizeof (l_name_address))
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("read_global_memory failed");
+      status
+          = read_global_memory (link_map_address + offsetof (link_map, l_name),
+                                &l_name_address, sizeof (l_name_address));
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("read_global_memory failed (rc=%d)", status);
 
       std::string uri;
-      if (read_string (l_name_address, &uri, URI_NAME_MAX_SIZE)
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("read_string failed");
+      status = read_string (l_name_address, &uri, URI_NAME_MAX_SIZE);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("read_string failed (rc=%d)", status);
 
       /* Check if the code object already exists.  */
       code_object_t *code_object = find_if ([&] (const code_object_t &x) {
@@ -824,10 +1132,11 @@ process_t::update_code_objects ()
 
       code_object->set_mark (code_object_mark);
 
-      if (read_global_memory (link_map_address + offsetof (link_map, l_next),
-                              &link_map_address, sizeof (link_map_address))
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("read_global_memory failed");
+      status
+          = read_global_memory (link_map_address + offsetof (link_map, l_next),
+                                &link_map_address, sizeof (link_map_address));
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("read_global_memory failed (rc=%d)", status);
     }
 
   /* Iterate all the code objects in this process, and prune those with a mark
@@ -899,11 +1208,11 @@ process_t::attach ()
 
     /* Check the r_version.  */
     int r_version;
-    if (read_global_memory (m_r_debug_address
-                                + offsetof (struct r_debug, r_version),
-                            &r_version, sizeof (r_version))
-        != AMD_DBGAPI_STATUS_SUCCESS)
-      error ("read_global_memory failed");
+    status = read_global_memory (m_r_debug_address
+                                     + offsetof (struct r_debug, r_version),
+                                 &r_version, sizeof (r_version));
+    if (status != AMD_DBGAPI_STATUS_SUCCESS)
+      error ("read_global_memory failed (rc=%d)", status);
 
     if (r_version != ROCR_RDEBUG_VERSION)
       {
@@ -921,11 +1230,11 @@ process_t::attach ()
        updating the code object list.  */
 
     amd_dbgapi_global_address_t r_brk_address;
-    if (read_global_memory (m_r_debug_address
-                                + offsetof (struct r_debug, r_brk),
-                            &r_brk_address, sizeof (r_brk_address))
-        != AMD_DBGAPI_STATUS_SUCCESS)
-      error ("read_global_memory failed");
+    status = read_global_memory (m_r_debug_address
+                                     + offsetof (struct r_debug, r_brk),
+                                 &r_brk_address, sizeof (r_brk_address));
+    if (status != AMD_DBGAPI_STATUS_SUCCESS)
+      error ("read_global_memory failed (rc=%d)", status);
 
     /* This function gets called when the client reports that the breakpoint
        has been hit.  */
@@ -974,10 +1283,9 @@ process_t::attach ()
     /* Remove the breakpoints we've inserted when the library was loaded.  */
     auto &&breakpoint_range = process.range<breakpoint_t> ();
     for (auto it = breakpoint_range.begin (); it != breakpoint_range.end ();)
-      if (it->shared_library ().id () == library.id ())
-        it = process.destroy (it);
-      else
-        ++it;
+      it = (it->shared_library ().id () == library.id ())
+               ? process.destroy (it)
+               : ++it;
 
     /* Destruct the code objects.  */
     std::get<handle_object_set_t<code_object_t>> (m_handle_object_sets)
@@ -1210,14 +1518,10 @@ process_t::get_info (amd_dbgapi_process_info_t query, size_t value_size,
                               m_client_notifier_pipe.read_fd ());
 
     case AMD_DBGAPI_PROCESS_INFO_WATCHPOINT_COUNT:
-      warning ("process_t::get_info(WATCHPOINT_COUNT, ...) not yet "
-               "implemented");
-      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+      return utils::get_info (value_size, value, watchpoint_count ());
 
     case AMD_DBGAPI_PROCESS_INFO_WATCHPOINT_SHARE:
-      warning ("process_t::get_info(WATCHPOINT_SHARE, ...) not yet "
-               "implemented");
-      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+      return utils::get_info (value_size, value, watchpoint_shared_kind ());
 
     case AMD_DBGAPI_PROCESS_INFO_PRECISE_MEMORY_SUPPORTED:
       return utils::get_info (value_size, value,
@@ -1233,7 +1537,7 @@ process_t::get_info (amd_dbgapi_process_info_t query, size_t value_size,
 void
 process_t::enqueue_event (event_t &event)
 {
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "enqueue %s: %s",
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "reporting %s, %s",
               to_string (event.id ()).c_str (),
               event.pretty_printer_string ().c_str ());
 

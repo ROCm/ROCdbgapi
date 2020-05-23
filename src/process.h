@@ -35,6 +35,7 @@
 #include "os_driver.h"
 #include "queue.h"
 #include "utils.h"
+#include "watchpoint.h"
 #include "wave.h"
 
 #include <cstddef>
@@ -128,6 +129,10 @@ public:
   amd_dbgapi_status_t
   set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode);
 
+  amd_dbgapi_status_t
+  set_wave_launch_trap_override (os_wave_launch_trap_mask_t mask,
+                                 os_wave_launch_trap_mask_t bits);
+
   /* Suspend/resume a list of queues.  Queues may become invalid as a result of
      suspension/resumption, but not destroyed.  Queues made invalid will
      destroy associated dispatches and waves.  Since waves/dispatches can be
@@ -154,6 +159,14 @@ public:
 
   void enqueue_event (event_t &event);
   event_t *dequeue_event ();
+
+  size_t watchpoint_count () const;
+  amd_dbgapi_watchpoint_share_kind_t watchpoint_shared_kind () const;
+  amd_dbgapi_status_t
+  insert_watchpoint (const watchpoint_t &watchpoint,
+                     amd_dbgapi_global_address_t *adjusted_address,
+                     amd_dbgapi_global_address_t *adjusted_size);
+  void remove_watchpoint (const watchpoint_t &watchpoint);
 
   static process_t *find (amd_dbgapi_process_id_t process_id,
                           bool flush_cache = false);
@@ -255,6 +268,11 @@ public:
     return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
         .range ();
   }
+  template <typename Object> auto range () const
+  {
+    return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
+        .range ();
+  }
 
   /* Return the element count for the sub-Object.  */
   template <typename Object> size_t count () const
@@ -327,7 +345,7 @@ private:
       handle_object_set_t<code_object_t>, handle_object_set_t<dispatch_t>,
       handle_object_set_t<displaced_stepping_t>, handle_object_set_t<event_t>,
       handle_object_set_t<queue_t>, handle_object_set_t<shared_library_t>,
-      handle_object_set_t<wave_t>>
+      handle_object_set_t<watchpoint_t>, handle_object_set_t<wave_t>>
       m_handle_object_sets;
 };
 

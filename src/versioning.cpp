@@ -25,7 +25,7 @@
 #include <cstdint>
 
 const char AMD_DBGAPI *
-amd_dbgapi_get_build_name (void)
+amd_dbgapi_get_build_name ()
 {
   TRACE ();
 

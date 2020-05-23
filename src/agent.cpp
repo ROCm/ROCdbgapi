@@ -28,10 +28,13 @@
 #include "process.h"
 #include "queue.h"
 #include "utils.h"
+#include "watchpoint.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <unistd.h>
+#include <utility>
 
 namespace amd
 {
@@ -48,6 +51,9 @@ agent_t::agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
 
 agent_t::~agent_t ()
 {
+  dbgapi_assert (m_watchpoint_map.empty ()
+                 && "there should not be any active watchpoints left");
+
   if (debug_trap_enabled ())
     disable_debug_trap ();
 }
@@ -60,10 +66,17 @@ agent_t::enable_debug_trap ()
 
   amd_dbgapi_status_t status
       = process ().os_driver ().enable_debug_trap (gpu_id (), &fd);
-  if (status == AMD_DBGAPI_STATUS_SUCCESS)
-    m_poll_fd.emplace (fd);
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    return status;
 
-  return status;
+  m_poll_fd.emplace (fd);
+
+  /* Query the agent's supported trap mask.  */
+  os_wave_launch_trap_mask_t ignored;
+  return process ().os_driver ().set_wave_launch_trap_override (
+      gpu_id (), os_wave_launch_trap_override_t::OR,
+      os_wave_launch_trap_mask_t::NONE, os_wave_launch_trap_mask_t::NONE,
+      &ignored, &m_supported_trap_mask);
 }
 
 amd_dbgapi_status_t
@@ -73,6 +86,8 @@ agent_t::disable_debug_trap ()
 
   amd_dbgapi_status_t status
       = process ().os_driver ().disable_debug_trap (gpu_id ());
+
+  m_supported_trap_mask = {};
 
   ::close (m_poll_fd.value ());
   m_poll_fd.reset ();
@@ -156,6 +171,75 @@ agent_t::next_os_event (amd_dbgapi_queue_id_t *queue_id,
                  os_queue_id);
         }
     }
+}
+
+amd_dbgapi_status_t
+agent_t::insert_watchpoint (const watchpoint_t &watchpoint,
+                            amd_dbgapi_global_address_t adjusted_address,
+                            amd_dbgapi_global_address_t adjusted_mask)
+{
+  utils::optional<os_watch_mode_t> os_watch_mode
+      = architecture ().watchpoint_mode (watchpoint.kind ());
+  if (!os_watch_mode.has_value ())
+    {
+      /* This agent does not support the requested watchpoint kind.  */
+      return AMD_DBGAPI_STATUS_ERROR_NO_WATCHPOINT_AVAILABLE;
+    }
+
+  os_watch_id_t os_watch_id;
+  amd_dbgapi_status_t status = process ().os_driver ().set_address_watch (
+      gpu_id (), adjusted_address, adjusted_mask, os_watch_mode.value (),
+      &os_watch_id);
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    return status;
+
+  dbgapi_log (
+      AMD_DBGAPI_LOG_LEVEL_INFO, "%s: set address_watch%d [%#lx-%#lx] (%s)",
+      to_string (id ()).c_str (), os_watch_id, adjusted_address,
+      adjusted_address + (1 << utils::trailing_zeroes_count (adjusted_mask)),
+      to_string (watchpoint.kind ()).c_str ());
+
+  if (!m_watchpoint_map.emplace (os_watch_id, &watchpoint).second)
+    error ("os_watch_id %d is already in use", os_watch_id);
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
+amd_dbgapi_status_t
+agent_t::remove_watchpoint (const watchpoint_t &watchpoint)
+{
+  /* Find watchpoint in the os_watch_id to watchpoint_t map.  The key will be
+     the os_watch_id to clear for this agent.  */
+  auto it = std::find_if (
+      m_watchpoint_map.begin (), m_watchpoint_map.end (),
+      [&watchpoint] (const decltype (m_watchpoint_map)::value_type &value) {
+        return value.second == &watchpoint;
+      });
+
+  if (it == m_watchpoint_map.end ())
+    error ("watchpoint is not inserted");
+
+  os_watch_id_t os_watch_id = it->first;
+
+  amd_dbgapi_status_t status
+      = process ().os_driver ().clear_address_watch (gpu_id (), os_watch_id);
+  if (status != AMD_DBGAPI_STATUS_SUCCESS
+      && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    return status;
+
+  m_watchpoint_map.erase (it);
+
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "%s: clear address_watch%d",
+              to_string (id ()).c_str (), os_watch_id);
+
+  return status;
+}
+
+const watchpoint_t *
+agent_t::find_watchpoint (os_watch_id_t os_watch_id) const
+{
+  auto it = m_watchpoint_map.find (os_watch_id);
+  return it != m_watchpoint_map.end () ? it->second : nullptr;
 }
 
 amd_dbgapi_status_t

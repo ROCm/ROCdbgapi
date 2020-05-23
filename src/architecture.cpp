@@ -72,6 +72,9 @@ constexpr uint32_t TTMP11_TRAP_HANDLER_EVENTS_MASK
 constexpr uint32_t SQ_WAVE_STATUS_HALT_MASK = 0x2000;
 constexpr uint32_t SQ_WAVE_MODE_DEBUG_EN_MASK = 0x800;
 
+constexpr uint32_t SQ_WAVE_MODE_EXCP_EN_MASK = 0x1FF000;
+constexpr uint32_t SQ_WAVE_MODE_EXCP_EN_SHIFT = 12;
+
 constexpr int SQ_EX_MODE_EXCP_INVALID = 0;
 constexpr int SQ_EX_MODE_EXCP_INPUT_DENORM = 1;
 constexpr int SQ_EX_MODE_EXCP_DIV0 = 2;
@@ -79,17 +82,20 @@ constexpr int SQ_EX_MODE_EXCP_OVERFLOW = 3;
 constexpr int SQ_EX_MODE_EXCP_UNDERFLOW = 4;
 constexpr int SQ_EX_MODE_EXCP_INEXACT = 5;
 constexpr int SQ_EX_MODE_EXCP_INT_DIV0 = 6;
-constexpr int __maybe_unused__ SQ_EX_MODE_EXCP_ADDR_WATCH0 = 7;
+constexpr int SQ_EX_MODE_EXCP_ADDR_WATCH0 = 7;
 constexpr int SQ_EX_MODE_EXCP_MEM_VIOL = 8;
 
-constexpr int __maybe_unused__ SQ_EX_MODE_EXCP_HI_ADDR_WATCH1 = 0;
-constexpr int __maybe_unused__ SQ_EX_MODE_EXCP_HI_ADDR_WATCH2 = 1;
-constexpr int __maybe_unused__ SQ_EX_MODE_EXCP_HI_ADDR_WATCH3 = 2;
+constexpr int SQ_EX_MODE_EXCP_HI_ADDR_WATCH1 = 0;
+constexpr int SQ_EX_MODE_EXCP_HI_ADDR_WATCH2 = 1;
+constexpr int SQ_EX_MODE_EXCP_HI_ADDR_WATCH3 = 2;
 
+constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_SHIFT = 0;
 constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_MASK = 0x1FF;
 constexpr uint32_t __maybe_unused__ SQ_WAVE_TRAPSTS_SAVECTX_MASK = 0x400;
 constexpr uint32_t SQ_WAVE_TRAPSTS_ILLEGAL_INST_MASK = 0x800;
-constexpr uint32_t __maybe_unused__ SQ_WAVE_TRAPSTS_EXCP_HI_MASK = 0x7000;
+constexpr uint32_t SQ_WAVE_TRAPSTS_MEM_VIOL_MASK = 0x100;
+constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_HI_SHIFT = 12;
+constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_HI_MASK = 0x7000;
 
 monotonic_counter_t<decltype (amd_dbgapi_architecture_id_t::handle)>
     architecture_t::s_next_architecture_id{ 1 };
@@ -139,6 +145,20 @@ public:
       const address_space_t &address_space1,
       const address_space_t &address_space2) const override;
 
+  virtual amd_dbgapi_watchpoint_share_kind_t
+  watchpoint_share_kind () const override
+  {
+    return AMD_DBGAPI_WATCHPOINT_SHARE_KIND_SHARED;
+  };
+
+  virtual size_t watchpoint_count () const override { return 4; };
+
+  utils::optional<os_watch_mode_t>
+  watchpoint_mode (amd_dbgapi_watchpoint_kind_t kind) const override;
+
+  virtual std::vector<os_watch_id_t>
+  triggered_watchpoints (const wave_t &wave) const override;
+
   virtual size_t displaced_stepping_buffer_size () const override;
 
   virtual bool
@@ -158,6 +178,13 @@ public:
                   amd_dbgapi_wave_stop_reason_t *stop_reason) const override;
   virtual amd_dbgapi_status_t
   set_wave_state (wave_t &wave, amd_dbgapi_wave_state_t state) const override;
+
+  virtual amd_dbgapi_status_t
+  enable_wave_traps (wave_t &wave,
+                     os_wave_launch_trap_mask_t mask) const override;
+  virtual amd_dbgapi_status_t
+  disable_wave_traps (wave_t &wave,
+                      os_wave_launch_trap_mask_t mask) const override;
 
   virtual size_t minimum_instruction_alignment () const override;
   virtual const std::vector<uint8_t> &nop_instruction () const override;
@@ -582,6 +609,40 @@ amdgcn_architecture_t::address_spaces_may_alias (
   return false;
 }
 
+std::vector<os_watch_id_t>
+amdgcn_architecture_t::triggered_watchpoints (const wave_t &wave) const
+{
+  std::vector<os_watch_id_t> watchpoints;
+  amd_dbgapi_status_t status;
+
+  if (wave.state () != AMD_DBGAPI_WAVE_STATE_STOP
+      || !(wave.stop_reason () & AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT))
+    return {};
+
+  /* We don't have to suspend the queue because trapsts is a cached hwreg.  */
+  dbgapi_assert (wave.is_register_cached (amdgpu_regnum_t::TRAPSTS));
+
+  uint32_t trapsts;
+  status = wave.read_register (amdgpu_regnum_t::TRAPSTS, &trapsts);
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("could not read the trapsts register (rc=%d)", status);
+
+  if ((trapsts >> SQ_WAVE_TRAPSTS_EXCP_SHIFT)
+      & (1 << SQ_EX_MODE_EXCP_ADDR_WATCH0))
+    watchpoints.emplace_back (0);
+  if ((trapsts >> SQ_WAVE_TRAPSTS_EXCP_HI_SHIFT)
+      & (1 << SQ_EX_MODE_EXCP_HI_ADDR_WATCH1))
+    watchpoints.emplace_back (1);
+  if ((trapsts >> SQ_WAVE_TRAPSTS_EXCP_HI_SHIFT)
+      & (1 << SQ_EX_MODE_EXCP_HI_ADDR_WATCH2))
+    watchpoints.emplace_back (2);
+  if ((trapsts >> SQ_WAVE_TRAPSTS_EXCP_HI_SHIFT)
+      & (1 << SQ_EX_MODE_EXCP_HI_ADDR_WATCH3))
+    watchpoints.emplace_back (3);
+
+  return watchpoints;
+}
+
 size_t
 amdgcn_architecture_t::minimum_instruction_alignment () const
 {
@@ -669,9 +730,11 @@ amdgcn_architecture_t::branch_target (
   else if (is_cbranch (instruction))
     {
       uint32_t status_reg;
-      if (wave.read_register (amdgpu_regnum_t::STATUS, &status_reg)
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("wave::read_register failed");
+
+      amd_dbgapi_status_t status
+          = wave.read_register (amdgpu_regnum_t::STATUS, &status_reg);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("wave::read_register failed (rc=%d)", status);
 
       /* Evaluate the condition.  */
       bool branch_taken{};
@@ -1007,16 +1070,14 @@ amdgcn_architecture_t::get_wave_state (
       /* The wave is running, there is no stop reason.  */
       *stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
 
-#if !defined(NDEBUG)
-      uint32_t ttmp11;
-      status = wave.read_register (amdgpu_regnum_t::TTMP11, &ttmp11);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
-
-      dbgapi_assert (!(ttmp11 & TTMP11_TRAP_HANDLER_EVENTS_MASK)
+      dbgapi_assert ([&wave] () {
+        uint32_t ttmp11;
+        return (wave.read_register (amdgpu_regnum_t::TTMP11, &ttmp11)
+                == AMD_DBGAPI_STATUS_SUCCESS)
+               && !(ttmp11 & TTMP11_TRAP_HANDLER_EVENTS_MASK);
+      }()
                      && "Waves should not have trap handler events while "
                         "running. These are reset when unhalting the wave.");
-#endif /* !defined (NDEBUG) */
     }
   else if (saved_state == AMD_DBGAPI_WAVE_STATE_STOP)
     {
@@ -1050,24 +1111,31 @@ amdgcn_architecture_t::get_wave_state (
 
       amd_dbgapi_global_address_t pc = wave.pc ();
 
-      if (trapsts
-          & (SQ_WAVE_TRAPSTS_EXCP_MASK | SQ_WAVE_TRAPSTS_ILLEGAL_INST_MASK))
+      if (trapsts & (SQ_WAVE_TRAPSTS_EXCP_MASK | SQ_WAVE_TRAPSTS_EXCP_HI_MASK))
         {
           /* FIXME: Enable this when the trap handler is modified to send
              debugger notifications for exceptions.
              if (!excp_raised)
                error ("The trap handler should have set the excp_raised bit.");
            */
+          if (trapsts
+              & (SQ_WAVE_TRAPSTS_MEM_VIOL_MASK
+                 | SQ_WAVE_TRAPSTS_ILLEGAL_INST_MASK))
+            {
+              /* The first-level trap handler subtracts 8 from the PC, so
+                 we add it back here.  */
 
-          /* The first-level trap handler subtracts 8 from the PC, so
-             we add it back here.  */
+              pc += 8;
+              status = wave.write_register (amdgpu_regnum_t::PC, &pc);
+              if (status != AMD_DBGAPI_STATUS_SUCCESS)
+                return status;
+            }
 
-          pc += 8;
-          status = wave.write_register (amdgpu_regnum_t::PC, &pc);
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
-            return status;
+          uint32_t excp = (trapsts & SQ_WAVE_TRAPSTS_EXCP_MASK)
+                          >> SQ_WAVE_TRAPSTS_EXCP_SHIFT;
+          uint32_t excp_hi = (trapsts & SQ_WAVE_TRAPSTS_EXCP_HI_MASK)
+                             >> SQ_WAVE_TRAPSTS_EXCP_HI_SHIFT;
 
-          uint32_t excp = trapsts & SQ_WAVE_TRAPSTS_EXCP_MASK;
           if (excp & (1u << SQ_EX_MODE_EXCP_INVALID))
             reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_FP_INVALID_OPERATION;
           if (excp & (1u << SQ_EX_MODE_EXCP_INPUT_DENORM))
@@ -1084,9 +1152,13 @@ amdgcn_architecture_t::get_wave_state (
             reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_INT_DIVIDE_BY_0;
           if (excp & (1u << SQ_EX_MODE_EXCP_MEM_VIOL))
             reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_MEMORY_VIOLATION;
-
           if (trapsts & SQ_WAVE_TRAPSTS_ILLEGAL_INST_MASK)
             reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_ILLEGAL_INSTRUCTION;
+          if ((excp & (1u << SQ_EX_MODE_EXCP_ADDR_WATCH0))
+              || (excp_hi & (1u << SQ_EX_MODE_EXCP_HI_ADDR_WATCH1))
+              || (excp_hi & (1u << SQ_EX_MODE_EXCP_HI_ADDR_WATCH2))
+              || (excp_hi & (1u << SQ_EX_MODE_EXCP_HI_ADDR_WATCH3)))
+            reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT;
         }
       else
         {
@@ -1224,23 +1296,82 @@ amdgcn_architecture_t::set_wave_state (wave_t &wave,
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
 
-  /* Clear the trap handler events if resuming the wave.  */
+  /* If resuming the wave (run or single-step), clear the trap handler events
+     in ttmp11 and the watchpoint exceptions in trapsts.  */
   if (state != AMD_DBGAPI_WAVE_STATE_STOP)
     {
-      uint32_t ttmp11_reg;
+      uint32_t ttmp11;
 
-      status = wave.read_register (amdgpu_regnum_t::TTMP11, &ttmp11_reg);
+      status = wave.read_register (amdgpu_regnum_t::TTMP11, &ttmp11);
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
 
-      ttmp11_reg &= ~TTMP11_TRAP_HANDLER_EVENTS_MASK;
+      ttmp11 &= ~TTMP11_TRAP_HANDLER_EVENTS_MASK;
 
-      status = wave.write_register (amdgpu_regnum_t::TTMP11, &ttmp11_reg);
+      status = wave.write_register (amdgpu_regnum_t::TTMP11, &ttmp11);
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
+
+      if (wave.stop_reason () & AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT)
+        {
+          uint32_t trapsts;
+
+          status = wave.read_register (amdgpu_regnum_t::TRAPSTS, &trapsts);
+          if (status != AMD_DBGAPI_STATUS_SUCCESS)
+            return status;
+
+          trapsts &= ~(((1u << SQ_EX_MODE_EXCP_ADDR_WATCH0)
+                        << SQ_WAVE_TRAPSTS_EXCP_SHIFT)
+                       | (((1u << SQ_EX_MODE_EXCP_HI_ADDR_WATCH1)
+                           | (1u << SQ_EX_MODE_EXCP_HI_ADDR_WATCH2)
+                           | (1u << SQ_EX_MODE_EXCP_HI_ADDR_WATCH3))
+                          << SQ_WAVE_TRAPSTS_EXCP_HI_SHIFT));
+
+          status = wave.write_register (amdgpu_regnum_t::TRAPSTS, &trapsts);
+          if (status != AMD_DBGAPI_STATUS_SUCCESS)
+            return status;
+        }
     }
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
+amd_dbgapi_status_t
+amdgcn_architecture_t::enable_wave_traps (
+    wave_t &wave, os_wave_launch_trap_mask_t mask) const
+{
+  amd_dbgapi_status_t status;
+  uint32_t mode;
+
+  status = wave.read_register (amdgpu_regnum_t::MODE, &mode);
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    return status;
+
+  /* OR SQ_WAVE_MODE.EXCP_EN with mask.  */
+  mode |= (static_cast<std::underlying_type_t<decltype (mask)>> (mask)
+           << SQ_WAVE_MODE_EXCP_EN_SHIFT)
+          & SQ_WAVE_MODE_EXCP_EN_MASK;
+
+  return wave.write_register (amdgpu_regnum_t::MODE, &mode);
+}
+
+amd_dbgapi_status_t
+amdgcn_architecture_t::disable_wave_traps (
+    wave_t &wave, os_wave_launch_trap_mask_t mask) const
+{
+  amd_dbgapi_status_t status;
+  uint32_t mode;
+
+  status = wave.read_register (amdgpu_regnum_t::MODE, &mode);
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    return status;
+
+  /* AND SQ_WAVE_MODE.EXCP_EN with ~mask.  */
+  mode &= ~((static_cast<std::underlying_type_t<decltype (mask)>> (mask)
+             << SQ_WAVE_MODE_EXCP_EN_SHIFT)
+            & SQ_WAVE_MODE_EXCP_EN_MASK);
+
+  return wave.write_register (amdgpu_regnum_t::MODE, &mode);
 }
 
 uint8_t
@@ -1400,6 +1531,24 @@ amdgcn_architecture_t::is_cbranch_i_fork (
   return (encoding & 0xFF800000) == 0xB8000000;
 }
 
+utils::optional<os_watch_mode_t>
+amdgcn_architecture_t::watchpoint_mode (
+    amd_dbgapi_watchpoint_kind_t kind) const
+{
+  switch (kind)
+    {
+    case AMD_DBGAPI_WATCHPOINT_KIND_LOAD:
+      return os_watch_mode_t::READ;
+    case AMD_DBGAPI_WATCHPOINT_KIND_STORE_AND_RMW:
+      return os_watch_mode_t::NONREAD;
+    case AMD_DBGAPI_WATCHPOINT_KIND_RMW:
+      return os_watch_mode_t::ATOMIC;
+    case AMD_DBGAPI_WATCHPOINT_KIND_ALL:
+      return os_watch_mode_t::ALL;
+    }
+  return {};
+}
+
 /* Base class for all GFX9 architectures.  */
 
 class gfx9_base_t : public amdgcn_architecture_t
@@ -1420,6 +1569,11 @@ public:
   compute_relaunch_abi_t compute_relaunch_abi () const override
   {
     return compute_relaunch_abi_t::GFX900;
+  }
+
+  virtual size_t watchpoint_mask_bits () const override
+  {
+    return utils::bit_mask (6, 29);
   }
 };
 
@@ -1503,6 +1657,11 @@ public:
   compute_relaunch_abi_t compute_relaunch_abi () const override
   {
     return compute_relaunch_abi_t::GFX1000;
+  }
+
+  virtual size_t watchpoint_mask_bits () const override
+  {
+    return utils::bit_mask (7, 29);
   }
 };
 

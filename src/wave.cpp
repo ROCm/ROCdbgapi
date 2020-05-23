@@ -25,10 +25,12 @@
 #include "initialization.h"
 #include "logging.h"
 #include "memory.h"
+#include "os_driver.h"
 #include "process.h"
 #include "queue.h"
 #include "register.h"
 #include "utils.h"
+#include "watchpoint.h"
 
 #include <algorithm>
 #include <cstring>
@@ -77,20 +79,22 @@ wave_t::set_visibility (visibility_t visibility)
 uint64_t
 wave_t::exec_mask () const
 {
+  amd_dbgapi_status_t status;
+
   if (lane_count () == 32)
     {
       uint32_t exec;
-      if (read_register (amdgpu_regnum_t::EXEC_32, &exec)
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("Could not read the EXEC_32 register");
+      status = read_register (amdgpu_regnum_t::EXEC_32, &exec);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("Could not read the EXEC_32 register (rc=%d)", status);
       return exec;
     }
   else if (lane_count () == 64)
     {
       uint64_t exec;
-      if (read_register (amdgpu_regnum_t::EXEC_64, &exec)
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("Could not read the EXEC_64 register");
+      status = read_register (amdgpu_regnum_t::EXEC_64, &exec);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("Could not read the EXEC_64 register (rc=%d)", status);
       return exec;
     }
   error ("Not a valid lane_count for EXEC mask: %zu", lane_count ());
@@ -100,8 +104,9 @@ amd_dbgapi_global_address_t
 wave_t::pc () const
 {
   amd_dbgapi_global_address_t pc;
-  if (read_register (amdgpu_regnum_t::PC, &pc) != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not read the PC register");
+  amd_dbgapi_status_t status = read_register (amdgpu_regnum_t::PC, &pc);
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not read the PC register (rc=%d)", status);
   return pc;
 }
 
@@ -111,10 +116,10 @@ wave_t::instruction_at_pc () const
   size_t size = architecture ().largest_instruction_size ();
   std::vector<uint8_t> instruction_bytes (size);
 
-  if (process ().read_global_memory_partial (pc (), instruction_bytes.data (),
-                                             &size)
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not read the instruction at %#lx", pc ());
+  amd_dbgapi_status_t status = process ().read_global_memory_partial (
+      pc (), instruction_bytes.data (), &size);
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not read the instruction at %#lx (rc=%d)", pc (), status);
 
   /* Trim unread bytes.  */
   instruction_bytes.resize (size);
@@ -272,9 +277,9 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
     }
 
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-              "setting %s's state to %s (pc=%#lx), was %s",
-              to_string (id ()).c_str (), to_string (state).c_str (), pc (),
-              to_string (prev_state).c_str ());
+              "changing %s's state from %s to %s (pc=%#lx)",
+              to_string (id ()).c_str (), to_string (prev_state).c_str (),
+              to_string (state).c_str (), pc ());
 
   /* If we requested the wave be stopped, and the wave wasn't already stopped,
      report an event to acknowledge that the wave has stopped.  */
@@ -940,8 +945,37 @@ wave_t::get_info (amd_dbgapi_wave_info_t query, size_t value_size,
       return utils::get_info (value_size, value, m_wave_in_group);
 
     case AMD_DBGAPI_WAVE_INFO_WATCHPOINTS:
-      warning ("wave_t::get_info(WATCHPOINTS, ...) not yet implemented");
-      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+      {
+        amd_dbgapi_watchpoint_list_t list{};
+
+        auto os_watch_ids = architecture ().triggered_watchpoints (*this);
+        list.count = os_watch_ids.size ();
+
+        list.watchpoint_ids = static_cast<amd_dbgapi_watchpoint_id_t *> (
+            amd::dbgapi::allocate_memory (
+                list.count * sizeof (amd_dbgapi_watchpoint_id_t)));
+
+        if (list.count && !list.watchpoint_ids)
+          return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
+
+        auto watchpoint_id = [this] (os_watch_id_t os_watch_id) {
+          const watchpoint_t *watchpoint
+              = agent ().find_watchpoint (os_watch_id);
+          if (!watchpoint)
+            error ("kfd_watch_%d not set on %s", os_watch_id,
+                   to_string (agent ().id ()).c_str ());
+          return watchpoint->id ();
+        };
+
+        std::transform (os_watch_ids.begin (), os_watch_ids.end (),
+                        list.watchpoint_ids, watchpoint_id);
+
+        amd_dbgapi_status_t status = utils::get_info (value_size, value, list);
+        if (status != AMD_DBGAPI_STATUS_SUCCESS)
+          amd::dbgapi::deallocate_memory (list.watchpoint_ids);
+
+        return status;
+      }
 
     case AMD_DBGAPI_WAVE_INFO_LANE_COUNT:
       return utils::get_info (value_size, value, lane_count ());
@@ -1054,6 +1088,18 @@ amd_dbgapi_wave_get_info (amd_dbgapi_process_id_t process_id,
 
   if (!wave)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
+
+  switch (query)
+    {
+    case AMD_DBGAPI_WAVE_INFO_STOP_REASON:
+    case AMD_DBGAPI_WAVE_INFO_PC:
+    case AMD_DBGAPI_WAVE_INFO_EXEC_MASK:
+    case AMD_DBGAPI_WAVE_INFO_WATCHPOINTS:
+      if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
+        return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED;
+    default:
+      break;
+    };
 
   return wave->get_info (query, value_size, value);
   CATCH;

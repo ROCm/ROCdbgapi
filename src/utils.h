@@ -127,6 +127,21 @@ bit_count (Integral x)
 }
 
 template <typename Integral>
+constexpr int
+trailing_zeroes_count (Integral x)
+{
+  std::make_unsigned_t<Integral> v{ x };
+
+  if (!v)
+    return sizeof (v) * 8;
+
+  /* Set v's trailing 0s to 1s, and zero rest.  */
+  v = (v ^ (v - 1)) >> 1;
+
+  return bit_count (v);
+}
+
+template <typename Integral>
 constexpr std::make_unsigned_t<Integral>
 zero_extend (Integral x, int width)
 {
@@ -154,6 +169,26 @@ constexpr bool
 is_power_of_two (Integral x)
 {
   return x && (x & (x - 1)) == 0;
+}
+
+template <typename Integral>
+constexpr std::make_unsigned_t<Integral>
+next_power_of_two (Integral x)
+{
+  std::make_unsigned_t<Integral> v{ x };
+
+  --v;
+  v |= v >> 1;
+  v |= v >> 2;
+  v |= v >> 4;
+  if (sizeof (v) > 1)
+    v |= v >> 8;
+  if (sizeof (v) > 2)
+    v |= v >> 16;
+  if (sizeof (v) > 4)
+    v |= v >> 32;
+
+  return ++v;
 }
 
 template <typename Integral>
@@ -268,7 +303,6 @@ public:
         m_instantiated = true;
       }
   }
-
   optional (optional &&rhs) : m_dummy ()
   {
     if (rhs.m_instantiated)
@@ -276,6 +310,11 @@ public:
         ::new (&m_object) T (std::move (rhs.m_object));
         m_instantiated = true;
       }
+  }
+  optional (T &&rhs)
+  {
+    ::new (&m_object) T (std::move (rhs));
+    m_instantiated = true;
   }
 
   ~optional () { reset (); }

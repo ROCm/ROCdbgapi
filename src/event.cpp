@@ -111,9 +111,11 @@ event_t::pretty_printer_string () const
               "WAVE_STOP for terminated %s",
               to_string (m_data.wave_event.wave_id).c_str ());
         else
-          return string_printf ("WAVE_STOP for %s (pc=%#lx, stop_reason=%s)",
-                                to_string (wave->id ()).c_str (), wave->pc (),
-                                to_string (wave->stop_reason ()).c_str ());
+          return string_printf (
+              "WAVE_STOP for %s on %s (pc=%#lx, stop_reason=%s)",
+              to_string (wave->id ()).c_str (),
+              to_string (wave->queue ().id ()).c_str (), wave->pc (),
+              to_string (wave->stop_reason ()).c_str ());
       }
 
     case AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED:
@@ -295,8 +297,9 @@ amd_dbgapi_next_pending_event (amd_dbgapi_process_id_t process_id,
                       && "inconsistent suspend status");
 
                   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                              "%s has pending events (%s)",
+                              "%s on %s has pending events (%s)",
                               to_string (queue_id).c_str (),
+                              to_string (queue->agent ().id ()).c_str (),
                               to_string (queue_status).c_str ());
 
                   /* The queue may already be suspended. This can happen if an

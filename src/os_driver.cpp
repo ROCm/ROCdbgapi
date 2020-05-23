@@ -185,9 +185,25 @@ public:
   queue_snapshot (os_queue_snapshot_entry_t *snapshots, size_t snapshot_count,
                   size_t *queue_count) const override;
 
+  virtual amd_dbgapi_status_t set_address_watch (
+      os_agent_id_t os_agent_id, amd_dbgapi_global_address_t address,
+      amd_dbgapi_global_address_t mask, os_watch_mode_t os_watch_mode,
+      os_watch_id_t *os_watch_id) const override;
+
+  virtual amd_dbgapi_status_t
+  clear_address_watch (os_agent_id_t os_agent_id,
+                       os_watch_id_t os_watch_id) const override;
+
   virtual amd_dbgapi_status_t
   set_wave_launch_mode (os_agent_id_t os_agent_id,
                         os_wave_launch_mode_t mode) const override;
+
+  virtual amd_dbgapi_status_t set_wave_launch_trap_override (
+      os_agent_id_t os_agent_id, os_wave_launch_trap_override_t override,
+      os_wave_launch_trap_mask_t trap_mask,
+      os_wave_launch_trap_mask_t requested_bits,
+      os_wave_launch_trap_mask_t *previous_mask,
+      os_wave_launch_trap_mask_t *supported_mask) const override;
 
 private:
   static size_t s_kfd_open_count;
@@ -484,26 +500,6 @@ kfd_driver_t::disable_debug_trap (os_agent_id_t os_agent_id) const
 }
 
 amd_dbgapi_status_t
-kfd_driver_t::set_wave_launch_mode (os_agent_id_t os_agent_id,
-                                    os_wave_launch_mode_t mode) const
-{
-  /* KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_MODE (#2)
-     data1: mode (0=normal, 1=halt, 2=kill, 3=single-step, 4=disable)  */
-
-  kfd_ioctl_dbg_trap_args args{};
-  args.gpu_id = os_agent_id;
-  args.data1 = static_cast<std::underlying_type_t<decltype (mode)>> (mode);
-
-  int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_MODE, &args);
-  if (err == -ESRCH)
-    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
-  else if (err < 0)
-    return AMD_DBGAPI_STATUS_ERROR;
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
-}
-
-amd_dbgapi_status_t
 kfd_driver_t::query_debug_event (os_agent_id_t os_agent_id,
                                  os_queue_id_t *os_queue_id,
                                  os_queue_status_t *os_queue_status) const
@@ -620,6 +616,120 @@ kfd_driver_t::queue_snapshot (os_queue_snapshot_entry_t *snapshots,
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
+amd_dbgapi_status_t
+kfd_driver_t::set_address_watch (os_agent_id_t os_agent_id,
+                                 amd_dbgapi_global_address_t address,
+                                 amd_dbgapi_global_address_t mask,
+                                 os_watch_mode_t os_watch_mode,
+                                 os_watch_id_t *os_watch_id) const
+{
+  dbgapi_assert (os_watch_id && "must not be null");
+
+  /* KFD_IOC_DBG_TRAP_SET_ADDRESS_WATCH (#9)
+     ptr:   [in] watch address
+     data1: [out] watch ID
+     data2: [in] watch_mode: 0=read, 1=nonread, 2=atomic, 3=all
+     data3: [in] watch address mask  */
+
+  kfd_ioctl_dbg_trap_args args{};
+  args.gpu_id = os_agent_id;
+  args.ptr = address;
+  args.data2 = static_cast<std::underlying_type_t<decltype (os_watch_mode)>> (
+      os_watch_mode);
+  args.data3 = mask;
+
+  int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_ADDRESS_WATCH, &args);
+  if (err == -ENOMEM)
+    return AMD_DBGAPI_STATUS_ERROR_NO_WATCHPOINT_AVAILABLE;
+  else if (err == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err < 0)
+    return AMD_DBGAPI_STATUS_ERROR;
+
+  *os_watch_id = args.data1;
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
+amd_dbgapi_status_t
+kfd_driver_t::clear_address_watch (os_agent_id_t os_agent_id,
+                                   os_watch_id_t os_watch_id) const
+{
+  /* KFD_IOC_DBG_TRAP_CLEAR_ADDRESS_WATCH (#8)
+     data1: [in] watch ID  */
+
+  kfd_ioctl_dbg_trap_args args{};
+  args.gpu_id = os_agent_id;
+  args.data1 = os_watch_id;
+
+  int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_CLEAR_ADDRESS_WATCH, &args);
+  if (err == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err < 0)
+    return AMD_DBGAPI_STATUS_ERROR;
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
+amd_dbgapi_status_t
+kfd_driver_t::set_wave_launch_mode (os_agent_id_t os_agent_id,
+                                    os_wave_launch_mode_t mode) const
+{
+  /* KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_MODE (#2)
+     data1: mode (0=normal, 1=halt, 2=kill, 3=single-step, 4=disable)  */
+
+  kfd_ioctl_dbg_trap_args args{};
+  args.gpu_id = os_agent_id;
+  args.data1 = static_cast<std::underlying_type_t<decltype (mode)>> (mode);
+
+  int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_MODE, &args);
+  if (err == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err < 0)
+    return AMD_DBGAPI_STATUS_ERROR;
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
+amd_dbgapi_status_t
+kfd_driver_t::set_wave_launch_trap_override (
+    os_agent_id_t os_agent_id, os_wave_launch_trap_override_t override,
+    os_wave_launch_trap_mask_t trap_mask,
+    os_wave_launch_trap_mask_t requested_bits,
+    os_wave_launch_trap_mask_t *previous_mask,
+    os_wave_launch_trap_mask_t *supported_mask) const
+{
+  dbgapi_assert (previous_mask && supported_mask && "must not be null");
+
+  /* KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_OVERRIDE (#1)
+     data1: [in] override mode (see enum kfd_dbg_trap_override_mode)
+     data2: [in/out] trap mask (see enum kfd_dbg_trap_mask)
+     data3: [in] requested mask, [out] supported mask  */
+
+  kfd_ioctl_dbg_trap_args args{};
+  args.gpu_id = os_agent_id;
+  args.data1
+      = static_cast<std::underlying_type_t<decltype (override)>> (override);
+  args.data2
+      = static_cast<std::underlying_type_t<decltype (trap_mask)>> (trap_mask);
+  args.data3 = static_cast<std::underlying_type_t<decltype (requested_bits)>> (
+      requested_bits);
+
+  int err
+      = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_OVERRIDE, &args);
+  if (err == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err == -EPERM || err == -EACCES)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
+  else if (err < 0)
+    return AMD_DBGAPI_STATUS_ERROR;
+
+  *previous_mask = static_cast<os_wave_launch_trap_mask_t> (args.data2);
+  *supported_mask = static_cast<os_wave_launch_trap_mask_t> (args.data3);
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
 class no_agents_driver_t : public linux_driver_t
 {
 public:
@@ -687,9 +797,34 @@ public:
     return AMD_DBGAPI_STATUS_SUCCESS;
   }
 
+  virtual amd_dbgapi_status_t set_address_watch (
+      os_agent_id_t os_agent_id, amd_dbgapi_global_address_t address,
+      amd_dbgapi_global_address_t mask, os_watch_mode_t os_watch_mode,
+      os_watch_id_t *os_watch_id) const override
+  {
+    error ("should not call this, null_driver does not have any agents");
+  }
+
+  virtual amd_dbgapi_status_t
+  clear_address_watch (os_agent_id_t os_agent_id,
+                       os_watch_id_t os_watch_id) const override
+  {
+    error ("should not call this, null_driver does not have any agents");
+  }
+
   virtual amd_dbgapi_status_t
   set_wave_launch_mode (os_agent_id_t os_agent_id,
                         os_wave_launch_mode_t mode) const override
+  {
+    error ("should not call this, null_driver does not have any agents");
+  }
+
+  virtual amd_dbgapi_status_t set_wave_launch_trap_override (
+      os_agent_id_t os_agent_id, os_wave_launch_trap_override_t override,
+      os_wave_launch_trap_mask_t trap_mask,
+      os_wave_launch_trap_mask_t requested_bits,
+      os_wave_launch_trap_mask_t *previous_mask,
+      os_wave_launch_trap_mask_t *supported_mask) const override
   {
     error ("should not call this, null_driver does not have any agents");
   }

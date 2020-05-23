@@ -83,7 +83,7 @@ struct os_agent_snapshot_entry_t
 };
 
 using os_queue_id_t = uint32_t;
-using os_queue_snapshot_entry_t = kfd_queue_snapshot_entry;
+using os_watch_id_t = uint32_t;
 
 enum class os_queue_type_t : uint32_t
 {
@@ -103,6 +103,39 @@ enum class os_queue_status_t : uint32_t
 template <> struct is_flag<os_queue_status_t> : std::true_type
 {
 };
+
+enum class os_wave_launch_trap_override_t : uint32_t
+{
+  OR = KFD_DBG_TRAP_OVERRIDE_OR, /* OR mask with HSA_DBG_TRAP_MASK.  */
+  REPLACE = KFD_DBG_TRAP_OVERRIDE_REPLACE, /* Replace mask.  */
+};
+
+enum class os_wave_launch_trap_mask_t : uint32_t
+{
+  NONE = 0,
+  FP_INVALID = KFD_DBG_TRAP_MASK_FP_INVALID,
+  FP_INPUT_DENORMAL = KFD_DBG_TRAP_MASK_FP_INPUT_DENORMAL,
+  FP_DIVIDE_BY_ZERO = KFD_DBG_TRAP_MASK_FP_DIVIDE_BY_ZERO,
+  FP_OVERFLOW = KFD_DBG_TRAP_MASK_FP_OVERFLOW,
+  FP_UNDERFLOW = KFD_DBG_TRAP_MASK_FP_UNDERFLOW,
+  FP_INEXACT = KFD_DBG_TRAP_MASK_FP_INEXACT,
+  INT_DIVIDE_BY_ZERO = KFD_DBG_TRAP_MASK_INT_DIVIDE_BY_ZERO,
+  ADDRESS_WATCH = KFD_DBG_TRAP_MASK_DBG_ADDRESS_WATCH,
+  MEMORY_VIOLATION = KFD_DBG_TRAP_MASK_DBG_MEMORY_VIOLATION,
+};
+template <> struct is_flag<os_wave_launch_trap_mask_t> : std::true_type
+{
+};
+
+enum class os_watch_mode_t : uint32_t
+{
+  READ = 0,    /* Read operations only.  */
+  NONREAD = 1, /* Write or atomic operations only.  */
+  ATOMIC = 2,  /* Atomic operations only.  */
+  ALL = 3,     /* Read, write or atomic operations.  */
+};
+
+using os_queue_snapshot_entry_t = kfd_queue_snapshot_entry;
 
 inline os_queue_status_t
 os_queue_status (os_queue_snapshot_entry_t entry)
@@ -167,9 +200,25 @@ public:
   queue_snapshot (os_queue_snapshot_entry_t *snapshots, size_t snapshot_count,
                   size_t *queue_count) const = 0;
 
+  virtual amd_dbgapi_status_t set_address_watch (
+      os_agent_id_t os_agent_id, amd_dbgapi_global_address_t address,
+      amd_dbgapi_global_address_t mask, os_watch_mode_t os_watch_mode,
+      os_watch_id_t *os_watch_id) const = 0;
+
+  virtual amd_dbgapi_status_t
+  clear_address_watch (os_agent_id_t os_agent_id,
+                       os_watch_id_t os_watch_id) const = 0;
+
   virtual amd_dbgapi_status_t
   set_wave_launch_mode (os_agent_id_t os_agent_id,
                         os_wave_launch_mode_t mode) const = 0;
+
+  virtual amd_dbgapi_status_t set_wave_launch_trap_override (
+      os_agent_id_t os_agent_id, os_wave_launch_trap_override_t override,
+      os_wave_launch_trap_mask_t trap_mask,
+      os_wave_launch_trap_mask_t requested_bits,
+      os_wave_launch_trap_mask_t *previous_mask,
+      os_wave_launch_trap_mask_t *supported_mask) const = 0;
 
   virtual amd_dbgapi_status_t
   xfer_global_memory_partial (amd_dbgapi_global_address_t address, void *read,

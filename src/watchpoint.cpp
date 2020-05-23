@@ -18,18 +18,23 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
+#include "watchpoint.h"
+#include "agent.h"
 #include "amd-dbgapi.h"
+#include "architecture.h"
 #include "debug.h"
+#include "initialization.h"
 #include "logging.h"
+#include "os_driver.h"
+#include "process.h"
+#include "queue.h"
 #include "utils.h"
+#include "wave.h"
 
-namespace amd
-{
-namespace dbgapi
-{
-
-} /* namespace dbgapi */
-} /* namespace amd */
+#include <algorithm>
+#include <cstddef>
+#include <memory>
+#include <vector>
 
 using namespace amd::dbgapi;
 
@@ -45,8 +50,41 @@ amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
   TRY;
   TRACE (process_id, address, size, kind);
 
-  warning ("amd_dbgapi_set_watchpoint is not yet implemented");
-  return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+  if (!amd::dbgapi::is_initialized)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+
+  process_t *process = process_t::find (process_id);
+
+  if (!process)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
+
+  if (!size || !watchpoint_id || !watchpoint_address || !watchpoint_size)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
+  switch (kind)
+    {
+    case AMD_DBGAPI_WATCHPOINT_KIND_LOAD:
+    case AMD_DBGAPI_WATCHPOINT_KIND_STORE_AND_RMW:
+    case AMD_DBGAPI_WATCHPOINT_KIND_RMW:
+    case AMD_DBGAPI_WATCHPOINT_KIND_ALL:
+      break;
+    default:
+      return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+    }
+
+  watchpoint_t &watchpoint
+      = process->create<watchpoint_t> (*process, address, size, kind);
+
+  amd_dbgapi_status_t status = process->insert_watchpoint (
+      watchpoint, watchpoint_address, watchpoint_size);
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    {
+      process->destroy (&watchpoint);
+      return status;
+    }
+
+  *watchpoint_id = watchpoint.id ();
+  return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
 }
 
@@ -57,7 +95,22 @@ amd_dbgapi_remove_watchpoint (amd_dbgapi_process_id_t process_id,
   TRY;
   TRACE (process_id, watchpoint_id);
 
-  warning ("amd_dbgapi_remove_watchpoint is not yet implemented");
-  return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+  if (!amd::dbgapi::is_initialized)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+
+  process_t *process = process_t::find (process_id);
+
+  if (!process)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
+
+  watchpoint_t *watchpoint = process->find (watchpoint_id);
+
+  if (!watchpoint)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID;
+
+  process->remove_watchpoint (*watchpoint);
+  process->destroy (watchpoint);
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
 }
