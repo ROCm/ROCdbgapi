@@ -71,20 +71,17 @@ class process_t
 public:
   enum class flag_t : uint32_t
   {
-    /* The client process has exited, and as a result the IOCTL calls are no
-       longer available.  */
-    CLIENT_PROCESS_HAS_EXITED = 1 << 0,
     /* Enable the device debug mode when updating the agents.  */
-    ENABLE_AGENT_DEBUG_TRAP = 1 << 1,
+    ENABLE_AGENT_DEBUG_TRAP = 1 << 0,
     /* Require the NEW_QUEUE bit to be set when a queue_id is reported for the
        first time by kfd to this process. When attaching to an already running
        process, a missing NEW_BIT may be ignored as it could have been cleared
        by another debugger session.  */
-    REQUIRE_NEW_QUEUE_BIT = 1 << 2,
+    REQUIRE_NEW_QUEUE_BIT = 1 << 1,
     /* Assign new ids to all waves regardless of the content of their wave_id
        register.  This is needed during attach as waves created before the
        debugger attached to the process may have corrupted wave_ids.  */
-    ASSIGN_NEW_IDS_TO_ALL_WAVES = 1 << 3,
+    ASSIGN_NEW_IDS_TO_ALL_WAVES = 1 << 2,
   };
 
   process_t (amd_dbgapi_client_process_id_t client_process_id,
@@ -98,27 +95,27 @@ public:
     return m_client_process_id;
   }
 
-  amd_dbgapi_os_pid os_pid () const { return m_os_pid; }
   const os_driver_t &os_driver () const { return m_os_driver; }
 
   inline void set_flag (flag_t flags);
   inline void clear_flag (flag_t flags);
-  inline bool is_flag_set (flag_t flags);
+  inline bool is_flag_set (flag_t flags) const;
 
   amd_dbgapi_status_t
   read_global_memory_partial (amd_dbgapi_global_address_t address,
-                              void *buffer, size_t *size);
+                              void *buffer, size_t *size) const;
   amd_dbgapi_status_t
   write_global_memory_partial (amd_dbgapi_global_address_t address,
-                               const void *buffer, size_t *size);
+                               const void *buffer, size_t *size) const;
 
   amd_dbgapi_status_t read_global_memory (amd_dbgapi_global_address_t address,
-                                          void *buffer, size_t size);
+                                          void *buffer, size_t size) const;
   amd_dbgapi_status_t write_global_memory (amd_dbgapi_global_address_t address,
-                                           const void *buffer, size_t size);
+                                           const void *buffer,
+                                           size_t size) const;
 
   amd_dbgapi_status_t read_string (amd_dbgapi_global_address_t address,
-                                   std::string *string, size_t size);
+                                   std::string *string, size_t size) const;
 
   bool forward_progress_needed () const { return m_forward_progress_needed; }
   void set_forward_progress_needed (bool forward_progress_needed);
@@ -156,7 +153,7 @@ public:
   amd_dbgapi_status_t get_info (amd_dbgapi_process_info_t query,
                                 size_t value_size, void *value) const;
 
-  amd_dbgapi_status_t get_os_pid (amd_dbgapi_os_pid *pid) const
+  amd_dbgapi_status_t get_os_pid (amd_dbgapi_os_pid_t *pid) const
   {
     TRACE_CALLBACK ();
     return (*process_callbacks.get_os_pid) (m_client_process_id, pid);
@@ -292,12 +289,9 @@ private:
 
   os_driver_t m_os_driver;
   flag_t m_flags{};
-  amd_dbgapi_os_pid m_os_pid{ -1 };
 
   os_wave_launch_mode_t m_wave_launch_mode{ os_wave_launch_mode_t::NORMAL };
   bool m_forward_progress_needed{ true };
-
-  file_desc_t m_proc_mem_fd{ -1 };
 
   std::thread *m_event_thread{ nullptr };
   std::future<void> m_event_thread_exception;
@@ -343,7 +337,7 @@ process_t::clear_flag (flag_t flags)
 }
 
 inline bool
-process_t::is_flag_set (flag_t flag)
+process_t::is_flag_set (flag_t flag) const
 {
   dbgapi_assert (utils::is_power_of_two (
                      static_cast<std::underlying_type_t<flag_t>> (flag))

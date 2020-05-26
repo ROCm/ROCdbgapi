@@ -453,7 +453,7 @@ typedef enum
  * the AMD GPU device driver.
  */
 #if defined(__linux__)
-typedef pid_t amd_dbgapi_os_pid;
+typedef pid_t amd_dbgapi_os_pid_t;
 #endif /* __linux__ */
 
 /**
@@ -6012,7 +6012,7 @@ struct amd_dbgapi_callbacks_s
    */
   amd_dbgapi_status_t (*get_os_pid) (
       amd_dbgapi_client_process_id_t client_process_id,
-      amd_dbgapi_os_pid *os_pid);
+      amd_dbgapi_os_pid_t *os_pid);
 
   /**
    * Request to be notified when a shared library is loaded and unloaded.

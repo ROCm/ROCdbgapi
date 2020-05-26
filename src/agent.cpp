@@ -54,7 +54,7 @@ amd_dbgapi_status_t
 agent_t::enable_debug_trap ()
 {
   dbgapi_assert (m_poll_fd == -1 && "debug_trap is already enabled");
-  return m_process.os_driver ().enable_debug_trap (*this, &m_poll_fd);
+  return process ().os_driver ().enable_debug_trap (*this, &m_poll_fd);
 }
 
 amd_dbgapi_status_t
@@ -65,7 +65,7 @@ agent_t::disable_debug_trap ()
   ::close (m_poll_fd);
   m_poll_fd = -1;
 
-  return m_process.os_driver ().disable_debug_trap (*this);
+  return process ().os_driver ().disable_debug_trap (*this);
 }
 
 amd_dbgapi_status_t

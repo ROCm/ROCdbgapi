@@ -254,18 +254,55 @@ amd_dbgapi_status_t get_handle_list (amd_dbgapi_process_id_t process_id,
 /* Minimal implementation of std::optional. std::optional requires C++17.  */
 template <typename T> class optional
 {
-  optional (const optional &) = delete;
-  optional (optional &&) = delete;
   optional &operator= (const optional &) = delete;
   optional &operator= (optional &&) = delete;
 
 public:
   optional () : m_dummy () {}
 
+  optional (const optional &rhs) : m_dummy ()
+  {
+    if (rhs.m_instantiated)
+      {
+        ::new (&m_object) T (rhs.m_object);
+        m_instantiated = true;
+      }
+  }
+
+  optional (optional &&rhs) : m_dummy ()
+  {
+    if (rhs.m_instantiated)
+      {
+        ::new (&m_object) T (std::move (rhs.m_object));
+        m_instantiated = true;
+      }
+  }
+
   ~optional ()
   {
     if (m_instantiated)
       m_object.~T ();
+  }
+
+  explicit constexpr operator bool () const { return m_instantiated; }
+  constexpr bool has_value () const { return m_instantiated; }
+
+  constexpr T const &value () const &
+  {
+    dbgapi_assert (m_instantiated && "bad optional access");
+    return m_object;
+  }
+
+  constexpr T &value () &
+  {
+    dbgapi_assert (m_instantiated && "bad optional access");
+    return m_object;
+  }
+
+  constexpr T &&value () &&
+  {
+    dbgapi_assert (m_instantiated && "bad optional access");
+    return std::move (m_object);
   }
 
   template <typename... Args> T &emplace (Args &&... args)
@@ -274,7 +311,7 @@ public:
        undefined.  */
     dbgapi_assert (!m_instantiated && "not supported");
 
-    new (&m_object) T (std::forward<Args> (args)...);
+    ::new (&m_object) T (std::forward<Args> (args)...);
     m_instantiated = true;
     return m_object;
   }

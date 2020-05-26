@@ -88,18 +88,32 @@ close_kfd ()
 
 } /* namespace */
 
-os_driver_t::os_driver_t (process_t &process) : m_process (process)
+os_driver_t::os_driver_t (utils::optional<amd_dbgapi_os_pid_t> os_pid)
+    : m_os_pid (std::move (os_pid))
 {
+  if (!m_os_pid.has_value ())
+    return;
+
   /* Open the /dev/kfd device.  */
   if ((m_kfd_fd = open_kfd ()) == -1)
     warning ("Could not open the KFD device: %s", strerror (errno));
 
+  /* Open the /proc/pid/mem file for this process.  */
+  std::string filename = string_printf ("/proc/%d/mem", m_os_pid.value ());
+  if ((m_proc_mem_fd
+       = open (filename.c_str (), O_RDWR | O_LARGEFILE | O_CLOEXEC, 0))
+      == -1)
+    warning ("Could not open `%s': %s", filename.c_str (), strerror (errno));
+
   /* See is_valid() for information about how failing to open /dev/kfd
-     is handled.  */
+     or /proc/pid/mem is handled.  */
 }
 
 os_driver_t::~os_driver_t ()
 {
+  if (m_proc_mem_fd != -1)
+    ::close (m_proc_mem_fd);
+
   if (m_kfd_fd != -1 && close_kfd ())
     error ("Could not close the KFD device");
 }
@@ -108,19 +122,16 @@ int
 os_driver_t::kfd_dbg_trap_ioctl (uint32_t action,
                                  kfd_ioctl_dbg_trap_args *args) const
 {
-  if (m_process.is_flag_set (process_t::flag_t::CLIENT_PROCESS_HAS_EXITED))
-    return -ESRCH;
+  dbgapi_assert (is_valid ());
 
-  args->pid = m_process.os_pid ();
+  args->pid = m_os_pid.value ();
   args->op = action;
 
   int ret = ::ioctl (m_kfd_fd, AMDKFD_IOC_DBG_TRAP, args);
   if (ret < 0 && errno == ESRCH)
     {
-      /* The target process does not exist, it must have exited.  */
-      m_process.set_flag (process_t::flag_t::CLIENT_PROCESS_HAS_EXITED);
-      /* FIXME: We should tear down the process now, so that any operation
-         executed after this point returns an error.  */
+      /* TODO: Should we tear down the process now, so that any operation
+         executed after this point returns an error?  */
       return -ESRCH;
     }
 
@@ -153,7 +164,9 @@ os_driver_t::get_version (uint32_t *major, uint32_t *minor) const
   dbg_trap_args.op = KFD_IOC_DBG_TRAP_GET_VERSION;
 
   int err = ::ioctl (m_kfd_fd, AMDKFD_IOC_DBG_TRAP, &dbg_trap_args);
-  if (err < 0)
+  if (err == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
   *major = dbg_trap_args.data1;
@@ -177,7 +190,9 @@ os_driver_t::enable_debug_trap (const agent_t &agent,
   args.data1 = 1; /* enable  */
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_ENABLE, &args);
-  if (err < 0)
+  if (err == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
   *poll_fd = args.data3;
@@ -195,7 +210,9 @@ os_driver_t::disable_debug_trap (const agent_t &agent) const
   args.data1 = 0; /* disable  */
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_ENABLE, &args);
-  if (err < 0)
+  if (err == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
@@ -213,7 +230,9 @@ os_driver_t::set_wave_launch_mode (const agent_t &agent,
   args.data1 = static_cast<std::underlying_type_t<decltype (mode)>> (mode);
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_MODE, &args);
-  if (err < 0)
+  if (err == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
@@ -237,7 +256,9 @@ os_driver_t::query_debug_event (const agent_t &agent,
   args.data2 = KFD_DBG_EV_FLAG_CLEAR_STATUS;
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_QUERY_DEBUG_EVENT, &args);
-  if (err == -EAGAIN)
+  if (err == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err == -EAGAIN)
     {
       /* There are no more events.  */
       *os_queue_id = KFD_INVALID_QUEUEID;
@@ -269,7 +290,13 @@ os_driver_t::suspend_queues (os_queue_id_t *queues, size_t queue_count) const
   args.data2 = static_cast<uint32_t> (queue_count);
   args.ptr = reinterpret_cast<uint64_t> (queues);
 
-  return kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_SUSPEND, &args);
+  int ret = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_SUSPEND, &args);
+  if (ret == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (ret < 0)
+    return AMD_DBGAPI_STATUS_ERROR;
+
+  return ret;
 }
 
 size_t
@@ -287,7 +314,13 @@ os_driver_t::resume_queues (os_queue_id_t *queues, size_t queue_count) const
   args.data2 = static_cast<uint32_t> (queue_count);
   args.ptr = reinterpret_cast<uint64_t> (queues);
 
-  return kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_RESUME, &args);
+  int ret = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_RESUME, &args);
+  if (ret == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (ret < 0)
+    return AMD_DBGAPI_STATUS_ERROR;
+
+  return ret;
 }
 
 amd_dbgapi_status_t
@@ -309,7 +342,9 @@ os_driver_t::queue_snapshot (os_queue_snapshot_entry_t *snapshots,
   args.ptr = reinterpret_cast<uint64_t> (snapshots);
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_GET_QUEUE_SNAPSHOT, &args);
-  if (err < 0)
+  if (err == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
   /* KFD writes up to snapshot_count queue snapshots, but returns the
@@ -318,6 +353,28 @@ os_driver_t::queue_snapshot (os_queue_snapshot_entry_t *snapshots,
   *queue_count = args.data2;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
+amd_dbgapi_status_t
+os_driver_t::xfer_global_memory_partial (amd_dbgapi_global_address_t address,
+                                         void *read, const void *write,
+                                         size_t *size) const
+{
+  dbgapi_assert (!read != !write && "either read or write buffer");
+
+  ssize_t ret = read ? pread (m_proc_mem_fd, read, *size, address)
+                     : pwrite (m_proc_mem_fd, write, *size, address);
+
+  if (ret == -1 && errno != EIO && errno != EINVAL)
+    warning ("process_t::xfer_memory failed: %s", strerror (errno));
+
+  if (ret == -1 || (ret == 0 && *size != 0))
+    return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
+  else
+    {
+      *size = ret;
+      return AMD_DBGAPI_STATUS_SUCCESS;
+    }
 }
 
 } /* namespace dbgapi */

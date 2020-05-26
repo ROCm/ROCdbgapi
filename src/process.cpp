@@ -92,18 +92,16 @@ constexpr struct gfxip_lookup_table
 process_t::process_t (amd_dbgapi_client_process_id_t client_process_id,
                       amd_dbgapi_process_id_t process_id)
     : m_process_id (process_id), m_client_process_id (client_process_id),
-      m_os_driver (*this)
+      m_os_driver ([this] () {
+        utils::optional<amd_dbgapi_os_pid_t> os_pid;
+
+        amd_dbgapi_os_pid_t value;
+        if (get_os_pid (&value) == AMD_DBGAPI_STATUS_SUCCESS)
+          os_pid.emplace (value);
+
+        return os_pid;
+      }())
 {
-  if (get_os_pid (&m_os_pid) != AMD_DBGAPI_STATUS_SUCCESS)
-    return;
-
-  /* Open the /proc/pid/mem file for this process.  */
-  std::string filename = string_printf ("/proc/%d/mem", m_os_pid);
-  if ((m_proc_mem_fd
-       = open (filename.c_str (), O_RDWR | O_LARGEFILE | O_CLOEXEC, 0))
-      == -1)
-    warning ("Could not open `%s': %s", filename.c_str (), strerror (errno));
-
   /* Create the notifier pipe.  */
   m_client_notifier_pipe.open ();
 
@@ -120,8 +118,7 @@ process_t::is_valid () const
      factory, and if not ready  will be destructed and never be put in the map
      of processes.
    */
-  return m_os_pid != -1 && m_proc_mem_fd != -1 && m_os_driver.is_valid ()
-         && m_client_notifier_pipe.is_valid ();
+  return m_os_driver.is_valid () && m_client_notifier_pipe.is_valid ();
 }
 
 void
@@ -130,69 +127,61 @@ process_t::detach ()
   std::exception_ptr exception;
   std::vector<queue_t *> queues;
 
-  /* The client process could have exited, so refresh its os pid.  */
-  amd_dbgapi_status_t status = get_os_pid (&m_os_pid);
-  if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-    set_flag (flag_t::CLIENT_PROCESS_HAS_EXITED);
-  else if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("get_os_pid callback failed (rc=%d)", status);
-
   /* If an exception is raised while attempting to detach, make sure we still
      destruct the handle objects in the correct order. To achieve this, we
      catch any exception, and rethrow it later.
    */
 
-  if (!is_flag_set (flag_t::CLIENT_PROCESS_HAS_EXITED))
-    try
-      {
-        /* We don't need to resume the queues until we are done changing the
-           state.  */
-        set_forward_progress_needed (false);
+  try
+    {
+      /* We don't need to resume the queues until we are done changing the
+         state.  */
+      set_forward_progress_needed (false);
 
-        /* Resume all the waves halted at launch.  */
-        set_wave_launch_mode (os_wave_launch_mode_t::NORMAL);
+      /* Resume all the waves halted at launch.  */
+      set_wave_launch_mode (os_wave_launch_mode_t::NORMAL);
 
-        update_queues ();
+      update_queues ();
 
-        /* Suspend the queues that weren't already suspended.  */
-        for (auto &&queue : range<queue_t> ())
-          if (!queue.is_suspended ())
-            queues.emplace_back (&queue);
+      /* Suspend the queues that weren't already suspended.  */
+      for (auto &&queue : range<queue_t> ())
+        if (!queue.is_suspended ())
+          queues.emplace_back (&queue);
 
-        suspend_queues (queues);
+      suspend_queues (queues);
 
-        /* Resume the waves that were halted by a debug event (single-step,
-           breakpoint, watchpoint), but keep the waves halted because of an
-           exception running.  */
-        for (auto &&wave : range<wave_t> ())
-          {
-            /* TODO: Move this to the architecture class.  Not absolutely
-               necessary, but restore the DATA0/DATA1 registers to zero for the
-               next attach.  */
-            uint64_t zero = 0;
-            wave.write_register (amdgpu_regnum_t::WAVE_ID, &zero);
+      /* Resume the waves that were halted by a debug event (single-step,
+         breakpoint, watchpoint), but keep the waves halted because of an
+         exception running.  */
+      for (auto &&wave : range<wave_t> ())
+        {
+          /* TODO: Move this to the architecture class.  Not absolutely
+             necessary, but restore the DATA0/DATA1 registers to zero for the
+             next attach.  */
+          uint64_t zero = 0;
+          wave.write_register (amdgpu_regnum_t::WAVE_ID, &zero);
 
-            /* Resume the wave if it is single-stepping, or if it is stopped
-               because of a debug event (completed single-step, breakpoint,
-               watchpoint).  */
-            if ((wave.state () == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
-                || (wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
-                    && !(wave.stop_reason ()
-                         & ~(AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP
-                             | AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT
-                             | AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT))))
-              {
-                wave.set_state (AMD_DBGAPI_WAVE_STATE_RUN);
-              }
-          }
+          /* Resume the wave if it is single-stepping, or if it is stopped
+             because of a debug event (completed single-step, breakpoint,
+             watchpoint).  */
+          if ((wave.state () == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
+              || (wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
+                  && !(wave.stop_reason ()
+                       & ~(AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP
+                           | AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT
+                           | AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT))))
+            {
+              wave.set_state (AMD_DBGAPI_WAVE_STATE_RUN);
+            }
+        }
 
-        /* Resume all the queues.  */
-        set_forward_progress_needed (true);
-      }
-    catch (...)
-      {
-        exception = std::current_exception ();
-      }
+      /* Resume all the queues.  */
+      set_forward_progress_needed (true);
+    }
+  catch (...)
+    {
+      exception = std::current_exception ();
+    }
 
   /* Stop the event thread before destructing the agents.  The event loop polls
      the file descriptors returned by the KFD for each agent.  We need to
@@ -212,12 +201,6 @@ process_t::detach ()
   std::get<handle_object_set_t<shared_library_t>> (m_handle_object_sets)
       .clear ();
 
-  if (m_proc_mem_fd != -1)
-    {
-      ::close (m_proc_mem_fd);
-      m_proc_mem_fd = -1;
-    }
-
   m_client_notifier_pipe.close ();
 
   if (exception)
@@ -226,25 +209,15 @@ process_t::detach ()
 
 amd_dbgapi_status_t
 process_t::read_global_memory_partial (amd_dbgapi_global_address_t address,
-                                       void *buffer, size_t *size)
+                                       void *buffer, size_t *size) const
 {
-  ssize_t ret = pread (m_proc_mem_fd, buffer, *size, address);
-
-  if (ret == -1 && errno != EIO && errno != EINVAL)
-    warning ("process_t::read_memory failed: %s", strerror (errno));
-
-  if (ret == -1 || (ret == 0 && *size != 0))
-    return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
-  else
-    {
-      *size = ret;
-      return AMD_DBGAPI_STATUS_SUCCESS;
-    }
+  return os_driver ().xfer_global_memory_partial (address, buffer, nullptr,
+                                                  size);
 }
 
 amd_dbgapi_status_t
 process_t::read_global_memory (amd_dbgapi_global_address_t address,
-                               void *buffer, size_t size)
+                               void *buffer, size_t size) const
 {
   amd_dbgapi_status_t status;
   size_t requested_size = size;
@@ -259,7 +232,7 @@ process_t::read_global_memory (amd_dbgapi_global_address_t address,
 
 amd_dbgapi_status_t
 process_t::read_string (amd_dbgapi_global_address_t address,
-                        std::string *string, size_t size)
+                        std::string *string, size_t size) const
 {
   constexpr size_t chunk_size = 16;
   static_assert (!(chunk_size & (chunk_size - 1)), "must be a power of 2");
@@ -313,25 +286,15 @@ process_t::read_string (amd_dbgapi_global_address_t address,
 
 amd_dbgapi_status_t
 process_t::write_global_memory_partial (amd_dbgapi_global_address_t address,
-                                        const void *buffer, size_t *size)
+                                        const void *buffer, size_t *size) const
 {
-  ssize_t ret = pwrite (m_proc_mem_fd, buffer, *size, address);
-
-  if (ret == -1 && errno != EIO && errno != EINVAL)
-    warning ("process_t::write_memory failed: %s", strerror (errno));
-
-  if (ret == -1 || (ret == 0 && *size != 0))
-    return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
-  else
-    {
-      *size = ret;
-      return AMD_DBGAPI_STATUS_SUCCESS;
-    }
+  return os_driver ().xfer_global_memory_partial (address, nullptr, buffer,
+                                                  size);
 }
 
 amd_dbgapi_status_t
 process_t::write_global_memory (amd_dbgapi_global_address_t address,
-                                const void *buffer, size_t size)
+                                const void *buffer, size_t size) const
 {
   amd_dbgapi_status_t status;
   size_t requested_size = size;
@@ -347,6 +310,9 @@ process_t::write_global_memory (amd_dbgapi_global_address_t address,
 void
 process_t::set_forward_progress_needed (bool forward_progress_needed)
 {
+  if (m_forward_progress_needed == forward_progress_needed)
+    return;
+
   m_forward_progress_needed = forward_progress_needed;
 
   if (forward_progress_needed)
@@ -780,7 +746,9 @@ process_t::update_queues ()
 
       amd_dbgapi_status_t status = os_driver ().queue_snapshot (
           snapshots.get (), snapshot_count, &queue_count);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+      if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+        queue_count = 0;
+      else if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
 
       /* We have to process the snapshots returned by the ioctl now, even

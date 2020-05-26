@@ -98,10 +98,13 @@ private:
                           kfd_ioctl_dbg_trap_args *args) const;
 
 public:
-  os_driver_t (process_t &process);
+  os_driver_t (utils::optional<amd_dbgapi_os_pid_t> os_pid);
   ~os_driver_t ();
 
-  bool is_valid () const { return m_kfd_fd != -1; }
+  bool is_valid () const
+  {
+    return m_os_pid.has_value () && m_kfd_fd != -1 && m_proc_mem_fd != -1;
+  }
 
   amd_dbgapi_status_t get_version (uint32_t *major, uint32_t *minor) const;
 
@@ -123,10 +126,15 @@ public:
   amd_dbgapi_status_t set_wave_launch_mode (const agent_t &agent,
                                             os_wave_launch_mode_t mode) const;
 
+  amd_dbgapi_status_t
+  xfer_global_memory_partial (amd_dbgapi_global_address_t address, void *read,
+                              const void *write, size_t *size) const;
+
 private:
   file_desc_t m_kfd_fd{ -1 };
+  file_desc_t m_proc_mem_fd{ -1 };
 
-  process_t &m_process;
+  utils::optional<amd_dbgapi_os_pid_t> const m_os_pid;
 };
 
 template <>
