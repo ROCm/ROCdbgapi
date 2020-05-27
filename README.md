@@ -38,7 +38,6 @@ The following AMD GPU architectures are supported:
 - GFX9
   - gfx900 (Vega 10)
   - gfx906 (Vega 7nm also referred to as Vega 20)
-  - gfx908 (Arcturus)
 
 For more information about ROCm and ROCdbgapi, please refer to the Release Notes
 file available at:
