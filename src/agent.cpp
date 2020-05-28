@@ -29,6 +29,8 @@
 #include "queue.h"
 #include "utils.h"
 
+#include <cstdint>
+#include <string>
 #include <unistd.h>
 
 namespace amd
@@ -37,9 +39,9 @@ namespace dbgapi
 {
 
 agent_t::agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
-                  os_agent_id_t gpu_id, const architecture_t &architecture,
-                  const properties_t &properties)
-    : handle_object (agent_id), m_gpu_id (gpu_id), m_properties (properties),
+                  const architecture_t &architecture,
+                  const os_agent_snapshot_entry_t &os_agent_info)
+    : handle_object (agent_id), m_os_agent_info (os_agent_info),
       m_architecture (architecture), m_process (process)
 {
 }
@@ -54,7 +56,7 @@ amd_dbgapi_status_t
 agent_t::enable_debug_trap ()
 {
   dbgapi_assert (m_poll_fd == -1 && "debug_trap is already enabled");
-  return process ().os_driver ().enable_debug_trap (*this, &m_poll_fd);
+  return process ().os_driver ().enable_debug_trap (gpu_id (), &m_poll_fd);
 }
 
 amd_dbgapi_status_t
@@ -65,7 +67,7 @@ agent_t::disable_debug_trap ()
   ::close (m_poll_fd);
   m_poll_fd = -1;
 
-  return process ().os_driver ().disable_debug_trap (*this);
+  return process ().os_driver ().disable_debug_trap (gpu_id ());
 }
 
 amd_dbgapi_status_t
@@ -80,7 +82,7 @@ agent_t::next_os_event (amd_dbgapi_queue_id_t *queue_id,
       os_queue_id_t os_queue_id;
 
       amd_dbgapi_status_t status = process.os_driver ().query_debug_event (
-          *this, &os_queue_id, os_queue_status);
+          gpu_id (), &os_queue_id, os_queue_status);
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
 
@@ -143,35 +145,35 @@ agent_t::get_info (amd_dbgapi_agent_info_t query, size_t value_size,
   switch (query)
     {
     case AMD_DBGAPI_AGENT_INFO_NAME:
-      return utils::get_info (value_size, value, m_properties.name);
+      return utils::get_info (value_size, value, m_os_agent_info.name);
 
     case AMD_DBGAPI_AGENT_INFO_ARCHITECTURE:
       return utils::get_info (value_size, value, architecture ().id ());
 
     case AMD_DBGAPI_AGENT_INFO_PCIE_SLOT:
-      return utils::get_info (value_size, value, m_properties.location_id);
+      return utils::get_info (value_size, value, m_os_agent_info.location_id);
 
     case AMD_DBGAPI_AGENT_INFO_PCIE_VENDOR_ID:
-      return utils::get_info (value_size, value, m_properties.vendor_id);
+      return utils::get_info (value_size, value, m_os_agent_info.vendor_id);
 
     case AMD_DBGAPI_AGENT_INFO_PCIE_DEVICE_ID:
-      return utils::get_info (value_size, value, m_properties.device_id);
+      return utils::get_info (value_size, value, m_os_agent_info.device_id);
 
     case AMD_DBGAPI_AGENT_INFO_SHADER_ENGINE_COUNT:
       return utils::get_info (value_size, value,
-                              m_properties.shader_engine_count);
+                              m_os_agent_info.shader_engine_count);
 
     case AMD_DBGAPI_AGENT_INFO_COMPUTE_UNIT_COUNT:
       return utils::get_info (value_size, value,
-                              m_properties.simd_count
-                                  / m_properties.simd_per_cu);
+                              m_os_agent_info.simd_count
+                                  / m_os_agent_info.simd_per_cu);
 
     case AMD_DBGAPI_AGENT_INFO_NUM_SIMD_PER_COMPUTE_UNIT:
-      return utils::get_info (value_size, value, m_properties.simd_per_cu);
+      return utils::get_info (value_size, value, m_os_agent_info.simd_per_cu);
 
     case AMD_DBGAPI_AGENT_INFO_MAX_WAVES_PER_SIMD:
       return utils::get_info (value_size, value,
-                              m_properties.max_waves_per_simd);
+                              m_os_agent_info.max_waves_per_simd);
     }
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }

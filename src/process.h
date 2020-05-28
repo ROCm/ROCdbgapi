@@ -42,6 +42,7 @@
 #include <functional>
 #include <future>
 #include <list>
+#include <memory>
 #include <queue>
 #include <string>
 #include <thread>
@@ -95,7 +96,7 @@ public:
     return m_client_process_id;
   }
 
-  const os_driver_t &os_driver () const { return m_os_driver; }
+  const os_driver_t &os_driver () const { return *m_os_driver; }
 
   inline void set_flag (flag_t flags);
   inline void clear_flag (flag_t flags);
@@ -287,7 +288,7 @@ private:
   amd_dbgapi_client_process_id_t const m_client_process_id;
   amd_dbgapi_global_address_t m_r_debug_address{ 0 };
 
-  os_driver_t m_os_driver;
+  std::unique_ptr<const os_driver_t> m_os_driver;
   flag_t m_flags{};
 
   os_wave_launch_mode_t m_wave_launch_mode{ os_wave_launch_mode_t::NORMAL };

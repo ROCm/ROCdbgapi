@@ -28,22 +28,60 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <type_traits>
-#include <utility>
 
 namespace amd
 {
 namespace dbgapi
 {
 
-class agent_t;
-class process_t;
-
-constexpr uint32_t OS_DRIVER_MAJOR_VERSION = KFD_IOCTL_DBG_MAJOR_VERSION;
-constexpr uint32_t OS_DRIVER_MINOR_VERSION = KFD_IOCTL_DBG_MINOR_VERSION;
+/* See https://llvm.org/docs/AMDGPUUsage.html#amdgpu-ef-amdgpu-mach-table  */
+enum elf_amdgpu_machine_t : uint32_t
+{
+  EF_AMDGPU_MACH_AMDGCN_GFX900 = 0x02c,
+  EF_AMDGPU_MACH_AMDGCN_GFX902 = 0x02d,
+  EF_AMDGPU_MACH_AMDGCN_GFX904 = 0x02e,
+  EF_AMDGPU_MACH_AMDGCN_GFX906 = 0x02f,
+  EF_AMDGPU_MACH_AMDGCN_GFX908 = 0x030,
+  EF_AMDGPU_MACH_AMDGCN_GFX1010 = 0x033,
+  EF_AMDGPU_MACH_AMDGCN_GFX1011 = 0x034,
+  EF_AMDGPU_MACH_AMDGCN_GFX1012 = 0x035,
+};
 
 using os_agent_id_t = uint32_t;
+
+struct os_agent_snapshot_entry_t
+{
+  /* Agent Id assigned by the driver.  */
+  os_agent_id_t os_agent_id;
+  /* Public name of the "device".  */
+  std::string name;
+  /* BDF - Identifies the device location in the overall system.  */
+  uint32_t location_id{ 0 };
+  /* Number of FCompute cores.  */
+  uint32_t simd_count{ 0 };
+  /* Number of Shader Banks or Shader Engines.  */
+  uint32_t shader_engine_count{ 0 };
+  /* Number of SIMD arrays per engine.  */
+  uint32_t simd_arrays_per_engine{ 0 };
+  /* Number of Compute Units (CU) per SIMD array.  */
+  uint32_t cu_per_simd_array{ 0 };
+  /* Number of SIMD representing a Compute Unit (CU).  */
+  uint32_t simd_per_cu{ 0 };
+  /* Maximum number of launched waves per SIMD.  */
+  uint32_t max_waves_per_simd{ 0 };
+  /* PCI vendor id.  */
+  uint32_t vendor_id{ 0 };
+  /* PCI device id.  */
+  uint32_t device_id{ 0 };
+  /* ucode version.  */
+  uint32_t fw_version{ 0 };
+  /* ELF e_machine.  */
+  elf_amdgpu_machine_t e_machine;
+};
+
 using os_queue_id_t = uint32_t;
 using os_queue_snapshot_entry_t = kfd_queue_snapshot_entry;
 
@@ -93,88 +131,56 @@ enum class os_wave_launch_mode_t : uint32_t
 
 class os_driver_t
 {
-private:
-  int kfd_dbg_trap_ioctl (uint32_t action,
-                          kfd_ioctl_dbg_trap_args *args) const;
+protected:
+  os_driver_t (utils::optional<amd_dbgapi_os_pid_t> os_pid);
 
 public:
-  os_driver_t (utils::optional<amd_dbgapi_os_pid_t> os_pid);
-  ~os_driver_t ();
+  virtual ~os_driver_t () = default;
 
-  bool is_valid () const
-  {
-    return m_os_pid.has_value () && m_kfd_fd != -1 && m_proc_mem_fd != -1;
-  }
+  static std::unique_ptr<const os_driver_t>
+  create (utils::optional<amd_dbgapi_os_pid_t> os_pid);
 
-  amd_dbgapi_status_t get_version (uint32_t *major, uint32_t *minor) const;
+  virtual bool is_valid () const { return m_os_pid.has_value (); }
 
-  amd_dbgapi_status_t enable_debug_trap (const agent_t &agent,
-                                         file_desc_t *poll_fd) const;
-  amd_dbgapi_status_t disable_debug_trap (const agent_t &agent) const;
+  virtual amd_dbgapi_status_t check_version () const = 0;
 
-  amd_dbgapi_status_t
-  query_debug_event (const agent_t &agent, os_queue_id_t *os_queue_id,
-                     os_queue_status_t *os_queue_status) const;
+  virtual amd_dbgapi_status_t
+  agent_snapshot (os_agent_snapshot_entry_t *snapshots, size_t snapshot_count,
+                  size_t *agent_count) const = 0;
 
-  size_t suspend_queues (os_queue_id_t *queues, size_t queue_count) const;
-  size_t resume_queues (os_queue_id_t *queues, size_t queue_count) const;
+  virtual amd_dbgapi_status_t
+  enable_debug_trap (os_agent_id_t os_agent_id,
+                     file_desc_t *poll_fd) const = 0;
+  virtual amd_dbgapi_status_t
+  disable_debug_trap (os_agent_id_t os_agent_id) const = 0;
 
-  amd_dbgapi_status_t queue_snapshot (os_queue_snapshot_entry_t *snapshots,
-                                      size_t snapshot_count,
-                                      size_t *queue_count) const;
+  virtual amd_dbgapi_status_t
+  query_debug_event (os_agent_id_t os_agent_id, os_queue_id_t *os_queue_id,
+                     os_queue_status_t *os_queue_status) const = 0;
 
-  amd_dbgapi_status_t set_wave_launch_mode (const agent_t &agent,
-                                            os_wave_launch_mode_t mode) const;
+  virtual size_t suspend_queues (os_queue_id_t *queues,
+                                 size_t queue_count) const = 0;
+  virtual size_t resume_queues (os_queue_id_t *queues,
+                                size_t queue_count) const = 0;
 
-  amd_dbgapi_status_t
+  virtual amd_dbgapi_status_t
+  queue_snapshot (os_queue_snapshot_entry_t *snapshots, size_t snapshot_count,
+                  size_t *queue_count) const = 0;
+
+  virtual amd_dbgapi_status_t
+  set_wave_launch_mode (os_agent_id_t os_agent_id,
+                        os_wave_launch_mode_t mode) const = 0;
+
+  virtual amd_dbgapi_status_t
   xfer_global_memory_partial (amd_dbgapi_global_address_t address, void *read,
-                              const void *write, size_t *size) const;
+                              const void *write, size_t *size) const = 0;
 
-private:
-  file_desc_t m_kfd_fd{ -1 };
-  file_desc_t m_proc_mem_fd{ -1 };
-
+protected:
   utils::optional<amd_dbgapi_os_pid_t> const m_os_pid;
 };
 
-template <>
-inline std::string
-to_string (os_wave_launch_mode_t mode)
-{
-  switch (mode)
-    {
-    case os_wave_launch_mode_t::NORMAL:
-      return "WAVE_LAUNCH_MODE_NORMAL";
-    case os_wave_launch_mode_t::HALT:
-      return "WAVE_LAUNCH_MODE_HALT";
-    case os_wave_launch_mode_t::KILL:
-      return "WAVE_LAUNCH_MODE_KILL";
-    case os_wave_launch_mode_t::SINGLE_STEP:
-      return "WAVE_LAUNCH_MODE_SINGLE_STEP";
-    case os_wave_launch_mode_t::DISABLE:
-      return "WAVE_LAUNCH_MODE_DISABLE";
-    }
-  return to_string (
-      make_hex (static_cast<std::underlying_type_t<decltype (mode)>> (mode)));
-}
-
-template <>
-inline std::string
-to_string (os_queue_status_t queue_status)
-{
-  std::string str
-      = (queue_status & os_queue_status_t::TRAP) != 0
-            ? "TRAP"
-            : (!!(queue_status & os_queue_status_t::VMFAULT) ? "VMFAULT"
-                                                             : "UNKNOWN");
-
-  if ((queue_status & os_queue_status_t::NEW_QUEUE) != 0)
-    str += "|NEW_QUEUE";
-  if ((queue_status & os_queue_status_t::SUSPENDED) != 0)
-    str += "|SUSPENDED";
-
-  return str;
-}
+template <> std::string to_string (os_wave_launch_mode_t mode);
+template <> std::string to_string (os_queue_status_t queue_status);
 
 } /* namespace dbgapi */
 } /* namespace amd */

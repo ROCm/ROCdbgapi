@@ -28,8 +28,6 @@
 
 #include <atomic>
 #include <cstddef>
-#include <cstdint>
-#include <string>
 
 namespace amd
 {
@@ -44,39 +42,12 @@ class process_t;
 class agent_t : public detail::handle_object<amd_dbgapi_agent_id_t>
 {
 public:
-  struct properties_t
-  {
-    /* Public name of the "device".  */
-    std::string name;
-    /* BDF - Identifies the device location in the overall system.  */
-    uint32_t location_id{ 0 };
-    /* Number of FCompute cores.  */
-    uint32_t simd_count{ 0 };
-    /* Number of Shader Banks or Shader Engines.  */
-    uint32_t shader_engine_count{ 0 };
-    /* Number of SIMD arrays per engine.  */
-    uint32_t simd_arrays_per_engine{ 0 };
-    /* Number of Compute Units (CU) per SIMD array.  */
-    uint32_t cu_per_simd_array{ 0 };
-    /* Number of SIMD representing a Compute Unit (CU).  */
-    uint32_t simd_per_cu{ 0 };
-    /* Maximum number of launched waves per SIMD.  */
-    uint32_t max_waves_per_simd{ 0 };
-    /* PCI vendor id.  */
-    uint32_t vendor_id{ 0 };
-    /* PCI device id.  */
-    uint32_t device_id{ 0 };
-    /* ucode version.  */
-    uint32_t fw_version{ 0 };
-  };
-
   agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
-           os_agent_id_t gpu_id, const architecture_t &architecture,
-           const properties_t &properties);
+           const architecture_t &architecture,
+           const os_agent_snapshot_entry_t &os_agent_info);
   ~agent_t ();
 
-  os_agent_id_t gpu_id () const { return m_gpu_id; }
-  const properties_t &properties () const { return m_properties; }
+  os_agent_id_t gpu_id () const { return m_os_agent_info.os_agent_id; }
 
   file_desc_t poll_fd () const { return m_poll_fd; }
 
@@ -95,8 +66,7 @@ public:
   bool debug_trap_enabled () const { return m_poll_fd != -1; }
 
 private:
-  os_agent_id_t const m_gpu_id;
-  properties_t const m_properties;
+  os_agent_snapshot_entry_t const m_os_agent_info;
 
   file_desc_t m_poll_fd{ -1 };
   std::atomic<bool> m_os_event_notifier{ false };

@@ -38,7 +38,6 @@
 #include <chrono>
 #include <cstring>
 #include <exception>
-#include <fstream>
 #include <future>
 #include <iterator>
 #include <list>
@@ -48,9 +47,7 @@
 #include <utility>
 #include <vector>
 
-#include <dirent.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <limits.h>
 #include <link.h>
 #include <poll.h>
@@ -72,27 +69,10 @@ class dispatch_t;
 
 std::list<process_t *> process_list;
 
-constexpr struct gfxip_lookup_table
-{
-  const char *gpu_name; /* Device name reported by KFD.  */
-  struct
-  {
-    uint8_t major;    /* GFXIP Major engine version.  */
-    uint8_t minor;    /* GFXIP Minor engine version.  */
-    uint8_t stepping; /* GFXIP Stepping info.  */
-  } gfxip;
-  uint16_t fw_version; /* Minimum required firmware version.  */
-} gfxip_lookup_table[]{
-  { "vega10", { 9, 0, 0 }, 432 },  { "raven", { 9, 0, 2 }, 0 },
-  { "vega12", { 9, 0, 4 }, 0 },    { "vega20", { 9, 0, 6 }, 432 },
-  { "arcturus", { 9, 0, 8 }, 34 }, { "navi10", { 10, 1, 0 }, 0 },
-  { "navi12", { 10, 1, 1 }, 0 },   { "navi14", { 10, 1, 2 }, 0 }
-};
-
 process_t::process_t (amd_dbgapi_client_process_id_t client_process_id,
                       amd_dbgapi_process_id_t process_id)
     : m_process_id (process_id), m_client_process_id (client_process_id),
-      m_os_driver ([this] () {
+      m_os_driver (os_driver_t::create ([this] () {
         utils::optional<amd_dbgapi_os_pid_t> os_pid;
 
         amd_dbgapi_os_pid_t value;
@@ -100,7 +80,7 @@ process_t::process_t (amd_dbgapi_client_process_id_t client_process_id,
           os_pid.emplace (value);
 
         return os_pid;
-      }())
+      }()))
 {
   /* Create the notifier pipe.  */
   m_client_notifier_pipe.open ();
@@ -118,7 +98,7 @@ process_t::is_valid () const
      factory, and if not ready  will be destructed and never be put in the map
      of processes.
    */
-  return m_os_driver.is_valid () && m_client_notifier_pipe.is_valid ();
+  return m_os_driver->is_valid () && m_client_notifier_pipe.is_valid ();
 }
 
 void
@@ -337,8 +317,8 @@ process_t::set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode)
   auto &&agent_range = range<agent_t> ();
   for (auto it = agent_range.begin (); it != agent_range.end (); ++it)
     {
-      amd_dbgapi_status_t status
-          = os_driver ().set_wave_launch_mode (*it, wave_launch_mode);
+      amd_dbgapi_status_t status = os_driver ().set_wave_launch_mode (
+          it->gpu_id (), wave_launch_mode);
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         error ("agent_t::set_wave_launch_mode (%s) failed (rc=%d)",
                to_string (wave_launch_mode).c_str (), status);
@@ -431,150 +411,45 @@ process_t::find (amd_dbgapi_client_process_id_t client_process_id,
 amd_dbgapi_status_t
 process_t::update_agents ()
 {
-  struct sysfs_node_t
-  {
-    os_agent_id_t gpu_id;
-    const architecture_t &architecture;
-    agent_t::properties_t properties;
-  };
+  std::vector<os_agent_snapshot_entry_t> agent_infos;
+  size_t agent_count = count<agent_t> () + 16;
 
-  std::vector<sysfs_node_t> sysfs_nodes;
-
-  /* Discover the GPU nodes from the sysfs topology.  */
-
-  static const std::string sysfs_nodes_path (
-      "/sys/devices/virtual/kfd/kfd/topology/nodes/");
-
-  auto *dirp = opendir (sysfs_nodes_path.c_str ());
-  if (!dirp)
-    return AMD_DBGAPI_STATUS_ERROR;
-
-  struct dirent *dir;
-  while ((dir = readdir (dirp)) != 0)
+  do
     {
-      if (!strcmp (dir->d_name, ".") || !strcmp (dir->d_name, ".."))
-        continue;
+      agent_infos.resize (agent_count);
 
-      agent_t::properties_t props;
-      std::string node_path (sysfs_nodes_path + dir->d_name);
+      amd_dbgapi_status_t status = os_driver ().agent_snapshot (
+          agent_infos.data (), agent_count, &agent_count);
 
-      /* Retrieve the GPU ID.  */
-
-      std::ifstream gpu_id_ifs (node_path + "/gpu_id");
-      if (!gpu_id_ifs.is_open ())
-        continue;
-
-      os_agent_id_t gpu_id = 0;
-      gpu_id_ifs >> gpu_id;
-
-      if (!gpu_id)
-        /* Skip CPU nodes.  */
-        continue;
-
-      /* Retrieve the GPU name.  */
-
-      std::ifstream gpu_name_ifs (node_path + "/name");
-      if (!gpu_name_ifs.is_open ())
-        continue;
-
-      gpu_name_ifs >> props.name;
-      if (props.name.empty ())
-        {
-          warning ("gpu_id %d: asic family name not present in the sysfs.",
-                   gpu_id);
-          continue;
-        }
-
-      /* Retrieve the GPU node properties.  */
-
-      std::ifstream props_ifs (node_path + "/properties");
-      if (!props_ifs.is_open ())
-        continue;
-
-      std::string prop_name;
-      uint64_t prop_value;
-      while (props_ifs >> prop_name >> prop_value)
-        {
-          if (prop_name == "location_id")
-            props.location_id = static_cast<uint32_t> (prop_value);
-          else if (prop_name == "simd_count")
-            props.simd_count = static_cast<uint32_t> (prop_value);
-          else if (prop_name == "array_count")
-            props.shader_engine_count = static_cast<uint32_t> (prop_value);
-          else if (prop_name == "simd_arrays_per_engine")
-            props.simd_arrays_per_engine = static_cast<uint32_t> (prop_value);
-          else if (prop_name == "cu_per_simd_array")
-            props.cu_per_simd_array = static_cast<uint32_t> (prop_value);
-          else if (prop_name == "simd_per_cu")
-            props.simd_per_cu = static_cast<uint32_t> (prop_value);
-          else if (prop_name == "max_waves_per_simd")
-            props.max_waves_per_simd = static_cast<uint32_t> (prop_value);
-          else if (prop_name == "vendor_id")
-            props.vendor_id = static_cast<uint32_t> (prop_value);
-          else if (prop_name == "device_id")
-            props.device_id = static_cast<uint32_t> (prop_value);
-          else if (prop_name == "fw_version")
-            props.fw_version = static_cast<uint16_t> (prop_value);
-        }
-
-      decltype (&gfxip_lookup_table[0]) gfxip_info = nullptr;
-      size_t num_elem
-          = sizeof (gfxip_lookup_table) / sizeof (gfxip_lookup_table[0]);
-
-      for (size_t i = 0; i < num_elem; ++i)
-        if (props.name == gfxip_lookup_table[i].gpu_name)
-          {
-            gfxip_info = &gfxip_lookup_table[i];
-            break;
-          }
-
-      /* FIXME: May want to have a state for an agent so it can be listed as
-         present, but marked as unsupported.  We would then remove the
-         'continue's below and instantiate the agent.  */
-
-      if (!gfxip_info)
-        {
-          warning ("gpu_id %d: asic family name %s not supported.", gpu_id,
-                   props.name.c_str ());
-          continue;
-        }
-
-      if (props.fw_version < gfxip_info->fw_version)
-        {
-          warning ("gpu_id %d: firmware version %d is not supported "
-                   "(required version is >= %d)",
-                   gpu_id, props.fw_version, gfxip_info->fw_version);
-          continue;
-        }
-
-      const architecture_t *gpu_arch = architecture_t::find (
-          gfxip_info->gfxip.major, gfxip_info->gfxip.minor,
-          gfxip_info->gfxip.stepping);
-
-      if (!gpu_arch)
-        {
-          warning ("gpu_id %d: gfx%d%d%d architecture not supported.", gpu_id,
-                   gfxip_info->gfxip.major, gfxip_info->gfxip.minor,
-                   gfxip_info->gfxip.stepping);
-          continue;
-        }
-
-      sysfs_nodes.emplace_back (sysfs_node_t{ gpu_id, *gpu_arch, props });
+      if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+        agent_count = 0;
+      else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        return status;
     }
-
-  closedir (dirp);
+  while (agent_infos.size () < agent_count);
+  agent_infos.resize (agent_count);
 
   /* Add new agents to the process.  */
-  for (auto &sysfs_node : sysfs_nodes)
+  for (auto &&agent_info : agent_infos)
     {
-      agent_t *agent = find_if (
-          [&] (const agent_t &a) { return a.gpu_id () == sysfs_node.gpu_id; });
+      agent_t *agent = find_if ([&] (const agent_t &a) {
+        return a.gpu_id () == agent_info.os_agent_id;
+      });
+
+      const architecture_t *architecture
+          = architecture_t::find (agent_info.e_machine);
+
+      if (!architecture)
+        {
+          warning ("gpu_id %d: e_machine %x architecture not supported.",
+                   agent_info.os_agent_id, agent_info.e_machine);
+          continue;
+        }
 
       if (!agent)
-        agent = &create<agent_t> (*this,                   /* process  */
-                                  sysfs_node.gpu_id,       /* gpu_id  */
-                                  sysfs_node.architecture, /* architecture  */
-                                  sysfs_node.properties);  /* properties  */
+        agent = &create<agent_t> (*this,         /* process  */
+                                  *architecture, /* architecture  */
+                                  agent_info);   /* os_agent_info  */
 
       if (is_flag_set (flag_t::ENABLE_AGENT_DEBUG_TRAP)
           && !agent->debug_trap_enabled ())
@@ -586,7 +461,7 @@ process_t::update_agents ()
                same agent.  Remove this when KFD supports concurrent
                debugging on the same agent.  */
             error ("Could not enable debugging on gpu_id %d.",
-                   sysfs_node.gpu_id);
+                   agent_info.os_agent_id);
         }
       else if (!is_flag_set (flag_t::ENABLE_AGENT_DEBUG_TRAP)
                && agent->debug_trap_enabled ())
@@ -594,16 +469,16 @@ process_t::update_agents ()
           amd_dbgapi_status_t status = agent->disable_debug_trap ();
           if (status != AMD_DBGAPI_STATUS_SUCCESS)
             error ("Could not disable debugging on gpu_id %d.",
-                   sysfs_node.gpu_id);
+                   agent_info.os_agent_id);
         }
 
       if (agent->debug_trap_enabled ())
         {
-          amd_dbgapi_status_t status
-              = os_driver ().set_wave_launch_mode (*agent, m_wave_launch_mode);
+          amd_dbgapi_status_t status = os_driver ().set_wave_launch_mode (
+              agent->gpu_id (), m_wave_launch_mode);
           if (status != AMD_DBGAPI_STATUS_SUCCESS)
             error ("Could not set the wave launch mode for gpu_id %d (rc=%d).",
-                   sysfs_node.gpu_id, status);
+                   agent_info.os_agent_id, status);
         }
     }
 
@@ -611,11 +486,11 @@ process_t::update_agents ()
   auto &&agent_range = range<agent_t> ();
   for (auto it = agent_range.begin (); it != agent_range.end ();)
     if (std::find_if (
-            sysfs_nodes.begin (), sysfs_nodes.end (),
-            [&] (const decltype (sysfs_nodes)::value_type &sysfs_node) {
-              return it->gpu_id () == sysfs_node.gpu_id;
+            agent_infos.begin (), agent_infos.end (),
+            [&] (const decltype (agent_infos)::value_type &agent_info) {
+              return it->gpu_id () == agent_info.os_agent_id;
             })
-        == sysfs_nodes.end ())
+        == agent_infos.end ())
       it = destroy (it);
     else
       ++it;
@@ -727,7 +602,7 @@ amd_dbgapi_status_t
 process_t::update_queues ()
 {
   epoch_t queue_mark;
-  std::unique_ptr<os_queue_snapshot_entry_t[]> snapshots;
+  std::vector<os_queue_snapshot_entry_t> snapshots;
   size_t snapshot_count;
 
   /* Prime the queue count with the current number of queues.  */
@@ -742,10 +617,11 @@ process_t::update_queues ()
       /* We should allocate enough memory for the snapshots. Let's start with
          the current number of queues + 16.  */
       snapshot_count = queue_count + 16;
-      snapshots.reset (new os_queue_snapshot_entry_t[snapshot_count]);
+      snapshots.resize (snapshot_count);
 
       amd_dbgapi_status_t status = os_driver ().queue_snapshot (
-          snapshots.get (), snapshot_count, &queue_count);
+          snapshots.data (), snapshot_count, &queue_count);
+
       if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
         queue_count = 0;
       else if (status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -755,9 +631,9 @@ process_t::update_queues ()
          if the list is incomplete, because we only get notified once that
          a queue is new.  The new_queue bit gets cleared after each query.  */
 
-      for (uint32_t i = 0; i < std::min (queue_count, snapshot_count); ++i)
+      snapshots.resize (std::min (queue_count, snapshot_count));
+      for (auto &&queue_info : snapshots)
         {
-          const os_queue_snapshot_entry_t &queue_info = snapshots[i];
           amd_dbgapi_queue_id_t queue_id = AMD_DBGAPI_QUEUE_NONE;
 
           /* Find the queue by matching its os_queue_id with the one
@@ -941,22 +817,9 @@ process_t::update_code_objects ()
 amd_dbgapi_status_t
 process_t::attach ()
 {
-  uint32_t os_driver_major{}, os_driver_minor{};
-  /* Check that the KFD dbg trap major == IOCTL dbg trap major,
-     and KFD dbg trap minor >= IOCTL dbg trap minor.  */
-  if (os_driver ().get_version (&os_driver_major, &os_driver_minor)
-      || os_driver_major != OS_DRIVER_MAJOR_VERSION
-      || os_driver_minor < OS_DRIVER_MINOR_VERSION)
-    {
-      warning (
-          "debugger driver version %d.%d does not match %d.%d+ requirement",
-          os_driver_major, os_driver_minor, OS_DRIVER_MAJOR_VERSION,
-          OS_DRIVER_MINOR_VERSION);
-      return AMD_DBGAPI_STATUS_ERROR_VERSION_MISMATCH;
-    }
-
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "using debugger driver version %d.%d",
-              os_driver_major, os_driver_minor);
+  amd_dbgapi_status_t status = os_driver ().check_version ();
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    return status;
 
   /* When we first attach to the process, all waves already running need to be
      assigned new wave_ids.  This flag will be cleared after the first call

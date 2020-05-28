@@ -24,6 +24,7 @@
 #include "amd-dbgapi.h"
 #include "handle_object.h"
 #include "memory.h"
+#include "os_driver.h"
 #include "register.h"
 #include "utils.h"
 
@@ -53,20 +54,6 @@ class wave_t;
 class architecture_t
 {
 public:
-  /* See https://llvm.org/docs/AMDGPUUsage.html#amdgpu-ef-amdgpu-mach-table  */
-  enum elf_amdgpu_machine_t : uint32_t
-  {
-    EF_AMDGPU_MACH_AMDGCN_GFX900 = 0x02c,
-    EF_AMDGPU_MACH_AMDGCN_GFX902 = 0x02d,
-    EF_AMDGPU_MACH_AMDGCN_GFX904 = 0x02e,
-    EF_AMDGPU_MACH_AMDGCN_GFX906 = 0x02f,
-    EF_AMDGPU_MACH_AMDGCN_GFX908 = 0x030,
-    EF_AMDGPU_MACH_AMDGCN_GFX909 = 0x031,
-    EF_AMDGPU_MACH_AMDGCN_GFX1010 = 0x033,
-    EF_AMDGPU_MACH_AMDGCN_GFX1011 = 0x034,
-    EF_AMDGPU_MACH_AMDGCN_GFX1012 = 0x035,
-  };
-
   enum class compute_relaunch_abi_t
   {
     GFX900,
@@ -81,7 +68,7 @@ private:
   amd_comgr_disassembly_info_t disassembly_info () const;
 
 protected:
-  architecture_t (int gfxip_major, int gfxip_minor, int gfxip_stepping);
+  architecture_t (elf_amdgpu_machine_t e_machine, std::string target_triple);
   virtual void initialize () = 0;
 
 public:
@@ -131,7 +118,6 @@ public:
 
   virtual const address_space_t &default_global_address_space () const = 0;
 
-  virtual elf_amdgpu_machine_t elf_amdgpu_machine () const = 0;
   virtual size_t largest_instruction_size () const = 0;
   virtual size_t minimum_instruction_alignment () const = 0;
   virtual size_t breakpoint_instruction_pc_adjust () const = 0;
@@ -161,10 +147,8 @@ public:
   set_wave_state (wave_t &wave, amd_dbgapi_wave_state_t state) const = 0;
 
   amd_dbgapi_architecture_id_t id () const { return m_architecture_id; }
-  int gfxip_major () const { return m_gfxip_major; }
-  int gfxip_minor () const { return m_gfxip_minor; }
-  int gfxip_stepping () const { return m_gfxip_stepping; }
-  const std::string &name () const { return m_name; }
+  elf_amdgpu_machine_t elf_amdgpu_machine () const { return m_e_machine; }
+  const std::string &target_triple () const { return m_target_triple; }
 
   template <typename ArchitectureType, typename... Args>
   static auto create_architecture (Args &&... args);
@@ -172,8 +156,6 @@ public:
   static const architecture_t *
   find (amd_dbgapi_architecture_id_t architecture_id, int ignore = 0);
   static const architecture_t *find (elf_amdgpu_machine_t elf_amdgpu_machine);
-  static const architecture_t *find (int gfxip_major, int gfxip_minor,
-                                     int gfxip_stepping);
 
   std::set<amdgpu_regnum_t> register_set () const;
   std::string register_name (amdgpu_regnum_t regnum) const;
@@ -232,10 +214,8 @@ private:
   amd_dbgapi_architecture_id_t const m_architecture_id;
   std::unique_ptr<amd_comgr_disassembly_info_t> m_disassembly_info;
 
-  int const m_gfxip_major;
-  int const m_gfxip_minor;
-  int const m_gfxip_stepping;
-  std::string const m_name;
+  elf_amdgpu_machine_t const m_e_machine;
+  std::string const m_target_triple;
 
   std::tuple<handle_object_set_t<address_space_t>,
              handle_object_set_t<address_class_t>,

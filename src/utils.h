@@ -278,11 +278,7 @@ public:
       }
   }
 
-  ~optional ()
-  {
-    if (m_instantiated)
-      m_object.~T ();
-  }
+  ~optional () { reset (); }
 
   explicit constexpr operator bool () const { return m_instantiated; }
   constexpr bool has_value () const { return m_instantiated; }
@@ -314,6 +310,13 @@ public:
     ::new (&m_object) T (std::forward<Args> (args)...);
     m_instantiated = true;
     return m_object;
+  }
+
+  void reset ()
+  {
+    if (m_instantiated)
+      m_object.~T ();
+    m_instantiated = false;
   }
 
 private:

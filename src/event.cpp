@@ -24,6 +24,7 @@
 #include "handle_object.h"
 #include "initialization.h"
 #include "logging.h"
+#include "os_driver.h"
 #include "process.h"
 #include "queue.h"
 #include "utils.h"
@@ -31,7 +32,6 @@
 
 #include <algorithm>
 #include <atomic>
-#include <cstdint>
 #include <iterator>
 #include <string>
 #include <vector>

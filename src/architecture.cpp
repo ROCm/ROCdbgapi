@@ -99,9 +99,9 @@ monotonic_counter_t<decltype (amd_dbgapi_architecture_id_t::handle)>
 class amdgcn_architecture_t : public architecture_t
 {
 protected:
-  amdgcn_architecture_t (uint8_t gfxip_major, uint8_t gfxip_minor,
-                         uint8_t gfxip_stepping)
-      : architecture_t (gfxip_major, gfxip_minor, gfxip_stepping)
+  amdgcn_architecture_t (elf_amdgpu_machine_t e_machine,
+                         std::string target_triple)
+      : architecture_t (e_machine, std::move (target_triple))
   {
   }
 
@@ -1404,8 +1404,8 @@ amdgcn_architecture_t::is_cbranch_i_fork (
 class gfx9_base_t : public amdgcn_architecture_t
 {
 protected:
-  gfx9_base_t (uint8_t gfxip_minor, uint8_t gfxip_stepping)
-      : amdgcn_architecture_t (9, gfxip_minor, gfxip_stepping)
+  gfx9_base_t (elf_amdgpu_machine_t e_machine, std::string target_triple)
+      : amdgcn_architecture_t (e_machine, std::move (target_triple))
   {
   }
 
@@ -1427,11 +1427,9 @@ public:
 class gfx900_t final : public gfx9_base_t
 {
 public:
-  gfx900_t () : gfx9_base_t (0, 0) {}
-
-  elf_amdgpu_machine_t elf_amdgpu_machine () const override
+  gfx900_t ()
+      : gfx9_base_t (EF_AMDGPU_MACH_AMDGCN_GFX900, "amdgcn-amd-amdhsa--gfx900")
   {
-    return EF_AMDGPU_MACH_AMDGCN_GFX900;
   }
 };
 
@@ -1440,11 +1438,9 @@ public:
 class gfx902_t final : public gfx9_base_t
 {
 public:
-  gfx902_t () : gfx9_base_t (0, 2) {}
-
-  elf_amdgpu_machine_t elf_amdgpu_machine () const override
+  gfx902_t ()
+      : gfx9_base_t (EF_AMDGPU_MACH_AMDGCN_GFX902, "amdgcn-amd-amdhsa--gfx902")
   {
-    return EF_AMDGPU_MACH_AMDGCN_GFX902;
   }
 };
 
@@ -1453,11 +1449,9 @@ public:
 class gfx904_t final : public gfx9_base_t
 {
 public:
-  gfx904_t () : gfx9_base_t (0, 4) {}
-
-  elf_amdgpu_machine_t elf_amdgpu_machine () const override
+  gfx904_t ()
+      : gfx9_base_t (EF_AMDGPU_MACH_AMDGCN_GFX904, "amdgcn-amd-amdhsa--gfx904")
   {
-    return EF_AMDGPU_MACH_AMDGCN_GFX904;
   }
 };
 
@@ -1466,11 +1460,9 @@ public:
 class gfx906_t final : public gfx9_base_t
 {
 public:
-  gfx906_t () : gfx9_base_t (0, 6) {}
-
-  elf_amdgpu_machine_t elf_amdgpu_machine () const override
+  gfx906_t ()
+      : gfx9_base_t (EF_AMDGPU_MACH_AMDGCN_GFX906, "amdgcn-amd-amdhsa--gfx906")
   {
-    return EF_AMDGPU_MACH_AMDGCN_GFX906;
   }
 };
 
@@ -1479,7 +1471,10 @@ public:
 class gfx908_t final : public gfx9_base_t
 {
 public:
-  gfx908_t () : gfx9_base_t (0, 8) {}
+  gfx908_t ()
+      : gfx9_base_t (EF_AMDGPU_MACH_AMDGCN_GFX908, "amdgcn-amd-amdhsa--gfx908")
+  {
+  }
 
   bool has_acc_vgprs () const override { return true; }
 
@@ -1487,18 +1482,13 @@ public:
   {
     return compute_relaunch_abi_t::GFX908;
   }
-
-  elf_amdgpu_machine_t elf_amdgpu_machine () const override
-  {
-    return EF_AMDGPU_MACH_AMDGCN_GFX908;
-  }
 };
 
 class gfx10_base_t : public amdgcn_architecture_t
 {
 protected:
-  gfx10_base_t (uint8_t gfxip_minor, uint8_t gfxip_stepping)
-      : amdgcn_architecture_t (10, gfxip_minor, gfxip_stepping)
+  gfx10_base_t (elf_amdgpu_machine_t e_machine, std::string target_triple)
+      : amdgcn_architecture_t (e_machine, std::move (target_triple))
   {
   }
 
@@ -1518,46 +1508,39 @@ public:
 class gfx1010_t final : public gfx10_base_t
 {
 public:
-  gfx1010_t () : gfx10_base_t (1, 0) {}
-
-  elf_amdgpu_machine_t elf_amdgpu_machine () const override
+  gfx1010_t ()
+      : gfx10_base_t (EF_AMDGPU_MACH_AMDGCN_GFX1010,
+                      "amdgcn-amd-amdhsa--gfx1010")
   {
-    return EF_AMDGPU_MACH_AMDGCN_GFX1010;
   }
 };
 
 class gfx1011_t final : public gfx10_base_t
 {
 public:
-  gfx1011_t () : gfx10_base_t (1, 1) {}
-
-  elf_amdgpu_machine_t elf_amdgpu_machine () const override
+  gfx1011_t ()
+      : gfx10_base_t (EF_AMDGPU_MACH_AMDGCN_GFX1011,
+                      "amdgcn-amd-amdhsa--gfx1011")
   {
-    return EF_AMDGPU_MACH_AMDGCN_GFX1011;
   }
 };
 
 class gfx1012_t final : public gfx10_base_t
 {
 public:
-  gfx1012_t () : gfx10_base_t (1, 2) {}
-
-  elf_amdgpu_machine_t elf_amdgpu_machine () const override
+  gfx1012_t ()
+      : gfx10_base_t (EF_AMDGPU_MACH_AMDGCN_GFX1012,
+                      "amdgcn-amd-amdhsa--gfx1012")
   {
-    return EF_AMDGPU_MACH_AMDGCN_GFX1012;
   }
 };
 
-architecture_t::architecture_t (int gfxip_major, int gfxip_minor,
-                                int gfxip_stepping)
+architecture_t::architecture_t (elf_amdgpu_machine_t e_machine,
+                                std::string target_triple)
     : m_architecture_id (
         amd_dbgapi_architecture_id_t{ s_next_architecture_id++ }),
       m_disassembly_info (new amd_comgr_disassembly_info_t{ 0 }),
-      m_gfxip_major (gfxip_major), m_gfxip_minor (gfxip_minor),
-      m_gfxip_stepping (gfxip_stepping),
-      m_name (string_printf (
-          "amdgcn-amd-amdhsa--gfx%d%d%c", gfxip_major, gfxip_minor,
-          gfxip_stepping < 10 ? '0' + gfxip_stepping : 'a' + gfxip_stepping))
+      m_e_machine (e_machine), m_target_triple (std::move (target_triple))
 {
 }
 
@@ -1571,20 +1554,6 @@ const architecture_t *
 architecture_t::find (amd_dbgapi_architecture_id_t architecture_id, int ignore)
 {
   auto it = s_architecture_map.find (architecture_id);
-  return it != s_architecture_map.end () ? it->second.get () : nullptr;
-}
-
-const architecture_t *
-architecture_t::find (int gfxip_major, int gfxip_minor, int gfxip_stepping)
-{
-  auto it = std::find_if (
-      s_architecture_map.begin (), s_architecture_map.end (),
-      [&] (const decltype (s_architecture_map)::value_type &value) {
-        return value.second->gfxip_major () == gfxip_major
-               && value.second->gfxip_minor () == gfxip_minor
-               && value.second->gfxip_stepping () == gfxip_stepping;
-      });
-
   return it != s_architecture_map.end () ? it->second.get () : nullptr;
 }
 
@@ -1838,7 +1807,7 @@ architecture_t::disassembly_info () const
             };
 
       if (amd_comgr_create_disassembly_info (
-              name ().c_str (), read_memory_callback,
+              target_triple ().c_str (), read_memory_callback,
               print_instruction_callback, print_address_annotation_callback,
               m_disassembly_info.get ()))
         error ("amd_comgr_create_disassembly_info failed");
@@ -1897,7 +1866,7 @@ architecture_t::get_info (amd_dbgapi_architecture_info_t query,
   switch (query)
     {
     case AMD_DBGAPI_ARCHITECTURE_INFO_NAME:
-      return utils::get_info (value_size, value, m_name);
+      return utils::get_info (value_size, value, m_target_triple);
 
     case AMD_DBGAPI_ARCHITECTURE_INFO_ELF_AMDGPU_MACHINE:
       return utils::get_info (value_size, value, elf_amdgpu_machine ());
@@ -1977,7 +1946,7 @@ amd_dbgapi_get_architecture (uint32_t elf_amdgpu_machine,
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   const architecture_t *architecture = architecture_t::find (
-      static_cast<architecture_t::elf_amdgpu_machine_t> (elf_amdgpu_machine));
+      static_cast<elf_amdgpu_machine_t> (elf_amdgpu_machine));
 
   if (!architecture)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ELF_AMDGPU_MACHINE;
