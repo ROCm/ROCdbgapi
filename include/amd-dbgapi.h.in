@@ -58,17 +58,14 @@
  * specified by the
  * ::AMD_DBGAPI_ARCHITECTURE_INFO_BREAKPOINT_INSTRUCTION_PC_ADJUST query.
  *
- * Note that there is no way to prevent new waves being created, or to stop new
- * waves before they start execution.  So breakpoint processing should not rely
- * on stopping all threads.  Instead, the breakpoint instruction should be left
- * inserted, and waves should be resumed using displaced stepping buffers.
- * This will prevent breakpoints from being missed by newly created waves while
- * resuming other waves.  See \ref displaced_stepping_group.
- *
  * The client is responsible for checking that only a single thread at a time
  * invokes a function provided by the library.  A callback (see \ref
  * callbacks_group) invoked by the library must not itself invoke any function
  * provided by the library.
+ *
+ * The library implementation uses the native operating system to inspect and
+ * control the inferior.  Therefore, the library must be executed on the same
+ * machine as the inferior.
  *
  * The library implementation creates an internal native operating system
  * thread for its own internal use.
@@ -1484,6 +1481,11 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p client_process_id or
  * \p process_id are NULL.  The process is not attached and \p process_id is
  * unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR Encountered some other error while
+ * attaching to the process.  For example, the process executing the library is
+ * out of resources such as file descriptors.  The process is not attached and
+ * \p process_id is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_process_attach (
