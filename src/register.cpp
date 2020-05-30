@@ -48,7 +48,7 @@ register_class_t::contains (amdgpu_regnum_t regnum) const
   if (it == m_register_map.begin ())
     return false;
 
-  --it;
+  std::advance (it, -1);
   return regnum >= it->first && regnum <= it->second;
 }
 

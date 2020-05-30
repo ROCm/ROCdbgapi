@@ -55,12 +55,15 @@ private:
   class pm4_queue_impl_t; /* PM4 queue implemnatation.  */
 
 public:
-  enum state_t
+  enum class state_t
   {
-    /* The queue is suspended.  */
-    SUSPENDED,
-    /* The queue is running.  */
-    RUNNING
+    INVALID,   /* The queue is invalid. Calls to os_queue_id () will return the
+                  OS_INVALID_QUEUEID.  Calls to process_t::find and
+                  process_t::find_if will not return this queue.  Once a queue
+                  becomes invalid, its state can no longer be changed.  */
+    SUSPENDED, /* The queue is suspended, its state can be inspected.  */
+    RUNNING    /* The queue is running.  */
+
   };
 
   queue_t (amd_dbgapi_queue_id_t queue_id, agent_t &agent,
@@ -73,20 +76,23 @@ public:
 
   ~queue_t ();
 
-  void invalidate ();
-  bool is_valid () const { return m_is_valid; }
-  bool is_suspended () const { return m_state == state_t::SUSPENDED; }
+  state_t state () const { return m_state; }
+  void set_state (state_t state);
 
-  os_queue_id_t os_queue_id () const { return m_os_queue_info.queue_id; }
+  bool is_valid () const { return m_state != state_t::INVALID; }
+  bool is_suspended () const { return m_state == state_t::SUSPENDED; }
+  bool is_running () const { return m_state == state_t::RUNNING; }
+
+  os_queue_id_t os_queue_id () const
+  {
+    return is_valid () ? m_os_queue_info.queue_id : OS_INVALID_QUEUEID;
+  }
   os_queue_type_t os_queue_type () const
   {
     return amd::dbgapi::os_queue_type (m_os_queue_info);
   }
 
   amd_dbgapi_queue_type_t type () const;
-
-  state_t state () const { return m_state; }
-  void set_state (state_t state);
 
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }
@@ -141,7 +147,6 @@ public:
 private:
   os_queue_snapshot_entry_t const m_os_queue_info;
   state_t m_state{ state_t::RUNNING };
-  bool m_is_valid{ true };
 
   amd_dbgapi_global_address_t m_displaced_stepping_buffer_address{ 0 };
   amd_dbgapi_global_address_t m_parked_wave_buffer_address{ 0 };
@@ -166,9 +171,10 @@ private:
 
 /* Wraps a queue and provides a RAII mechanism to suspend it if it wasn't
    already suspended. The queue is suspended when the object is constructed,
-   and when control leaves the scope in which the object was created, the
-   queue is resumed if and only if the queue was not already suspended when
-   the object was created, and forward progress is required".
+   if the queue is not invalid or not already suspended.  When control leaves
+   the scope in which the object was created, the queue is resumed if it was
+   suspended by this instance of scoped_queue_suspend_t, the queue is still
+   valid, and forward progress is required".
  */
 class scoped_queue_suspend_t
 {
@@ -181,7 +187,7 @@ public:
   scoped_queue_suspend_t &operator= (const scoped_queue_suspend_t &) = delete;
 
 public:
-  queue_t *const m_queue;
+  queue_t *m_queue;
 };
 
 } /* namespace dbgapi */

@@ -509,10 +509,11 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues) const
 
   for (auto *queue : queues)
     {
-      dbgapi_assert (!queue->is_suspended () && "already suspended");
+      dbgapi_assert (queue && queue->state () != queue_t::state_t::SUSPENDED
+                     && "queue is null or already suspended");
+
+      /* Note that invalid queues will return the OS_INVALID_QUEUEID.  */
       queue_ids.emplace_back (queue->os_queue_id ());
-      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "suspending %s",
-                  to_string (queue->id ()).c_str ());
     }
 
   size_t num_suspended_queues
@@ -521,30 +522,32 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues) const
   if (num_suspended_queues < 0)
     error ("os_driver::suspend_queues failed.");
 
-  if (num_suspended_queues != queue_ids.size ())
+  bool __maybe_unused__ invalid_queue_seen = false;
+  for (size_t i = 0; i < queue_ids.size (); ++i)
     {
-      /* Some queues may have failed to suspend because they no longer exist so
-         check the queue_ids returned by KFD and invalidate queues which have
-         been marked as invalid.  */
-      bool __maybe_unused__ invalid_queue = false;
+      /* Some queues may have failed to suspend because they are the
+         OS_INVALID_QUEUEID, or no longer exist. Check the queue_ids returned
+         by KFD and invalidate those marked as invalid.  It is allowed to
+         invalidate a queue that is already invalid.  */
 
-      for (size_t i = 0; i < queue_ids.size (); ++i)
-        if (queue_ids[i] & OS_QUEUE_ERROR_MASK)
+      if (queue_ids[i] & OS_QUEUE_ERROR_MASK)
+        {
           error ("failed to suspend %s",
                  to_string (queues[i]->id ()).c_str ());
-        else if (queue_ids[i] & OS_QUEUE_INVALID_MASK)
-          {
-            queues[i]->invalidate ();
-            invalid_queue = true;
-          }
-
-      dbgapi_assert (invalid_queue && "should have seen an invalid queue");
+        }
+      else if (queue_ids[i] & OS_QUEUE_INVALID_MASK)
+        {
+          queues[i]->set_state (queue_t::state_t::INVALID);
+          invalid_queue_seen = true;
+        }
+      else
+        {
+          queues[i]->set_state (queue_t::state_t::SUSPENDED);
+        }
     }
-
-  /* Update the waves that have been context switched.  */
-  for (auto *queue : queues)
-    if (queue->is_valid ())
-      queue->set_state (queue_t::state_t::SUSPENDED);
+  dbgapi_assert (
+      (num_suspended_queues == queue_ids.size () || invalid_queue_seen)
+      && "should have seen an invalid queue");
 
   return num_suspended_queues;
 }
@@ -560,10 +563,11 @@ process_t::resume_queues (const std::vector<queue_t *> &queues) const
 
   for (auto *queue : queues)
     {
-      dbgapi_assert (queue->is_suspended () && "queue is not suspended");
+      dbgapi_assert (queue && queue->state () != queue_t::state_t::RUNNING
+                     && "queue is null or not suspended");
+
+      /* Note that invalid queues will return the OS_INVALID_QUEUEID.  */
       queue_ids.emplace_back (queue->os_queue_id ());
-      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "resuming %s",
-                  to_string (queue->id ()).c_str ());
     }
 
   size_t num_resumed_queues
@@ -572,28 +576,31 @@ process_t::resume_queues (const std::vector<queue_t *> &queues) const
   if (num_resumed_queues < 0)
     error ("os_driver::resume_queues failed.");
 
-  if (num_resumed_queues != queue_ids.size ())
+  bool __maybe_unused__ invalid_queue_seen = false;
+  for (size_t i = 0; i < queue_ids.size (); ++i)
     {
-      /* Some queues may have failed to resume because they no longer exist so
-         check the queue_ids returned by KFD and invalidate queues which have
-         been marked as invalid.  */
-      bool __maybe_unused__ invalid_queue = false;
+      /* Some queues may have failed to resume because they are the
+         OS_INVALID_QUEUEID, or no longer exist. Check the queue_ids returned
+         by KFD and invalidate those marked as invalid.  It is allowed to
+         invalidate a queue that is already invalid.  */
 
-      for (size_t i = 0; i < queue_ids.size (); ++i)
-        if (queue_ids[i] & OS_QUEUE_ERROR_MASK)
+      if (queue_ids[i] & OS_QUEUE_ERROR_MASK)
+        {
           error ("failed to resume %s", to_string (queues[i]->id ()).c_str ());
-        else if (queue_ids[i] & OS_QUEUE_INVALID_MASK)
-          {
-            queues[i]->invalidate ();
-            invalid_queue = true;
-          }
-
-      dbgapi_assert (invalid_queue && "should have seen an invalid queue");
+        }
+      else if (queue_ids[i] & OS_QUEUE_INVALID_MASK)
+        {
+          queues[i]->set_state (queue_t::state_t::INVALID);
+          invalid_queue_seen = true;
+        }
+      else
+        {
+          queues[i]->set_state (queue_t::state_t::RUNNING);
+        }
     }
-
-  for (auto *queue : queues)
-    if (queue->is_valid ())
-      queue->set_state (queue_t::state_t::RUNNING);
+  dbgapi_assert (
+      (num_resumed_queues == queue_ids.size () || invalid_queue_seen)
+      && "should have seen an invalid queue");
 
   return num_resumed_queues;
 }
@@ -647,7 +654,16 @@ process_t::update_queues ()
               /* If there is a stale queue with the same os_queue_id,
                  destroy it.  */
               if (queue)
-                destroy (queue);
+                {
+                  amd_dbgapi_queue_id_t queue_id = queue->id ();
+                  os_queue_id_t os_queue_id = queue->os_queue_id ();
+
+                  destroy (queue);
+
+                  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+                              "destroyed stale %s (os_queue_id=%d)",
+                              to_string (queue_id).c_str (), os_queue_id);
+                }
             }
           else if (is_flag_set (flag_t::REQUIRE_NEW_QUEUE_BIT))
             {
@@ -657,10 +673,11 @@ process_t::update_queues ()
                  reported (we consumed the event without action), or KFD did
                  not report the new queue.  */
               if (!queue)
-                error (
-                    "os_queue_id %d should have been reported as a NEW_QUEUE "
-                    "before",
-                    queue_info.queue_id);
+                {
+                  error ("os_queue_id %d should have been reported as a "
+                         "NEW_QUEUE before",
+                         queue_info.queue_id);
+                }
 
               /* FIXME: If we could select which flags get cleared by the
                  query_debug_event ioctl, we would not need to create a
@@ -716,6 +733,10 @@ process_t::update_queues ()
                   ? queue_t::state_t::RUNNING
                   : queue_t::state_t::SUSPENDED);
           queue->set_mark (queue_mark);
+
+          dbgapi_log (
+              AMD_DBGAPI_LOG_LEVEL_INFO, "created new %s (os_queue_id=%d)",
+              to_string (queue->id ()).c_str (), queue->os_queue_id ());
         }
     }
   while (queue_count > snapshot_count);
@@ -726,7 +747,16 @@ process_t::update_queues ()
   auto &&queue_range = range<queue_t> ();
   for (auto it = queue_range.begin (); it != queue_range.end ();)
     if (it->mark () < queue_mark)
-      it = destroy (it);
+      {
+        amd_dbgapi_queue_id_t queue_id = it->id ();
+        os_queue_id_t os_queue_id = it->os_queue_id ();
+
+        it = destroy (it);
+
+        dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+                    "destroyed deleted %s (os_queue_id=%d)",
+                    to_string (queue_id).c_str (), os_queue_id);
+      }
     else
       ++it;
 

@@ -128,9 +128,19 @@ public:
   amd_dbgapi_status_t
   set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode);
 
+  /* Suspend/resume a list of queues.  Queues may become invalid as a result of
+     suspension/resumption, but not destroyed.  Queues made invalid will
+     destroy associated dispatches and waves.  Since waves/dispatches can be
+     destroyed, the caller is responsible for refetching wave/dispatche
+     instances from their id.  */
   size_t suspend_queues (const std::vector<queue_t *> &queues) const;
   size_t resume_queues (const std::vector<queue_t *> &queues) const;
 
+  /* update_* ensures that the only objects that exist are exactly those
+     reported by the os_driver.  It creates new objects reported by os_driver,
+     and destroy objects that no longer exist which includes objects that are
+     no longer valid.  When an object is deleted, all objects associated with
+     it are also deleted.  */
   amd_dbgapi_status_t update_agents ();
   amd_dbgapi_status_t update_queues ();
   amd_dbgapi_status_t update_code_objects ();

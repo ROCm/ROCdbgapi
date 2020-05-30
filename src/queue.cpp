@@ -103,6 +103,7 @@ private:
 
 public:
   aql_queue_impl_t (queue_t &queue);
+  virtual ~aql_queue_impl_t () override;
 
   virtual std::pair<amd_dbgapi_queue_packet_id_t, std::vector<uint8_t>>
   packets () const override;
@@ -219,6 +220,26 @@ queue_t::aql_queue_impl_t::aql_queue_impl_t (queue_t &queue)
 
   if ((m_hsa_queue.size * 64) != m_queue.m_os_queue_info.ring_size)
     error ("hsa_queue_t size != kfd queue info ring size");
+}
+
+queue_t::aql_queue_impl_t::~aql_queue_impl_t ()
+{
+  /* TODO: we need to iterate the waves belonging to this queue and enqueue
+     events for aborted requests.  i.e. single-step or stop requests that were
+     submitted, but the queue was invalidated/destroyed before reporting the
+     event, we still need to notify the application, so that it does not wait
+     forever.  */
+
+  process_t &process = m_queue.process ();
+
+  /* FIXME: need to submit events for aborted requests.  */
+  auto &&wave_range = process.range<wave_t> ();
+  for (auto it = wave_range.begin (); it != wave_range.end ();)
+    it = (it->queue ().id () == m_queue.id ()) ? process.destroy (it) : ++it;
+
+  auto &&dispatch_range = process.range<dispatch_t> ();
+  for (auto it = dispatch_range.begin (); it != dispatch_range.end ();)
+    it = (it->queue ().id () == m_queue.id ()) ? process.destroy (it) : ++it;
 }
 
 amd_dbgapi_status_t
@@ -807,15 +828,7 @@ queue_t::queue_t (amd_dbgapi_queue_id_t queue_id, agent_t &agent,
 {
 }
 
-queue_t::~queue_t ()
-{
-  if (!m_impl)
-    return;
-
-  /* Invalidate the queue so that all dispatches and waves are destroyed, and
-     events for aborted requests are enqueued.  */
-  invalidate ();
-}
+queue_t::~queue_t () {}
 
 std::pair<amd_dbgapi_queue_packet_id_t, std::vector<uint8_t>>
 queue_t::packets () const
@@ -839,33 +852,41 @@ void
 queue_t::set_state (state_t state)
 {
   if (m_state == state)
-    return;
+    return; /* State is unchanged.  */
+
+  dbgapi_assert (m_state != state_t::INVALID
+                 && "an invalid queue cannot change state");
+
+  switch (state)
+    {
+    case state_t::INVALID:
+      /* Destructing the queue impl for compute queues also destructs all
+         dispatches and waves associated with it, and enqueues events for
+         aborted requests.  */
+      m_impl.reset (nullptr);
+
+      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "invalidated %s (os_queue_id=%d)",
+                  to_string (id ()).c_str (), os_queue_id ());
+      break;
+
+    case state_t::SUSPENDED:
+      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "suspended %s (os_queue_id=%d)",
+                  to_string (id ()).c_str (), os_queue_id ());
+      break;
+
+    case state_t::RUNNING:
+      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "resumed %s (os_queue_id=%d)",
+                  to_string (id ()).c_str (), os_queue_id ());
+      break;
+    }
 
   m_state = state;
 
+  /* Notify the queue_impl of the change of state. Some implementation may act
+     on some state transitions, for example a compute queue may update its
+     dispatches and waves.  */
   if (m_impl)
     m_impl->state_changed (state);
-}
-
-void
-queue_t::invalidate ()
-{
-  /* TODO: we need to iterate the waves belonging to this queue and enqueue
-     events for aborted requests.  i.e. single-step or stop requests that were
-     submitted, but the queue was invalidated/destroyed before reporting the
-     event, we still need to notify the application, so that it does not wait
-     forever.  */
-
-  /* FIXME: need to submit events for aborted requests.  */
-  auto &&wave_range = process ().range<wave_t> ();
-  for (auto it = wave_range.begin (); it != wave_range.end ();)
-    it = (it->queue ().id () == id ()) ? process ().destroy (it) : ++it;
-
-  auto &&dispatch_range = process ().range<dispatch_t> ();
-  for (auto it = dispatch_range.begin (); it != dispatch_range.end ();)
-    it = (it->queue ().id () == id ()) ? process ().destroy (it) : ++it;
-
-  m_is_valid = false;
 }
 
 amd_dbgapi_status_t
@@ -896,14 +917,20 @@ scoped_queue_suspend_t::scoped_queue_suspend_t (queue_t &queue)
   if (!m_queue)
     return;
 
-  if (m_queue->process ().suspend_queues ({ m_queue }) != 1
-      && m_queue->is_valid ())
-    error ("process::suspend_queues failed");
+  if (m_queue->process ().suspend_queues ({ m_queue }) != 1)
+    {
+      if (m_queue->is_valid ())
+        error ("process::suspend_queues failed");
+
+      /* The queue became invalid, we should not try to resume it.  */
+      m_queue = nullptr;
+    }
 }
 
 scoped_queue_suspend_t::~scoped_queue_suspend_t ()
 {
-  if (!m_queue || !m_queue->process ().forward_progress_needed ())
+  if (!m_queue /* scoped_queue_suspend instance did not suspend the queue. */
+      || !m_queue->process ().forward_progress_needed ())
     return;
 
   if (m_queue->process ().resume_queues ({ m_queue }) != 1

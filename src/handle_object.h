@@ -301,42 +301,45 @@ public:
     return iterator (m_map.erase (it));
   }
 
+  /* The find() and find_if() operations hide any !is_invalid() objects.  This
+    is important for the find_if() as the predicate may match multiple objects,
+    of which only one is_valid().  However, the range() operations will allow
+    iteration of all objects including !is_valid().  As a consequence, the
+    !is_valid() objects may stay in the map until range() is used to sweep over
+    all the objects to destroy them.  */
+
   Object *find (handle_type id)
   {
     auto it = m_map.find (id);
-    if (it == m_map.end () || !is_valid (it->second))
-      return nullptr;
-    return &it->second;
+    return (it != m_map.end () && is_valid (it->second)) ? &it->second
+                                                         : nullptr;
   }
 
   const Object *find (handle_type id) const
   {
     auto it = m_map.find (id);
-    if (it == m_map.end () || !is_valid (it->second))
-      return nullptr;
-    return &it->second;
+    return (it != m_map.end () && is_valid (it->second)) ? &it->second
+                                                         : nullptr;
   }
 
   template <typename Functor> Object *find_if (Functor predicate)
   {
     auto it = std::find_if (m_map.begin (), m_map.end (),
                             [=] (const typename map_type::value_type &value) {
-                              return bool{ predicate (value.second) };
+                              return bool{ is_valid (value.second)
+                                           && predicate (value.second) };
                             });
-    if (it == m_map.end () || !is_valid (it->second))
-      return nullptr;
-    return &it->second;
+    return (it != m_map.end ()) ? &it->second : nullptr;
   }
 
   template <typename Functor> const Object *find_if (Functor predicate) const
   {
     auto it = std::find_if (m_map.begin (), m_map.end (),
                             [=] (const typename map_type::value_type &value) {
-                              return bool{ predicate (value.second) };
+                              return bool{ is_valid (value.second)
+                                           && predicate (value.second) };
                             });
-    if (it == m_map.end () || !is_valid (it->second))
-      return nullptr;
-    return &it->second;
+    return (it != m_map.end ()) ? &it->second : nullptr;
   }
 
   iterator begin () { return iterator (m_map.begin ()); }

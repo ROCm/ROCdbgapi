@@ -117,12 +117,22 @@ agent_t::next_os_event (amd_dbgapi_queue_id_t *queue_id,
           /* If there is a stale queue with the same os_queue_id, destroy it.
            */
           if (queue)
-            process.destroy (queue);
+            {
+              amd_dbgapi_queue_id_t queue_id = queue->id ();
+              os_queue_id_t os_queue_id = queue->os_queue_id ();
+
+              process.destroy (queue);
+
+              dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+                          "destroyed stale %s (os_queue_id=%d)",
+                          to_string (queue_id).c_str (), os_queue_id);
+            }
 
           /* Create a temporary queue instance to reserve the unique queue_id,
              update_queues with fill in the missing information
              (os_queue_snapshot_entry_t).  */
           *queue_id = process.create<queue_t> (*this, os_queue_id).id ();
+          *os_queue_status &= ~os_queue_status_t::NEW_QUEUE;
           process.update_queues ();
 
           /* Check that the queue still exists, update_queues () may have
