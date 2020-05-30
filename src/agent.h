@@ -49,7 +49,11 @@ public:
 
   os_agent_id_t gpu_id () const { return m_os_agent_info.os_agent_id; }
 
-  file_desc_t poll_fd () const { return m_poll_fd; }
+  file_desc_t poll_fd () const
+  {
+    dbgapi_assert (m_poll_fd.has_value ());
+    return m_poll_fd.value ();
+  }
 
   std::atomic<bool> &os_event_notifier () { return m_os_event_notifier; }
   amd_dbgapi_status_t next_os_event (amd_dbgapi_queue_id_t *queue_id,
@@ -63,12 +67,12 @@ public:
 
   amd_dbgapi_status_t enable_debug_trap (void);
   amd_dbgapi_status_t disable_debug_trap (void);
-  bool debug_trap_enabled () const { return m_poll_fd != -1; }
+  bool debug_trap_enabled () const { return m_poll_fd.has_value (); }
 
 private:
   os_agent_snapshot_entry_t const m_os_agent_info;
 
-  file_desc_t m_poll_fd{ -1 };
+  utils::optional<file_desc_t> m_poll_fd;
   std::atomic<bool> m_os_event_notifier{ false };
 
   const architecture_t &m_architecture;

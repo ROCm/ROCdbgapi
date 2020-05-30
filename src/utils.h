@@ -444,20 +444,20 @@ public:
   void close ();
 
   /* Return true if the pipe is valid and ready for use.  */
-  bool is_valid () const { return m_pipe_fd[0] != -1 && m_pipe_fd[1] != -1; }
+  bool is_valid () const { return m_pipe_fd.has_value (); }
 
   /* Return the read-end file descriptor of the pipe.  */
   file_desc_t read_fd () const
   {
     dbgapi_assert (is_valid () && "this pipe is not valid");
-    return m_pipe_fd[0];
+    return m_pipe_fd.value ()[0];
   }
 
   /* Return the write-end file descriptor of the pipe.  */
   file_desc_t write_fd () const
   {
     dbgapi_assert (is_valid () && "this pipe is not valid");
-    return m_pipe_fd[1];
+    return m_pipe_fd.value ()[1];
   }
 
   /* Write a single char, '+', to the pipe.  Return 0 if successful, errno
@@ -469,7 +469,7 @@ public:
   int flush ();
 
 private:
-  file_desc_t m_pipe_fd[2]{ -1, -1 };
+  utils::optional<std::array<file_desc_t, 2>> m_pipe_fd;
 };
 
 } /* namespace dbgapi */

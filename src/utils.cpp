@@ -218,15 +218,17 @@ string_printf (const char *format, ...)
 bool
 pipe_t::open ()
 {
-  if (::pipe2 (m_pipe_fd, O_CLOEXEC))
+  std::array<file_desc_t, 2> pipe;
+  if (::pipe2 (pipe.data (), O_CLOEXEC))
     {
       warning ("pipe_t::open: pipe2 failed: %s", strerror (errno));
-      m_pipe_fd[0] = m_pipe_fd[1] = -1;
       return false;
     }
 
-  if (::fcntl (m_pipe_fd[0], F_SETFL, O_NONBLOCK)
-      || ::fcntl (m_pipe_fd[1], F_SETFL, O_NONBLOCK))
+  m_pipe_fd.emplace (pipe);
+
+  if (::fcntl (read_fd (), F_SETFL, O_NONBLOCK)
+      || ::fcntl (write_fd (), F_SETFL, O_NONBLOCK))
     {
       warning ("pipe_t::open: fcntl failed: %s", strerror (errno));
       close ();
@@ -239,13 +241,13 @@ pipe_t::open ()
 void
 pipe_t::close ()
 {
-  if (m_pipe_fd[0] != -1)
-    ::close (m_pipe_fd[0]);
+  if (is_valid ())
+    {
+      ::close (read_fd ());
+      ::close (write_fd ());
+    }
 
-  if (m_pipe_fd[0] != -1)
-    ::close (m_pipe_fd[0]);
-
-  m_pipe_fd[0] = m_pipe_fd[1] = -1;
+  m_pipe_fd.reset ();
 }
 
 int
@@ -256,7 +258,7 @@ pipe_t::flush ()
   do
     {
       char buf;
-      ret = read (read_fd (), &buf, 1);
+      ret = ::read (read_fd (), &buf, 1);
     }
   while (ret >= 0 || (ret == -1 && errno == EINTR));
 
@@ -276,7 +278,7 @@ pipe_t::mark ()
 
   do
     {
-      ret = write (write_fd (), "+", 1);
+      ret = ::write (write_fd (), "+", 1);
     }
   while (ret == -1 && errno == EINTR);
 
