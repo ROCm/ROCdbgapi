@@ -220,7 +220,7 @@ wave_t::update (const wave_t &group_leader,
       if (m_stop_reason && m_state == AMD_DBGAPI_WAVE_STATE_STOP
           && saved_state != AMD_DBGAPI_WAVE_STATE_STOP)
         {
-          if ((m_stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT) != 0
+          if (!!(m_stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT)
               && !architecture ().can_halt_at (
                   architecture ().breakpoint_instruction ()))
             {

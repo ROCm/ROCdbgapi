@@ -1028,9 +1028,10 @@ amdgcn_architecture_t::get_wave_state (
     {
       /* The wave is stopped, but it was previously running.  */
 
-      uint32_t reason_mask = (saved_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
-                                 ? AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP
-                                 : AMD_DBGAPI_WAVE_STOP_REASON_NONE;
+      amd_dbgapi_wave_stop_reason_t reason_mask
+          = (saved_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
+                ? AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP
+                : AMD_DBGAPI_WAVE_STOP_REASON_NONE;
 
       uint32_t trapsts;
       status = wave.read_register (amdgpu_regnum_t::TRAPSTS, &trapsts);
@@ -1173,7 +1174,7 @@ amdgcn_architecture_t::get_wave_state (
             }
         }
 
-      *stop_reason = static_cast<amd_dbgapi_wave_stop_reason_t> (reason_mask);
+      *stop_reason = reason_mask;
     }
 
   return AMD_DBGAPI_STATUS_SUCCESS;

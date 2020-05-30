@@ -400,6 +400,61 @@ operator&= (T &lhs, T rhs)
   return lhs = lhs & rhs;
 }
 
+template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
+T
+operator^ (T lhs, T rhs)
+{
+  using t = std::underlying_type_t<T>;
+  return static_cast<T> (static_cast<t> (lhs) ^ static_cast<t> (rhs));
+}
+
+template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
+T &
+operator^= (T &lhs, T rhs)
+{
+  return lhs = lhs ^ rhs;
+}
+
+template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
+T
+operator- (T lhs, int rhs)
+{
+  using t = std::underlying_type_t<T>;
+  return static_cast<T> (static_cast<t> (lhs) - static_cast<t> (rhs));
+}
+
+template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
+T &
+operator-= (T &lhs, int rhs)
+{
+  return lhs = lhs - rhs;
+}
+
+template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
+T
+operator+ (T lhs, int rhs)
+{
+  using t = std::underlying_type_t<T>;
+  return static_cast<T> (static_cast<t> (lhs) + static_cast<t> (rhs));
+}
+
+template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
+T &
+operator+= (T &lhs, int rhs)
+{
+  return lhs = lhs + rhs;
+}
+
+/* Enable bitwise operations for amd_dbgapi_wave_stop_reason_t.  */
+template <> struct is_flag<amd_dbgapi_wave_stop_reason_t> : std::true_type
+{
+};
+
+/* Enable bitwise operations for amd_dbgapi_queue_error_reason_t.  */
+template <> struct is_flag<amd_dbgapi_queue_error_reason_t> : std::true_type
+{
+};
+
 /* A monotonic counter with wrap-around detection. Type must be an integral
    unsigned type. The WrapAroundCheck functor returns true if the counter has
    wrapped around. The default functor is (new_value > old_value).  */

@@ -218,9 +218,7 @@ private:
   epoch_t m_mark{ 0 };
   amd_dbgapi_wave_state_t m_state{ AMD_DBGAPI_WAVE_STATE_RUN };
   visibility_t m_visibility{ visibility_t::VISIBLE };
-  amd_dbgapi_wave_stop_reason_t m_stop_reason{
-    AMD_DBGAPI_WAVE_STOP_REASON_NONE
-  };
+  amd_dbgapi_wave_stop_reason_t m_stop_reason{};
 
   bool m_reload_hwregs_cache{ true };
   uint32_t m_hwregs_cache[amdgpu_regnum_t::LAST_HWREG
