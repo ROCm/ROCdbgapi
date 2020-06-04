@@ -35,7 +35,6 @@ using namespace amd::dbgapi;
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
-                           amd_dbgapi_agent_id_t agent_id,
                            amd_dbgapi_global_address_t address,
                            amd_dbgapi_size_t size,
                            amd_dbgapi_watchpoint_kind_t kind,
@@ -44,7 +43,7 @@ amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
                            amd_dbgapi_size_t *watchpoint_size)
 {
   TRY;
-  TRACE (process_id, agent_id, address, size, kind);
+  TRACE (process_id, address, size, kind);
 
   warning ("amd_dbgapi_set_watchpoint is not yet implemented");
   return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
@@ -53,11 +52,10 @@ amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_remove_watchpoint (amd_dbgapi_process_id_t process_id,
-                              amd_dbgapi_agent_id_t agent_id,
                               amd_dbgapi_watchpoint_id_t watchpoint_id)
 {
   TRY;
-  TRACE (process_id, agent_id, watchpoint_id);
+  TRACE (process_id, watchpoint_id);
 
   warning ("amd_dbgapi_remove_watchpoint is not yet implemented");
   return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;

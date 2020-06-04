@@ -525,11 +525,11 @@ amd_dbgapi_write_memory (amd_dbgapi_process_id_t process_id,
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_set_memory_precision (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_agent_id_t agent_id,
+    amd_dbgapi_process_id_t process_id,
     amd_dbgapi_memory_precision_t memory_precision)
 {
   TRY;
-  TRACE (process_id, agent_id, memory_precision);
+  TRACE (process_id, memory_precision);
 
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -538,11 +538,6 @@ amd_dbgapi_set_memory_precision (
 
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
-
-  agent_t *agent = process->find (agent_id);
-
-  if (!agent)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_AGENT_ID;
 
   switch (memory_precision)
     {
