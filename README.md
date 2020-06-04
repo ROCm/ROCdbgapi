@@ -33,17 +33,9 @@ The AMD Debugger API is a library that provides all the support necessary for a
 debugger and other tools to perform low level control of the execution and
 inspection of execution state of AMD's commercially available GPU architectures.
 
-The following AMD GPU architectures are supported:
+For more information about ROCm, see:
 
-- GFX9
-  - gfx900 (Vega 10)
-  - gfx906 (Vega 7nm also referred to as Vega 20)
-  - gfx908 (Arcturus)
-
-For more information about ROCm and ROCdbgapi, please refer to the Release Notes
-file available at:
-
-- https://github.com/RadeonOpenCompute/ROCm
+- https://rocmdocs.amd.com/
 
 Build the AMD Debugger API Library
 ----------------------------------
@@ -96,10 +88,11 @@ be installed as part of the ROCm release by the ``comgr`` package:
 
 - ``libamd_comgr.so.1``
 
-Build the AMD Debugger API Documentation
-----------------------------------------
+Build the AMD Debugger API Specification Documentation
+------------------------------------------------------
 
-Generating the AMD Debugger API documentation has the following prerequisites:
+Generating the *AMD Debugger API Specification* documentation has the following
+prerequisites:
 
 1. For Ubuntu 16.04 and Ubuntu 18.04 the following adds the needed packages:
 
@@ -146,37 +139,10 @@ will place it in:
 
 - ``../install/share/doc/amd-dbgapi/amd-dbgapi.pdf``
 
-Known Limitations and Restrictions
-----------------------------------
+You can refer to the following sections in the *AMD Debugger API Specification*
+documentation for:
 
-The AMD Debugger API library implementation is currently a prototype and has the
-following restrictions.  Future releases aim to address these restrictions.
-
-1.  The following *_get_info queries are not yet implemented:
-
-    - AMD_DBGAPI_EVENT_INFO_RUNTIME_VERSION
-    - AMD_DBGAPI_PROCESS_INFO_WATCHPOINT_COUNT
-    - AMD_DBGAPI_PROCESS_INFO_WATCHPOINT_SHARE
-    - AMD_DBGAPI_QUEUE_INFO_ERROR_REASON
-    - AMD_DBGAPI_QUEUE_INFO_STATE
-    - AMD_DBGAPI_WAVE_INFO_WATCHPOINTS
-
-2.  The following functions are not yet implemented:
-
-    - amd_dbgapi_classify_instruction
-    - amd_dbgapi_remove_watchpoint
-    - amd_dbgapi_set_watchpoint
-
-3.  On a AMD_DBGAPI_STATUS_FATAL error the library does fully reset the internal
-    state and so subsequent functions may not operate correctly.
-
-4.  Detaching from a process does not currently generate events for outstanding
-    wave requests.
-
-5.  The AMD_DBGAPI_MEMORY_PRECISION_PRECISE memory precision is not supported.
-    The default memory precision is AMD_DBGAPI_MEMORY_PRECISION_NONE.
-
-6.  amd_dbgapi_next_pending_event returns AMD_DBGAPI_EVENT_KIND_WAVE_STOP events
-    only for AQL queues. PM4 queues that launch wavefronts are not supported.
-
-7.  amd_dbgapi_queue_packet_list returns packets only for AQL queues.
+- *Supported AMD GPU Architectures* provides the list of supported AMD GPU
+  architectures.
+- *Known Limitations and Restrictions* provides information about known
+  limitations and restrictions.
