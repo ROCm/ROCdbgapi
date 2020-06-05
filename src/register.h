@@ -88,8 +88,10 @@ enum class amdgpu_regnum_t : decltype (amd_dbgapi_register_id_t::handle)
   XNACK_MASK_LO,    /* XNACK mask (lower 32-bit).  */
   XNACK_MASK_HI,    /* XNACK mask (higher 32-bit).  */
   MODE,             /* Mode register.  */
-  HWREG10,
-  HWREG15 = HWREG10 + 5,
+  FLAT_SCRATCH_LO,  /* Flat scratch (lower 32-bit) (gfx10 and above).  */
+  FLAT_SCRATCH_HI,  /* Flat scratch (higher 32-bit) (gfx10 and above).  */
+  HWREG12,
+  HWREG15 = HWREG12 + 5,
 
   LAST_HWREG = HWREG15,
   FIRST_TTMP = LAST_HWREG + 1,

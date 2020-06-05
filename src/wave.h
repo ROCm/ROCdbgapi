@@ -75,13 +75,6 @@ public:
   };
 
 private:
-  amd_dbgapi_status_t read_pseudo_register (amdgpu_regnum_t regnum,
-                                            size_t offset, size_t value_size,
-                                            void *value) const;
-  amd_dbgapi_status_t write_pseudo_register (amdgpu_regnum_t regnum,
-                                             size_t offset, size_t value_size,
-                                             const void *value);
-
   amd_dbgapi_status_t
   xfer_private_memory_swizzled (amd_dbgapi_segment_address_t segment_address,
                                 amd_dbgapi_lane_id_t lane_id, void *read,

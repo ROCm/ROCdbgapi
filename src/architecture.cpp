@@ -192,6 +192,19 @@ public:
   virtual const std::vector<uint8_t> &endpgm_instruction () const override;
   virtual size_t breakpoint_instruction_pc_adjust () const override;
 
+  /* Return the raw regnum for a given pseudo register.  For pseudo-registers
+     that map to 2 consecutive raw registers, return the lower register.  */
+  virtual utils::optional<amdgpu_regnum_t>
+  pseudo_to_raw_regnum (const wave_t &wave, amdgpu_regnum_t regnum) const;
+
+  virtual amd_dbgapi_status_t
+  read_pseudo_register (const wave_t &wave, amdgpu_regnum_t regnum,
+                        size_t offset, size_t value_size,
+                        void *value) const override;
+  virtual amd_dbgapi_status_t
+  write_pseudo_register (wave_t &wave, amdgpu_regnum_t regnum, size_t offset,
+                         size_t value_size, const void *value) const override;
+
 protected:
   /* Instruction decoding helpers.  */
 
@@ -641,6 +654,190 @@ amdgcn_architecture_t::triggered_watchpoints (const wave_t &wave) const
     watchpoints.emplace_back (3);
 
   return watchpoints;
+}
+
+utils::optional<amdgpu_regnum_t>
+amdgcn_architecture_t::pseudo_to_raw_regnum (const wave_t &wave,
+                                             amdgpu_regnum_t regnum) const
+{
+  switch (regnum)
+    {
+    case amdgpu_regnum_t::EXEC_32:
+    case amdgpu_regnum_t::EXEC_64:
+      return amdgpu_regnum_t::EXEC_LO;
+
+    case amdgpu_regnum_t::VCC_32:
+    case amdgpu_regnum_t::VCC_64:
+      return amdgpu_regnum_t::S0 + wave.sgpr_count () - 2;
+
+    case amdgpu_regnum_t::XNACK_MASK_32:
+    case amdgpu_regnum_t::XNACK_MASK_64:
+      return amdgpu_regnum_t::XNACK_MASK_LO;
+
+    case amdgpu_regnum_t::PC:
+      return amdgpu_regnum_t::PC_LO;
+
+    case amdgpu_regnum_t::WAVE_ID:
+      return amdgpu_regnum_t::TTMP4;
+
+    case amdgpu_regnum_t::FLAT_SCRATCH:
+      return amdgpu_regnum_t::S0 + wave.sgpr_count () - 6;
+
+    default:
+      break;
+    }
+  return {};
+}
+
+amd_dbgapi_status_t
+amdgcn_architecture_t::read_pseudo_register (const wave_t &wave,
+                                             amdgpu_regnum_t regnum,
+                                             size_t offset, size_t value_size,
+                                             void *value) const
+{
+  dbgapi_assert (regnum >= amdgpu_regnum_t::FIRST_PSEUDO
+                 && regnum <= amdgpu_regnum_t::LAST_PSEUDO);
+
+  auto raw_regnum = pseudo_to_raw_regnum (wave, regnum);
+  if (!raw_regnum.has_value ())
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
+
+  if (wave.lane_count () == 32
+      && (regnum == amdgpu_regnum_t::EXEC_32
+          || regnum == amdgpu_regnum_t::VCC_32
+          || regnum == amdgpu_regnum_t::XNACK_MASK_32))
+    {
+      return wave.read_register (raw_regnum.value (), offset, value_size,
+                                 value);
+    }
+
+  /* Read registers that are lo/hi pairs.  pseudo_to_raw_regnum () returned
+     the lo register.  */
+  if (regnum == amdgpu_regnum_t::PC || regnum == amdgpu_regnum_t::WAVE_ID
+      || regnum == amdgpu_regnum_t::FLAT_SCRATCH
+      || (wave.lane_count () == 64
+          && (regnum == amdgpu_regnum_t::EXEC_64
+              || regnum == amdgpu_regnum_t::VCC_64
+              || regnum == amdgpu_regnum_t::XNACK_MASK_64)))
+    {
+      amdgpu_regnum_t regnum_lo = raw_regnum.value ();
+      amdgpu_regnum_t regnum_hi = regnum_lo + 1;
+      uint32_t reg[2];
+
+      if (!value_size || (offset + value_size) > sizeof (reg))
+        return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE;
+
+      size_t saved_offset = offset;
+      size_t saved_value_size = value_size;
+      amd_dbgapi_status_t status;
+
+      /* Read the partial lo register.  */
+      if (offset < sizeof (reg[0]))
+        {
+          size_t size_lo = (offset + value_size) > sizeof (reg[0])
+                               ? sizeof (reg[0]) - offset
+                               : value_size;
+
+          if ((status
+               = wave.read_register (regnum_lo, offset, size_lo, &reg[0]))
+              != AMD_DBGAPI_STATUS_SUCCESS)
+            return status;
+
+          value_size -= size_lo;
+          offset = sizeof (reg[0]);
+        }
+
+      /* Read the partial hi register.  */
+      if (value_size)
+        {
+          if ((status = wave.read_register (
+                   regnum_hi, offset - sizeof (reg[0]), value_size, &reg[1]))
+              != AMD_DBGAPI_STATUS_SUCCESS)
+            return status;
+        }
+
+      memcpy (static_cast<char *> (value) + saved_offset,
+              reinterpret_cast<const char *> (&reg[0]) + saved_offset,
+              saved_value_size);
+
+      return AMD_DBGAPI_STATUS_SUCCESS;
+    }
+
+  return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
+}
+
+amd_dbgapi_status_t
+amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
+                                              amdgpu_regnum_t regnum,
+                                              size_t offset, size_t value_size,
+                                              const void *value) const
+{
+  dbgapi_assert (regnum >= amdgpu_regnum_t::FIRST_PSEUDO
+                 && regnum <= amdgpu_regnum_t::LAST_PSEUDO);
+
+  auto raw_regnum = pseudo_to_raw_regnum (wave, regnum);
+  if (!raw_regnum.has_value ())
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
+
+  if (wave.lane_count () == 32
+      && (regnum == amdgpu_regnum_t::EXEC_32
+          || regnum == amdgpu_regnum_t::VCC_32
+          || regnum == amdgpu_regnum_t::XNACK_MASK_32))
+    {
+      return wave.write_register (raw_regnum.value (), offset, value_size,
+                                  value);
+    }
+
+  /* Write registers that are lo/hi pairs.  pseudo_to_raw_regnum () returned
+     the lo register.  */
+  if (regnum == amdgpu_regnum_t::PC || regnum == amdgpu_regnum_t::WAVE_ID
+      || regnum == amdgpu_regnum_t::FLAT_SCRATCH
+      || (wave.lane_count () == 64
+          && (regnum == amdgpu_regnum_t::EXEC_64
+              || regnum == amdgpu_regnum_t::VCC_64
+              || regnum == amdgpu_regnum_t::XNACK_MASK_64)))
+    {
+      amdgpu_regnum_t regnum_lo = raw_regnum.value ();
+      amdgpu_regnum_t regnum_hi = regnum_lo + 1;
+      uint32_t reg[2];
+
+      if (!value_size || (offset + value_size) > sizeof (reg))
+        return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE;
+
+      memcpy (reinterpret_cast<char *> (&reg[0]) + offset,
+              static_cast<const char *> (value) + offset, value_size);
+
+      amd_dbgapi_status_t status;
+
+      /* Write the partial lo register.  */
+      if (offset < sizeof (reg[0]))
+        {
+          size_t size_lo = (offset + value_size) > sizeof (reg[0])
+                               ? sizeof (reg[0]) - offset
+                               : value_size;
+
+          if ((status
+               = wave.write_register (regnum_lo, offset, size_lo, &reg[0]))
+              != AMD_DBGAPI_STATUS_SUCCESS)
+            return status;
+
+          value_size -= size_lo;
+          offset = sizeof (reg[0]);
+        }
+
+      /* Write the partial hi register.  */
+      if (value_size)
+        {
+          if ((status = wave.write_register (
+                   regnum_hi, offset - sizeof (reg[0]), value_size, &reg[1]))
+              != AMD_DBGAPI_STATUS_SUCCESS)
+            return status;
+        }
+
+      return AMD_DBGAPI_STATUS_SUCCESS;
+    }
+
+  return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 }
 
 size_t
@@ -1663,7 +1860,30 @@ public:
   {
     return utils::bit_mask (7, 29);
   }
+
+  utils::optional<amdgpu_regnum_t>
+  pseudo_to_raw_regnum (const wave_t &wave,
+                        amdgpu_regnum_t regnum) const override;
 };
+
+utils::optional<amdgpu_regnum_t>
+gfx10_base_t::pseudo_to_raw_regnum (const wave_t &wave,
+                                    amdgpu_regnum_t regnum) const
+{
+  switch (regnum)
+    {
+    case amdgpu_regnum_t::VCC_32:
+    case amdgpu_regnum_t::VCC_64:
+      return amdgpu_regnum_t::S0 + 106;
+
+    case amdgpu_regnum_t::FLAT_SCRATCH:
+      return amdgpu_regnum_t::FLAT_SCRATCH_LO;
+
+    default:
+      break;
+    }
+  return amdgcn_architecture_t::pseudo_to_raw_regnum (wave, regnum);
+}
 
 class gfx1010_t final : public gfx10_base_t
 {
