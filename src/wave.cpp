@@ -252,6 +252,9 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
 {
   amd_dbgapi_wave_state_t prev_state = m_state;
 
+  if (state == prev_state)
+    return AMD_DBGAPI_STATUS_SUCCESS;
+
   amd_dbgapi_status_t status = architecture ().set_wave_state (*this, state);
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;

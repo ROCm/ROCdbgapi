@@ -108,31 +108,32 @@ event_t::pretty_printer_string () const
         wave_t *wave = process ().find (m_data.wave_event.wave_id);
         if (!wave)
           return string_printf (
-              "WAVE_STOP for terminated %s",
+              "EVENT_KIND_WAVE_STOP for terminated %s",
               to_string (m_data.wave_event.wave_id).c_str ());
         else
           return string_printf (
-              "WAVE_STOP for %s on %s (pc=%#lx, stop_reason=%s)",
+              "EVENT_KIND_WAVE_STOP for %s on %s (pc=%#lx, stop_reason=%s)",
               to_string (wave->id ()).c_str (),
               to_string (wave->queue ().id ()).c_str (), wave->pc (),
               to_string (wave->stop_reason ()).c_str ());
       }
 
     case AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED:
-      return string_printf ("WAVE_COMMAND_TERMINATED for terminated %s",
-                            to_string (m_data.wave_event.wave_id).c_str ());
+      return string_printf (
+          "EVENT_KIND_WAVE_COMMAND_TERMINATED for terminated %s",
+          to_string (m_data.wave_event.wave_id).c_str ());
 
     case AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED:
-      return "CODE_OBJECT_LIST_UPDATED";
+      return "EVENT_KIND_CODE_OBJECT_LIST_UPDATED";
 
     case AMD_DBGAPI_EVENT_KIND_BREAKPOINT_RESUME:
       return string_printf (
-          "BREAKPOINT_RESUME for %s",
+          "EVENT_KIND_BREAKPOINT_RESUME for %s",
           to_string (m_data.breakpoint_resume_event.breakpoint_id).c_str ());
 
     case AMD_DBGAPI_EVENT_KIND_RUNTIME:
       return string_printf (
-          "RUNTIME state=%s",
+          "EVENT_KIND_RUNTIME state=%s",
           to_string (m_data.runtime_event.runtime_state).c_str ());
 
     case AMD_DBGAPI_EVENT_KIND_QUEUE_ERROR:
