@@ -170,13 +170,13 @@ agent_t::get_info (amd_dbgapi_agent_info_t query, size_t value_size,
     case AMD_DBGAPI_AGENT_INFO_ARCHITECTURE:
       return utils::get_info (value_size, value, architecture ().id ());
 
-    case AMD_DBGAPI_AGENT_INFO_PCIE_SLOT:
+    case AMD_DBGAPI_AGENT_INFO_PCI_SLOT:
       return utils::get_info (value_size, value, m_os_agent_info.location_id);
 
-    case AMD_DBGAPI_AGENT_INFO_PCIE_VENDOR_ID:
+    case AMD_DBGAPI_AGENT_INFO_PCI_VENDOR_ID:
       return utils::get_info (value_size, value, m_os_agent_info.vendor_id);
 
-    case AMD_DBGAPI_AGENT_INFO_PCIE_DEVICE_ID:
+    case AMD_DBGAPI_AGENT_INFO_PCI_DEVICE_ID:
       return utils::get_info (value_size, value, m_os_agent_info.device_id);
 
     case AMD_DBGAPI_AGENT_INFO_SHADER_ENGINE_COUNT:
