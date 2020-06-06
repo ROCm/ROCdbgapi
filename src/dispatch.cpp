@@ -63,7 +63,7 @@ dispatch_t::kernel_entry_address () const
 }
 
 bool
-dispatch_t::scratch_enabled () const
+dispatch_t::is_scratch_enabled () const
 {
   return !!(
       m_kernel_descriptor.compute_pgm_rsrc2

@@ -182,8 +182,8 @@ public:
   static const architecture_t *find (elf_amdgpu_machine_t elf_amdgpu_machine);
 
   std::set<amdgpu_regnum_t> register_set () const;
-  std::string register_name (amdgpu_regnum_t regnum) const;
-  std::string register_type (amdgpu_regnum_t regnum) const;
+  utils::optional<std::string> register_name (amdgpu_regnum_t regnum) const;
+  utils::optional<std::string> register_type (amdgpu_regnum_t regnum) const;
 
   virtual amd_dbgapi_status_t read_pseudo_register (const wave_t &wave,
                                                     amdgpu_regnum_t regnum,

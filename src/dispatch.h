@@ -66,7 +66,7 @@ public:
 
   uint64_t queue_packet_id () const { return m_queue_packet_id; }
   amd_dbgapi_global_address_t kernel_entry_address () const;
-  bool scratch_enabled () const;
+  bool is_scratch_enabled () const;
 
   amd_dbgapi_status_t get_info (amd_dbgapi_dispatch_info_t query,
                                 size_t value_size, void *value) const;

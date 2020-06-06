@@ -41,9 +41,9 @@ class code_object_t : public detail::handle_object<amd_dbgapi_code_object_id_t>
 {
 public:
   code_object_t (amd_dbgapi_code_object_id_t code_object_id,
-                 process_t &process, const std::string &uri,
+                 process_t &process, std::string uri,
                  amd_dbgapi_global_address_t load_address)
-      : handle_object (code_object_id), m_uri (uri),
+      : handle_object (code_object_id), m_uri (std::move (uri)),
         m_load_address (load_address), m_process (process)
   {
   }

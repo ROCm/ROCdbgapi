@@ -186,7 +186,7 @@ wave_t::update (const wave_t &group_leader,
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
 
-      if (dispatch ().scratch_enabled ())
+      if (dispatch ().is_scratch_enabled ())
         {
           uint32_t scratch_offset;
           status = read_register (amdgpu_regnum_t::TTMP13, &scratch_offset);
@@ -306,27 +306,27 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
 }
 
 bool
-wave_t::register_available (amdgpu_regnum_t regnum) const
+wave_t::is_register_available (amdgpu_regnum_t regnum) const
 {
   return register_offset_and_size (regnum, false).second != 0;
 }
 
-std::string
+utils::optional<std::string>
 wave_t::register_name (amdgpu_regnum_t regnum) const
 {
-  if (!register_available (regnum))
-    return "";
+  if (is_register_available (regnum))
+    return architecture ().register_name (regnum);
 
-  return architecture ().register_name (regnum);
+  return {};
 }
 
-std::string
+utils::optional<std::string>
 wave_t::register_type (amdgpu_regnum_t regnum) const
 {
-  if (!register_available (regnum))
-    return "";
+  if (is_register_available (regnum))
+    return architecture ().register_type (regnum);
 
-  return architecture ().register_type (regnum);
+  return {};
 }
 
 std::pair<size_t, size_t>
@@ -532,7 +532,7 @@ wave_t::xfer_private_memory_swizzled (
     amd_dbgapi_segment_address_t segment_address, amd_dbgapi_lane_id_t lane_id,
     void *read, const void *write, size_t *size)
 {
-  if (!dispatch ().scratch_enabled ())
+  if (!dispatch ().is_scratch_enabled ())
     return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
 
   amd_dbgapi_size_t limit = queue ().scratch_backing_memory_size ();
@@ -599,7 +599,7 @@ wave_t::xfer_private_memory_unswizzled (
     amd_dbgapi_segment_address_t segment_address, void *read,
     const void *write, size_t *size)
 {
-  if (!dispatch ().scratch_enabled ())
+  if (!dispatch ().is_scratch_enabled ())
     return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
 
   amd_dbgapi_size_t limit = queue ().scratch_backing_memory_size ();

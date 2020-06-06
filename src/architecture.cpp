@@ -699,7 +699,7 @@ amdgcn_architecture_t::read_pseudo_register (const wave_t &wave,
                  && regnum <= amdgpu_regnum_t::LAST_PSEUDO);
 
   auto raw_regnum = pseudo_to_raw_regnum (wave, regnum);
-  if (!raw_regnum.has_value ())
+  if (!raw_regnum)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
   if (wave.lane_count () == 32
@@ -707,8 +707,7 @@ amdgcn_architecture_t::read_pseudo_register (const wave_t &wave,
           || regnum == amdgpu_regnum_t::VCC_32
           || regnum == amdgpu_regnum_t::XNACK_MASK_32))
     {
-      return wave.read_register (raw_regnum.value (), offset, value_size,
-                                 value);
+      return wave.read_register (*raw_regnum, offset, value_size, value);
     }
 
   /* Read registers that are lo/hi pairs.  pseudo_to_raw_regnum () returned
@@ -720,7 +719,7 @@ amdgcn_architecture_t::read_pseudo_register (const wave_t &wave,
               || regnum == amdgpu_regnum_t::VCC_64
               || regnum == amdgpu_regnum_t::XNACK_MASK_64)))
     {
-      amdgpu_regnum_t regnum_lo = raw_regnum.value ();
+      amdgpu_regnum_t regnum_lo = *raw_regnum;
       amdgpu_regnum_t regnum_hi = regnum_lo + 1;
       uint32_t reg[2];
 
@@ -776,7 +775,7 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
                  && regnum <= amdgpu_regnum_t::LAST_PSEUDO);
 
   auto raw_regnum = pseudo_to_raw_regnum (wave, regnum);
-  if (!raw_regnum.has_value ())
+  if (!raw_regnum)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
   if (wave.lane_count () == 32
@@ -784,8 +783,7 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
           || regnum == amdgpu_regnum_t::VCC_32
           || regnum == amdgpu_regnum_t::XNACK_MASK_32))
     {
-      return wave.write_register (raw_regnum.value (), offset, value_size,
-                                  value);
+      return wave.write_register (*raw_regnum, offset, value_size, value);
     }
 
   /* Write registers that are lo/hi pairs.  pseudo_to_raw_regnum () returned
@@ -797,7 +795,7 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
               || regnum == amdgpu_regnum_t::VCC_64
               || regnum == amdgpu_regnum_t::XNACK_MASK_64)))
     {
-      amdgpu_regnum_t regnum_lo = raw_regnum.value ();
+      amdgpu_regnum_t regnum_lo = *raw_regnum;
       amdgpu_regnum_t regnum_hi = regnum_lo + 1;
       uint32_t reg[2];
 
@@ -1980,7 +1978,7 @@ architecture_t::register_set () const
   return all_registers;
 }
 
-std::string
+utils::optional<std::string>
 architecture_t::register_name (amdgpu_regnum_t regnum) const
 {
   if (regnum >= amdgpu_regnum_t::FIRST_SGPR
@@ -2029,7 +2027,7 @@ architecture_t::register_name (amdgpu_regnum_t regnum) const
           return string_printf ("ttmp%ld",
                                 regnum - amdgpu_regnum_t::FIRST_TTMP);
         default:
-          return "";
+          return {};
         }
     }
   if (regnum >= amdgpu_regnum_t::FIRST_HWREG
@@ -2046,7 +2044,7 @@ architecture_t::register_name (amdgpu_regnum_t regnum) const
         case amdgpu_regnum_t::MODE:
           return "mode";
         default:
-          return "";
+          return {};
         }
     }
   if (regnum == amdgpu_regnum_t::PC)
@@ -2072,11 +2070,10 @@ architecture_t::register_name (amdgpu_regnum_t regnum) const
     {
       return "flat_scratch";
     }
-
-  return "";
+  return {};
 }
 
-std::string
+utils::optional<std::string>
 architecture_t::register_type (amdgpu_regnum_t regnum) const
 {
   /* Vector registers (arch and acc).  */
@@ -2133,8 +2130,7 @@ architecture_t::register_type (amdgpu_regnum_t regnum) const
     {
       return "uint64_t";
     }
-
-  return "";
+  return {};
 }
 
 namespace detail

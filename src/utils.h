@@ -34,6 +34,10 @@
 #include <utility>
 #include <vector>
 
+#if __cplusplus >= 201703L
+#include <optional>
+#endif /* __cplusplus >= 201703L */
+
 #define TRY                                                                   \
   try                                                                         \
     {
@@ -286,7 +290,11 @@ amd_dbgapi_status_t get_handle_list (amd_dbgapi_process_id_t process_id,
                                      typename Object::handle_type **objects,
                                      amd_dbgapi_changed_t *changed);
 
-/* Minimal implementation of std::optional. std::optional requires C++17.  */
+#if __cplusplus >= 201703L
+template <typename T> using optional = std::optional<T>;
+#else  /* __cplusplus < 201703L */
+
+/* Minimal implementation of std::optional.  */
 template <typename T> class optional
 {
   optional &operator= (const optional &) = delete;
@@ -297,48 +305,45 @@ public:
 
   optional (const optional &rhs) : m_dummy ()
   {
-    if (rhs.m_instantiated)
-      {
-        ::new (&m_object) T (rhs.m_object);
-        m_instantiated = true;
-      }
+    if (rhs)
+      emplace (*rhs);
   }
   optional (optional &&rhs) : m_dummy ()
   {
-    if (rhs.m_instantiated)
-      {
-        ::new (&m_object) T (std::move (rhs.m_object));
-        m_instantiated = true;
-      }
+    if (rhs)
+      emplace (std::move (*rhs));
   }
-  optional (T &&rhs)
+  template <typename U = T,
+            std::enable_if_t<std::is_constructible<T, U &&>::value, int> = 0>
+  optional (U &&rhs) : m_dummy ()
   {
-    ::new (&m_object) T (std::move (rhs));
-    m_instantiated = true;
+    emplace (std::move (rhs));
   }
 
   ~optional () { reset (); }
 
-  explicit constexpr operator bool () const { return m_instantiated; }
   constexpr bool has_value () const { return m_instantiated; }
+  constexpr explicit operator bool () const { return has_value (); }
 
   constexpr T const &value () const &
   {
-    dbgapi_assert (m_instantiated && "bad optional access");
+    dbgapi_assert (has_value () && "bad optional access");
     return m_object;
   }
-
   constexpr T &value () &
   {
-    dbgapi_assert (m_instantiated && "bad optional access");
+    dbgapi_assert (has_value () && "bad optional access");
     return m_object;
   }
-
   constexpr T &&value () &&
   {
-    dbgapi_assert (m_instantiated && "bad optional access");
+    dbgapi_assert (has_value () && "bad optional access");
     return std::move (m_object);
   }
+
+  constexpr T const &operator* () const & { return m_object; }
+  constexpr T &operator* () & { return m_object; }
+  constexpr T &&operator* () && { return std::move (m_object); }
 
   template <typename... Args> T &emplace (Args &&... args)
   {
@@ -368,6 +373,7 @@ private:
     T m_object;
   };
 };
+#endif /* __cplusplus < 201703L */
 
 } /* namespace utils */
 
@@ -544,14 +550,14 @@ public:
   file_desc_t read_fd () const
   {
     dbgapi_assert (is_valid () && "this pipe is not valid");
-    return m_pipe_fd.value ()[0];
+    return (*m_pipe_fd)[0];
   }
 
   /* Return the write-end file descriptor of the pipe.  */
   file_desc_t write_fd () const
   {
     dbgapi_assert (is_valid () && "this pipe is not valid");
-    return m_pipe_fd.value ()[1];
+    return (*m_pipe_fd)[1];
   }
 
   /* Write a single char, '+', to the pipe.  Return 0 if successful, errno

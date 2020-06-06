@@ -89,7 +89,7 @@ agent_t::disable_debug_trap ()
 
   m_supported_trap_mask = {};
 
-  ::close (m_poll_fd.value ());
+  ::close (*m_poll_fd);
   m_poll_fd.reset ();
 
   return status;
@@ -180,7 +180,7 @@ agent_t::insert_watchpoint (const watchpoint_t &watchpoint,
 {
   utils::optional<os_watch_mode_t> os_watch_mode
       = architecture ().watchpoint_mode (watchpoint.kind ());
-  if (!os_watch_mode.has_value ())
+  if (!os_watch_mode)
     {
       /* This agent does not support the requested watchpoint kind.  */
       return AMD_DBGAPI_STATUS_ERROR_NO_WATCHPOINT_AVAILABLE;
@@ -188,7 +188,7 @@ agent_t::insert_watchpoint (const watchpoint_t &watchpoint,
 
   os_watch_id_t os_watch_id;
   amd_dbgapi_status_t status = process ().os_driver ().set_address_watch (
-      gpu_id (), adjusted_address, adjusted_mask, os_watch_mode.value (),
+      gpu_id (), adjusted_address, adjusted_mask, *os_watch_mode,
       &os_watch_id);
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;

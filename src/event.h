@@ -59,7 +59,7 @@ public:
 
   amd_dbgapi_event_kind_t kind () const { return m_event_kind; }
 
-  void processed ();
+  void set_processed ();
 
   amd_dbgapi_status_t get_info (amd_dbgapi_event_info_t query,
                                 size_t value_size, void *value) const;

@@ -171,13 +171,13 @@ amd_dbgapi_architecture_register_get_info (
     {
     case AMD_DBGAPI_REGISTER_INFO_NAME:
       {
-        std::string name = architecture->register_name (
+        auto name = architecture->register_name (
             static_cast<amdgpu_regnum_t> (register_id.handle));
 
-        if (name.empty ())
+        if (!name)
           return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
-        return utils::get_info (value_size, value, name);
+        return utils::get_info (value_size, value, *name);
       }
 
     default:
@@ -457,20 +457,20 @@ amd_dbgapi_wave_register_get_info (amd_dbgapi_process_id_t process_id,
     {
     case AMD_DBGAPI_REGISTER_INFO_NAME:
       {
-        std::string name = wave->register_name (regnum);
-        if (name.empty ())
+        auto name = wave->register_name (regnum);
+        if (!name)
           return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
-        return utils::get_info (value_size, value, name);
+        return utils::get_info (value_size, value, *name);
       }
 
     case AMD_DBGAPI_REGISTER_INFO_TYPE:
       {
-        std::string type = wave->register_type (regnum);
-        if (type.empty ())
+        auto type = wave->register_type (regnum);
+        if (!type)
           return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
-        return utils::get_info (value_size, value, type);
+        return utils::get_info (value_size, value, *type);
       }
 
     case AMD_DBGAPI_REGISTER_INFO_SIZE:
@@ -514,18 +514,18 @@ amd_dbgapi_wave_register_list (amd_dbgapi_process_id_t process_id,
   if (!wave)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
 
-  auto arch_registers = wave->architecture ().register_set ();
+  auto architecture_registers = wave->architecture ().register_set ();
   auto *retval = static_cast<amd_dbgapi_register_id_t *> (allocate_memory (
-      arch_registers.size () * sizeof (amd_dbgapi_register_id_t)));
+      architecture_registers.size () * sizeof (amd_dbgapi_register_id_t)));
 
   if (!retval)
     return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
 
   size_t count = 0;
-  for (auto it = arch_registers.begin (); it != arch_registers.end (); ++it)
-    if (wave->register_available (*it))
+  for (auto &&_register : architecture_registers)
+    if (wave->is_register_available (_register))
       retval[count++] = amd_dbgapi_register_id_t{
-        static_cast<decltype (amd_dbgapi_register_id_t::handle)> (*it)
+        static_cast<decltype (amd_dbgapi_register_id_t::handle)> (_register)
       };
 
   *register_count = count;

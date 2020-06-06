@@ -143,7 +143,7 @@ event_t::pretty_printer_string () const
 }
 
 void
-event_t::processed ()
+event_t::set_processed ()
 {
   if (kind () == AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED)
     {
@@ -406,7 +406,7 @@ amd_dbgapi_event_processed (amd_dbgapi_process_id_t process_id,
   if (!event)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID;
 
-  event->processed ();
+  event->set_processed ();
 
   /* We are done with this event, remove it from the map.  */
   process->destroy (event);

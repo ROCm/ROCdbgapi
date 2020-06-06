@@ -59,8 +59,8 @@ public:
 
   file_desc_t poll_fd () const
   {
-    dbgapi_assert (m_poll_fd.has_value ());
-    return m_poll_fd.value ();
+    dbgapi_assert (m_poll_fd && "poll_fd is not initialized");
+    return *m_poll_fd;
   }
 
   std::atomic<bool> &os_event_notifier () { return m_os_event_notifier; }

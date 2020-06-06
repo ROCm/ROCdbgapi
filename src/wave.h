@@ -154,8 +154,8 @@ public:
     return m_stop_reason;
   }
 
-  std::string register_name (amdgpu_regnum_t regnum) const;
-  std::string register_type (amdgpu_regnum_t regnum) const;
+  utils::optional<std::string> register_name (amdgpu_regnum_t regnum) const;
+  utils::optional<std::string> register_type (amdgpu_regnum_t regnum) const;
 
   bool is_register_cached (amdgpu_regnum_t regnum) const
   {
@@ -167,7 +167,8 @@ public:
                    && regnum <= amdgpu_regnum_t::LAST_HWREG));
   }
 
-  bool register_available (amdgpu_regnum_t regnum) const;
+  bool is_register_available (amdgpu_regnum_t regnum) const;
+
   std::pair<size_t, size_t>
   register_offset_and_size (amdgpu_regnum_t regnum,
                             bool include_aliased_registers = true) const;

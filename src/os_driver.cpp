@@ -54,7 +54,7 @@ public:
 
   virtual bool is_valid () const override
   {
-    return os_driver_t::is_valid () && m_proc_mem_fd.has_value ();
+    return os_driver_t::is_valid () && m_proc_mem_fd;
   }
 
   virtual amd_dbgapi_status_t
@@ -68,11 +68,11 @@ private:
 linux_driver_t::linux_driver_t (utils::optional<amd_dbgapi_os_pid_t> os_pid)
     : os_driver_t (std::move (os_pid))
 {
-  if (!m_os_pid.has_value ())
+  if (!m_os_pid)
     return;
 
   /* Open the /proc/pid/mem file for this process.  */
-  std::string filename = string_printf ("/proc/%d/mem", m_os_pid.value ());
+  std::string filename = string_printf ("/proc/%d/mem", *m_os_pid);
   int fd = ::open (filename.c_str (), O_RDWR | O_LARGEFILE | O_CLOEXEC, 0);
   if (fd == -1)
     {
@@ -88,8 +88,8 @@ linux_driver_t::linux_driver_t (utils::optional<amd_dbgapi_os_pid_t> os_pid)
 
 linux_driver_t::~linux_driver_t ()
 {
-  if (m_proc_mem_fd.has_value ())
-    ::close (m_proc_mem_fd.value ());
+  if (m_proc_mem_fd)
+    ::close (*m_proc_mem_fd);
 }
 
 amd_dbgapi_status_t
@@ -100,8 +100,8 @@ linux_driver_t::xfer_global_memory_partial (
   dbgapi_assert (!read != !write && "either read or write buffer");
   dbgapi_assert (is_valid ());
 
-  ssize_t ret = read ? pread (m_proc_mem_fd.value (), read, *size, address)
-                     : pwrite (m_proc_mem_fd.value (), write, *size, address);
+  ssize_t ret = read ? pread (*m_proc_mem_fd, read, *size, address)
+                     : pwrite (*m_proc_mem_fd, write, *size, address);
 
   if (ret < 0 && errno != EIO && errno != EINVAL)
     warning ("process_t::xfer_memory failed: %s", strerror (errno));
@@ -157,7 +157,7 @@ public:
 
   virtual bool is_valid () const override
   {
-    return linux_driver_t::is_valid () && s_kfd_fd.has_value ();
+    return linux_driver_t::is_valid () && s_kfd_fd;
   }
 
   virtual amd_dbgapi_status_t check_version () const override;
@@ -233,7 +233,7 @@ kfd_driver_t::open_kfd ()
           return;
         }
 
-      dbgapi_assert (!s_kfd_fd.has_value () && "kfd_fd is already open");
+      dbgapi_assert (!s_kfd_fd && "kfd_fd is already open");
       s_kfd_fd.emplace (fd);
     }
 }
@@ -246,7 +246,7 @@ kfd_driver_t::close_kfd ()
   /* The last call to close_kfd closes the KFD device.  */
   if (!--s_kfd_open_count)
     {
-      if (s_kfd_fd.has_value () && ::close (s_kfd_fd.value ()))
+      if (s_kfd_fd && ::close (*s_kfd_fd))
         error ("failed to close s_kfd_fd");
 
       s_kfd_fd.reset ();
@@ -259,10 +259,10 @@ kfd_driver_t::kfd_dbg_trap_ioctl (uint32_t action,
 {
   dbgapi_assert (is_valid ());
 
-  args->pid = m_os_pid.value ();
+  args->pid = *m_os_pid;
   args->op = action;
 
-  int ret = ::ioctl (s_kfd_fd.value (), AMDKFD_IOC_DBG_TRAP, args);
+  int ret = ::ioctl (*s_kfd_fd, AMDKFD_IOC_DBG_TRAP, args);
   if (ret < 0 && errno == ESRCH)
     {
       /* TODO: Should we tear down the process now, so that any operation
@@ -280,7 +280,7 @@ kfd_driver_t::check_version () const
 
   /* Check that the KFD major == IOCTL major, and KFD minor >= IOCTL minor.  */
   kfd_ioctl_get_version_args get_version_args{};
-  if (::ioctl (s_kfd_fd.value (), AMDKFD_IOC_GET_VERSION, &get_version_args)
+  if (::ioctl (*s_kfd_fd, AMDKFD_IOC_GET_VERSION, &get_version_args)
       || get_version_args.major_version != KFD_IOCTL_MAJOR_VERSION
       || get_version_args.minor_version < KFD_IOCTL_MINOR_VERSION)
     {
@@ -298,7 +298,7 @@ kfd_driver_t::check_version () const
   dbg_trap_args.pid = static_cast<uint32_t> (getpid ());
   dbg_trap_args.op = KFD_IOC_DBG_TRAP_GET_VERSION;
 
-  int err = ::ioctl (s_kfd_fd.value (), AMDKFD_IOC_DBG_TRAP, &dbg_trap_args);
+  int err = ::ioctl (*s_kfd_fd, AMDKFD_IOC_DBG_TRAP, &dbg_trap_args);
   if (err == -ESRCH)
     return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
   else if (err < 0)
