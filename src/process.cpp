@@ -43,6 +43,7 @@
 #include <limits>
 #include <list>
 #include <memory>
+#include <optional>
 #include <string>
 #include <thread>
 #include <utility>
@@ -55,15 +56,7 @@
 #include <signal.h>
 #include <unistd.h>
 
-#if defined(__GNUC__)
-#define __maybe_unused__ __attribute__ ((unused))
-#else /* !defined(__GNUC__) */
-#define __maybe_unused__
-#endif /* !defined(__GNUC__) */
-
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 class dispatch_t;
@@ -75,7 +68,7 @@ process_t::process_t (amd_dbgapi_client_process_id_t client_process_id,
                       amd_dbgapi_process_id_t process_id)
     : m_process_id (process_id), m_client_process_id (client_process_id),
       m_os_driver (os_driver_t::create ([this] () {
-        utils::optional<amd_dbgapi_os_pid_t> os_pid;
+        std::optional<amd_dbgapi_os_pid_t> os_pid;
 
         amd_dbgapi_os_pid_t value;
         if (get_os_pid (&value) == AMD_DBGAPI_STATUS_SUCCESS)
@@ -824,7 +817,7 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues) const
     error ("os_driver::suspend_queues failed (rc=%d)", ret);
 
   size_t num_suspended_queues = ret;
-  bool __maybe_unused__ invalid_queue_seen = false;
+  [[maybe_unused]] bool invalid_queue_seen = false;
   for (size_t i = 0; i < queue_ids.size (); ++i)
     {
       /* Some queues may have failed to suspend because they are the
@@ -883,7 +876,7 @@ process_t::resume_queues (const std::vector<queue_t *> &queues) const
     error ("os_driver::resume_queues failed (rc=%d)", ret);
 
   size_t num_resumed_queues = ret;
-  bool __maybe_unused__ invalid_queue_seen = false;
+  [[maybe_unused]] bool invalid_queue_seen = false;
   for (size_t i = 0; i < queue_ids.size (); ++i)
     {
       /* Some queues may have failed to resume because they are the
@@ -949,7 +942,7 @@ process_t::update_queues ()
       snapshots.resize (std::min (queue_count, snapshot_count));
       for (auto &&queue_info : snapshots)
         {
-          utils::optional<amd_dbgapi_queue_id_t> queue_id;
+          std::optional<amd_dbgapi_queue_id_t> queue_id;
 
           /* Find the queue by matching its os_queue_id with the one
              returned by the ioctl.  */
@@ -1571,8 +1564,7 @@ process_t::dequeue_event ()
   return next_event;
 }
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 using namespace amd::dbgapi;
 

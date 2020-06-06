@@ -30,13 +30,12 @@
 
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 /* ROCm Register class.  */
@@ -77,8 +76,7 @@ register_class_t::get_info (amd_dbgapi_register_class_info_t query,
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 using namespace amd::dbgapi;
 
@@ -369,7 +367,7 @@ amd_dbgapi_read_register (amd_dbgapi_process_id_t process_id,
 
   amdgpu_regnum_t regnum = static_cast<amdgpu_regnum_t> (register_id.handle);
 
-  utils::optional<scoped_queue_suspend_t> suspend;
+  std::optional<scoped_queue_suspend_t> suspend;
 
   if (!wave->is_register_cached (regnum))
     {

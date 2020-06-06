@@ -32,13 +32,12 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <unistd.h>
 #include <utility>
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 agent_t::agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
@@ -209,7 +208,7 @@ agent_t::insert_watchpoint (const watchpoint_t &watchpoint,
                             amd_dbgapi_global_address_t adjusted_address,
                             amd_dbgapi_global_address_t adjusted_mask)
 {
-  utils::optional<os_watch_mode_t> os_watch_mode
+  std::optional<os_watch_mode_t> os_watch_mode
       = architecture ().watchpoint_mode (watchpoint.kind ());
   if (!os_watch_mode)
     {
@@ -313,8 +312,7 @@ agent_t::get_info (amd_dbgapi_agent_info_t query, size_t value_size,
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 using namespace amd::dbgapi;
 

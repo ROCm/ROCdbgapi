@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <tuple>
@@ -41,9 +42,7 @@
 
 #include <amd_comgr.h>
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 class displaced_stepping_t;
@@ -120,7 +119,7 @@ public:
   virtual size_t watchpoint_mask_bits () const = 0;
 
   /* Convert a watchpoint kind into this architecture address watch mode.  */
-  virtual utils::optional<os_watch_mode_t>
+  virtual std::optional<os_watch_mode_t>
   watchpoint_mode (amd_dbgapi_watchpoint_kind_t kind) const = 0;
 
   virtual amd_dbgapi_watchpoint_share_kind_t
@@ -154,7 +153,7 @@ public:
       wave_t &wave, displaced_stepping_t &displaced_stepping) const = 0;
 
   virtual amd_dbgapi_status_t
-  get_wave_coords (wave_t &wave, uint32_t (&group_ids)[3],
+  get_wave_coords (wave_t &wave, std::array<uint32_t, 3> &group_ids,
                    uint32_t *wave_in_group) const = 0;
 
   virtual amd_dbgapi_status_t
@@ -180,8 +179,8 @@ public:
   static const architecture_t *find (elf_amdgpu_machine_t elf_amdgpu_machine);
 
   std::set<amdgpu_regnum_t> register_set () const;
-  utils::optional<std::string> register_name (amdgpu_regnum_t regnum) const;
-  utils::optional<std::string> register_type (amdgpu_regnum_t regnum) const;
+  std::optional<std::string> register_name (amdgpu_regnum_t regnum) const;
+  std::optional<std::string> register_type (amdgpu_regnum_t regnum) const;
 
   virtual amd_dbgapi_status_t read_pseudo_register (const wave_t &wave,
                                                     amdgpu_regnum_t regnum,
@@ -265,7 +264,6 @@ private:
       s_architecture_map;
 };
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 #endif /* _AMD_DBGAPI_ARCHITECTURE_H */

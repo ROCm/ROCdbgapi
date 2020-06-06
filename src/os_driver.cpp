@@ -25,6 +25,7 @@
 #include <fstream>
 #include <limits>
 #include <new>
+#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -36,9 +37,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 namespace
@@ -49,7 +48,7 @@ namespace
 class linux_driver_t : public os_driver_t
 {
 public:
-  linux_driver_t (utils::optional<amd_dbgapi_os_pid_t> os_pid);
+  linux_driver_t (std::optional<amd_dbgapi_os_pid_t> os_pid);
   virtual ~linux_driver_t ();
 
   virtual bool is_valid () const override
@@ -62,10 +61,10 @@ public:
                               const void *write, size_t *size) const override;
 
 private:
-  utils::optional<file_desc_t> m_proc_mem_fd;
+  std::optional<file_desc_t> m_proc_mem_fd;
 };
 
-linux_driver_t::linux_driver_t (utils::optional<amd_dbgapi_os_pid_t> os_pid)
+linux_driver_t::linux_driver_t (std::optional<amd_dbgapi_os_pid_t> os_pid)
     : os_driver_t (std::move (os_pid))
 {
   if (!m_os_pid)
@@ -144,7 +143,7 @@ private:
                           kfd_ioctl_dbg_trap_args *args) const;
 
 public:
-  kfd_driver_t (utils::optional<amd_dbgapi_os_pid_t> os_pid)
+  kfd_driver_t (std::optional<amd_dbgapi_os_pid_t> os_pid)
       : linux_driver_t (std::move (os_pid))
   {
     open_kfd ();
@@ -207,14 +206,11 @@ public:
 
 private:
   static size_t s_kfd_open_count;
-  static utils::optional<file_desc_t> s_kfd_fd;
+  static std::optional<file_desc_t> s_kfd_fd;
 };
 
-constexpr kfd_driver_t::gfxip_lookup_table_t
-    kfd_driver_t::s_gfxip_lookup_table[];
-
 size_t kfd_driver_t::s_kfd_open_count{ 0 };
-utils::optional<file_desc_t> kfd_driver_t::s_kfd_fd;
+std::optional<file_desc_t> kfd_driver_t::s_kfd_fd;
 
 /* Open the KFD device. The file descriptor is reference counted, multiple
    calls to open_kfd are allowed, as long as the same number of open_kfd and
@@ -733,7 +729,7 @@ kfd_driver_t::set_wave_launch_trap_override (
 class no_agents_driver_t : public linux_driver_t
 {
 public:
-  no_agents_driver_t (utils::optional<amd_dbgapi_os_pid_t> os_pid)
+  no_agents_driver_t (std::optional<amd_dbgapi_os_pid_t> os_pid)
       : linux_driver_t (std::move (os_pid))
   {
   }
@@ -832,13 +828,13 @@ public:
 
 } /* namespace */
 
-os_driver_t::os_driver_t (utils::optional<amd_dbgapi_os_pid_t> os_pid)
+os_driver_t::os_driver_t (std::optional<amd_dbgapi_os_pid_t> os_pid)
     : m_os_pid (std::move (os_pid))
 {
 }
 
 std::unique_ptr<const os_driver_t>
-os_driver_t::create (utils::optional<amd_dbgapi_os_pid_t> os_pid)
+os_driver_t::create (std::optional<amd_dbgapi_os_pid_t> os_pid)
 {
   std::unique_ptr<const os_driver_t> os_driver{ new kfd_driver_t (os_pid) };
 
@@ -889,5 +885,4 @@ to_string (os_queue_status_t queue_status)
   return str;
 }
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */

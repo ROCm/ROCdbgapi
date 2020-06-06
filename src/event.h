@@ -26,10 +26,9 @@
 
 #include <cstddef>
 #include <string>
+#include <variant>
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 class process_t;
@@ -71,39 +70,37 @@ public:
 private:
   amd_dbgapi_event_kind_t const m_event_kind;
 
-  union
+  /* Breakpoint resume event.  */
+  struct breakpoint_resume_event_t
   {
-    /* Breakpoint resume event.  */
-    struct
-    {
-      amd_dbgapi_breakpoint_id_t breakpoint_id;
-      amd_dbgapi_client_thread_id_t client_thread_id;
-    } breakpoint_resume_event;
+    amd_dbgapi_breakpoint_id_t breakpoint_id;
+    amd_dbgapi_client_thread_id_t client_thread_id;
+  };
 
-    /* Code object list updated event.  */
-    struct
-    {
-      amd_dbgapi_event_id_t breakpoint_resume_event_id;
-    } code_object_list_updated_event;
+  /* Code object list updated event.  */
+  struct code_object_list_updated_event_t
+  {
+    amd_dbgapi_event_id_t breakpoint_resume_event_id;
+  };
 
-    /* Runtime event.  */
-    struct
-    {
-      amd_dbgapi_runtime_state_t runtime_state;
-    } runtime_event;
+  /* Runtime event.  */
+  struct runtime_event_t
+  {
+    amd_dbgapi_runtime_state_t runtime_state;
+  };
 
-    /* Wave stop / command terminated event .  */
-    struct
-    {
-      amd_dbgapi_wave_id_t wave_id;
-    } wave_event;
+  /* Wave stop / command terminated event .  */
+  struct wave_event_t
+  {
+    amd_dbgapi_wave_id_t wave_id;
+  };
 
-  } const m_data;
+  std::variant<breakpoint_resume_event_t, code_object_list_updated_event_t,
+               runtime_event_t, wave_event_t> const m_data;
 
   process_t &m_process;
 };
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 #endif /* _AMD_DBGAPI_EVENT_H */

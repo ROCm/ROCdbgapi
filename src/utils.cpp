@@ -35,9 +35,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 namespace utils
@@ -317,5 +315,4 @@ pipe_t::mark ()
   return ret == -1 ? -errno : 0;
 }
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */

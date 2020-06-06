@@ -34,6 +34,7 @@
 #include <cstdint>
 #include <cstring>
 #include <iomanip>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <string>
@@ -45,15 +46,7 @@
 #include <amd_comgr.h>
 #include <ctype.h>
 
-#if defined(__GNUC__)
-#define __maybe_unused__ __attribute__ ((unused))
-#else /* !defined(__GNUC__) */
-#define __maybe_unused__
-#endif /* !defined(__GNUC__) */
-
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 constexpr uint32_t SQ_WAVE_STATUS_SCC_MASK = (1 << 0);
@@ -89,13 +82,13 @@ constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_INEXACT_MASK = 1 << 5;
 constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_INT_DIV0_MASK = 1 << 6;
 constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_ADDR_WATCH0_MASK = 1 << 7;
 constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_MEM_VIOL_MASK = 1 << 8;
-constexpr uint32_t __maybe_unused__ SQ_WAVE_TRAPSTS_SAVECTX_MASK = 1 << 10;
+constexpr uint32_t [[maybe_unused]] SQ_WAVE_TRAPSTS_SAVECTX_MASK = 1 << 10;
 constexpr uint32_t SQ_WAVE_TRAPSTS_ILLEGAL_INST_MASK = 1 << 11;
 constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_HI_ADDR_WATCH1_MASK = 1 << 12;
 constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_HI_ADDR_WATCH2_MASK = 1 << 13;
 constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_HI_ADDR_WATCH3_MASK = 1 << 14;
 
-constexpr uint32_t __maybe_unused__ SQ_WAVE_TRAPSTS_XNACK_ERROR_MASK = 1 << 28;
+constexpr uint32_t [[maybe_unused]] SQ_WAVE_TRAPSTS_XNACK_ERROR_MASK = 1 << 28;
 
 monotonic_counter_t<decltype (amd_dbgapi_architecture_id_t::handle)>
     architecture_t::s_next_architecture_id{ 1 };
@@ -146,7 +139,7 @@ public:
 
   virtual size_t watchpoint_count () const override { return 4; };
 
-  utils::optional<os_watch_mode_t>
+  std::optional<os_watch_mode_t>
   watchpoint_mode (amd_dbgapi_watchpoint_kind_t kind) const override;
 
   virtual std::vector<os_watch_id_t>
@@ -163,7 +156,7 @@ public:
       wave_t &wave, displaced_stepping_t &displaced_stepping) const override;
 
   virtual amd_dbgapi_status_t
-  get_wave_coords (wave_t &wave, uint32_t (&group_ids)[3],
+  get_wave_coords (wave_t &wave, std::array<uint32_t, 3> &group_ids,
                    uint32_t *wave_in_group) const override;
 
   virtual amd_dbgapi_status_t
@@ -190,7 +183,7 @@ public:
 
   /* Return the raw regnum for a given pseudo register.  For pseudo-registers
      that map to 2 consecutive raw registers, return the lower register.  */
-  virtual utils::optional<amdgpu_regnum_t>
+  virtual std::optional<amdgpu_regnum_t>
   pseudo_to_raw_regnum (const wave_t &wave, amdgpu_regnum_t regnum) const;
 
   virtual amd_dbgapi_status_t
@@ -269,7 +262,7 @@ amdgcn_architecture_t::initialize ()
   /* Create address spaces.  */
 
   auto &as_global = create<address_space_t> (
-      utils::make_optional (AMD_DBGAPI_ADDRESS_SPACE_GLOBAL), "global",
+      std::make_optional (AMD_DBGAPI_ADDRESS_SPACE_GLOBAL), "global",
       address_space_t::GLOBAL, DW_ASPACE_none, 64, 0x0000000000000000,
       AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
@@ -427,7 +420,7 @@ address_space_for_generic_address (
    other than LOCAL, PRIVATE_SWIZZLED or GLOBAL is invalid, and an error is
    returned.  The queue_t is used to retrieve the apertures.
  */
-std::pair<amd_dbgapi_segment_address_t, bool>
+std::optional<amd_dbgapi_segment_address_t>
 generic_address_for_address_space (
     const wave_t &wave, const address_space_t &segment_address_space,
     amd_dbgapi_segment_address_t segment_address)
@@ -440,15 +433,15 @@ generic_address_for_address_space (
     aperture = wave.queue ().private_address_space_aperture ();
   else if (segment_address_space.kind () != address_space_t::GLOBAL)
     /* not a valid address space conversion.  */
-    return std::make_pair (segment_address_space.null_address (), false);
+    return {};
 
   if (segment_address == segment_address_space.null_address ())
-    return std::make_pair (segment_address_space.null_address (), true);
+    return segment_address_space.null_address ();
 
   segment_address
       &= utils::bit_mask (0, segment_address_space.address_size () - 1);
 
-  return std::make_pair (aperture | segment_address, true);
+  return aperture | segment_address;
 }
 
 } /* namespace */
@@ -497,13 +490,12 @@ amdgcn_architecture_t::convert_address_space (
   if (to_address_space.kind () != address_space_t::GENERIC)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION;
 
-  bool valid_conversion;
-  std::tie (*to_address, valid_conversion)
-      = generic_address_for_address_space (wave, from_address_space,
-                                           from_address);
-  if (!valid_conversion)
+  auto generic_address = generic_address_for_address_space (
+      wave, from_address_space, from_address);
+  if (!generic_address)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION;
 
+  *to_address = *generic_address;
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
@@ -651,7 +643,7 @@ amdgcn_architecture_t::triggered_watchpoints (const wave_t &wave) const
   return watchpoints;
 }
 
-utils::optional<amdgpu_regnum_t>
+std::optional<amdgpu_regnum_t>
 amdgcn_architecture_t::pseudo_to_raw_regnum (const wave_t &wave,
                                              amdgpu_regnum_t regnum) const
 {
@@ -1174,7 +1166,7 @@ bool
 amdgcn_architecture_t::displaced_stepping_fixup (
     wave_t &wave, displaced_stepping_t &displaced_stepping) const
 {
-  __maybe_unused__ const std::vector<uint8_t> &original_instruction
+  [[maybe_unused]] const std::vector<uint8_t> &original_instruction
       = displaced_stepping.original_instruction ();
 
   dbgapi_assert (
@@ -1197,7 +1189,8 @@ amdgcn_architecture_t::displaced_stepping_fixup (
 }
 
 amd_dbgapi_status_t
-amdgcn_architecture_t::get_wave_coords (wave_t &wave, uint32_t (&group_ids)[3],
+amdgcn_architecture_t::get_wave_coords (wave_t &wave,
+                                        std::array<uint32_t, 3> &group_ids,
                                         uint32_t *wave_in_group) const
 {
   amd_dbgapi_status_t status;
@@ -1742,7 +1735,7 @@ amdgcn_architecture_t::is_cbranch_i_fork (
   return (encoding & 0xFF800000) == 0xB8000000;
 }
 
-utils::optional<os_watch_mode_t>
+std::optional<os_watch_mode_t>
 amdgcn_architecture_t::watchpoint_mode (
     amd_dbgapi_watchpoint_kind_t kind) const
 {
@@ -1875,12 +1868,12 @@ public:
     return utils::bit_mask (7, 29);
   }
 
-  utils::optional<amdgpu_regnum_t>
+  std::optional<amdgpu_regnum_t>
   pseudo_to_raw_regnum (const wave_t &wave,
                         amdgpu_regnum_t regnum) const override;
 };
 
-utils::optional<amdgpu_regnum_t>
+std::optional<amdgpu_regnum_t>
 gfx10_base_t::pseudo_to_raw_regnum (const wave_t &wave,
                                     amdgpu_regnum_t regnum) const
 {
@@ -1988,7 +1981,7 @@ architecture_t::register_set () const
   return all_registers;
 }
 
-utils::optional<std::string>
+std::optional<std::string>
 architecture_t::register_name (amdgpu_regnum_t regnum) const
 {
   if (regnum >= amdgpu_regnum_t::FIRST_SGPR
@@ -2083,7 +2076,7 @@ architecture_t::register_name (amdgpu_regnum_t regnum) const
   return {};
 }
 
-utils::optional<std::string>
+std::optional<std::string>
 architecture_t::register_type (amdgpu_regnum_t regnum) const
 {
   /* Vector registers (arch and acc).  */
@@ -2323,8 +2316,7 @@ decltype (
   }()
 };
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 using namespace amd::dbgapi;
 

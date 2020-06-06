@@ -30,9 +30,7 @@
 
 #include <hsa/amd_hsa_kernel_code.h>
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 dispatch_t::dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id, queue_t &queue,
@@ -147,8 +145,7 @@ dispatch_t::get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 using namespace amd::dbgapi;
 

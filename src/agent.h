@@ -29,12 +29,11 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <unordered_map>
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 class architecture_t;
@@ -89,17 +88,16 @@ public:
 
 private:
   os_agent_snapshot_entry_t const m_os_agent_info;
-  utils::optional<file_desc_t> m_event_poll_fd;
+  std::optional<file_desc_t> m_event_poll_fd;
   std::atomic<bool> m_os_event_notifier{ false };
 
-  utils::optional<os_wave_launch_trap_mask_t> m_supported_trap_mask;
+  std::optional<os_wave_launch_trap_mask_t> m_supported_trap_mask;
   std::unordered_map<os_watch_id_t, const watchpoint_t *> m_watchpoint_map;
 
   const architecture_t &m_architecture;
   process_t &m_process;
 };
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 #endif /* _AMD_DBGAPI_AGENT_H */

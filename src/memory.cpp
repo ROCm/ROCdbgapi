@@ -28,9 +28,9 @@
 #include "utils.h"
 #include "wave.h"
 
-namespace amd
-{
-namespace dbgapi
+#include <optional>
+
+namespace amd::dbgapi
 {
 
 class agent_t;
@@ -71,8 +71,7 @@ address_space_t::get_info (amd_dbgapi_address_space_info_t query,
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 using namespace amd::dbgapi;
 
@@ -456,7 +455,7 @@ amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
                                              &address_space, segment_address,
                                              &segment_address);
 
-  utils::optional<scoped_queue_suspend_t> suspend;
+  std::optional<scoped_queue_suspend_t> suspend;
   if (address_space->kind () == address_space_t::LOCAL)
     {
       suspend.emplace (wave->queue ());
@@ -517,7 +516,7 @@ amd_dbgapi_write_memory (amd_dbgapi_process_id_t process_id,
                                              &address_space, segment_address,
                                              &segment_address);
 
-  utils::optional<scoped_queue_suspend_t> suspend;
+  std::optional<scoped_queue_suspend_t> suspend;
   if (address_space->kind () == address_space_t::LOCAL)
     {
       /* FIXME: How can we optimize this?  */

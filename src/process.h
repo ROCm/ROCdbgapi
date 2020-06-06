@@ -55,9 +55,7 @@
 #define TRACE_CALLBACK(prefix, ...)                                           \
   tracer __tracer__##__COUNTER__ { "[callback]", __FUNCTION__, ##__VA_ARGS__ }
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 extern std::list<class process_t *> process_list;
@@ -393,7 +391,6 @@ log_message (amd_dbgapi_log_level_t level, const char *message)
 
 #undef TRACE_CALLBACK
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 #endif /* _AMD_DBGAPI_PROCESS_H */

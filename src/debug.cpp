@@ -33,9 +33,7 @@
 #include <backtrace.h>
 #endif /* defined (HAVE_BACKTRACE_H) */
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 #if defined(ENABLE_BACKTRACE)
 namespace detail
@@ -148,5 +146,4 @@ error (const char *format, ...)
   throw exception_t (AMD_DBGAPI_STATUS_FATAL, message);
 }
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */

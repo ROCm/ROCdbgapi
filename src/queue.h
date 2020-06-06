@@ -34,9 +34,7 @@
 #include <utility>
 #include <vector>
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 class architecture_t;
@@ -190,7 +188,6 @@ public:
   queue_t *m_queue;
 };
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 #endif /* _AMD_DBGAPI_QUEUE_H */

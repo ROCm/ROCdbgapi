@@ -34,6 +34,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -44,13 +45,8 @@
 #define __UNUSED__
 #endif /* !defined(__GNUC__) */
 
-namespace amd
+namespace amd::dbgapi
 {
-namespace dbgapi
-{
-
-/* These are ODR-used by operator==.  */
-constexpr amd_dbgapi_wave_id_t wave_t::undefined;
 
 wave_t::wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t &dispatch,
                 size_t vgpr_count, size_t accvgpr_count, size_t sgpr_count,
@@ -311,7 +307,7 @@ wave_t::is_register_available (amdgpu_regnum_t regnum) const
   return register_offset_and_size (regnum, false).second != 0;
 }
 
-utils::optional<std::string>
+std::optional<std::string>
 wave_t::register_name (amdgpu_regnum_t regnum) const
 {
   if (is_register_available (regnum))
@@ -320,7 +316,7 @@ wave_t::register_name (amdgpu_regnum_t regnum) const
   return {};
 }
 
-utils::optional<std::string>
+std::optional<std::string>
 wave_t::register_type (amdgpu_regnum_t regnum) const
 {
   if (is_register_available (regnum))
@@ -447,8 +443,7 @@ amd_dbgapi_status_t
 wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
                        size_t value_size, void *value) const
 {
-  size_t reg_offset, reg_size;
-  std::tie (reg_offset, reg_size) = register_offset_and_size (regnum);
+  auto [reg_offset, reg_size] = register_offset_and_size (regnum);
 
   if (!reg_size)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
@@ -494,8 +489,7 @@ amd_dbgapi_status_t
 wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
                         size_t value_size, const void *value)
 {
-  size_t reg_offset, reg_size;
-  std::tie (reg_offset, reg_size) = register_offset_and_size (regnum);
+  auto [reg_offset, reg_size] = register_offset_and_size (regnum);
 
   if (!reg_size)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
@@ -770,8 +764,7 @@ wave_t::get_info (amd_dbgapi_wave_info_t query, size_t value_size,
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 using namespace amd::dbgapi;
 

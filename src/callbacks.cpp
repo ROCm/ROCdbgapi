@@ -29,9 +29,7 @@
 #include <string>
 #include <utility>
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 shared_library_t::shared_library_t (amd_dbgapi_shared_library_id_t library_id,
@@ -96,8 +94,7 @@ breakpoint_t::~breakpoint_t ()
     }
 }
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 using namespace amd::dbgapi;
 

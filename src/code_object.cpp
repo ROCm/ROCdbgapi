@@ -25,9 +25,7 @@
 #include "process.h"
 #include "utils.h"
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 amd_dbgapi_status_t
@@ -45,8 +43,7 @@ code_object_t::get_info (amd_dbgapi_code_object_info_t query,
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 using namespace amd::dbgapi;
 

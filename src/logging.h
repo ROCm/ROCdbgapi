@@ -37,9 +37,7 @@
     }                                                                         \
   while (0)
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 namespace detail
 {
@@ -200,7 +198,6 @@ tracer::tracer (const char *prefix, const char *function, Args &&... args)
               to_string (args...).c_str ());
 }
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 #endif /* _AMD_DBGAPI_LOGGING_H */

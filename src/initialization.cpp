@@ -27,16 +27,13 @@
 #include <cstddef>
 #include <list>
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 amd_dbgapi_callbacks_s process_callbacks;
 bool is_initialized = false;
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 using namespace amd::dbgapi;
 

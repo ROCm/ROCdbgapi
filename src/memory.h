@@ -29,9 +29,7 @@
 #include <string>
 #include <utility>
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 /* AMDGPU DWARF Address Class Mapping
@@ -136,7 +134,6 @@ private:
   const address_space_t &m_address_space;
 };
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 #endif /* _AMD_DBGAPI_MEMORY_H */

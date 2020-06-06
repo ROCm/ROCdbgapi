@@ -29,6 +29,7 @@
 #include <cstring>
 #include <functional>
 #include <new>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -84,9 +85,7 @@
 #define FOR_EACH(FUNCTION, DELIM, ...)                                        \
   FOR_EACH_N (FUNCTION, DELIM, ARGS_COUNT (__VA_ARGS__), __VA_ARGS__)
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 using epoch_t = uint64_t;
@@ -230,13 +229,11 @@ using first_argument_of_t
 namespace detail
 {
 
-template <typename...> using void_t = void;
-
 template <typename AlwaysVoid, template <typename...> class Op,
           typename... Args>
 struct detector : std::false_type
 {
-  static_assert (std::is_same<AlwaysVoid, void>::value, "must be void");
+  static_assert (std::is_same_v<AlwaysVoid, void>, "must be void");
   struct type
   {
     type () = delete;
@@ -245,7 +242,7 @@ struct detector : std::false_type
 };
 
 template <template <typename...> class Op, typename... Args>
-struct detector<void_t<Op<Args...>>, Op, Args...> : std::true_type
+struct detector<std::void_t<Op<Args...>>, Op, Args...> : std::true_type
 {
   using type = Op<Args...>;
 };
@@ -289,98 +286,6 @@ amd_dbgapi_status_t get_handle_list (amd_dbgapi_process_id_t process_id,
                                      size_t *count,
                                      typename Object::handle_type **objects,
                                      amd_dbgapi_changed_t *changed);
-
-#if __cplusplus >= 201703L
-template <typename T> using optional = std::optional<T>;
-#else  /* __cplusplus < 201703L */
-
-/* Minimal implementation of std::optional.  */
-template <typename T> class optional
-{
-  optional &operator= (const optional &) = delete;
-  optional &operator= (optional &&) = delete;
-
-public:
-  optional () : m_dummy () {}
-
-  optional (const optional &rhs) : m_dummy ()
-  {
-    if (rhs)
-      emplace (*rhs);
-  }
-  optional (optional &&rhs) : m_dummy ()
-  {
-    if (rhs)
-      emplace (std::move (*rhs));
-  }
-  template <typename U = T,
-            std::enable_if_t<std::is_constructible<T, U &&>::value, int> = 0>
-  optional (U &&rhs) : m_dummy ()
-  {
-    emplace (std::move (rhs));
-  }
-
-  ~optional () { reset (); }
-
-  constexpr bool has_value () const { return m_instantiated; }
-  constexpr explicit operator bool () const { return has_value (); }
-
-  constexpr T const &value () const &
-  {
-    dbgapi_assert (has_value () && "bad optional access");
-    return m_object;
-  }
-  constexpr T &value () &
-  {
-    dbgapi_assert (has_value () && "bad optional access");
-    return m_object;
-  }
-  constexpr T &&value () &&
-  {
-    dbgapi_assert (has_value () && "bad optional access");
-    return std::move (m_object);
-  }
-
-  constexpr T const &operator* () const & { return m_object; }
-  constexpr T &operator* () & { return m_object; }
-  constexpr T &&operator* () && { return std::move (m_object); }
-
-  template <typename... Args> T &emplace (Args &&... args)
-  {
-    /* Only support setting to a value once, and do not support setting back to
-       undefined.  */
-    dbgapi_assert (!m_instantiated && "not supported");
-
-    ::new (&m_object) T (std::forward<Args> (args)...);
-    m_instantiated = true;
-    return m_object;
-  }
-
-  void reset ()
-  {
-    if (m_instantiated)
-      m_object.~T ();
-    m_instantiated = false;
-  }
-
-private:
-  bool m_instantiated{ false };
-  union
-  {
-    struct
-    {
-    } m_dummy;
-    T m_object;
-  };
-};
-#endif /* __cplusplus < 201703L */
-
-template <typename T>
-constexpr optional<std::decay_t<T>>
-make_optional (T &&value)
-{
-  return optional<std::decay_t<T>> (std::forward<T> (value));
-}
 
 } /* namespace utils */
 
@@ -513,8 +418,7 @@ template <> struct is_flag<amd_dbgapi_queue_error_reason_t> : std::true_type
 template <typename Type, typename WrapAroundCheck = std::greater<Type>>
 class monotonic_counter_t
 {
-  static_assert (std::is_integral<Type>::value
-                     && std::is_unsigned<Type>::value,
+  static_assert (std::is_integral_v<Type> && std::is_unsigned_v<Type>,
                  "Type is not an unsigned integral type");
 
 public:
@@ -576,10 +480,9 @@ public:
   int flush ();
 
 private:
-  utils::optional<std::array<file_desc_t, 2>> m_pipe_fd;
+  std::optional<std::array<file_desc_t, 2>> m_pipe_fd;
 };
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 #endif /* _AMD_DBGAPI_UTILS_H */

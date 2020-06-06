@@ -40,9 +40,7 @@
 #include <tuple>
 #include <type_traits>
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 using utils::bit_extract;
@@ -965,8 +963,7 @@ scoped_queue_suspend_t::~scoped_queue_suspend_t ()
     error ("process::resume_queues failed");
 }
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 using namespace amd::dbgapi;
 

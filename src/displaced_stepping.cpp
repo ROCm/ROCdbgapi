@@ -32,9 +32,7 @@
 #include <cstdint>
 #include <cstring>
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 displaced_stepping_t::displaced_stepping_t (
@@ -115,8 +113,7 @@ displaced_stepping_t::complete (wave_t &wave)
     }
 }
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 using namespace amd::dbgapi;
 
@@ -185,7 +182,7 @@ amd_dbgapi_displaced_stepping_start (
 
     amd_dbgapi_status_t status
         = process
-              ->create<displaced_stepping_t> (utils::make_optional (id),
+              ->create<displaced_stepping_t> (std::make_optional (id),
                                               wave->queue (), wave->pc (),
                                               saved_instruction_bytes)
               .start (*wave);

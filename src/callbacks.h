@@ -27,9 +27,7 @@
 #include <functional>
 #include <string>
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 class process_t;
@@ -93,7 +91,6 @@ private:
   const shared_library_t &m_shared_library;
 };
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 #endif /* _AMD_DBGAPI_CALLBACKS_H */

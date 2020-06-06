@@ -30,9 +30,7 @@
 #include <string>
 #include <utility>
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 /* ROCm Registers  */
@@ -207,7 +205,6 @@ private:
   register_map_t const m_register_map;
 };
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 #endif /* _AMD_DBGAPI_REGISTER_H */

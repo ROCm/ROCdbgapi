@@ -25,9 +25,7 @@
 #include <cstdarg>
 #include <string>
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 amd_dbgapi_log_level_t log_level = AMD_DBGAPI_LOG_LEVEL_NONE;
@@ -831,8 +829,7 @@ to_string (amd_dbgapi_breakpoint_action_t breakpoint_action)
 
 #undef CASE
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 void AMD_DBGAPI
 amd_dbgapi_set_log_level (amd_dbgapi_log_level_t level)

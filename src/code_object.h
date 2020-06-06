@@ -28,9 +28,7 @@
 #include <cstddef>
 #include <string>
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 class process_t;
@@ -68,7 +66,6 @@ private:
   process_t &m_process;
 };
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 #endif /* _AMD_DBGAPI_CODE_OBJECT_H */

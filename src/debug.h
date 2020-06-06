@@ -40,9 +40,7 @@
   amd::dbgapi::error ("%s:%d: Should not reach here: " message, __FILE__,     \
                       __LINE__)
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 /* AMD Debugger API exception.  */
@@ -76,7 +74,6 @@ __attribute__ ((format (printf, 1, 2)))
 #endif /* defined (__GNUC__) */
 ;
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 #endif /* _AMD_DBGAPI_DEBUG_H */

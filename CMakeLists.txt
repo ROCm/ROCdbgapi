@@ -18,7 +18,7 @@
 ## FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 ## IN THE SOFTWARE.
 
-cmake_minimum_required(VERSION 3.2.0)
+cmake_minimum_required(VERSION 3.8)
 
 project(AMD_DBGAPI VERSION 0.28.1)
 
@@ -41,7 +41,7 @@ file(GLOB SOURCES "src/*.cpp")
 add_library(amd-dbgapi SHARED ${SOURCES})
 
 set_target_properties(amd-dbgapi PROPERTIES
-  CXX_STANDARD 14
+  CXX_STANDARD 17
   CXX_STANDARD_REQUIRED ON
   CXX_EXTENSIONS OFF
   OUTPUT_NAME "rocm-dbgapi"

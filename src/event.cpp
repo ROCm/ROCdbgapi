@@ -34,11 +34,10 @@
 #include <atomic>
 #include <iterator>
 #include <string>
+#include <utility>
 #include <vector>
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 /* Breakpoint resume event.  */
@@ -46,10 +45,8 @@ event_t::event_t (amd_dbgapi_event_id_t event_id, process_t &process,
                   amd_dbgapi_event_kind_t event_kind,
                   amd_dbgapi_breakpoint_id_t breakpoint_id,
                   amd_dbgapi_client_thread_id_t client_thread_id)
-    : handle_object (event_id),
-      m_event_kind (event_kind), m_data{ .breakpoint_resume_event
-                                         = { breakpoint_id,
-                                             client_thread_id } },
+    : handle_object (event_id), m_event_kind (event_kind),
+      m_data (breakpoint_resume_event_t{ breakpoint_id, client_thread_id }),
       m_process (process)
 {
   dbgapi_assert (event_kind == AMD_DBGAPI_EVENT_KIND_BREAKPOINT_RESUME
@@ -60,9 +57,8 @@ event_t::event_t (amd_dbgapi_event_id_t event_id, process_t &process,
 event_t::event_t (amd_dbgapi_event_id_t event_id, process_t &process,
                   amd_dbgapi_event_kind_t event_kind,
                   amd_dbgapi_event_id_t breakpoint_resume_event_id)
-    : handle_object (event_id),
-      m_event_kind (event_kind), m_data{ .code_object_list_updated_event
-                                         = { breakpoint_resume_event_id } },
+    : handle_object (event_id), m_event_kind (event_kind),
+      m_data (code_object_list_updated_event_t{ breakpoint_resume_event_id }),
       m_process (process)
 {
   dbgapi_assert (event_kind == AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED
@@ -73,9 +69,8 @@ event_t::event_t (amd_dbgapi_event_id_t event_id, process_t &process,
 event_t::event_t (amd_dbgapi_event_id_t event_id, process_t &process,
                   amd_dbgapi_event_kind_t event_kind,
                   amd_dbgapi_runtime_state_t runtime_state)
-    : handle_object (event_id),
-      m_event_kind (event_kind), m_data{ .runtime_event = { runtime_state } },
-      m_process (process)
+    : handle_object (event_id), m_event_kind (event_kind),
+      m_data (runtime_event_t{ runtime_state }), m_process (process)
 {
   dbgapi_assert (event_kind == AMD_DBGAPI_EVENT_KIND_RUNTIME
                  && "check event kind");
@@ -85,9 +80,8 @@ event_t::event_t (amd_dbgapi_event_id_t event_id, process_t &process,
 event_t::event_t (amd_dbgapi_event_id_t event_id, process_t &process,
                   amd_dbgapi_event_kind_t event_kind,
                   amd_dbgapi_wave_id_t wave_id)
-    : handle_object (event_id),
-      m_event_kind (event_kind), m_data{ .wave_event = { wave_id } },
-      m_process (process)
+    : handle_object (event_id), m_event_kind (event_kind),
+      m_data (wave_event_t{ wave_id }), m_process (process)
 {
   dbgapi_assert (
       (event_kind == AMD_DBGAPI_EVENT_KIND_WAVE_STOP
@@ -105,11 +99,12 @@ event_t::pretty_printer_string () const
 
     case AMD_DBGAPI_EVENT_KIND_WAVE_STOP:
       {
-        wave_t *wave = process ().find (m_data.wave_event.wave_id);
+        wave_t *wave
+            = process ().find (std::get<wave_event_t> (m_data).wave_id);
         if (!wave)
           return string_printf (
               "EVENT_KIND_WAVE_STOP for terminated %s",
-              to_string (m_data.wave_event.wave_id).c_str ());
+              to_string (std::get<wave_event_t> (m_data).wave_id).c_str ());
         else
           return string_printf (
               "EVENT_KIND_WAVE_STOP for %s on %s (pc=%#lx, stop_reason=%s)",
@@ -121,7 +116,7 @@ event_t::pretty_printer_string () const
     case AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED:
       return string_printf (
           "EVENT_KIND_WAVE_COMMAND_TERMINATED for terminated %s",
-          to_string (m_data.wave_event.wave_id).c_str ());
+          to_string (std::get<wave_event_t> (m_data).wave_id).c_str ());
 
     case AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED:
       return "EVENT_KIND_CODE_OBJECT_LIST_UPDATED";
@@ -129,12 +124,15 @@ event_t::pretty_printer_string () const
     case AMD_DBGAPI_EVENT_KIND_BREAKPOINT_RESUME:
       return string_printf (
           "EVENT_KIND_BREAKPOINT_RESUME for %s",
-          to_string (m_data.breakpoint_resume_event.breakpoint_id).c_str ());
+          to_string (
+              std::get<breakpoint_resume_event_t> (m_data).breakpoint_id)
+              .c_str ());
 
     case AMD_DBGAPI_EVENT_KIND_RUNTIME:
       return string_printf (
           "EVENT_KIND_RUNTIME state=%s",
-          to_string (m_data.runtime_event.runtime_state).c_str ());
+          to_string (std::get<runtime_event_t> (m_data).runtime_state)
+              .c_str ());
 
     case AMD_DBGAPI_EVENT_KIND_QUEUE_ERROR:
     default:
@@ -148,7 +146,8 @@ event_t::set_processed ()
   if (kind () == AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED)
     {
       amd_dbgapi_event_id_t event_id
-          = m_data.code_object_list_updated_event.breakpoint_resume_event_id;
+          = std::get<code_object_list_updated_event_t> (m_data)
+                .breakpoint_resume_event_id;
 
       /* Code object updates that are not initiated by the r_brk breakpoint
          callback do not have a breakpoint resume event.  */
@@ -175,28 +174,31 @@ event_t::get_info (amd_dbgapi_event_info_t query, size_t value_size,
           && kind () != AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED)
         return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
-      return utils::get_info (value_size, value, m_data.wave_event.wave_id);
+      return utils::get_info (value_size, value,
+                              std::get<wave_event_t> (m_data).wave_id);
 
     case AMD_DBGAPI_EVENT_INFO_BREAKPOINT:
       if (kind () != AMD_DBGAPI_EVENT_KIND_BREAKPOINT_RESUME)
         return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
-      return utils::get_info (value_size, value,
-                              m_data.breakpoint_resume_event.breakpoint_id);
+      return utils::get_info (
+          value_size, value,
+          std::get<breakpoint_resume_event_t> (m_data).breakpoint_id);
 
     case AMD_DBGAPI_EVENT_INFO_CLIENT_THREAD:
       if (kind () != AMD_DBGAPI_EVENT_KIND_BREAKPOINT_RESUME)
         return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
-      return utils::get_info (value_size, value,
-                              m_data.breakpoint_resume_event.client_thread_id);
+      return utils::get_info (
+          value_size, value,
+          std::get<breakpoint_resume_event_t> (m_data).client_thread_id);
 
     case AMD_DBGAPI_EVENT_INFO_RUNTIME_STATE:
       if (kind () != AMD_DBGAPI_EVENT_KIND_RUNTIME)
         return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
-      return utils::get_info (value_size, value,
-                              m_data.runtime_event.runtime_state);
+      return utils::get_info (
+          value_size, value, std::get<runtime_event_t> (m_data).runtime_state);
 
     case AMD_DBGAPI_EVENT_INFO_RUNTIME_VERSION:
       return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
@@ -204,8 +206,7 @@ event_t::get_info (amd_dbgapi_event_info_t query, size_t value_size,
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 using namespace amd::dbgapi;
 

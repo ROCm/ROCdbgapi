@@ -32,14 +32,13 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 class architecture_t;
@@ -125,10 +124,7 @@ public:
   }
   amd_dbgapi_size_t local_memory_size () const { return m_local_memory_size; }
 
-  auto group_ids () const
-  {
-    return std::tie (m_group_ids[0], m_group_ids[1], m_group_ids[2]);
-  }
+  auto group_ids () const { return m_group_ids; }
 
   uint64_t exec_mask () const;
   amd_dbgapi_global_address_t pc () const;
@@ -154,8 +150,8 @@ public:
     return m_stop_reason;
   }
 
-  utils::optional<std::string> register_name (amdgpu_regnum_t regnum) const;
-  utils::optional<std::string> register_type (amdgpu_regnum_t regnum) const;
+  std::optional<std::string> register_name (amdgpu_regnum_t regnum) const;
+  std::optional<std::string> register_type (amdgpu_regnum_t regnum) const;
 
   bool is_register_cached (amdgpu_regnum_t regnum) const
   {
@@ -227,7 +223,7 @@ private:
   amd_dbgapi_global_address_t m_saved_pc{ 0 };
   bool m_parked{ false };
 
-  uint32_t m_group_ids[3];
+  std::array<uint32_t, 3> m_group_ids;
   uint32_t m_wave_in_group;
 
   amd_dbgapi_global_address_t m_context_save_address{ 0 };
@@ -238,7 +234,6 @@ private:
   dispatch_t &m_dispatch;
 };
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 #endif /* _AMD_DBGAPI_WAVE_H */

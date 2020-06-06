@@ -31,9 +31,7 @@
 
 #include <hsa/hsa.h>
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 class architecture_t;
@@ -87,7 +85,6 @@ private:
   queue_t &m_queue;
 };
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 #endif /* _AMD_DBGAPI_DISPATCH_H */

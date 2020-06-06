@@ -21,14 +21,11 @@
 #ifndef _AMD_DBGAPI_INITIALIZATION_H
 #define _AMD_DBGAPI_INITIALIZATION_H 1
 
-namespace amd
-{
-namespace dbgapi
+namespace amd::dbgapi
 {
 
 extern bool is_initialized;
 
-} /* namespace dbgapi */
-} /* namespace amd */
+} /* namespace amd::dbgapi */
 
 #endif /* _AMD_DBGAPI_INITIALIZATION_H */
