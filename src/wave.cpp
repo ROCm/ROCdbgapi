@@ -295,7 +295,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
 
       m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
 
-      dbgapi_assert (visibility_t () == visibility_t::VISIBLE
+      dbgapi_assert (visibility () == visibility_t::VISIBLE
                      && "cannot set the state of an hidden wave");
 
       process ().enqueue_event (process ().create<event_t> (
