@@ -1423,7 +1423,13 @@ amdgcn_architecture_t::get_wave_state (
               uint16_t trap_id;
 
               if (!is_trap (instruction, &trap_id))
-                error ("trap_raised should only be set for trap instructions");
+                {
+                  /* FIXME: We should be getting the stop reason from the trap
+                     handler.  As a workaround, assume the the trap_id is of a
+                     breakpoint instruction, that could have been removed by
+                     the debugger since the trap was raised.  */
+                  trap_id = 7;
+                }
 
               switch (trap_id)
                 {
