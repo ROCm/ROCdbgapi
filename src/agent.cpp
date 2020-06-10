@@ -54,45 +54,55 @@ agent_t::~agent_t ()
   dbgapi_assert (m_watchpoint_map.empty ()
                  && "there should not be any active watchpoints left");
 
-  if (debug_trap_enabled ())
-    disable_debug_trap ();
+  if (is_debug_mode_enabled ())
+    disable_debug_mode ();
 }
 
 amd_dbgapi_status_t
-agent_t::enable_debug_trap ()
+agent_t::enable_debug_mode ()
 {
-  dbgapi_assert (!debug_trap_enabled () && "debug_trap is already enabled");
+  dbgapi_assert (!is_debug_mode_enabled () && "debug_mode is already enabled");
   file_desc_t fd;
 
   amd_dbgapi_status_t status
-      = process ().os_driver ().enable_debug_trap (gpu_id (), &fd);
+      = process ().os_driver ().enable_debug_trap (os_agent_id (), &fd);
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
 
-  m_poll_fd.emplace (fd);
+  m_event_poll_fd.emplace (fd);
 
-  /* Query the agent's supported trap mask.  */
-  os_wave_launch_trap_mask_t ignored;
-  return process ().os_driver ().set_wave_launch_trap_override (
-      gpu_id (), os_wave_launch_trap_override_t::OR,
-      os_wave_launch_trap_mask_t::NONE, os_wave_launch_trap_mask_t::NONE,
-      &ignored, &m_supported_trap_mask);
+  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 amd_dbgapi_status_t
-agent_t::disable_debug_trap ()
+agent_t::disable_debug_mode ()
 {
-  dbgapi_assert (debug_trap_enabled () && "debug_trap is not enabled");
+  dbgapi_assert (is_debug_mode_enabled () && "debug_mode is not enabled");
 
   amd_dbgapi_status_t status
-      = process ().os_driver ().disable_debug_trap (gpu_id ());
+      = process ().os_driver ().disable_debug_trap (os_agent_id ());
 
-  m_supported_trap_mask = {};
+  m_supported_trap_mask.reset ();
 
-  ::close (*m_poll_fd);
-  m_poll_fd.reset ();
+  ::close (*m_event_poll_fd);
+  m_event_poll_fd.reset ();
 
   return status;
+}
+
+void
+agent_t::set_pending_events ()
+{
+  m_os_event_notifier.store (true, std::memory_order_release);
+}
+
+bool
+agent_t::has_pending_events ()
+{
+  /* Use an atomic exchange here since the value may be updated by
+     set_pending_events invoked by another thread (e.g. the
+     process_event_thread).  */
+  return m_os_event_notifier.exchange (false, std::memory_order_acquire);
 }
 
 amd_dbgapi_status_t
@@ -107,7 +117,7 @@ agent_t::next_os_event (amd_dbgapi_queue_id_t *queue_id,
       os_queue_id_t os_queue_id;
 
       amd_dbgapi_status_t status = process.os_driver ().query_debug_event (
-          gpu_id (), &os_queue_id, os_queue_status);
+          os_agent_id (), &os_queue_id, os_queue_status);
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
 
@@ -173,6 +183,27 @@ agent_t::next_os_event (amd_dbgapi_queue_id_t *queue_id,
     }
 }
 
+os_wave_launch_trap_mask_t
+agent_t::supported_trap_mask ()
+{
+  dbgapi_assert (is_debug_mode_enabled () && "debug_mode is not enabled");
+
+  if (!m_supported_trap_mask)
+    {
+      os_wave_launch_trap_mask_t trap_mask, ignored;
+      if (process ().os_driver ().set_wave_launch_trap_override (
+              os_agent_id (), os_wave_launch_trap_override_t::OR,
+              os_wave_launch_trap_mask_t::NONE,
+              os_wave_launch_trap_mask_t::NONE, &ignored, &trap_mask)
+          != AMD_DBGAPI_STATUS_SUCCESS)
+        return {};
+
+      m_supported_trap_mask.emplace (trap_mask);
+    }
+
+  return *m_supported_trap_mask;
+}
+
 amd_dbgapi_status_t
 agent_t::insert_watchpoint (const watchpoint_t &watchpoint,
                             amd_dbgapi_global_address_t adjusted_address,
@@ -188,7 +219,7 @@ agent_t::insert_watchpoint (const watchpoint_t &watchpoint,
 
   os_watch_id_t os_watch_id;
   amd_dbgapi_status_t status = process ().os_driver ().set_address_watch (
-      gpu_id (), adjusted_address, adjusted_mask, *os_watch_mode,
+      os_agent_id (), adjusted_address, adjusted_mask, *os_watch_mode,
       &os_watch_id);
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
@@ -221,8 +252,8 @@ agent_t::remove_watchpoint (const watchpoint_t &watchpoint)
 
   os_watch_id_t os_watch_id = it->first;
 
-  amd_dbgapi_status_t status
-      = process ().os_driver ().clear_address_watch (gpu_id (), os_watch_id);
+  amd_dbgapi_status_t status = process ().os_driver ().clear_address_watch (
+      os_agent_id (), os_watch_id);
   if (status != AMD_DBGAPI_STATUS_SUCCESS
       && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
     return status;

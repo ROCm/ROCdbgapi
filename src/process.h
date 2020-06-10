@@ -74,7 +74,7 @@ public:
   enum class flag_t : uint32_t
   {
     /* Enable the device debug mode when updating the agents.  */
-    ENABLE_AGENT_DEBUG_TRAP = 1 << 0,
+    ENABLE_AGENT_DEBUG_MODE = 1 << 0,
     /* Require the NEW_QUEUE bit to be set when a queue_id is reported for the
        first time by kfd to this process. When attaching to an already running
        process, a missing NEW_BIT may be ignored as it could have been cleared

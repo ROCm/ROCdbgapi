@@ -328,7 +328,7 @@ process_t::set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode)
   for (auto &&agent : range<agent_t> ())
     {
       amd_dbgapi_status_t status = os_driver ().set_wave_launch_mode (
-          agent.gpu_id (), wave_launch_mode);
+          agent.os_agent_id (), wave_launch_mode);
       if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
         return status;
       else if (status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -395,7 +395,7 @@ process_t::set_wave_launch_trap_override (os_wave_launch_trap_mask_t mask,
       os_wave_launch_trap_mask_t ignored;
 
       amd_dbgapi_status_t status = os_driver ().set_wave_launch_trap_override (
-          agent.gpu_id (), os_wave_launch_trap_override_t::OR, mask, bits,
+          agent.os_agent_id (), os_wave_launch_trap_override_t::OR, mask, bits,
           &ignored, &ignored);
 
       if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
@@ -477,7 +477,7 @@ process_t::update_agents ()
   for (auto &&agent_info : agent_infos)
     {
       agent_t *agent = find_if ([&] (const agent_t &a) {
-        return a.gpu_id () == agent_info.os_agent_id;
+        return a.os_agent_id () == agent_info.os_agent_id;
       });
 
       const architecture_t *architecture
@@ -485,7 +485,7 @@ process_t::update_agents ()
 
       if (!architecture)
         {
-          warning ("gpu_id %d: e_machine %x architecture not supported.",
+          warning ("os_agent_id %d: e_machine %x architecture not supported.",
                    agent_info.os_agent_id, agent_info.e_machine);
           continue;
         }
@@ -495,37 +495,38 @@ process_t::update_agents ()
                                   *architecture, /* architecture  */
                                   agent_info);   /* os_agent_info  */
 
-      if (is_flag_set (flag_t::ENABLE_AGENT_DEBUG_TRAP)
-          && !agent->debug_trap_enabled ())
+      if (is_flag_set (flag_t::ENABLE_AGENT_DEBUG_MODE)
+          && !agent->is_debug_mode_enabled ())
         {
-          amd_dbgapi_status_t status = agent->enable_debug_trap ();
+          amd_dbgapi_status_t status = agent->enable_debug_mode ();
           if (status != AMD_DBGAPI_STATUS_SUCCESS
               && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
             /* FIXME: We could not enable the debug mode for this agent.
                Another process may already have enabled debug mode for the
                same agent.  Remove this when KFD supports concurrent
                debugging on the same agent.  */
-            error ("Could not enable debugging on gpu_id %d (rc=%d)",
-                   agent->gpu_id (), status);
+            error ("Could not enable debugging on os_agent_id %d (rc=%d)",
+                   agent->os_agent_id (), status);
         }
-      else if (!is_flag_set (flag_t::ENABLE_AGENT_DEBUG_TRAP)
-               && agent->debug_trap_enabled ())
+      else if (!is_flag_set (flag_t::ENABLE_AGENT_DEBUG_MODE)
+               && agent->is_debug_mode_enabled ())
         {
-          amd_dbgapi_status_t status = agent->disable_debug_trap ();
+          amd_dbgapi_status_t status = agent->disable_debug_mode ();
           if (status != AMD_DBGAPI_STATUS_SUCCESS
               && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-            error ("Could not disable debugging on gpu_id %d (rc=%d)",
-                   agent->gpu_id (), status);
+            error ("Could not disable debugging on os_agent_id %d (rc=%d)",
+                   agent->os_agent_id (), status);
         }
 
-      if (agent->debug_trap_enabled ())
+      if (agent->is_debug_mode_enabled ())
         {
           amd_dbgapi_status_t status = os_driver ().set_wave_launch_mode (
-              agent->gpu_id (), m_wave_launch_mode);
+              agent->os_agent_id (), m_wave_launch_mode);
           if (status != AMD_DBGAPI_STATUS_SUCCESS
               && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-            error ("Could not set the wave launch mode for gpu_id %d (rc=%d).",
-                   agent->gpu_id (), status);
+            error ("Could not set the wave launch mode for os_agent_id %d "
+                   "(rc=%d).",
+                   agent->os_agent_id (), status);
         }
     }
 
@@ -535,7 +536,7 @@ process_t::update_agents ()
     if (std::find_if (
             agent_infos.begin (), agent_infos.end (),
             [&] (const decltype (agent_infos)::value_type &agent_info) {
-              return it->gpu_id () == agent_info.os_agent_id;
+              return it->os_agent_id () == agent_info.os_agent_id;
             })
         == agent_infos.end ())
       it = destroy (it);
@@ -1021,7 +1022,7 @@ process_t::update_queues ()
 
           /* Find the agent for this queue. */
           agent_t *agent = find_if ([&] (const agent_t &x) {
-            return x.gpu_id () == queue_info.gpu_id;
+            return x.os_agent_id () == queue_info.gpu_id;
           });
 
           /* TODO: investigate when this could happen, e.g. the debugger
@@ -1169,7 +1170,7 @@ process_t::attach ()
     amd_dbgapi_status_t status;
 
     /* Now that the ROCr is loaded, enable the debug trap on all devices.  */
-    set_flag (flag_t::ENABLE_AGENT_DEBUG_TRAP);
+    set_flag (flag_t::ENABLE_AGENT_DEBUG_MODE);
 
     status = update_agents ();
     if (status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -1292,7 +1293,7 @@ process_t::attach ()
         .clear ();
 
     /* Disable the debug trap on all devices.  */
-    clear_flag (flag_t::ENABLE_AGENT_DEBUG_TRAP);
+    clear_flag (flag_t::ENABLE_AGENT_DEBUG_MODE);
 
     amd_dbgapi_status_t status = update_agents ();
     if (status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -1324,80 +1325,72 @@ process_t::attach ()
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
-static void
-event_thread_loop (std::vector<file_desc_t> file_descriptors,
-                   std::vector<std::atomic<bool> *> notifiers,
-                   pipe_t client_notifier_pipe, pipe_t event_thread_exit_pipe,
-                   std::promise<void> thread_exception)
+namespace
 {
-  std::vector<struct pollfd> poll_fds;
 
-  poll_fds.reserve (file_descriptors.size ());
-  std::transform (file_descriptors.begin (), file_descriptors.end (),
-                  std::back_inserter (poll_fds), [] (file_desc_t fd) {
-                    return pollfd{ fd, POLLIN, 0 };
+void
+process_event_thread (
+    std::vector<std::pair<file_desc_t, std::function<void ()>>> input,
+    pipe_t event_thread_exit_pipe, std::promise<void> thread_exception)
+{
+  bool event_thread_exit{ false };
+
+  /* Add the read end of the event_thread_exit_pipe to the monitored fds. This
+     pipe is marked when the event thread needs to terminate.  */
+  input.emplace_back (event_thread_exit_pipe.read_fd (),
+                      [&] () { event_thread_exit = true; });
+
+  std::vector<struct pollfd> fds;
+  fds.reserve (input.size ());
+
+  std::transform (input.begin (), input.end (), std::back_inserter (fds),
+                  [] (auto entry) {
+                    return pollfd{ entry.first, POLLIN, 0 };
                   });
 
   try
     {
-      while (true)
+      do
         {
-          bool process_has_events = false;
-          int ret;
-
-          ret = poll (poll_fds.data (), poll_fds.size (), -1);
+          int ret = poll (fds.data (), fds.size (), -1);
 
           if (ret == -1 && errno != EINTR)
             error ("poll: %s", strerror (errno));
           else if (ret <= 0)
             continue;
 
-          /* Check and flush the KFD event pipes.  */
-          const size_t count = poll_fds.size ();
-          for (size_t i = 0; i < count; ++i)
+          /* Check the file descriptors for data ready to read.  */
+          for (size_t i = 0; i < fds.size (); ++i)
             {
-              struct pollfd &poll_fd = poll_fds[i];
+              struct pollfd &fd = fds[i];
 
-              if (!(poll_fd.revents & POLLIN))
+              if (!(fd.revents & POLLIN))
                 continue;
 
-              /* If the exit pipe has data, the process is about to be
-                 destroyed and we must exit this thread.  */
-              if (poll_fd.fd == event_thread_exit_pipe.read_fd ())
-                {
-                  event_thread_exit_pipe.flush ();
-                  return;
-                }
-
-              /* Consume all the data in the event pipe, and set
-                 the notifier.  */
+              /* flush the event pipe, ...  */
               do
                 {
                   char buf;
-                  ret = read (poll_fd.fd, &buf, 1);
+                  ret = read (fd.fd, &buf, 1);
                 }
               while (ret >= 0 || (ret == -1 && errno == EINTR));
 
               if (ret == -1 && errno != EAGAIN)
                 error ("read: %s", strerror (errno));
 
-              dbgapi_assert (notifiers[i]);
-              notifiers[i]->store (true, std::memory_order_relaxed);
-
-              process_has_events = true;
+              /* ... and invoke the event notifier callback.  */
+              (input[i].second) ();
             }
-
-          /* If we read any byte from the KFD event pipes, then notify the
-             client application that this process has some pending events.  */
-          if (process_has_events)
-            client_notifier_pipe.mark ();
         }
+      while (!event_thread_exit);
     }
   catch (...)
     {
       thread_exception.set_exception (std::current_exception ());
     }
 }
+
+} /* namespace */
 
 amd_dbgapi_status_t
 process_t::start_event_thread ()
@@ -1432,32 +1425,31 @@ process_t::start_event_thread ()
      processes are attached or detached so that the list of polled file
      descriptors is updated.  */
 
-  std::vector<file_desc_t> file_descriptors;
-  std::vector<std::atomic<bool> *> notifiers;
+  /* The input to the event thread loop is a vector of file descriptors to
+     monitor (read end of the pipe created by the os_driver), and associated
+     callbacks to invoke when data is present in the pipe.  The os_driver will
+     write to the pipe when an event for an agent is pending, causing the event
+     thread to wake up and invoke the callback for that agent.  */
+  std::vector<std::pair<file_desc_t, std::function<void ()>>> file_descriptors;
+  file_descriptors.reserve (count<agent_t> ());
 
   for (auto &&agent : range<agent_t> ())
-    {
-      file_descriptors.emplace_back (agent.poll_fd ());
-      notifiers.emplace_back (&agent.os_event_notifier ());
-    }
-
-  /* Then add the read end of the exit_pipe.  */
-  file_descriptors.emplace_back (m_event_thread_exit_pipe.read_fd ());
-  notifiers.emplace_back (nullptr);
+    file_descriptors.emplace_back (agent.event_poll_fd (), [&agent, this] () {
+      agent.set_pending_events ();
+      m_client_notifier_pipe.mark ();
+    });
 
   std::promise<void> event_thread_exception;
   m_event_thread_exception = event_thread_exception.get_future ();
 
   /* Start a new event thread. We capture a snapshot of the file descriptors
-     to monitor, and associated atomic boolean notifiers. If agents were to be
-     added to or removed from the agent_map, we would stop this thread and
-     start a new event thread with a new set of file descriptors,
-     and notifiers. */
+     and associated callback. If agents were to be added to or removed from the
+     agent_map, we would stop this thread and start a new event thread with a
+     new set of file descriptors, and notifiers. */
 
   m_event_thread = new std::thread (
-      event_thread_loop, std::move (file_descriptors), std::move (notifiers),
-      m_client_notifier_pipe, m_event_thread_exit_pipe,
-      std::move (event_thread_exception));
+      process_event_thread, std::move (file_descriptors),
+      m_event_thread_exit_pipe, std::move (event_thread_exception));
 
   if (pthread_sigmask (SIG_SETMASK, &orig_mask, nullptr))
     {

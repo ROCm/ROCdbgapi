@@ -259,10 +259,7 @@ amd_dbgapi_next_pending_event (amd_dbgapi_process_id_t process_id,
 
           for (auto &&agent : process->range<agent_t> ())
             {
-              /* Use an atomic exchange here since the value is written by the
-                 event thread.  */
-              if (!agent.os_event_notifier ().exchange (
-                      false, std::memory_order_relaxed))
+              if (!agent.has_pending_events ())
                 continue;
 
               while (true)
