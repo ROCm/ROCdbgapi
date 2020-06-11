@@ -1309,7 +1309,7 @@ process_t::attach ()
   /* Set/remove internal breakpoints when the ROCm Runtime is loaded/unloaded.
    */
   const shared_library_t &library = create<shared_library_t> (
-      *this, "/libhsa-runtime64.so.1", on_rocr_load_callback,
+      *this, "libhsa-runtime64.so.1", on_rocr_load_callback,
       on_rocr_unload_callback);
 
   /* If the ROCm Runtime is not yet loaded, create agents without enabling the

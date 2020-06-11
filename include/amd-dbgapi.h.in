@@ -6092,9 +6092,8 @@ struct amd_dbgapi_callbacks_s
    * of the shared library must be notified.
    *
    * \p shared_library_name is the name of the shared library being requested.
-   * The name is a path of the shared library and can contain the \p *
-   * character which matches any characters.  The memory is owned by the
-   * library and is only valid while the callback executes.
+   * The memory is owned by the library and is only valid while the callback
+   * executes.  On Linux this is the \p SONAME of the library.
    *
    * \p shared_library_id is the handle to identify this shared library which
    * must be specified when ::amd_dbgapi_report_shared_library is used to
@@ -6110,9 +6109,11 @@ struct amd_dbgapi_callbacks_s
    *
    * Return ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT if
    * \p shared_library_name or \p shared_library_state are NULL or
-   * \p shared_library_name has invalid library name syntax.
+   * \p shared_library_name is an invalid library name.
    *
-   * Return ::AMD_DBGAPI_STATUS_ERROR if another error was encountered.
+   * Return ::AMD_DBGAPI_STATUS_ERROR if the \p shared_library_name shared
+   * library is already enabled for notifications or another error was
+   * encountered.
    */
   amd_dbgapi_status_t (*enable_notify_shared_library) (
       amd_dbgapi_client_process_id_t client_process_id,
