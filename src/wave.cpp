@@ -900,7 +900,29 @@ amd_dbgapi_wave_list (amd_dbgapi_process_id_t process_id, size_t *wave_count,
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
-  return utils::get_handle_list<wave_t> (process_id, wave_count, waves,
-                                         changed);
+  process_t *process = process_t::find (process_id);
+
+  if (!process)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
+
+  amd_dbgapi_status_t status = process->update_queues ();
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("process_t::update_queues failed (rc=%d)", status);
+
+  /* Ensure all queues are suspended so that the wave list is updated.  */
+  std::vector<queue_t *> queues;
+  for (auto &&queue : process->range<queue_t> ())
+    if (!queue.is_suspended ())
+      queues.emplace_back (&queue);
+
+  process->suspend_queues (queues);
+
+  status = utils::get_handle_list<wave_t> (process_id, wave_count, waves,
+                                           changed);
+
+  if (process->forward_progress_needed ())
+    process->resume_queues (queues);
+
+  return status;
   CATCH;
 }
