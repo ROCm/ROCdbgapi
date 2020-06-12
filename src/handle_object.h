@@ -353,6 +353,8 @@ public:
 
   size_t size () const { return m_map.size (); }
 
+  bool changed () const { return m_changed; }
+
   bool set_changed (bool changed)
   {
     bool ret = m_changed;

@@ -281,6 +281,12 @@ public:
         .size ();
   }
 
+  template <typename Object> bool changed () const
+  {
+    return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
+        .changed ();
+  }
+
   /* Set the flag that indicates whether the Objects have changed. Return its
      previous value. The flag is set whenever objects are created, or
      destroyed, or invalidated.  */

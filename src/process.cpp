@@ -1072,9 +1072,6 @@ process_t::update_queues ()
 amd_dbgapi_status_t
 process_t::update_code_objects ()
 {
-  constexpr size_t URI_NAME_MAX_SIZE = PATH_MAX + sizeof ("file://") - 1
-                                       + sizeof ("#offset=0x&size=0x") - 1
-                                       + 32;
   epoch_t code_object_mark = m_next_code_object_mark++;
   amd_dbgapi_status_t status;
 
@@ -1115,7 +1112,7 @@ process_t::update_code_objects ()
         error ("read_global_memory failed (rc=%d)", status);
 
       std::string uri;
-      status = read_string (l_name_address, &uri, URI_NAME_MAX_SIZE);
+      status = read_string (l_name_address, &uri, -1);
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         error ("read_string failed (rc=%d)", status);
 
@@ -1243,7 +1240,18 @@ process_t::attach ()
         = [this] (breakpoint_t &breakpoint,
                   amd_dbgapi_client_thread_id_t client_thread_id,
                   amd_dbgapi_breakpoint_action_t *action) {
+            /* Save the current 'changed' status of code_object_t`s.  */
+            bool saved_changed = set_changed<code_object_t> (false);
+
             update_code_objects ();
+
+            /* If nothing has changed, we don't need to report an event.  */
+            if (!set_changed<code_object_t> (changed<code_object_t> ()
+                                             | saved_changed))
+              {
+                *action = AMD_DBGAPI_BREAKPOINT_ACTION_RESUME;
+                return AMD_DBGAPI_STATUS_SUCCESS;
+              }
 
             /* Create a breakpoint resume event that will be enqueued when the
                code object list updated event is reported as processed.  This
@@ -1319,7 +1327,7 @@ process_t::attach ()
     {
       amd_dbgapi_status_t status = update_agents ();
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
+        error ("update_agents failed (rc=%d)", status);
     }
 
   return AMD_DBGAPI_STATUS_SUCCESS;
