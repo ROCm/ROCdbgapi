@@ -54,8 +54,8 @@ constexpr amd_dbgapi_wave_id_t wave_t::undefined;
 
 wave_t::wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t &dispatch,
                 size_t vgpr_count, size_t accvgpr_count, size_t sgpr_count,
-                amd_dbgapi_size_t local_memory_size,
-                amd_dbgapi_size_t local_memory_offset, size_t lane_count)
+                amd_dbgapi_size_t local_memory_offset,
+                amd_dbgapi_size_t local_memory_size, size_t lane_count)
     : handle_object (wave_id), m_vgpr_count (vgpr_count),
       m_accvgpr_count (accvgpr_count), m_sgpr_count (sgpr_count),
       m_lane_count (lane_count), m_local_memory_offset (local_memory_offset),
