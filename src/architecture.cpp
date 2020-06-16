@@ -2281,10 +2281,6 @@ architecture_t::get_info (amd_dbgapi_architecture_info_t query,
 
     case AMD_DBGAPI_ARCHITECTURE_INFO_PC_REGISTER:
       return utils::get_info (value_size, value, amdgpu_regnum_t::PC);
-
-    case AMD_DBGAPI_ARCHITECTURE_INFO_DEFAULT_GLOBAL_ADDRESS_SPACE:
-      return utils::get_info (value_size, value,
-                              default_global_address_space ().id ());
     }
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }

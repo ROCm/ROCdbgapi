@@ -459,6 +459,12 @@ extern "C" {
  */
 #define AMD_DBGAPI_VERSION_0_24
 
+/**
+ * The function was introduced in version 0.25 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.25"``.
+ */
+#define AMD_DBGAPI_VERSION_0_25
+
 /** @} */
 
 /** \ingroup callbacks_group
@@ -1002,12 +1008,7 @@ typedef enum
    * Return the register handle for the PC for the architecture.  The type of
    * this attribute is ::amd_dbgapi_register_id_t.
    */
-  AMD_DBGAPI_ARCHITECTURE_INFO_PC_REGISTER = 8,
-  /**
-   * Return the default address space for global memory.  The type of this
-   * attribute is ::amd_dbgapi_address_space_id_t.
-   */
-  AMD_DBGAPI_ARCHITECTURE_INFO_DEFAULT_GLOBAL_ADDRESS_SPACE = 9
+  AMD_DBGAPI_ARCHITECTURE_INFO_PC_REGISTER = 8
 } amd_dbgapi_architecture_info_t;
 
 /**
@@ -1050,7 +1051,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_get_info (
     amd_dbgapi_architecture_id_t architecture_id,
     amd_dbgapi_architecture_info_t query, size_t value_size, void *value)
-    AMD_DBGAPI_VERSION_0_24;
+    AMD_DBGAPI_VERSION_0_25;
 
 /**
  * Get an architecture from the AMD GPU ELF \p EF_AMDGPU_MACH value
@@ -4728,6 +4729,19 @@ typedef struct
 } amd_dbgapi_address_space_id_t;
 
 /**
+ * The NULL address space handle.
+ */
+#define AMD_DBGAPI_ADDRESS_SPACE_NONE (amd_dbgapi_address_space_id_t{ 0 })
+
+/**
+ * The global address space handle.
+ *
+ * Every architecture supports a global address space that uses the same
+ * address space ID.
+ */
+#define AMD_DBGAPI_ADDRESS_SPACE_GLOBAL (amd_dbgapi_address_space_id_t{ 1 })
+
+/**
  * Indication of how the address space is accessed.
  */
 typedef enum
@@ -4828,7 +4842,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_space_get_info (
     amd_dbgapi_architecture_id_t architecture_id,
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_address_space_info_t query, size_t value_size, void *value)
-    AMD_DBGAPI_VERSION_0_24;
+    AMD_DBGAPI_VERSION_0_25;
 
 /**
  * Report the list of address spaces supported by the architecture.
@@ -5181,11 +5195,15 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_is_in_address_class (
  *
  * \param[in] process_id The process to which the \p wave_id belongs.
  *
- * \param[in] wave_id The wave that is reading the memory.
+ * \param[in] wave_id The wave that is accessing the memory.  If the \p
+ * address_space is ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL then \p wave_id is
+ * ignored and may be ::AMD_DBGAPI_WAVE_NONE as the address space does not
+ * depend on the active wave.
  *
  * \param[in] lane_id The lane of \p wave_id that is accessing the memory.  If
  * the \p address_space does not depend on the active lane then this is ignored
- * and may be ::AMD_DBGAPI_LANE_NONE.
+ * and may be ::AMD_DBGAPI_LANE_NONE.  For example, the
+ * ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL address space does not depend on the lane.
  *
  * \param[in] address_space_id The address space of the \p segment_address.  If
  * the address space is dependent on: the active lane then the \p lane_id with
@@ -5220,8 +5238,10 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_is_in_address_class (
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
  * invalid.  \p value_size and \p value are unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID \p wave_id is invalid.  \p
- * value_size and \p value are unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID \p wave_id is invalid, or
+ * \p wave_id is ::AMD_DBGAPI_WAVE_NONE and \p address_space is not
+ * ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL.  \p value_size and \p value are
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID \p lane_id is invalid, or
  * \p lane_id is ::AMD_DBGAPI_LANE_NONE and \p address_space depends on the
@@ -5247,7 +5267,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_memory (
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_segment_address_t segment_address,
     amd_dbgapi_size_t *value_size, void *value)
-    AMD_DBGAPI_VERSION_0_24;
+    AMD_DBGAPI_VERSION_0_25;
 
 /**
  * Write memory.
@@ -5264,11 +5284,15 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_memory (
  *
  * \param[in] process_id The process to which the \p wave_id belongs.
  *
- * \param[in] wave_id The wave that is writting the memory.
+ * \param[in] wave_id The wave that is accessing the memory.  If the \p
+ * address_space is ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL then \p wave_id is
+ * ignored and may be ::AMD_DBGAPI_WAVE_NONE as the address space does not
+ * depend on the active wave.
  *
  * \param[in] lane_id The lane of \p wave_id that is accessing the memory.  If
  * the \p address_space does not depend on the active lane then this is ignored
- * and may be ::AMD_DBGAPI_LANE_NONE.
+ * and may be ::AMD_DBGAPI_LANE_NONE.  For example, the
+ * ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL address space does not depend on the lane.
  *
  * \param[in] address_space_id The address space of the \p segment_address.  If
  * the address space is dependent on: the active lane then the \p lane_id with
@@ -5303,8 +5327,10 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_memory (
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
  * invalid.  The memory and \p value_size are unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID \p wave_id is invalid.
- * The memory and \p value_size are unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID \p wave_id is invalid, or
+ * \p wave_id is ::AMD_DBGAPI_WAVE_NONE and \p address_space is
+ * ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL.  The memory and \p value_size are
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID \p lane_id is invalid, or
  * \p lane_id is ::AMD_DBGAPI_LANE_NONE and \p address_space depends on the
@@ -5330,7 +5356,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_memory (
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_segment_address_t segment_address,
     amd_dbgapi_size_t *value_size, const void *value)
-    AMD_DBGAPI_VERSION_0_24;
+    AMD_DBGAPI_VERSION_0_25;
 
 /**
  * Memory access precision.

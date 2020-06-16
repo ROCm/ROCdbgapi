@@ -256,7 +256,6 @@ to_string (amd_dbgapi_architecture_info_t architecture_info)
       CASE (ARCHITECTURE_INFO_BREAKPOINT_INSTRUCTION);
       CASE (ARCHITECTURE_INFO_BREAKPOINT_INSTRUCTION_PC_ADJUST);
       CASE (ARCHITECTURE_INFO_PC_REGISTER);
-      CASE (ARCHITECTURE_INFO_DEFAULT_GLOBAL_ADDRESS_SPACE);
     }
   return to_string (make_hex (architecture_info));
 }
