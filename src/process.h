@@ -211,12 +211,12 @@ public:
   }
 
   amd_dbgapi_status_t
-  add_breakpoint (amd_dbgapi_shared_library_id_t shared_library_id,
-                  amd_dbgapi_global_address_t address,
-                  amd_dbgapi_breakpoint_id_t breakpoint_id)
+  insert_breakpoint (amd_dbgapi_shared_library_id_t shared_library_id,
+                     amd_dbgapi_global_address_t address,
+                     amd_dbgapi_breakpoint_id_t breakpoint_id)
   {
     TRACE_CALLBACK (address, breakpoint_id);
-    return (*process_callbacks.add_breakpoint) (
+    return (*process_callbacks.insert_breakpoint) (
         m_client_process_id, shared_library_id, address, breakpoint_id);
   }
 
@@ -226,15 +226,6 @@ public:
     TRACE_CALLBACK (breakpoint_id);
     return (*process_callbacks.remove_breakpoint) (m_client_process_id,
                                                    breakpoint_id);
-  }
-
-  amd_dbgapi_status_t
-  set_breakpoint_state (amd_dbgapi_breakpoint_id_t breakpoint_id,
-                        amd_dbgapi_breakpoint_state_t breakpoint_state)
-  {
-    TRACE_CALLBACK (breakpoint_id, breakpoint_state);
-    return (*process_callbacks.set_breakpoint_state) (
-        m_client_process_id, breakpoint_id, breakpoint_state);
   }
 
   template <typename Object, typename... Args> auto &create (Args &&... args)

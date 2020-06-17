@@ -159,8 +159,7 @@ to_string (detail::hex<T> v)
   F (amd_dbgapi_event_info_t)                                                 \
   F (amd_dbgapi_log_level_t)                                                  \
   F (amd_dbgapi_shared_library_state_t)                                       \
-  F (amd_dbgapi_breakpoint_action_t)                                          \
-  F (amd_dbgapi_breakpoint_state_t)
+  F (amd_dbgapi_breakpoint_action_t)
 
 #define EXPLICIT_SPECIALIZATION(T) template <> std::string to_string (T);
 AMD_DBGAPI_TYPES_DO (EXPLICIT_SPECIALIZATION);

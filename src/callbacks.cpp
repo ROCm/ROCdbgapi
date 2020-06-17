@@ -81,8 +81,8 @@ breakpoint_t::breakpoint_t (amd_dbgapi_breakpoint_id_t breakpoint_id,
     : handle_object (breakpoint_id), m_address (address), m_action (action),
       m_shared_library (shared_library)
 {
-  m_inserted = process ().add_breakpoint (shared_library.id (), address,
-                                          breakpoint_id)
+  m_inserted = process ().insert_breakpoint (shared_library.id (), address,
+                                             breakpoint_id)
                == AMD_DBGAPI_STATUS_SUCCESS;
 }
 
@@ -94,14 +94,6 @@ breakpoint_t::~breakpoint_t ()
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         warning ("remove_breakpoint failed (rc=%d)", status);
     }
-}
-
-void
-breakpoint_t::set_state (amd_dbgapi_breakpoint_state_t state)
-{
-  amd_dbgapi_status_t status = process ().set_breakpoint_state (id (), state);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("set_breakpoint_state failed (rc=%d)", status);
 }
 
 } /* namespace dbgapi */

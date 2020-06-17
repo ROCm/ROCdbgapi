@@ -820,18 +820,6 @@ to_string (amd_dbgapi_breakpoint_action_t breakpoint_action)
   return to_string (make_hex (breakpoint_action));
 }
 
-template <>
-std::string
-to_string (amd_dbgapi_breakpoint_state_t breakpoint_state)
-{
-  switch (breakpoint_state)
-    {
-      CASE (BREAKPOINT_STATE_DISABLE);
-      CASE (BREAKPOINT_STATE_ENABLE);
-    }
-  return to_string (make_hex (breakpoint_state));
-}
-
 #undef CASE
 
 } /* namespace dbgapi */

@@ -69,8 +69,6 @@ class breakpoint_t : public detail::handle_object<amd_dbgapi_breakpoint_id_t>
       breakpoint_t &, amd_dbgapi_client_thread_id_t,
       amd_dbgapi_breakpoint_action_t *)>;
 
-  void set_state (amd_dbgapi_breakpoint_state_t state);
-
 public:
   breakpoint_t (amd_dbgapi_breakpoint_id_t breakpoint_id,
                 const shared_library_t &shared_library,
@@ -82,9 +80,6 @@ public:
 
   amd_dbgapi_global_address_t address () const { return m_address; }
   action_callback_t action () const { return m_action; }
-
-  void enable () { set_state (AMD_DBGAPI_BREAKPOINT_STATE_ENABLE); }
-  void disable () { set_state (AMD_DBGAPI_BREAKPOINT_STATE_DISABLE); }
 
   const shared_library_t &shared_library () const { return m_shared_library; }
   process_t &process () const { return shared_library ().process (); }

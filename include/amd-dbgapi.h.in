@@ -577,10 +577,10 @@ typedef enum
    * A fatal error has occurred.
    *
    * The library encountered an error from which it cannot recover.  All
-   * processes are detached.  All breakpoints added by
-   * amd_dbgapi_callbacks_s::add_breakpoint are attempted to be removed.  All
-   * handles are invalidated.  The library is left in an uninitialized state.
-   * The logging level is reset to ::AMD_DBGAPI_LOG_LEVEL_NONE.
+   * processes are detached.  All breakpoints inserted by
+   * amd_dbgapi_callbacks_s::insert_breakpoint are attempted to be removed.
+   * All handles are invalidated.  The library is left in an uninitialized
+   * state.  The logging level is reset to ::AMD_DBGAPI_LOG_LEVEL_NONE.
    *
    * To resume using the library the client must re-initialize the
    * library; re-attach to any processes; re-fetch the list of code objects,
@@ -892,7 +892,7 @@ const char AMD_DBGAPI *amd_dbgapi_get_build_name (void)
  */
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_initialize (amd_dbgapi_callbacks_t *callbacks)
-    AMD_DBGAPI_VERSION_0_24;
+    AMD_DBGAPI_VERSION_0_25;
 
 /**
  * Finalize the library.
@@ -5884,10 +5884,10 @@ typedef enum
  * The thread that is performing the shared library load or unload must remain
  * halted while this function executes.  This allows the library to use the
  * amd_dbgapi_callbacks_s::get_symbol_address,
- * amd_dbgapi_callbacks_s::add_breakpoint and
+ * amd_dbgapi_callbacks_s::insert_breakpoint and
  * amd_dbgapi_callbacks_s::remove_breakpoint callbacks to add or remove
  * breakpoints on library load or unload respectively.  The breakpoints must be
- * added before any code can execute in the shared library.
+ * inserted before any code can execute in the shared library.
  *
  * \param[in] process_id The process to which the \p shared_library_id belongs.
  *
@@ -5930,11 +5930,11 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_report_shared_library (
  * Every breakpoint added within a process will have a unique handle.  Only
  * unique within a single process.
  *
- * The implementation of the library requests the client to set breakpoints in
- * certain functions so that it can be notified when certain actions are being
- * performed, and to stop the thread performing the action.  This allows the
- * data to be retrieved and updated without conflicting with the thread.  The
- * library will resume the thread when it has completed the access.
+ * The implementation of the library requests the client to insert breakpoints
+ * in certain functions so that it can be notified when certain actions are
+ * being performed, and to stop the thread performing the action.  This allows
+ * the data to be retrieved and updated without conflicting with the thread.
+ * The library will resume the thread when it has completed the access.
  */
 typedef struct
 {
@@ -5962,21 +5962,6 @@ typedef enum
 } amd_dbgapi_breakpoint_action_t;
 
 /**
- * The state of a breakpoint.
- */
-typedef enum
-{
-  /**
-   * Breakpoint is disabled and will not report breakpoint hits.
-   */
-  AMD_DBGAPI_BREAKPOINT_STATE_DISABLE = 1,
-  /**
-   * Breakpoint is enabled and will report breakpoint hits.
-   */
-  AMD_DBGAPI_BREAKPOINT_STATE_ENABLE = 2
-} amd_dbgapi_breakpoint_state_t;
-
-/**
  * Opaque client thread handle.
  *
  * A pointer to client data associated with a thread.  This pointer is
@@ -5988,8 +5973,8 @@ typedef enum
 typedef struct amd_dbgapi_client_thread_s *amd_dbgapi_client_thread_id_t;
 
 /**
- * Report that a breakpoint added by the amd_dbgapi_callbacks_s::add_breakpoint
- * calback has been hit.
+ * Report that a breakpoint inserted by the
+ * amd_dbgapi_callbacks_s::insert_breakpoint calback has been hit.
  *
  * The thread that hit the breakpoint must remain halted while this
  * function executes, at which point it must be resumed if
@@ -6211,14 +6196,14 @@ struct amd_dbgapi_callbacks_s
       const char *symbol_name, amd_dbgapi_global_address_t *address);
 
   /**
-   * Add a breakpoint in a shared library using a global address.
+   * Insert a breakpoint in a shared library using a global address.
    *
-   * The library only adds breakpoints in loaded shared libraries, will request
-   * to be notified when the shared library is unloaded, and remove them when
-   * notified that the shared library is unloaded.
+   * The library only inserts breakpoints in loaded shared libraries.  It will
+   * request to be notified when the shared library is unloaded, and will
+   * remove any breakpoints it has inserted when notified that the shared
+   * library is unloaded.
    *
-   * Breakpoints must be added in the ::AMD_DBGAPI_BREAKPOINT_STATE_ENABLE
-   * state.
+   * It is the client's responsibility to to actually insert the breakpoint.
    *
    * \p client_process_id is the client handle of the process in which the
    * breakpoint is to be added.
@@ -6254,17 +6239,19 @@ struct amd_dbgapi_callbacks_s
    * breakpoint already added with \p breakpoint_id.  No breakpoint is added.
    *
    * Return ::AMD_DBGAPI_STATUS_ERROR if another error was encountered.  No
-   * breakpoint is added.
+   * breakpoint is inserted and the \p breakpoint_id handle is invalidated.
    */
-  amd_dbgapi_status_t (*add_breakpoint) (
+  amd_dbgapi_status_t (*insert_breakpoint) (
       amd_dbgapi_client_process_id_t client_process_id,
       amd_dbgapi_shared_library_id_t shared_library_id,
       amd_dbgapi_global_address_t address,
       amd_dbgapi_breakpoint_id_t breakpoint_id);
 
   /**
-   * Remove a breakpoint previously added by
-   * amd_dbgapi_callbacks_s::add_breakpoint.
+   * Remove a breakpoint previously inserted by
+   * amd_dbgapi_callbacks_s::insert_breakpoint.
+   *
+   * It is the client's responsibility to to actually remove the breakpoint.
    *
    * \p breakpoint_id is invalidated.
    *
@@ -6286,47 +6273,15 @@ struct amd_dbgapi_callbacks_s
    * shared library containing the breakpoint is not currently loaded.  The
    * breakpoint will already have been removed.
    *
-   * Return ::AMD_DBGAPI_STATUS_ERROR if another error was encountered.
+   * Return ::AMD_DBGAPI_STATUS_ERROR if another error was encountered.  The
+   * breakpoint is considered removed and the \p breakpoint_id
+   * handle is invalidated.
    */
   amd_dbgapi_status_t (*remove_breakpoint) (
       amd_dbgapi_client_process_id_t client_process_id,
       amd_dbgapi_breakpoint_id_t breakpoint_id);
 
-  /**
-   * Set the state of a breakpoint previously added by
-   * amd_dbgapi_callbacks_s::add_breakpoint.
-   *
-   * \p client_process_id is the client handle of the process in which the
-   * breakpoint is added.
-   *
-   * \p breakpoint_id is the breakpoint handle of the breakpoint to update.
-   *
-   * \p breakpoint_state is the state to which to set the breakpoint.
-   *
-   * Return ::AMD_DBGAPI_STATUS_SUCCESS if successful.  The breakpoint is set
-   * to the requested state.
-   *
-   * Return ::AMD_DBGAPI_STATUS_ERROR_INVALID_CLIENT_PROCESS_ID if the \p
-   * client_process_id handle is invalid.  No breakpoint is update.
-   *
-   * Return ::AMD_DBGAPI_STATUS_ERROR_INVALID_BREAKPOINT_ID if \p breakpoint_id
-   * handle is invalid.  No breakpoint is updated.
-   *
-   * Return ::AMD_DBGAPI_STATUS_ERROR_LIBRARY_NOT_LOADED if the shared library
-   * containing the breakpoint is not currently loaded.  The breakpoint will
-   * have been removed.  \p breakpoint_id is invalidated.
-   *
-   * Return ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT if \p breakpoint_state
-   * is invalid.
-   *
-   * Return ::AMD_DBGAPI_STATUS_ERROR if another error was encountered.
-   */
-  amd_dbgapi_status_t (*set_breakpoint_state) (
-      amd_dbgapi_client_process_id_t client_process_id,
-      amd_dbgapi_breakpoint_id_t breakpoint_id,
-      amd_dbgapi_breakpoint_state_t breakpoint_state);
-
-  /**
+    /**
    * Report a log message.
    *
    * \p level is the log level.
