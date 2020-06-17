@@ -353,18 +353,26 @@ amdgcn_architecture_t::initialize ()
                             amdgpu_regnum_t::LAST_HWREG);
   system_registers.emplace (amdgpu_regnum_t::FIRST_TTMP,
                             amdgpu_regnum_t::LAST_TTMP);
+  system_registers.emplace (amdgpu_regnum_t::FLAT_SCRATCH,
+                            amdgpu_regnum_t::FLAT_SCRATCH);
   if (has_wave32_vgprs ())
     {
+      system_registers.emplace (amdgpu_regnum_t::EXEC_32,
+                                amdgpu_regnum_t::EXEC_32);
       system_registers.emplace (amdgpu_regnum_t::XNACK_MASK_32,
                                 amdgpu_regnum_t::XNACK_MASK_32);
+      system_registers.emplace (amdgpu_regnum_t::VCC_32,
+                                amdgpu_regnum_t::VCC_32);
     }
   if (has_wave64_vgprs ())
     {
+      system_registers.emplace (amdgpu_regnum_t::EXEC_64,
+                                amdgpu_regnum_t::EXEC_64);
       system_registers.emplace (amdgpu_regnum_t::XNACK_MASK_64,
                                 amdgpu_regnum_t::XNACK_MASK_64);
+      system_registers.emplace (amdgpu_regnum_t::VCC_64,
+                                amdgpu_regnum_t::VCC_64);
     }
-  system_registers.emplace (amdgpu_regnum_t::FLAT_SCRATCH,
-                            amdgpu_regnum_t::FLAT_SCRATCH);
   create<register_class_t> ("system", system_registers);
 
   /* General registers: [{scalar}, {vector}, pc, exec, vcc]  */

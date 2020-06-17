@@ -390,8 +390,11 @@ wave_t::register_offset_and_size (amdgpu_regnum_t regnum,
       return std::make_pair (sgprs_offset + sgpr_num * sizeof (int32_t),
                              sizeof (int32_t));
     }
-  if (regnum >= amdgpu_regnum_t::FIRST_HWREG
-      && regnum <= amdgpu_regnum_t::LAST_HWREG)
+  if ((regnum == amdgpu_regnum_t::M0 || regnum == amdgpu_regnum_t::STATUS
+       || regnum == amdgpu_regnum_t::TRAPSTS
+       || regnum == amdgpu_regnum_t::MODE)
+      || (include_aliased_registers && regnum >= amdgpu_regnum_t::FIRST_HWREG
+          && regnum <= amdgpu_regnum_t::LAST_HWREG))
     {
       size_t hwregs_offset
           = (m_vgpr_count + m_accvgpr_count) * sizeof (int32_t) * m_lane_count
@@ -402,8 +405,8 @@ wave_t::register_offset_and_size (amdgpu_regnum_t regnum,
       return std::make_pair (hwregs_offset + hwreg_num * sizeof (uint32_t),
                              hwreg_size);
     }
-  if (regnum >= amdgpu_regnum_t::FIRST_TTMP
-      && regnum <= amdgpu_regnum_t::LAST_TTMP)
+  if ((regnum >= amdgpu_regnum_t::TTMP4 && regnum <= amdgpu_regnum_t::TTMP11)
+      || regnum == amdgpu_regnum_t::TTMP13)
     {
       size_t ttmps_offset
           = (m_vgpr_count + m_accvgpr_count) * sizeof (int32_t) * m_lane_count
