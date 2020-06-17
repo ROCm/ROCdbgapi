@@ -947,7 +947,7 @@ process_t::update_queues ()
       snapshots.resize (std::min (queue_count, snapshot_count));
       for (auto &&queue_info : snapshots)
         {
-          amd_dbgapi_queue_id_t queue_id = AMD_DBGAPI_QUEUE_NONE;
+          utils::optional<amd_dbgapi_queue_id_t> queue_id;
 
           /* Find the queue by matching its os_queue_id with the one
              returned by the ioctl.  */
@@ -961,14 +961,15 @@ process_t::update_queues ()
                  destroy it.  */
               if (queue)
                 {
-                  amd_dbgapi_queue_id_t queue_id = queue->id ();
+                  amd_dbgapi_queue_id_t destroyed_queue_id = queue->id ();
                   os_queue_id_t os_queue_id = queue->os_queue_id ();
 
                   destroy (queue);
 
                   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
                               "destroyed stale %s (os_queue_id=%d)",
-                              to_string (queue_id).c_str (), os_queue_id);
+                              to_string (destroyed_queue_id).c_str (),
+                              os_queue_id);
                 }
             }
           else if (is_flag_set (flag_t::REQUIRE_NEW_QUEUE_BIT))
@@ -998,7 +999,7 @@ process_t::update_queues ()
                 {
                   /* This is a partially initialized queue, re-create a fully
                      initialized instance with the same os_queue_id.  */
-                  queue_id = amd_dbgapi_queue_id_t{ queue->id () };
+                  queue_id.emplace (queue->id ());
                   destroy (queue);
                 }
               else

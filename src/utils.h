@@ -375,6 +375,13 @@ private:
 };
 #endif /* __cplusplus < 201703L */
 
+template <typename T>
+constexpr optional<std::decay_t<T>>
+make_optional (T &&value)
+{
+  return optional<std::decay_t<T>> (std::forward<T> (value));
+}
+
 } /* namespace utils */
 
 template <typename T> struct is_flag : std::false_type

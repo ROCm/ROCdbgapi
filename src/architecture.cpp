@@ -114,13 +114,6 @@ protected:
 public:
   virtual void initialize () override;
 
-  virtual const address_space_t &default_global_address_space () const override
-  {
-    dbgapi_assert (m_default_global_address_space
-                   && "address spaces are not initialized");
-    return *m_default_global_address_space;
-  }
-
   virtual amd_dbgapi_status_t convert_address_space (
       const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
       const address_space_t &from_address_space,
@@ -251,9 +244,6 @@ protected:
   virtual amd_dbgapi_status_t
   simulate_instruction (wave_t &wave, amd_dbgapi_global_address_t pc,
                         const std::vector<uint8_t> &instruction) const;
-
-private:
-  const address_space_t *m_default_global_address_space{ nullptr };
 };
 
 decltype (amdgcn_architecture_t::cbranch_opcodes_map)
@@ -276,7 +266,8 @@ amdgcn_architecture_t::initialize ()
   /* Create address spaces.  */
 
   auto &as_global = create<address_space_t> (
-      "none", address_space_t::GLOBAL, DW_ASPACE_none, 64, 0x0000000000000000,
+      utils::make_optional (AMD_DBGAPI_ADDRESS_SPACE_GLOBAL), "global",
+      address_space_t::GLOBAL, DW_ASPACE_none, 64, 0x0000000000000000,
       AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   auto &as_generic = create<address_space_t> (
@@ -305,9 +296,6 @@ amdgcn_architecture_t::initialize ()
                              address_space_t::PRIVATE_SWIZZLED_N,
                              DW_ASPACE_AMDGPU_private_lane0 + i, 32,
                              0x00000000, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
-
-  /* Make generic the default address space.  */
-  m_default_global_address_space = &as_generic;
 
   /* Create address classes.  */
 

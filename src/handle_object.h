@@ -167,6 +167,14 @@ template <typename Type>
 constexpr bool is_handle_object_type_v
     = is_handle_type_v<utils::detected_t<detail::object_id_t, Type>>;
 
+/* Specialize this struct to change the initial value of a monotonic counter
+   for a given handle_object.  */
+template <typename Type, std::enable_if_t<is_handle_type_v<Type>, int> = 0>
+struct monotonic_counter_start_t
+    : public std::integral_constant<decltype (Type::handle), 1>
+{
+};
+
 /* A set container type that holds objects that are referenced using handles.
    If the Object type supports the is_valid concept, then when creating objects
    an error is reported if the constructor creates an object that is not valid.
@@ -278,11 +286,13 @@ public:
   handle_object_set_t () = default;
 
   template <typename... Args>
-  inline Object &create_object (handle_type id, Args &&... args);
+  inline Object &create_object (utils::optional<handle_type> id,
+                                Args &&... args);
 
   template <typename... Args> Object &create_object (Args &&... args)
   {
-    return create_object (handle_type{ 0 }, std::forward<Args> (args)...);
+    return create_object (utils::optional<handle_type>{},
+                          std::forward<Args> (args)...);
   }
 
   void destroy (Object *object)
@@ -377,10 +387,12 @@ private:
 
   /* Counter to assign ids to new objects. We start all the counters at 1,
      as 0 is the null object handle.  */
+  using monotonic_counter_underlying_type_t = decltype (handle_type::handle);
+
   monotonic_counter_t<
-      decltype (handle_type::handle),
-      detail::handle_has_wrapped_around<decltype (handle_type::handle)>>
-      m_next_id{ 1 };
+      monotonic_counter_underlying_type_t,
+      detail::handle_has_wrapped_around<monotonic_counter_underlying_type_t>>
+      m_next_id{ monotonic_counter_start_t<handle_type>::value };
 
   /* Flag to tell if the content of the map has changed.  */
   bool m_changed = false;
@@ -389,19 +401,18 @@ private:
 template <typename Object>
 template <typename... Args>
 inline Object &
-handle_object_set_t<Object>::create_object (handle_type id, Args &&... args)
+handle_object_set_t<Object>::create_object (utils::optional<handle_type> id,
+                                            Args &&... args)
 {
-  /* Re-use id if non-null, request a new one otherwise.  This allows us to
+  /* If id does not contain a value, request a new one.  This allows us to
      "re-create" objects that were place-holders (e.g. partially initialized
      queue object.  */
-  if (!id.handle)
-    id.handle = m_next_id++;
-
-  dbgapi_assert (id.handle && "must not be null");
+  if (!id)
+    id.emplace (handle_type{ m_next_id++ });
 
   auto result = m_map.emplace (
-      std::piecewise_construct, std::forward_as_tuple (id),
-      std::forward_as_tuple (id, std::forward<Args> (args)...));
+      std::piecewise_construct, std::forward_as_tuple (*id),
+      std::forward_as_tuple (*id, std::forward<Args> (args)...));
 
   if (!result.second)
     error ("could not create new object");

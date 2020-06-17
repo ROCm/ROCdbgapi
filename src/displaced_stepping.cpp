@@ -185,7 +185,8 @@ amd_dbgapi_displaced_stepping_start (
 
     amd_dbgapi_status_t status
         = process
-              ->create<displaced_stepping_t> (id, wave->queue (), wave->pc (),
+              ->create<displaced_stepping_t> (utils::make_optional (id),
+                                              wave->queue (), wave->pc (),
                                               saved_instruction_bytes)
               .start (*wave);
 

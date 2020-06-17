@@ -433,6 +433,11 @@ amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
+  if (wave_id == AMD_DBGAPI_WAVE_NONE
+      && address_space_id == AMD_DBGAPI_ADDRESS_SPACE_GLOBAL)
+    return process->read_global_memory_partial (segment_address, value,
+                                                value_size);
+
   wave_t *wave = process->find (wave_id);
 
   if (!wave)
@@ -488,6 +493,11 @@ amd_dbgapi_write_memory (amd_dbgapi_process_id_t process_id,
 
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
+
+  if (wave_id == AMD_DBGAPI_WAVE_NONE
+      && address_space_id == AMD_DBGAPI_ADDRESS_SPACE_GLOBAL)
+    return process->write_global_memory_partial (segment_address, value,
+                                                 value_size);
 
   wave_t *wave = process->find (wave_id);
 

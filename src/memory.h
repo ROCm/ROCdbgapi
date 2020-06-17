@@ -101,6 +101,15 @@ private:
   amd_dbgapi_address_space_access_t const m_access;
 };
 
+/* The amd_dbgapi_address_space_id_t{1} is reserved for the distinguished
+   global address space id, to we need to start numbering at 2.  */
+template <>
+struct monotonic_counter_start_t<amd_dbgapi_address_space_id_t>
+    : public std::integral_constant<
+          decltype (amd_dbgapi_address_space_id_t::handle), 2>
+{
+};
+
 class address_class_t
     : public detail::handle_object<amd_dbgapi_address_class_id_t>
 {
