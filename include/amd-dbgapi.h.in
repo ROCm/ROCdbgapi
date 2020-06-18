@@ -804,17 +804,18 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_get_status_string (
  * library if the major version numbers match and the interface minor version
  * number is less than or equal to the installed library minor version number.
  */
-enum
-{
-  /**
-   * The major version of the interface.
-   */
-  AMD_DBGAPI_VERSION_MAJOR = @AMD_DBGAPI_VERSION_MAJOR@,
-  /**
-   * The minor version of the interface.
-   */
-  AMD_DBGAPI_VERSION_MINOR = @AMD_DBGAPI_VERSION_MINOR@
-};
+
+/**
+ * The major version of the interface as a macro so it can be used by the
+ * preprocessor.
+ */
+#define AMD_DBGAPI_VERSION_MAJOR @AMD_DBGAPI_VERSION_MAJOR@
+
+/**
+ * The minor version of the interface as a macro so it can be used by the
+ * preprocessor.
+ */
+#define AMD_DBGAPI_VERSION_MINOR @AMD_DBGAPI_VERSION_MINOR@
 
 /**
  * Query the version of the installed library.
