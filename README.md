@@ -19,15 +19,15 @@ and limitations applicable to the purchase or use of AMD’s products are as set
 forth in a signed agreement between the parties or in AMD’s Standard Terms and
 Conditions of Sale.
 
-AMD, the AMD Arrow logo are trademarks of Advanced Micro Devices, Inc.  Linux®
-is the registered trademark of Linus Torvalds in the U.S. and other countries.
-PCIe® is a registered trademark of PCI-SIG Corporation.  RedHat® and the
-Shadowman logo are registered trademarks of Red Hat, Inc. www.redhat.com in the
-U.S. and other countries.  SUSE® is a registered trademark of SUSE LLC in the
-United Stated and other countries.  Ubuntu® and the Ubuntu logo are registered
-trademarks of Canonical Ltd.  Other product names used in this publication are
-for identification purposes only and may be trademarks of their respective
-companies.
+AMD®, the AMD Arrow logo, ROCm® and combinations thereof are trademarks of
+Advanced Micro Devices, Inc.  Linux® is the registered trademark of Linus
+Torvalds in the U.S. and other countries.  PCIe® is a registered trademark of
+PCI-SIG Corporation.  RedHat® and the Shadowman logo are registered trademarks
+of Red Hat, Inc. www.redhat.com in the U.S. and other countries.  SUSE® is a
+registered trademark of SUSE LLC in the United Stated and other countries.
+Ubuntu® and the Ubuntu logo are registered trademarks of Canonical Ltd.  Other
+product names used in this publication are for identification purposes only and
+may be trademarks of their respective companies.
 
 Copyright (c) 2019-2020 Advanced Micro Devices, Inc.  All rights reserved.
 
@@ -38,7 +38,7 @@ The AMD Debugger API is a library that provides all the support necessary for a
 debugger and other tools to perform low level control of the execution and
 inspection of execution state of AMD's commercially available GPU architectures.
 
-For more information about ROCm, see:
+For more information about the Radeon Open Compute Ecosystem (ROCm), see:
 
 - https://rocmdocs.amd.com/
 
