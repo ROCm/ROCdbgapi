@@ -1647,6 +1647,11 @@ typedef enum
    * ::AMD_DBGAPI_PROGRESS_NO_FORWARD mode will the library not leave any
    * waves paused after completing a command.
    *
+   * Note that the events that ::amd_dbgapi_wave_stop causes to be reported
+   * will occur when in ::AMD_DBGAPI_PROGRESS_NO_FORWARD mode.  It is not
+   * necessary to change the progress mode to ::AMD_DBGAPI_PROGRESS_NORMAL for
+   * those events to be reported.
+   *
    * This can result in a series of commands completing far faster than in
    * ::AMD_DBGAPI_PROGRESS_NORMAL mode.  Also, any queries for lists such as
    * ::amd_dbgapi_wave_list may return \p unchanged as true more often,
@@ -3153,6 +3158,14 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_list (
  * ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP event.  If the wave terminates before
  * stopping it will create a ::AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED
  * event.
+ *
+ * A process in the ::AMD_DBGAPI_PROGRESS_NO_FORWARD progress mode will report
+ * the ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP or
+ * ::AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED event.  It is not necessary
+ * to change the progress mode to ::AMD_DBGAPI_PROGRESS_NORMAL for these events
+ * to be reported.
+ *
+ * It is not necessary for the process  ::AMD_DBGAPI_PROGRESS_NO_FORWARD
  *
  * It is an error to request a wave to stop that has terminated.  The wave
  * handle will be reported as invalid.  It is up to the client to use
