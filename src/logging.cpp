@@ -410,6 +410,7 @@ one_queue_error_reason_to_string (
       CASE (QUEUE_ERROR_REASON_MEMORY_VIOLATION);
       CASE (QUEUE_ERROR_REASON_ASSERT_TRAP);
       CASE (QUEUE_ERROR_REASON_WAVE_ERROR);
+      CASE (QUEUE_ERROR_REASON_RESERVED);
     }
   return to_string (make_hex (queue_error_reason));
 }
@@ -550,6 +551,7 @@ one_stop_reason_to_string (amd_dbgapi_wave_stop_reason_t stop_reason)
       CASE (WAVE_STOP_REASON_ECC_ERROR);
       CASE (WAVE_STOP_REASON_FATAL_HALT);
       CASE (WAVE_STOP_REASON_XNACK_ERROR);
+      CASE (WAVE_STOP_REASON_RESERVED);
     }
   return to_string (make_hex (stop_reason));
 }
