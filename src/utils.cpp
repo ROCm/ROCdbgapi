@@ -48,22 +48,47 @@ namespace detail
    specification.
  */
 
-using amd_dbgapi_enum_underlying_type_t = uint32_t;
+using amd_dbgapi_enum_underlying_type32_t = uint32_t;
+using amd_dbgapi_enum_underlying_type64_t = uint64_t;
 
 static_assert (
-    sizeof (amd_dbgapi_changed_t) == sizeof (amd_dbgapi_enum_underlying_type_t)
-        && sizeof (amd_dbgapi_register_class_state_t)
-               == sizeof (amd_dbgapi_enum_underlying_type_t)
-        && sizeof (amd_dbgapi_address_space_alias_t)
-               == sizeof (amd_dbgapi_enum_underlying_type_t)
+    true
         && sizeof (amd_dbgapi_address_class_state_t)
-               == sizeof (amd_dbgapi_enum_underlying_type_t)
-        && sizeof (amd_dbgapi_event_kind_t)
-               == sizeof (amd_dbgapi_enum_underlying_type_t)
+               == sizeof (amd_dbgapi_enum_underlying_type32_t)
+        && sizeof (amd_dbgapi_address_space_access_t)
+               == sizeof (amd_dbgapi_enum_underlying_type32_t)
+        && sizeof (amd_dbgapi_address_space_alias_t)
+               == sizeof (amd_dbgapi_enum_underlying_type32_t)
         && sizeof (amd_dbgapi_breakpoint_action_t)
-               == sizeof (amd_dbgapi_enum_underlying_type_t)
+               == sizeof (amd_dbgapi_enum_underlying_type32_t)
+        && sizeof (amd_dbgapi_changed_t)
+               == sizeof (amd_dbgapi_enum_underlying_type32_t)
+        && sizeof (amd_dbgapi_dispatch_barrier_t)
+               == sizeof (amd_dbgapi_enum_underlying_type32_t)
+        && sizeof (amd_dbgapi_dispatch_fence_scope_t)
+               == sizeof (amd_dbgapi_enum_underlying_type32_t)
+        && sizeof (amd_dbgapi_event_kind_t)
+               == sizeof (amd_dbgapi_enum_underlying_type32_t)
+        && sizeof (amd_dbgapi_memory_precision_t)
+               == sizeof (amd_dbgapi_enum_underlying_type32_t)
+        && sizeof (amd_dbgapi_queue_error_reason_t)
+               == sizeof (amd_dbgapi_enum_underlying_type64_t)
+        && sizeof (amd_dbgapi_queue_state_t)
+               == sizeof (amd_dbgapi_enum_underlying_type32_t)
+        && sizeof (amd_dbgapi_queue_type_t)
+               == sizeof (amd_dbgapi_enum_underlying_type32_t)
+        && sizeof (amd_dbgapi_register_class_state_t)
+               == sizeof (amd_dbgapi_enum_underlying_type32_t)
+        && sizeof (amd_dbgapi_runtime_state_t)
+               == sizeof (amd_dbgapi_enum_underlying_type32_t)
         && sizeof (amd_dbgapi_shared_library_state_t)
-               == sizeof (amd_dbgapi_enum_underlying_type_t),
+               == sizeof (amd_dbgapi_enum_underlying_type32_t)
+        && sizeof (amd_dbgapi_watchpoint_share_kind_t)
+               == sizeof (amd_dbgapi_enum_underlying_type32_t)
+        && sizeof (amd_dbgapi_wave_state_t)
+               == sizeof (amd_dbgapi_enum_underlying_type32_t)
+        && sizeof (amd_dbgapi_wave_stop_reason_t)
+               == sizeof (amd_dbgapi_enum_underlying_type64_t),
     "an enum type is not compatible with the dbgapi enum underlying type");
 
 } /* namespace detail */
