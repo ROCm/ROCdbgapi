@@ -351,7 +351,10 @@ amd_dbgapi_next_pending_event (amd_dbgapi_process_id_t process_id,
       *kind = event->kind ();
     }
   else
-    *event_id = AMD_DBGAPI_EVENT_NONE;
+    {
+      *event_id = AMD_DBGAPI_EVENT_NONE;
+      *kind = AMD_DBGAPI_EVENT_KIND_NONE;
+    }
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
