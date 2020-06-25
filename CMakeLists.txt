@@ -87,7 +87,7 @@ else()
   if(GIT_FOUND)
     execute_process(
       COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
-      WORKING_DIRECTORY "${local_dir}"
+      WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
       OUTPUT_VARIABLE build_revision
       ERROR_QUIET
       OUTPUT_STRIP_TRAILING_WHITESPACE
