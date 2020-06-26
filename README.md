@@ -1,36 +1,6 @@
 AMD Debugger API (ROCdbgapi)
 ============================
 
-DISCLAIMER
-----------
-
-The information contained herein is for informational purposes only and is
-subject to change without notice. While every precaution has been taken in the
-preparation of this document, it may contain technical inaccuracies, omissions
-and typographical errors, and AMD is under no obligation to update or otherwise
-correct this information.  Advanced Micro Devices, Inc. makes no representations
-or warranties with respect to the accuracy or completeness of the contents of
-this document, and assumes no liability of any kind, including the implied
-warranties of noninfringement, merchantability or fitness for particular
-purposes, with respect to the operation or use of AMD hardware, software or
-other products described herein.  No license, including implied or arising by
-estoppel, to any intellectual property rights is granted by this document. Terms
-and limitations applicable to the purchase or use of AMD’s products are as set
-forth in a signed agreement between the parties or in AMD’s Standard Terms and
-Conditions of Sale.
-
-AMD®, the AMD Arrow logo, ROCm® and combinations thereof are trademarks of
-Advanced Micro Devices, Inc.  Linux® is the registered trademark of Linus
-Torvalds in the U.S. and other countries.  PCIe® is a registered trademark of
-PCI-SIG Corporation.  RedHat® and the Shadowman logo are registered trademarks
-of Red Hat, Inc. www.redhat.com in the U.S. and other countries.  SUSE® is a
-registered trademark of SUSE LLC in the United Stated and other countries.
-Ubuntu® and the Ubuntu logo are registered trademarks of Canonical Ltd.  Other
-product names used in this publication are for identification purposes only and
-may be trademarks of their respective companies.
-
-Copyright (c) 2019-2020 Advanced Micro Devices, Inc.  All rights reserved.
-
 Introduction
 ------------
 
@@ -38,7 +8,7 @@ The AMD Debugger API is a library that provides all the support necessary for a
 debugger and other tools to perform low level control of the execution and
 inspection of execution state of AMD's commercially available GPU architectures.
 
-For more information about the Radeon Open Compute Ecosystem (ROCm), see:
+For more information about the AMD ROCm ecosystem, see:
 
 - https://rocmdocs.amd.com/
 
@@ -53,10 +23,10 @@ Building the ROCdbgapi library has the following prerequisites:
 1. A C++14 compiler such as GCC 5 or Clang 3.4.
 
 2. AMD Code Object Manager Library (ROCcomgr) which can be installed as part of
-   the ROCm release by the ``comgr`` package.
+   the AMD ROCm release by the ``comgr`` package.
 
-3. ROCm CMake modules which can be installed as part of the ROCm release by the
-   ``rocm-cmake`` package.
+3. ROCm CMake modules which can be installed as part of the AMD ROCm release by
+   the ``rocm-cmake`` package.
 
 An example command-line to build and install the ROCdbgapi library on Linux is:
 
@@ -88,8 +58,8 @@ The installed ROCdbgapi library will be placed in:
 - ``../install/share/amd-dbgapi/LICENSE.txt``
 - ``../install/share/amd-dbgapi/README.md``
 
-To use the ROCdbgapi library, the ROCcomgr library must be installed. This can
-be installed as part of the ROCm release by the ``comgr`` package:
+To use the ROCdbgapi library, the ROCcomgr library must be installed.  This can
+be installed as part of the AMD ROCm release by the ``comgr`` package:
 
 - ``libamd_comgr.so.1``
 
@@ -106,7 +76,7 @@ prerequisites:
    ````
 
    NOTE: The ``doxygen`` 1.8.13 that is installed by Ubuntu 18.04 has a bug that
-   prevents the PDF from being created. Both ``doxygen`` 1.8.11 can be built
+   prevents the PDF from being created.  Both ``doxygen`` 1.8.11 can be built
    from source to avoid the issue.
 
 2. For CentOS 8.1 and RHEL 8.1 the following adds the needed packages:
@@ -151,3 +121,33 @@ documentation for:
   architectures.
 - *Known Limitations and Restrictions* provides information about known
   limitations and restrictions.
+
+Disclaimer
+----------
+
+The information contained herein is for informational purposes only and is
+subject to change without notice.  While every precaution has been taken in the
+preparation of this document, it may contain technical inaccuracies, omissions
+and typographical errors, and AMD is under no obligation to update or otherwise
+correct this information.  Advanced Micro Devices, Inc. makes no
+representations or warranties with respect to the accuracy or completeness of
+the contents of this document, and assumes no liability of any kind, including
+the implied warranties of noninfringement, merchantability or fitness for
+particular purposes, with respect to the operation or use of AMD hardware,
+software or other products described herein.  No license, including implied or
+arising by estoppel, to any intellectual property rights is granted by this
+document.  Terms and limitations applicable to the purchase or use of AMD’s
+products are as set forth in a signed agreement between the parties or in AMD’s
+Standard Terms and Conditions of Sale.
+
+AMD®, the AMD Arrow logo, ROCm® and combinations thereof are trademarks of
+Advanced Micro Devices, Inc.  Linux® is the registered trademark of Linus
+Torvalds in the U.S. and other countries.  PCIe® is a registered trademark of
+PCI-SIG Corporation.  RedHat® and the Shadowman logo are registered trademarks
+of Red Hat, Inc. www.redhat.com in the U.S. and other countries.  SUSE® is a
+registered trademark of SUSE LLC in the United Stated and other countries.
+Ubuntu® and the Ubuntu logo are registered trademarks of Canonical Ltd.  Other
+product names used in this publication are for identification purposes only and
+may be trademarks of their respective companies.
+
+Copyright (c) 2019-2020 Advanced Micro Devices, Inc.  All rights reserved.

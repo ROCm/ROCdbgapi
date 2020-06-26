@@ -20,33 +20,6 @@
 
 /** \mainpage AMD Debugger API Specification
  *
- * \section disclaimer Disclaimer
- *
- * The information contained herein is for informational purposes only, and is
- * subject to change without notice.  While every precaution has been taken in
- * the preparation of this document, it may contain technical inaccuracies,
- * omissions and typographical errors, and AMD is under no obligation to update
- * or otherwise correct this information.  Advanced Micro Devices, Inc. makes
- * no representations or warranties with respect to the accuracy or
- * completeness of the contents of this document, and assumes no liability of
- * any kind, including the implied warranties of noninfringement,
- * merchantability or fitness for particular purposes, with respect to the
- * operation or use of AMD hardware, software or other products described
- * herein.  No license, including implied or arising by estoppel, to any
- * intellectual property rights is granted by this document.  Terms and
- * limitations applicable to the purchase or use of AMD’s products are as set
- * forth in a signed agreement between the parties or in AMD's Standard Terms
- * and Conditions of Sale.
- *
- * AMD®, the AMD Arrow logo, ROCm® and combinations thereof are trademarks of
- * Advanced Micro Devices, Inc.  Linux® is the registered trademark of Linus
- * Torvalds in the U.S. and other countries.  PCIe® is a registered trademark
- * of PCI-SIG Corporation.  Other product names used in this publication are
- * for identification purposes only and may be trademarks of their respective
- * companies.
- *
- * Copyright (c) 2019-2020 Advanced Micro Devices, Inc.  All rights reserved.
- *
  * \section introduction Introduction
  *
  * The amd-dbgapi is a library that implements an AMD GPU debugger application
@@ -127,10 +100,10 @@
  * large number of threads of execution that are created on GPUs.
  *
  * Chapter 2 of the [HSA Programmer's Reference Manual][hsa-prm] provides an
- * introduction to this execution model.  Note that the Radeon Open Compute
- * Ecosystem (ROCm) compilers compile directly to ISA and do not use the HSAIL
- * intermediate language.  However, the ROCr low-level runtime and ROCgdb
- * debugger use the same terminology.
+ * introduction to this execution model.  Note that the AMD ROCm compilers
+ * compile directly to ISA and do not use the HSAIL intermediate language.
+ * However, the ROCr low-level runtime and ROCgdb debugger use the same
+ * terminology.
  *
  * In this model, a CPU process may interact with multiple AMD GPU devices,
  * which are termed agents.  A PASSID is created for each process that
@@ -167,15 +140,16 @@
  * operations.  No Linux kernel call is required.  For this reason, the queues
  * are termed user mode queues.
  *
- * ROCm uses the Asynchronous Queuing Language (AQL) packet format defined in
- * the [HSA Platform System Architecture Specification][hsa-sysarch].  Packets
- * can request GPU management actions (for example, manage memory coherence)
- * and the execution of kernel functions.  The ME firmware includes the Command
- * Processor (CP) which, together with fixed-function hardware support, is
- * responsible for detecting when packets are added to software queues that are
- * mapped to hardware queues.  Once detected, CP is responsible for initiating
- * actions requested by the packet, using the appropriate VMID when performing
- * all memory operations.
+ * The AMD ROCm platform uses the Asynchronous Queuing Language (AQL) packet
+ * format defined in the [HSA Platform System Architecture
+ * Specification][hsa-sysarch].  Packets can request GPU management actions
+ * (for example, manage memory coherence) and the execution of kernel
+ * functions.  The ME firmware includes the Command Processor (CP) which,
+ * together with fixed-function hardware support, is responsible for detecting
+ * when packets are added to software queues that are mapped to hardware
+ * queues.  Once detected, CP is responsible for initiating actions requested
+ * by the packet, using the appropriate VMID when performing all memory
+ * operations.
  *
  * Dispatch packets are used to request the execution of a kernel function.
  * Each dispatch packet specifies the address of a kernel descriptor, the
@@ -300,7 +274,7 @@
  *   - gfx900 (Vega 10)
  *   - gfx906 (Vega 7nm also referred to as Vega 20)
  *
- * For more information about ROCm, please refer to:
+ * For more information about the AMD ROCm ecosystem, please refer to:
  *
  * - https://rocmdocs.amd.com/
  *
@@ -339,7 +313,7 @@
  * \section references References
  *
  * 1. Advanced Micro Devices: [www.amd.com] (https://www.amd.com/)
- * 2. AMD Radeon Open Compute Ecosystem (ROCm): [rocmdocs.amd.com] (https://rocmdocs.amd.com/)
+ * 2. AMD ROCm Ecosystem: [rocmdocs.amd.com] (https://rocmdocs.amd.com/)
  * 3. Bus:Device.Function (BDF) Notation:
  *    [wiki.xen.org/wiki/Bus:Device.Function_(BDF)_Notation]
  *    (https://wiki.xen.org/wiki/Bus:Device.Function_(BDF)_Notation)
@@ -353,6 +327,33 @@
  * 7. The LLVM Compiler Infrastructure: [llvm.org] (https://llvm.org/)
  * 8. User Guide for AMDGPU LLVM Backend: [llvm.org/docs/AMDGPUUsage.html]
  *    (https://llvm.org/docs/AMDGPUUsage.html)
+ *
+ * \section disclaimer Disclaimer
+ *
+ * The information contained herein is for informational purposes only, and is
+ * subject to change without notice.  While every precaution has been taken in
+ * the preparation of this document, it may contain technical inaccuracies,
+ * omissions and typographical errors, and AMD is under no obligation to update
+ * or otherwise correct this information.  Advanced Micro Devices, Inc. makes
+ * no representations or warranties with respect to the accuracy or
+ * completeness of the contents of this document, and assumes no liability of
+ * any kind, including the implied warranties of noninfringement,
+ * merchantability or fitness for particular purposes, with respect to the
+ * operation or use of AMD hardware, software or other products described
+ * herein.  No license, including implied or arising by estoppel, to any
+ * intellectual property rights is granted by this document.  Terms and
+ * limitations applicable to the purchase or use of AMD’s products are as set
+ * forth in a signed agreement between the parties or in AMD's Standard Terms
+ * and Conditions of Sale.
+ *
+ * AMD®, the AMD Arrow logo, ROCm® and combinations thereof are trademarks of
+ * Advanced Micro Devices, Inc.  Linux® is the registered trademark of Linus
+ * Torvalds in the U.S. and other countries.  PCIe® is a registered trademark
+ * of PCI-SIG Corporation.  Other product names used in this publication are
+ * for identification purposes only and may be trademarks of their respective
+ * companies.
+ *
+ * Copyright (c) 2019-2020 Advanced Micro Devices, Inc.  All rights reserved.
  */
 
 /**
@@ -382,7 +383,7 @@
  *
  * [rocm]:
  * https://rocmdocs.amd.com/
- * "AMD Radeon Open Compute Ecosystem (ROCm)"
+ * "AMD ROCm Ecosystem"
  *
  * [semver]:
  * https://semver.org/
