@@ -19,7 +19,6 @@
 ## IN THE SOFTWARE.
 
 cmake_minimum_required(VERSION 3.2.0)
-include(GNUInstallDirs)
 
 project(AMD_DBGAPI VERSION 0.27.0)
 

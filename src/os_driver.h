@@ -121,7 +121,6 @@ enum class os_wave_launch_trap_mask_t : uint32_t
   FP_INEXACT = KFD_DBG_TRAP_MASK_FP_INEXACT,
   INT_DIVIDE_BY_ZERO = KFD_DBG_TRAP_MASK_INT_DIVIDE_BY_ZERO,
   ADDRESS_WATCH = KFD_DBG_TRAP_MASK_DBG_ADDRESS_WATCH,
-  MEMORY_VIOLATION = KFD_DBG_TRAP_MASK_DBG_MEMORY_VIOLATION,
 };
 template <> struct is_flag<os_wave_launch_trap_mask_t> : std::true_type
 {

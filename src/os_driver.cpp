@@ -128,11 +128,11 @@ private:
   };
 
   static constexpr gfxip_lookup_table_t s_gfxip_lookup_table[]
-      = { { "vega10", EF_AMDGPU_MACH_AMDGCN_GFX900, 432 },
+      = { { "vega10", EF_AMDGPU_MACH_AMDGCN_GFX900, 33206 },
           { "raven", EF_AMDGPU_MACH_AMDGCN_GFX902, 0 },
           { "vega12", EF_AMDGPU_MACH_AMDGCN_GFX904, 0 },
-          { "vega20", EF_AMDGPU_MACH_AMDGCN_GFX906, 432 },
-          { "arcturus", EF_AMDGPU_MACH_AMDGCN_GFX908, 34 },
+          { "vega20", EF_AMDGPU_MACH_AMDGCN_GFX906, 438 },
+          { "arcturus", EF_AMDGPU_MACH_AMDGCN_GFX908, 48 },
           { "navi10", EF_AMDGPU_MACH_AMDGCN_GFX1010, 0 },
           { "navi12", EF_AMDGPU_MACH_AMDGCN_GFX1011, 0 },
           { "navi14", EF_AMDGPU_MACH_AMDGCN_GFX1012, 0 } };
