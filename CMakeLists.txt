@@ -177,22 +177,10 @@ set(CPACK_PACKAGE_CONTACT "Advanced Micro Devices Inc.")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Library to provide AMD GPU debugger API")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.txt")
 
-set(LDCONFIG_DIR ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR})
-file(WRITE ${PROJECT_BINARY_DIR}/debian/postinst "
-    echo \"${LDCONFIG_DIR}\" > /etc/ld.so.conf.d/${PROJECT_NAME}.conf
-    ldconfig
-")
-file(WRITE ${PROJECT_BINARY_DIR}/debian/prerm "
-    rm /etc/ld.so.conf.d/${PROJECT_NAME}.conf
-    ldconfig
-")
 set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
-set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA "${PROJECT_BINARY_DIR}/debian/postinst;${PROJECT_BINARY_DIR}/debian/prerm")
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "comgr (>=1.2.0)")
 
 set(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
-set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${PROJECT_BINARY_DIR}/debian/postinst")
-set(CPACK_RPM_PRE_UNINSTALL_SCRIPT_FILE "${PROJECT_BINARY_DIR}/debian/prerm")
 set(CPACK_RPM_PACKAGE_REQUIRES "comgr >= 1.2.0")
 
 # Debian package specific variables
