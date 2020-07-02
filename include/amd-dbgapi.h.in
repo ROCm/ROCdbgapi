@@ -463,10 +463,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_24
 
 /**
- * The function was introduced in version 0.26 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.26"``.
+ * The function was introduced in version 0.27 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.27"``.
  */
-#define AMD_DBGAPI_VERSION_0_26
+#define AMD_DBGAPI_VERSION_0_27
 
 /** @} */
 
@@ -903,7 +903,7 @@ const char AMD_DBGAPI *amd_dbgapi_get_build_name (void)
  */
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_initialize (amd_dbgapi_callbacks_t *callbacks)
-    AMD_DBGAPI_VERSION_0_26;
+    AMD_DBGAPI_VERSION_0_27;
 
 /**
  * Finalize the library.
@@ -1063,7 +1063,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_get_info (
     amd_dbgapi_architecture_id_t architecture_id,
     amd_dbgapi_architecture_info_t query, size_t value_size, void *value)
-    AMD_DBGAPI_VERSION_0_26;
+    AMD_DBGAPI_VERSION_0_27;
 
 /**
  * Get an architecture from the AMD GPU ELF \p EF_AMDGPU_MACH value
@@ -1126,7 +1126,10 @@ typedef struct amd_dbgapi_symbolizer_id_s *amd_dbgapi_symbolizer_id_t;
  * instruction can be decoded if legal.  However, \p size may need to be
  * smaller if no memory exists at the address of \p address plus \p size.
  *
- * \param[out] instruction_text Pointer to NUL terminated string that contains
+ * \param[out] instruction_text If NULL then only the instruction \p size is
+ * returned.
+ *
+ * If non-NULL then set to a pointer to a NUL terminated string that contains
  * the disassembled textual representation of the instruction.  The memory is
  * allocated using the amd_dbgapi_callbacks_s::allocate_memory callback and is
  * owned by the client.
@@ -1174,9 +1177,8 @@ typedef struct amd_dbgapi_symbolizer_id_s *amd_dbgapi_symbolizer_id_t;
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID \p architecture_id
  * is invalid.  \p size and \p instruction_text are unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p size, \p memory, or \p
- * instruction_text are NULL; or \p size is 0.  \p size and \p instruction_text
- * are unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p size or \p memory are
+ * NULL; or \p size is 0.  \p size and \p instruction_text are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR Encountered an error disassembling the
  * instruction, a \p symbolizer callback returned ::AMD_DBGAPI_STATUS_SUCCESS
@@ -1203,7 +1205,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_disassemble_instruction (
     amd_dbgapi_status_t (*symbolizer) (
         amd_dbgapi_symbolizer_id_t symbolizer_id,
         amd_dbgapi_global_address_t address, char **symbol_text))
-    AMD_DBGAPI_VERSION_0_24;
+    AMD_DBGAPI_VERSION_0_27;
 
 /**
  * The kinds of instruction classifications.
@@ -2878,7 +2880,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
     amd_dbgapi_wave_info_t query, size_t value_size, void *value)
-    AMD_DBGAPI_VERSION_0_26;
+    AMD_DBGAPI_VERSION_0_27;
 
 /**
  * The execution state of a wave.
@@ -4877,7 +4879,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_space_get_info (
     amd_dbgapi_architecture_id_t architecture_id,
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_address_space_info_t query, size_t value_size, void *value)
-    AMD_DBGAPI_VERSION_0_26;
+    AMD_DBGAPI_VERSION_0_27;
 
 /**
  * Report the list of address spaces supported by the architecture.
@@ -5302,7 +5304,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_memory (
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_segment_address_t segment_address,
     amd_dbgapi_size_t *value_size, void *value)
-    AMD_DBGAPI_VERSION_0_26;
+    AMD_DBGAPI_VERSION_0_27;
 
 /**
  * Write memory.
@@ -5391,7 +5393,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_memory (
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_segment_address_t segment_address,
     amd_dbgapi_size_t *value_size, const void *value)
-    AMD_DBGAPI_VERSION_0_26;
+    AMD_DBGAPI_VERSION_0_27;
 
 /**
  * Memory access precision.

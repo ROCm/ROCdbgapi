@@ -15,7 +15,6 @@ global: amd_dbgapi_address_is_in_address_class;
         amd_dbgapi_code_object_get_info;
         amd_dbgapi_code_object_list;
         amd_dbgapi_convert_address_space;
-        amd_dbgapi_disassemble_instruction;
         amd_dbgapi_dispatch_get_info;
         amd_dbgapi_dispatch_list;
         amd_dbgapi_displaced_stepping_complete;
@@ -58,9 +57,9 @@ global: amd_dbgapi_address_is_in_address_class;
 local:  *;
 };
 
-
-@AMD_DBGAPI_NAME@_0.26 {
+@AMD_DBGAPI_NAME@_0.27 {
 global: amd_dbgapi_architecture_address_class_get_info;
+        amd_dbgapi_disassemble_instruction;
         amd_dbgapi_initialize;
         amd_dbgapi_read_memory;
         amd_dbgapi_wave_get_info;
