@@ -192,6 +192,8 @@ public:
   write_pseudo_register (wave_t &wave, amdgpu_regnum_t regnum, size_t offset,
                          size_t value_size, const void *value) const = 0;
 
+  amd_dbgapi_status_t instruction_size (const void *memory,
+                                        size_t *size) const;
   size_t instruction_size (const std::vector<uint8_t> &bytes) const;
   amd_dbgapi_status_t disassemble_instruction (
       amd_dbgapi_global_address_t address, amd_dbgapi_size_t *size,

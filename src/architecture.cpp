@@ -2214,20 +2214,28 @@ architecture_t::disassembly_info () const
 size_t
 architecture_t::instruction_size (const std::vector<uint8_t> &bytes) const
 {
-  size_t size;
+  size_t size = bytes.size ();
 
-  struct detail::disassembly_user_data_t user_data = { .memory = bytes.data (),
+  if (instruction_size (bytes.data (), &size) != AMD_DBGAPI_STATUS_SUCCESS)
+    return 0;
+
+  return size;
+}
+
+amd_dbgapi_status_t
+architecture_t::instruction_size (const void *memory, size_t *size) const
+{
+  struct detail::disassembly_user_data_t user_data = { .memory = memory,
                                                        .offset = 0,
-                                                       .size = bytes.size (),
+                                                       .size = *size,
                                                        .instruction = nullptr,
                                                        .operands = nullptr };
 
   /* Disassemble one instruction.  */
-  if (amd_comgr_disassemble_instruction (disassembly_info (), 0, &user_data,
-                                         &size))
-    return 0;
-
-  return size;
+  return (amd_comgr_disassemble_instruction (disassembly_info (), 0,
+                                             &user_data, size))
+             ? AMD_DBGAPI_STATUS_ERROR
+             : AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 amd_dbgapi_status_t
@@ -2384,13 +2392,16 @@ amd_dbgapi_disassemble_instruction (
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
-  if (!memory || !size || !instruction_text)
+  if (!memory || !size)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   const architecture_t *architecture = architecture_t::find (architecture_id);
 
   if (!architecture)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID;
+
+  if (!instruction_text)
+    return architecture->instruction_size (memory, size);
 
   std::string instruction_str;
   std::vector<amd_dbgapi_global_address_t> operands_vec;
