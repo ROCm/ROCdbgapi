@@ -1301,24 +1301,115 @@ amdgcn_architecture_t::get_wave_state (
 
       amd_dbgapi_global_address_t pc = wave.pc ();
 
-      /* FIXME: Enable this when the trap handler is modified to send
-         debugger notifications for exceptions.
-         if (!excp_raised)
-           error ("The trap handler should have set the excp_raised bit.");
-       */
-
-      if ((trapsts & SQ_WAVE_TRAPSTS_EXCP_MEM_VIOL_MASK)
-          || (trapsts & SQ_WAVE_TRAPSTS_ILLEGAL_INST_MASK))
+      if ((trapsts & SQ_WAVE_TRAPSTS_EXCP_MEM_VIOL_MASK
+           || trapsts & SQ_WAVE_TRAPSTS_ILLEGAL_INST_MASK)
+          /* FIXME: If the wave was single-stepping when the exception
+             occurred, the first level trap handler did not decrement the PC as
+             it took the SINGLE_STEP_WORKAROUND path.  */
+          && saved_state != AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
         {
+          /* FIXME: Enable this when the trap handler is modified to send
+             debugger notifications for exceptions.
+             if (!excp_raised)
+               error ("The trap handler should have set the excp_raised bit.");
+           */
+
           /* The first-level trap handler subtracts 8 from the PC, so
              we add it back here.  */
-
           pc += 8;
           status = wave.write_register (amdgpu_regnum_t::PC, &pc);
           if (status != AMD_DBGAPI_STATUS_SUCCESS)
             return status;
         }
 
+      /* FIXME: If we had a way to tell which trap instruction caused the
+         trap_raised, we would not have to read the instruction on the
+         common path.  */
+      auto instruction = wave.instruction_at_pc ();
+
+      /* Check for spurious single-step events. A context save/restore
+         before executing the single-stepped instruction could have caused
+         the event to be reported with the wave halted at the instruction
+         instead of after.  In such cases, un-halt the wave and let it
+         continue, so that the instruction is executed.  */
+      bool ignore_single_step_event
+          = saved_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
+            && wave.saved_pc () == pc && !trap_raised;
+
+      if (ignore_single_step_event)
+        {
+          /* Trim to size of instruction, simulate_instruction needs the
+             exact instruction bytes.  */
+          size_t size = instruction_size (instruction);
+          dbgapi_assert (size != 0 && "Invalid instruction");
+          instruction.resize (size);
+
+          /* Branch instructions should be simulated, and the event
+             reported, as we cannot tell if a branch to self
+             instruction has executed.  */
+          status = simulate_instruction (wave, pc, instruction);
+          if (status == AMD_DBGAPI_STATUS_SUCCESS)
+            {
+              /* We successfully simulated the instruction, report the
+                 single-step event.  */
+              ignore_single_step_event = false;
+            }
+          else if (status != AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED)
+            {
+              /* The instruction should have been simulated but an error
+                 has occurred.  */
+              error ("simulate_instruction failed (rc=%d)", status);
+            }
+        }
+
+      if (ignore_single_step_event)
+        {
+          /* Place the wave back into single-stepping state.  */
+          *state = AMD_DBGAPI_WAVE_STATE_SINGLE_STEP;
+          status_reg &= ~SQ_WAVE_STATUS_HALT_MASK;
+
+          status = wave.write_register (amdgpu_regnum_t::STATUS, &status_reg);
+          if (status != AMD_DBGAPI_STATUS_SUCCESS)
+            return status;
+
+          dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+                      "%s (pc=%#lx) ignore spurious single-step",
+                      to_string (wave.id ()).c_str (), pc);
+
+          /* Don't report the event.  */
+          reason_mask = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
+        }
+      else if (trap_raised)
+        {
+          uint16_t trap_id;
+
+          if (!is_trap (instruction, &trap_id))
+            {
+              /* FIXME: We should be getting the stop reason from the trap
+                 handler.  As a workaround, assume the the trap_id is of a
+                 breakpoint instruction, that could have been removed by
+                 the debugger since the trap was raised.  */
+              trap_id = 7;
+            }
+
+          switch (trap_id)
+            {
+            case 1:
+              reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_DEBUG_TRAP;
+              break;
+            case 2:
+              reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_ASSERT_TRAP;
+              break;
+            case 7:
+              reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT;
+              break;
+            default:
+              reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_TRAP;
+              break;
+            }
+        }
+
+      /* Check for exceptions.  */
       if (trapsts & SQ_WAVE_TRAPSTS_EXCP_INVALID_MASK)
         reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_FP_INVALID_OPERATION;
       if (trapsts & SQ_WAVE_TRAPSTS_EXCP_INPUT_DENORM_MASK)
@@ -1343,100 +1434,6 @@ amdgcn_architecture_t::get_wave_state (
              | SQ_WAVE_TRAPSTS_EXCP_HI_ADDR_WATCH2_MASK
              | SQ_WAVE_TRAPSTS_EXCP_HI_ADDR_WATCH3_MASK))
         reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT;
-
-      /* If we did not stop because of an exception, then check for traps or
-         single-step.  */
-      if (!reason_mask)
-        {
-          /* FIXME: If we had a way to tell which trap instruction caused the
-             trap_raised, we would not have to read the instruction on the
-             common path.  */
-          auto instruction = wave.instruction_at_pc ();
-
-          /* Check for spurious single-step events. A context save/restore
-             before executing the single-stepped instruction could have caused
-             the event to be reported with the wave halted at the instruction
-             instead of after.  In such cases, un-halt the wave and let it
-             continue, so that the instruction is executed.
-           */
-          bool ignore_single_step_event
-              = saved_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
-                && wave.saved_pc () == pc && !trap_raised;
-
-          if (ignore_single_step_event)
-            {
-              /* Trim to size of instruction, simulate_instruction needs the
-                 exact instruction bytes.  */
-              size_t size = instruction_size (instruction);
-              dbgapi_assert (size != 0 && "Invalid instruction");
-              instruction.resize (size);
-
-              /* Branch instructions should be simulated, and the event
-                 reported, as we cannot tell if a branch to self
-                 instruction has executed.  */
-              status = simulate_instruction (wave, pc, instruction);
-              if (status == AMD_DBGAPI_STATUS_SUCCESS)
-                {
-                  /* We successfully simulated the instruction, report the
-                     single-step event.  */
-                  ignore_single_step_event = false;
-                }
-              else if (status != AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED)
-                {
-                  /* The instruction should have been simulated but an error
-                     has occurred.  */
-                  error ("simulate_instruction failed (rc=%d)", status);
-                }
-            }
-
-          if (ignore_single_step_event)
-            {
-              /* Place the wave back into single-stepping state.  */
-              *state = AMD_DBGAPI_WAVE_STATE_SINGLE_STEP;
-              status_reg &= ~SQ_WAVE_STATUS_HALT_MASK;
-
-              status
-                  = wave.write_register (amdgpu_regnum_t::STATUS, &status_reg);
-              if (status != AMD_DBGAPI_STATUS_SUCCESS)
-                return status;
-
-              dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                          "%s (pc=%#lx) ignore spurious single-step",
-                          to_string (wave.id ()).c_str (), pc);
-
-              /* Don't report the event.  */
-              reason_mask = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
-            }
-          else if (trap_raised)
-            {
-              uint16_t trap_id;
-
-              if (!is_trap (instruction, &trap_id))
-                {
-                  /* FIXME: We should be getting the stop reason from the trap
-                     handler.  As a workaround, assume the the trap_id is of a
-                     breakpoint instruction, that could have been removed by
-                     the debugger since the trap was raised.  */
-                  trap_id = 7;
-                }
-
-              switch (trap_id)
-                {
-                case 1:
-                  reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_DEBUG_TRAP;
-                  break;
-                case 2:
-                  reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_ASSERT_TRAP;
-                  break;
-                case 7:
-                  reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT;
-                  break;
-                default:
-                  reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_TRAP;
-                  break;
-                }
-            }
-        }
 
       *stop_reason = reason_mask;
     }
