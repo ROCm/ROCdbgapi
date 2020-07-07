@@ -56,8 +56,10 @@ using utils::bit_extract;
 #define COMPUTE_RELAUNCH_PAYLOAD_SGPRS(x) bit_extract ((x), 6, 8)
 #define COMPUTE_RELAUNCH_GFX9_PAYLOAD_LDS_SIZE(x) bit_extract ((x), 9, 17)
 #define COMPUTE_RELAUNCH_GFX10_PAYLOAD_LDS_SIZE(x) bit_extract ((x), 10, 17)
-#define COMPUTE_RELAUNCH_PAYLOAD_LAST_WAVE(x) bit_extract ((x), 16, 16)
-#define COMPUTE_RELAUNCH_PAYLOAD_FIRST_WAVE(x) bit_extract ((x), 17, 17)
+#define COMPUTE_RELAUNCH_GFX9_PAYLOAD_LAST_WAVE(x) bit_extract ((x), 16, 16)
+#define COMPUTE_RELAUNCH_GFX9_PAYLOAD_FIRST_WAVE(x) bit_extract ((x), 17, 17)
+#define COMPUTE_RELAUNCH_GFX10_PAYLOAD_LAST_WAVE(x) bit_extract ((x), 29, 29)
+#define COMPUTE_RELAUNCH_GFX10_PAYLOAD_FIRST_WAVE(x) bit_extract ((x), 12, 12)
 #define COMPUTE_RELAUNCH_GFX10_PAYLOAD_W32_EN(x) bit_extract ((x), 24, 24)
 #define COMPUTE_RELAUNCH_IS_EVENT(x) bit_extract ((x), 30, 30)
 #define COMPUTE_RELAUNCH_IS_STATE(x) bit_extract ((x), 31, 31)
@@ -326,6 +328,7 @@ queue_t::aql_queue_impl_t::update_waves ()
        i < header.ctrl_stack_size / sizeof (uint32_t); ++i)
     {
       uint32_t relaunch = ctrl_stack[i];
+      auto relaunch_abi = m_queue.architecture ().compute_relaunch_abi ();
 
       if (COMPUTE_RELAUNCH_IS_EVENT (relaunch))
         {
@@ -334,9 +337,6 @@ queue_t::aql_queue_impl_t::update_waves ()
         }
       else if (COMPUTE_RELAUNCH_IS_STATE (relaunch))
         {
-          architecture_t::compute_relaunch_abi_t relaunch_abi
-              = m_queue.architecture ().compute_relaunch_abi ();
-
           switch (relaunch_abi)
             {
             case architecture_t::compute_relaunch_abi_t::GFX900:
@@ -403,7 +403,24 @@ queue_t::aql_queue_impl_t::update_waves ()
         }
 
       /* The first wave in the group saves the group lds in its save area.  */
-      bool first_in_group = COMPUTE_RELAUNCH_PAYLOAD_FIRST_WAVE (relaunch);
+      bool first_in_group, last_in_group;
+      switch (relaunch_abi)
+        {
+        case architecture_t::compute_relaunch_abi_t::GFX1000:
+          first_in_group
+              = COMPUTE_RELAUNCH_GFX10_PAYLOAD_FIRST_WAVE (relaunch);
+          last_in_group = COMPUTE_RELAUNCH_GFX10_PAYLOAD_LAST_WAVE (relaunch);
+          break;
+        case architecture_t::compute_relaunch_abi_t::GFX900:
+        case architecture_t::compute_relaunch_abi_t::GFX908:
+          first_in_group = COMPUTE_RELAUNCH_GFX9_PAYLOAD_FIRST_WAVE (relaunch);
+          last_in_group = COMPUTE_RELAUNCH_GFX9_PAYLOAD_LAST_WAVE (relaunch);
+          break;
+        default:
+          dbgapi_assert_not_reached (
+              "compute_relaunch register ABI not supported");
+          break;
+        }
 
       uint32_t wave_area_size = /* vgprs save area */
           (n_vgprs + n_accvgprs) * sizeof (uint32_t) * wave_lanes
@@ -612,7 +629,7 @@ queue_t::aql_queue_impl_t::update_waves ()
 
       /* This was the last wave in the group. Make sure we have a new group
          leader for the remaining waves.  */
-      if (COMPUTE_RELAUNCH_PAYLOAD_LAST_WAVE (relaunch))
+      if (last_in_group)
         group_leader = nullptr;
 
       /* Check that the wave is in the same group as its group leader.  */
