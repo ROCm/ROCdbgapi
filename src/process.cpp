@@ -501,12 +501,14 @@ process_t::update_agents ()
           amd_dbgapi_status_t status = agent->enable_debug_mode ();
           if (status != AMD_DBGAPI_STATUS_SUCCESS
               && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-            /* FIXME: We could not enable the debug mode for this agent.
-               Another process may already have enabled debug mode for the
-               same agent.  Remove this when KFD supports concurrent
-               debugging on the same agent.  */
-            error ("Could not enable debugging on os_agent_id %d (rc=%d)",
-                   agent->os_agent_id (), status);
+            {
+              /* We could not enable the debug mode for this agent. Another
+                 process may already have already enabled debug mode for the
+                 same agent, which may not support concurrent debugging.  */
+              warning ("Could not enable debugging on os_agent_id %d (rc=%d)",
+                       agent->os_agent_id (), status);
+              return status;
+            }
         }
       else if (!is_flag_set (flag_t::ENABLE_AGENT_DEBUG_MODE)
                && agent->is_debug_mode_enabled ())
@@ -1172,7 +1174,13 @@ process_t::attach ()
 
     status = update_agents ();
     if (status != AMD_DBGAPI_STATUS_SUCCESS)
-      error ("update_agents failed (rc=%d)", status);
+      {
+        warning ("update_agents failed (rc=%d)", status);
+        enqueue_event (create<event_t> (
+            *this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
+            AMD_DBGAPI_RUNTIME_STATE_LOADED_DEBUGGING_UNSUPPORTED));
+        return;
+      }
 
     status = update_queues ();
     if (status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -1218,9 +1226,9 @@ process_t::attach ()
         warning ("%s: _amdgpu_r_debug.r_version not supported, "
                  "expected %d got %d.",
                  library.name ().c_str (), ROCR_RDEBUG_VERSION, r_version);
-        enqueue_event (
-            create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
-                             AMD_DBGAPI_RUNTIME_STATE_LOADED_VERSION_UNSUPPORTED));
+        enqueue_event (create<event_t> (
+            *this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
+            AMD_DBGAPI_RUNTIME_STATE_LOADED_VERSION_UNSUPPORTED));
         return;
       }
 
