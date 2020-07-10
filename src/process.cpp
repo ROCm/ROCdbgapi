@@ -1220,7 +1220,7 @@ process_t::attach ()
                  library.name ().c_str (), ROCR_RDEBUG_VERSION, r_version);
         enqueue_event (
             create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
-                             AMD_DBGAPI_RUNTIME_STATE_LOADED_UNSUPPORTED));
+                             AMD_DBGAPI_RUNTIME_STATE_LOADED_VERSION_UNSUPPORTED));
         return;
       }
 

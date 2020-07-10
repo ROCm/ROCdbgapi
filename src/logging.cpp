@@ -766,8 +766,9 @@ to_string (amd_dbgapi_runtime_state_t runtime_state)
   switch (runtime_state)
     {
       CASE (RUNTIME_STATE_LOADED_SUPPORTED);
-      CASE (RUNTIME_STATE_LOADED_UNSUPPORTED);
       CASE (RUNTIME_STATE_UNLOADED);
+      CASE (RUNTIME_STATE_LOADED_VERSION_UNSUPPORTED);
+      CASE (RUNTIME_STATE_LOADED_DEBUGGING_UNSUPPORTED);
     }
   return to_string (make_hex (runtime_state));
 }

@@ -463,10 +463,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_24
 
 /**
- * The function was introduced in version 0.27 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.27"``.
+ * The function was introduced in version 0.28 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.28"``.
  */
-#define AMD_DBGAPI_VERSION_0_27
+#define AMD_DBGAPI_VERSION_0_28
 
 /** @} */
 
@@ -903,7 +903,7 @@ const char AMD_DBGAPI *amd_dbgapi_get_build_name (void)
  */
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_initialize (amd_dbgapi_callbacks_t *callbacks)
-    AMD_DBGAPI_VERSION_0_27;
+    AMD_DBGAPI_VERSION_0_28;
 
 /**
  * Finalize the library.
@@ -1063,7 +1063,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_get_info (
     amd_dbgapi_architecture_id_t architecture_id,
     amd_dbgapi_architecture_info_t query, size_t value_size, void *value)
-    AMD_DBGAPI_VERSION_0_27;
+    AMD_DBGAPI_VERSION_0_28;
 
 /**
  * Get an architecture from the AMD GPU ELF \p EF_AMDGPU_MACH value
@@ -1205,7 +1205,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_disassemble_instruction (
     amd_dbgapi_status_t (*symbolizer) (
         amd_dbgapi_symbolizer_id_t symbolizer_id,
         amd_dbgapi_global_address_t address, char **symbol_text))
-    AMD_DBGAPI_VERSION_0_27;
+    AMD_DBGAPI_VERSION_0_28;
 
 /**
  * The kinds of instruction classifications.
@@ -2880,7 +2880,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
     amd_dbgapi_wave_info_t query, size_t value_size, void *value)
-    AMD_DBGAPI_VERSION_0_27;
+    AMD_DBGAPI_VERSION_0_28;
 
 /**
  * The execution state of a wave.
@@ -4879,7 +4879,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_space_get_info (
     amd_dbgapi_architecture_id_t architecture_id,
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_address_space_info_t query, size_t value_size, void *value)
-    AMD_DBGAPI_VERSION_0_27;
+    AMD_DBGAPI_VERSION_0_28;
 
 /**
  * Report the list of address spaces supported by the architecture.
@@ -5304,7 +5304,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_memory (
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_segment_address_t segment_address,
     amd_dbgapi_size_t *value_size, void *value)
-    AMD_DBGAPI_VERSION_0_27;
+    AMD_DBGAPI_VERSION_0_28;
 
 /**
  * Write memory.
@@ -5393,7 +5393,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_memory (
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_segment_address_t segment_address,
     amd_dbgapi_size_t *value_size, const void *value)
-    AMD_DBGAPI_VERSION_0_27;
+    AMD_DBGAPI_VERSION_0_28;
 
 /**
  * Memory access precision.
@@ -5660,13 +5660,19 @@ typedef enum
    */
   AMD_DBGAPI_RUNTIME_STATE_LOADED_SUPPORTED = 1,
   /**
-   * The runtime has been loaded but is not supported by the library.
-   */
-  AMD_DBGAPI_RUNTIME_STATE_LOADED_UNSUPPORTED = 2,
-  /**
    * The runtime has been unloaded.
    */
-  AMD_DBGAPI_RUNTIME_STATE_UNLOADED = 3
+  AMD_DBGAPI_RUNTIME_STATE_UNLOADED = 2,
+  /**
+   * The runtime has been loaded but its version is not supported by the
+   * library.
+   */
+  AMD_DBGAPI_RUNTIME_STATE_LOADED_VERSION_UNSUPPORTED = 3,
+  /**
+   * The runtime has been loaded but is unable to support debugging.  This may
+   * be due to resource, device driver, or hardware limitations.
+   */
+  AMD_DBGAPI_RUNTIME_STATE_LOADED_DEBUGGING_UNSUPPORTED = 4
 } amd_dbgapi_runtime_state_t;
 
 /**
@@ -5761,7 +5767,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_event_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_event_id_t event_id,
     amd_dbgapi_event_info_t query, size_t value_size, void *value)
-    AMD_DBGAPI_VERSION_0_24;
+    AMD_DBGAPI_VERSION_0_28;
 
 /**
  * Report that an event has been processed.
