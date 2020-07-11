@@ -464,10 +464,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_24
 
 /**
- * The function was introduced in version 0.28 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.28"``.
+ * The function was introduced in version 0.29 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.29"``.
  */
-#define AMD_DBGAPI_VERSION_0_28
+#define AMD_DBGAPI_VERSION_0_29
 
 /** @} */
 
@@ -908,7 +908,7 @@ const char AMD_DBGAPI *amd_dbgapi_get_build_name (void)
  */
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_initialize (amd_dbgapi_callbacks_t *callbacks)
-    AMD_DBGAPI_VERSION_0_28;
+    AMD_DBGAPI_VERSION_0_29;
 
 /**
  * Finalize the library.
@@ -1068,7 +1068,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_get_info (
     amd_dbgapi_architecture_id_t architecture_id,
     amd_dbgapi_architecture_info_t query, size_t value_size, void *value)
-    AMD_DBGAPI_VERSION_0_28;
+    AMD_DBGAPI_VERSION_0_29;
 
 /**
  * Get an architecture from the AMD GPU ELF \p EF_AMDGPU_MACH value
@@ -1210,7 +1210,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_disassemble_instruction (
     amd_dbgapi_status_t (*symbolizer) (
         amd_dbgapi_symbolizer_id_t symbolizer_id,
         amd_dbgapi_global_address_t address, char **symbol_text))
-    AMD_DBGAPI_VERSION_0_28;
+    AMD_DBGAPI_VERSION_0_29;
 
 /**
  * The kinds of instruction classifications.
@@ -2815,7 +2815,7 @@ typedef enum
   /**
    * Return the current execution mask of the wave.  Each bit of the mask maps
    * to a lane with the least significant bit corresponding to the lane with a
-   * amd_dbgapi_lane_id_t value of 0 and so forth.  If the bit is 1 then the
+   * ::amd_dbgapi_lane_id_t value of 0 and so forth.  If the bit is 1 then the
    * lane is active, otherwise the lane is not active.  The type of this
    * attribute is \p uint64_t.  The wave must be stopped to make this query.
    */
@@ -2835,7 +2835,7 @@ typedef enum
   AMD_DBGAPI_WAVE_INFO_WAVE_NUMBER_IN_WORK_GROUP = 11,
   /**
    * The number of lanes supported by the wave.  The type of this attribute is
-   * \p amd_dbgapi_lane_id_t.
+   * \p size_t.
    */
   AMD_DBGAPI_WAVE_INFO_LANE_COUNT = 12
 } amd_dbgapi_wave_info_t;
@@ -2889,7 +2889,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
     amd_dbgapi_wave_info_t query, size_t value_size, void *value)
-    AMD_DBGAPI_VERSION_0_28;
+    AMD_DBGAPI_VERSION_0_29;
 
 /**
  * The execution state of a wave.
@@ -4888,7 +4888,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_space_get_info (
     amd_dbgapi_architecture_id_t architecture_id,
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_address_space_info_t query, size_t value_size, void *value)
-    AMD_DBGAPI_VERSION_0_28;
+    AMD_DBGAPI_VERSION_0_29;
 
 /**
  * Report the list of address spaces supported by the architecture.
@@ -5313,7 +5313,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_memory (
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_segment_address_t segment_address,
     amd_dbgapi_size_t *value_size, void *value)
-    AMD_DBGAPI_VERSION_0_28;
+    AMD_DBGAPI_VERSION_0_29;
 
 /**
  * Write memory.
@@ -5402,7 +5402,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_memory (
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_segment_address_t segment_address,
     amd_dbgapi_size_t *value_size, const void *value)
-    AMD_DBGAPI_VERSION_0_28;
+    AMD_DBGAPI_VERSION_0_29;
 
 /**
  * Memory access precision.
@@ -5776,7 +5776,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_event_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_event_id_t event_id,
     amd_dbgapi_event_info_t query, size_t value_size, void *value)
-    AMD_DBGAPI_VERSION_0_28;
+    AMD_DBGAPI_VERSION_0_29;
 
 /**
  * Report that an event has been processed.
