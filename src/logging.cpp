@@ -238,6 +238,7 @@ to_string (amd_dbgapi_status_t status)
       CASE (STATUS_ERROR_SYMBOL_NOT_FOUND);
       CASE (STATUS_ERROR_INVALID_ADDRESS);
       CASE (STATUS_ERROR_UNIMPLEMENTED);
+      CASE (STATUS_ERROR_OUT_OF_RESOURCES);
     }
   return to_string (make_hex (status));
 }

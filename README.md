@@ -75,8 +75,8 @@ prerequisites:
    apt install doxygen graphviz texlive-full
    ````
 
-   NOTE: The ``doxygen`` 1.8.13 that is installed by Ubuntu 18.04 has a bug that
-   prevents the PDF from being created.  Both ``doxygen`` 1.8.11 can be built
+   NOTE: The ``doxygen`` 1.8.13 that is installed by Ubuntu 18.04 has a bug
+   that prevents the PDF from being created.  ``doxygen`` 1.8.11 can be built
    from source to avoid the issue.
 
 2. For CentOS 8.1 and RHEL 8.1 the following adds the needed packages:

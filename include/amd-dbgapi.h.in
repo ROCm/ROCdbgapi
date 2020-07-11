@@ -106,10 +106,11 @@
  * terminology.
  *
  * In this model, a CPU process may interact with multiple AMD GPU devices,
- * which are termed agents.  A PASSID is created for each process that
- * interacts with agents.  An agent can be executing code for multiple
- * processes at once.  This is achieved by mapping the PASSID to one of a
- * limited set of VMIDs.  Each VMID is associated with its own page table.
+ * which are termed agents.  A Process Address Space Identifier (PASID) is
+ * created for each process that interacts with agents.  An agent can be
+ * executing code for multiple processes at once.  This is achieved by mapping
+ * the PASID to one of a limited set of Virtual Memory Identifiers (VMIDs).
+ * Each VMID is associated with its own page table.
  *
  * The AMD GPU device driver for Linux, termed the Kernel Mode Driver (KMD),
  * manages the page tables used by each GPU so they correlate with the CPU page
@@ -120,11 +121,11 @@
  *
  * Each GPU includes one or more Microcode Engines (ME) that can execute
  * microcode firmware.  This firmware includes a Hardware Scheduler (HWS) that,
- * in collaboration with the KMD, manages which processes, identified by
- * PASSID, are mapped onto the GPU using one of the limited VMIDs.  This
- * mapping configures the VMID to use the GPU page table that corresponds to
- * the PASSID.  In this way, the code executing on the GPU from different
- * processes is isolated.
+ * in collaboration with the KMD, manages which processes, identified by a
+ * PASID, are mapped onto the GPU using one of the limited VMIDs.  This mapping
+ * configures the VMID to use the GPU page table that corresponds to the PASID.
+ * In this way, the code executing on the GPU from different processes is
+ * isolated.
  *
  * Multiple software submission queues may be created for each agent.  The GPU
  * hardware has a limited number of pipes, each of which has a fixed number of
@@ -774,7 +775,11 @@ typedef enum
   /**
    * The address is not within the shared library.
    */
-  AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS = -43
+  AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS = -43,
+  /**
+   * The operation could not be completed due to resource limitations.
+   */
+  AMD_DBGAPI_STATUS_ERROR_OUT_OF_RESOURCES = -44
 } amd_dbgapi_status_t;
 
 /**
@@ -1562,10 +1567,14 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
  * \p process_id are NULL.  The process is not attached and \p process_id is
  * unaltered.
  *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_OUT_OF_RESOURCES The process executing the
+ * library is out of resources such as file descriptors or exceeded limits such
+ * as number of processes that can be enabled for debugging.  The process is
+ * not attached and \p process_id is unaltered.
+ *
  * \retval ::AMD_DBGAPI_STATUS_ERROR Encountered some other error while
- * attaching to the process.  For example, the process executing the library is
- * out of resources such as file descriptors.  The process is not attached and
- * \p process_id is unaltered.
+ * attaching to the process.  The process is not attached and \p process_id is
+ * unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_process_attach (
