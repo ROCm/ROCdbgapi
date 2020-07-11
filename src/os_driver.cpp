@@ -469,6 +469,8 @@ kfd_driver_t::enable_debug_trap (os_agent_id_t os_agent_id,
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_ENABLE, &args);
   if (err == -ESRCH)
     return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err == -EBUSY)
+    return AMD_DBGAPI_STATUS_ERROR_OUT_OF_RESOURCES;
   else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 

@@ -466,6 +466,8 @@ process_t::update_agents ()
   while (agent_infos.size () < agent_count);
   agent_infos.resize (agent_count);
 
+  amd_dbgapi_status_t retval = AMD_DBGAPI_STATUS_SUCCESS;
+
   /* Add new agents to the process.  */
   for (auto &&agent_info : agent_infos)
     {
@@ -492,16 +494,17 @@ process_t::update_agents ()
           && !agent->is_debug_mode_enabled ())
         {
           amd_dbgapi_status_t status = agent->enable_debug_mode ();
-          if (status != AMD_DBGAPI_STATUS_SUCCESS
-              && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+          if (status == AMD_DBGAPI_STATUS_ERROR_OUT_OF_RESOURCES)
             {
-              /* We could not enable the debug mode for this agent. Another
-                 process may already have already enabled debug mode for the
-                 same agent, which may not support concurrent debugging.  */
-              warning ("Could not enable debugging on os_agent_id %d (rc=%d)",
-                       agent->os_agent_id (), status);
-              return status;
+              /* This agent does not support concurrent debugging, and another
+                 process is already attached to it.  */
+              warning ("os_agent_id %d is unavailable", agent->os_agent_id ());
+              retval = status;
             }
+          else if (status != AMD_DBGAPI_STATUS_SUCCESS
+                   && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+            error ("Could not enable debugging on os_agent_id %d (rc=%d)",
+                   agent->os_agent_id (), status);
         }
       else if (!is_flag_set (flag_t::ENABLE_AGENT_DEBUG_MODE)
                && agent->is_debug_mode_enabled ())
@@ -538,7 +541,7 @@ process_t::update_agents ()
     else
       ++it;
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+  return retval;
 }
 
 size_t
@@ -1166,7 +1169,7 @@ process_t::attach ()
     set_flag (flag_t::ENABLE_AGENT_DEBUG_MODE);
 
     status = update_agents ();
-    if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    if (status == AMD_DBGAPI_STATUS_ERROR_OUT_OF_RESOURCES)
       {
         warning ("update_agents failed (rc=%d)", status);
         enqueue_event (create<event_t> (
@@ -1174,6 +1177,8 @@ process_t::attach ()
             AMD_DBGAPI_RUNTIME_STATE_LOADED_DEBUGGING_UNSUPPORTED));
         return;
       }
+    else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+      error ("update_agents failed (rc=%d)", status);
 
     status = update_queues ();
     if (status != AMD_DBGAPI_STATUS_SUCCESS)
