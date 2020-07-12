@@ -40,7 +40,7 @@ class architecture_t;
 class process_t;
 class watchpoint_t;
 
-/* ROCm Debug Agent.  */
+/* Agent.  */
 
 class agent_t : public detail::handle_object<amd_dbgapi_agent_id_t>
 {

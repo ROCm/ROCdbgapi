@@ -63,6 +63,15 @@ agent_t::enable_debug_mode ()
   dbgapi_assert (!is_debug_mode_enabled () && "debug_mode is already enabled");
   file_desc_t fd;
 
+  if (m_os_agent_info.fw_version < m_os_agent_info.fw_version_required)
+    {
+      warning (
+          "os_agent_id %d: firmware version %d does not match %d+ requirement",
+          m_os_agent_info.os_agent_id, m_os_agent_info.fw_version,
+          m_os_agent_info.fw_version_required);
+      return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
+    }
+
   amd_dbgapi_status_t status
       = process ().os_driver ().enable_debug_trap (os_agent_id (), &fd);
   if (status != AMD_DBGAPI_STATUS_SUCCESS)

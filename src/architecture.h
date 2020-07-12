@@ -48,7 +48,7 @@ namespace amd::dbgapi
 class displaced_stepping_t;
 class wave_t;
 
-/* ROCm Architecture.  */
+/* Architecture.  */
 
 class architecture_t
 {

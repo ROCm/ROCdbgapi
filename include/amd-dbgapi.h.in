@@ -637,12 +637,15 @@ typedef enum
    * include:
    *
    * - The installed AMD GPU driver version is not compatible with the library.
-   * - The runtime version is not compatible with the library.
-   * - One of the agents has an architecture not supported by the library.
-   * - The firmware version of one of the agents is not compatible with the
+   * - The installed AMD GPU driver's debug support version is not compatible
+   *   with the library.
+   * - The AMD GPU runtime version is not compatible with the library.
+   * - One of the AMD GPU agents has an architecture not supported by the
    *   library.
-   * - A limitation on the number of debuggers that can be active for an agent
-   *   has been exceeded.
+   * - The firmware version of one of the AMD GPU agents is not compatible with
+   *   the library.
+   * - A limitation on the number of debuggers that can be active for an
+   *   AMD GPU agent has been exceeded.
    */
   AMD_DBGAPI_STATUS_ERROR_RESTRICTION = -9,
   /**

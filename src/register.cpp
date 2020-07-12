@@ -38,7 +38,7 @@
 namespace amd::dbgapi
 {
 
-/* ROCm Register class.  */
+/* Register class.  */
 
 bool
 register_class_t::contains (amdgpu_regnum_t regnum) const

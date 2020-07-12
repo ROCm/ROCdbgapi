@@ -643,7 +643,7 @@ queue_t::aql_queue_impl_t::update_waves ()
   if (wave_area_address
       != (m_queue.m_os_queue_info.ctx_save_restore_address
           + header.wave_state_offset - header.wave_state_size))
-    warning ("ROCm-GDB: Computed save_area_size does match expected size. "
+    warning ("Computed save_area_size does match expected size. "
              "Expected %d bytes, calculated %lld bytes.",
              header.wave_state_size,
              m_queue.m_os_queue_info.ctx_save_restore_address

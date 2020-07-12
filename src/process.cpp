@@ -478,11 +478,21 @@ process_t::update_agents ()
       const architecture_t *architecture
           = architecture_t::find (agent_info.e_machine);
 
+      /* FIXME: May want to have a state for an agent so it can be listed as
+         present, but marked as unsupported.  We would then remove the
+         errors below.  */
+
       if (!architecture)
         {
-          warning ("os_agent_id %d: e_machine %x architecture not supported.",
-                   agent_info.os_agent_id, agent_info.e_machine);
-          continue;
+          /* If debug mode is not enabled, simply skip this agent, it just
+             won't be reported to the debugger client.  */
+          if (!is_flag_set (flag_t::ENABLE_AGENT_DEBUG_MODE))
+            continue;
+
+          warning ("os_agent_id %d: `%s' architecture not supported.",
+                   agent_info.os_agent_id, agent_info.name.c_str ());
+
+          return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
         }
 
       if (!agent)
@@ -496,9 +506,10 @@ process_t::update_agents ()
           amd_dbgapi_status_t status = agent->enable_debug_mode ();
           if (status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
             {
-              /* This agent does not support concurrent debugging, and another
-                 process is already attached to it.  */
-              warning ("os_agent_id %d is unavailable", agent->os_agent_id ());
+              /* This agent is not available for debugging in this process.  */
+              warning ("os_agent_id %d cannot be enabled for debugging "
+                       "in this process",
+                       agent->os_agent_id ());
               retval = status;
             }
           else if (status != AMD_DBGAPI_STATUS_SUCCESS
@@ -1153,25 +1164,20 @@ process_t::update_code_objects ()
 amd_dbgapi_status_t
 process_t::attach ()
 {
-  amd_dbgapi_status_t status = os_driver ().check_version ();
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
-
   /* When we first attach to the process, all waves already running need to be
      assigned new wave_ids.  This flag will be cleared after the first call
      to suspend the queues (and update the waves).  */
   set_flag (flag_t::ASSIGN_NEW_IDS_TO_ALL_WAVES);
 
-  auto on_rocr_load_callback = [this] (const shared_library_t &library) {
+  auto on_runtime_load_callback = [this] (const shared_library_t &library) {
     amd_dbgapi_status_t status;
 
-    /* Now that the ROCr is loaded, enable the debug trap on all devices.  */
+    /* The runtime is loaded, enable the debug trap on all devices.  */
     set_flag (flag_t::ENABLE_AGENT_DEBUG_MODE);
 
-    status = update_agents ();
-    if (status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
+    if (os_driver ().check_version () != AMD_DBGAPI_STATUS_SUCCESS
+        || (status = update_agents ()) == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
       {
-        warning ("update_agents failed (rc=%d)", status);
         enqueue_event (create<event_t> (
             *this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
             AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION));
@@ -1203,7 +1209,7 @@ process_t::attach ()
       error ("Cannot start the event thread (rc=%d)", status);
 
     /* Retrieve the address of the rendez-vous structure (_amd_gpu_r_debug)
-       used by the ROCm Runtime Loader to communicate details of code objects
+       used by the runtime loader to communicate details of code objects
        loading to the debugger.  */
     constexpr char amdgpu_r_debug_symbol_name[] = "_amdgpu_r_debug";
     if (get_symbol_address (library.id (), amdgpu_r_debug_symbol_name,
@@ -1221,17 +1227,17 @@ process_t::attach ()
 
     if (r_version != ROCR_RDEBUG_VERSION)
       {
-        warning ("%s: _amdgpu_r_debug.r_version not supported, "
-                 "expected %d got %d.",
-                 library.name ().c_str (), ROCR_RDEBUG_VERSION, r_version);
+        warning ("%s: AMD GPU runtime _amdgpu_r_debug.r_version %d "
+                 "does not match %d requirement",
+                 library.name ().c_str (), r_version, ROCR_RDEBUG_VERSION);
         enqueue_event (create<event_t> (
             *this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
             AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION));
         return;
       }
 
-    /* Install a breakpoint at _amd_r_debug.r_brk.  The ROCm Runtime calls
-       this function before updating the code object list, and after completing
+    /* Install a breakpoint at _amd_r_debug.r_brk.  The runtime calls this
+       function before updating the code object list, and after completing
        updating the code object list.  */
 
     amd_dbgapi_global_address_t r_brk_address;
@@ -1281,9 +1287,8 @@ process_t::attach ()
 
     create<breakpoint_t> (library, r_brk_address, r_brk_callback);
 
-    enqueue_event (
-        create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
-                         AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS));
+    enqueue_event (create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
+                                    AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS));
 
     update_code_objects ();
 
@@ -1293,7 +1298,7 @@ process_t::attach ()
           AMD_DBGAPI_EVENT_NONE));
   };
 
-  auto on_rocr_unload_callback = [this] (const shared_library_t &library) {
+  auto on_runtime_unload_callback = [this] (const shared_library_t &library) {
     process_t &process = library.process ();
 
     /* Remove the breakpoints we've inserted when the library was loaded.  */
@@ -1322,18 +1327,22 @@ process_t::attach ()
                                     AMD_DBGAPI_RUNTIME_STATE_UNLOADED));
   };
 
-  /* Set/remove internal breakpoints when the ROCm Runtime is loaded/unloaded.
-   */
-  const shared_library_t &library = create<shared_library_t> (
-      *this, "libhsa-runtime64.so.1", on_rocr_load_callback,
-      on_rocr_unload_callback);
+  /* Set/remove internal breakpoints when the runtime is loaded/unloaded.  */
+  shared_library_t &library = create<shared_library_t> (
+      *this, "libhsa-runtime64.so.1", on_runtime_load_callback,
+      on_runtime_unload_callback);
 
-  /* If the ROCm Runtime is not yet loaded, create agents without enabling the
+  /* If the runtime is not yet loaded, create agents without enabling the
      debug trap.  */
   if (library.state () != AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED)
     {
       amd_dbgapi_status_t status = update_agents ();
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+      if (status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
+        {
+          destroy (&library);
+          return status;
+        }
+      else if (status != AMD_DBGAPI_STATUS_SUCCESS)
         error ("update_agents failed (rc=%d)", status);
     }
 

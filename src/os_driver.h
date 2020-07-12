@@ -39,6 +39,7 @@ namespace amd::dbgapi
 /* See https://llvm.org/docs/AMDGPUUsage.html#amdgpu-ef-amdgpu-mach-table  */
 enum elf_amdgpu_machine_t : uint32_t
 {
+  EF_AMDGPU_MACH_NONE = 0x000,
   EF_AMDGPU_MACH_AMDGCN_GFX900 = 0x02c,
   EF_AMDGPU_MACH_AMDGCN_GFX902 = 0x02d,
   EF_AMDGPU_MACH_AMDGCN_GFX904 = 0x02e,
@@ -77,8 +78,10 @@ struct os_agent_snapshot_entry_t
   uint32_t device_id{ 0 };
   /* ucode version.  */
   uint32_t fw_version{ 0 };
+  /* ucode version required to support debugging.  */
+  uint32_t fw_version_required{ 0 };
   /* ELF e_machine.  */
-  elf_amdgpu_machine_t e_machine;
+  elf_amdgpu_machine_t e_machine{ EF_AMDGPU_MACH_NONE };
 };
 
 using os_queue_id_t = uint32_t;

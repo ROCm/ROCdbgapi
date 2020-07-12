@@ -33,7 +33,7 @@
 namespace amd::dbgapi
 {
 
-/* ROCm Registers  */
+/* Registers  */
 
 enum class amdgpu_regnum_t : decltype (amd_dbgapi_register_id_t::handle)
 {
@@ -177,7 +177,7 @@ constexpr size_t AMDGPU_RAW_REGS_COUNT
 constexpr size_t AMDGPU_PSEUDO_REGS_COUNT
     = amdgpu_regnum_t::LAST_PSEUDO - amdgpu_regnum_t::FIRST_PSEUDO + 1;
 
-/* ROCm Register class.  */
+/* Register class.  */
 
 class register_class_t
     : public detail::handle_object<amd_dbgapi_register_class_id_t>

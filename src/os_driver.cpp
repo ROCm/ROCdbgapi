@@ -27,6 +27,7 @@
 #include <new>
 #include <optional>
 #include <type_traits>
+#include <unordered_set>
 #include <utility>
 
 #include <dirent.h>
@@ -280,9 +281,10 @@ kfd_driver_t::check_version () const
       || get_version_args.major_version != KFD_IOCTL_MAJOR_VERSION
       || get_version_args.minor_version < KFD_IOCTL_MINOR_VERSION)
     {
-      warning ("ioctl version %d.%d does not match %d.%d+ requirement",
-               get_version_args.major_version, get_version_args.minor_version,
-               KFD_IOCTL_MAJOR_VERSION, KFD_IOCTL_MINOR_VERSION);
+      warning (
+          "AMD GPU driver version %d.%d does not match %d.%d+ requirement",
+          get_version_args.major_version, get_version_args.minor_version,
+          KFD_IOCTL_MAJOR_VERSION, KFD_IOCTL_MINOR_VERSION);
       return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
     }
 
@@ -308,15 +310,16 @@ kfd_driver_t::check_version () const
   if (major != KFD_IOCTL_DBG_MAJOR_VERSION
       || minor < KFD_IOCTL_DBG_MINOR_VERSION)
     {
-      warning (
-          "debugger driver version %d.%d does not match %d.%d+ requirement",
-          major, minor, KFD_IOCTL_DBG_MAJOR_VERSION,
-          KFD_IOCTL_DBG_MINOR_VERSION);
+      warning ("AMD GPU driver's debug support version %d.%d does "
+               "not match %d.%d+ requirement",
+               major, minor, KFD_IOCTL_DBG_MAJOR_VERSION,
+               KFD_IOCTL_DBG_MINOR_VERSION);
       return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
     }
 
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "using debugger driver version %d.%d",
-              major, minor);
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+              "using AMD GPU driver's debug support version %d.%d", major,
+              minor);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
@@ -332,14 +335,25 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
   static const std::string sysfs_nodes_path (
       "/sys/devices/virtual/kfd/kfd/topology/nodes/");
 
-  auto *dirp = opendir (sysfs_nodes_path.c_str ());
-  if (!dirp)
-    return AMD_DBGAPI_STATUS_ERROR;
+  std::unique_ptr<DIR, void (*) (DIR *)> dirp (
+      opendir (sysfs_nodes_path.c_str ()),
+      [] (DIR *dirp) { closedir (dirp); });
 
+  std::unordered_set<os_agent_id_t> processed_os_agent_ids;
   *agent_count = 0;
 
+  if (!dirp && errno == ENOENT)
+    {
+      /* The sysfs is not mounted, maybe KFD driver is not installed, or we
+         don't have any GPUs installed.  */
+      return AMD_DBGAPI_STATUS_SUCCESS;
+    }
+  else if (!dirp)
+    error ("Could not opendir `%s': %s", sysfs_nodes_path.c_str (),
+           strerror (errno));
+
   struct dirent *dir;
-  while ((dir = readdir (dirp)))
+  while ((dir = readdir (dirp.get ())))
     {
       if (!strcmp (dir->d_name, ".") || !strcmp (dir->d_name, ".."))
         continue;
@@ -351,7 +365,7 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
 
       std::ifstream gpu_id_ifs (node_path + "/gpu_id");
       if (!gpu_id_ifs.is_open ())
-        continue;
+        error ("Could not open %s/gpu_id", node_path.c_str ());
 
       gpu_id_ifs >> agent_info.os_agent_id;
 
@@ -359,25 +373,26 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
         /* Skip CPU nodes.  */
         continue;
 
+      if (!processed_os_agent_ids.emplace (agent_info.os_agent_id).second)
+        error ("More than one os_agent_id %d reported in the sysfs topology",
+               agent_info.os_agent_id);
+
       /* Retrieve the GPU name.  */
 
       std::ifstream gpu_name_ifs (node_path + "/name");
       if (!gpu_name_ifs.is_open ())
-        continue;
+        error ("Could not open %s/name", node_path.c_str ());
 
       gpu_name_ifs >> agent_info.name;
       if (agent_info.name.empty ())
-        {
-          warning ("gpu_id %d: asic family name not present in the sysfs.",
-                   agent_info.os_agent_id);
-          continue;
-        }
+        error ("os_agent_id %d: asic family name not present in the sysfs.",
+               agent_info.os_agent_id);
 
       /* Retrieve the GPU node properties.  */
 
       std::ifstream props_ifs (node_path + "/properties");
       if (!props_ifs.is_open ())
-        continue;
+        error ("Could not open %s/properties", node_path.c_str ());
 
       std::string prop_name;
       uint64_t prop_value;
@@ -408,7 +423,7 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
         }
 
       decltype (&s_gfxip_lookup_table[0]) gfxip_info = nullptr;
-      size_t num_elem
+      constexpr size_t num_elem
           = sizeof (s_gfxip_lookup_table) / sizeof (s_gfxip_lookup_table[0]);
 
       for (size_t i = 0; i < num_elem; ++i)
@@ -418,27 +433,11 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
             break;
           }
 
-      /* FIXME: May want to have a state for an agent so it can be listed as
-         present, but marked as unsupported.  We would then remove the
-         'continue's below and instantiate the agent.  */
-
-      if (!gfxip_info)
+      if (gfxip_info)
         {
-          warning ("gpu_id %d: asic family name %s not supported.",
-                   agent_info.os_agent_id, agent_info.name.c_str ());
-          continue;
+          agent_info.e_machine = gfxip_info->e_machine;
+          agent_info.fw_version_required = gfxip_info->fw_version;
         }
-
-      if (agent_info.fw_version < gfxip_info->fw_version)
-        {
-          warning ("gpu_id %d: firmware version %d is not supported "
-                   "(required version is >= %d)",
-                   agent_info.os_agent_id, agent_info.fw_version,
-                   gfxip_info->fw_version);
-          continue;
-        }
-
-      agent_info.e_machine = gfxip_info->e_machine;
 
       if (snapshot_count)
         {
@@ -448,7 +447,6 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
       ++*agent_count;
     }
 
-  closedir (dirp);
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
@@ -470,9 +468,14 @@ kfd_driver_t::enable_debug_trap (os_agent_id_t os_agent_id,
   if (err == -ESRCH)
     return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
   else if (err == -EBUSY)
-    /* The agent does not support multi-process debugging and already has debug
-       trap enabled by another process.  */
-    return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
+    {
+      /* The agent does not support multi-process debugging and already has
+         debug trap enabled by another process.  */
+      warning ("os_agent_id %d: device is busy (debugging may be enabled by "
+               "another process)",
+               os_agent_id);
+      return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
+    }
   else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
