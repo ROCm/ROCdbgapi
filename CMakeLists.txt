@@ -221,4 +221,8 @@ if(DOXYGEN_FOUND)
     DESTINATION share/doc/amd-dbgapi
     RENAME "amd-dbgapi.pdf" OPTIONAL)
 
+  install(DIRECTORY
+    "${CMAKE_CURRENT_BINARY_DIR}/doc/html/"
+    DESTINATION share/html/amd-dbgapi)
+
 endif()
