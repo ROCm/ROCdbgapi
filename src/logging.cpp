@@ -200,7 +200,7 @@ to_string (amd_dbgapi_status_t status)
       CASE (STATUS_ERROR_INVALID_ARGUMENT_SIZE);
       CASE (STATUS_ERROR_ALREADY_INITIALIZED);
       CASE (STATUS_ERROR_NOT_INITIALIZED);
-      CASE (STATUS_ERROR_VERSION_MISMATCH);
+      CASE (STATUS_ERROR_RESTRICTION);
       CASE (STATUS_ERROR_ALREADY_ATTACHED);
       CASE (STATUS_ERROR_INVALID_ARCHITECTURE_ID);
       CASE (STATUS_ERROR_ILLEGAL_INSTRUCTION);
@@ -236,7 +236,6 @@ to_string (amd_dbgapi_status_t status)
       CASE (STATUS_ERROR_SYMBOL_NOT_FOUND);
       CASE (STATUS_ERROR_INVALID_ADDRESS);
       CASE (STATUS_ERROR_UNIMPLEMENTED);
-      CASE (STATUS_ERROR_OUT_OF_RESOURCES);
     }
   return to_string (make_hex (status));
 }
@@ -764,10 +763,9 @@ to_string (amd_dbgapi_runtime_state_t runtime_state)
 {
   switch (runtime_state)
     {
-      CASE (RUNTIME_STATE_LOADED_SUPPORTED);
+      CASE (RUNTIME_STATE_LOADED_SUCCESS);
       CASE (RUNTIME_STATE_UNLOADED);
-      CASE (RUNTIME_STATE_LOADED_VERSION_UNSUPPORTED);
-      CASE (RUNTIME_STATE_LOADED_DEBUGGING_UNSUPPORTED);
+      CASE (RUNTIME_STATE_LOADED_ERROR_RESTRICTION);
     }
   return to_string (make_hex (runtime_state));
 }
@@ -783,7 +781,6 @@ to_string (amd_dbgapi_event_info_t event_info)
       CASE (EVENT_INFO_BREAKPOINT);
       CASE (EVENT_INFO_CLIENT_THREAD);
       CASE (EVENT_INFO_RUNTIME_STATE);
-      CASE (EVENT_INFO_RUNTIME_VERSION);
     }
   return to_string (make_hex (event_info));
 }

@@ -114,6 +114,9 @@ will place it in:
 
 - ``../install/share/doc/amd-dbgapi/amd-dbgapi.pdf``
 
+Known Limitations and Restrictions
+----------------------------------
+
 You can refer to the following sections in the *AMD Debugger API Specification*
 documentation for:
 
@@ -121,6 +124,19 @@ documentation for:
   architectures.
 - *Known Limitations and Restrictions* provides information about known
   limitations and restrictions.
+
+The ROCdbgapi library is compatible with the following interface versions:
+
+- *AMD GPU Driver Version*
+  - See ``KFD_IOCTL_MAJOR_VERSION`` and ``KFD_IOCTL_MINOR_VERSION`` in
+    ``src/linux/kfd_ioctl.h`` which conform to [semver](http://semver.org/).
+- *AMD GPU Driver Debug ioctl Version*
+  - See ``KFD_IOCTL_DBG_MAJOR_VERSION`` and ``KFD_IOCTL_DBG_MINOR_VERSION`` in
+    ``src/linux/kfd_ioctl.h`` which conform to [semver](http://semver.org/).
+- *ROCm Runtime r_debug ABI Version*
+  - See ``ROCR_RDEBUG_VERSION`` in ``src/rocr_rdebug.h``.
+- *Architectures and Firmware Versions*
+  - See ``s_gfxip_lookup_table`` in ``src/os_driver.cpp``.
 
 Disclaimer
 ----------

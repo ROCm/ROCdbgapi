@@ -79,9 +79,8 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
     case AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED:
       string = "The library is not initialized";
       break;
-    case AMD_DBGAPI_STATUS_ERROR_VERSION_MISMATCH:
-      string = "The version of the kernel driver does not match the "
-               "version required by the library";
+    case AMD_DBGAPI_STATUS_ERROR_RESTRICTION:
+      string = "There is a restriction that prevents debugging";
       break;
     case AMD_DBGAPI_STATUS_ERROR_ALREADY_ATTACHED:
       string = "The process is already attached to the given inferior process";
@@ -191,9 +190,6 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
       break;
     case AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED:
       string = "The operation is not currently implemented";
-      break;
-    case AMD_DBGAPI_STATUS_ERROR_OUT_OF_RESOURCES:
-      string = "The operation is out of resources";
       break;
       /* Don't add a default here, so that we can catch at compile time when an
          enum value is missing.  */

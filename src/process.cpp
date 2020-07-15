@@ -494,7 +494,7 @@ process_t::update_agents ()
           && !agent->is_debug_mode_enabled ())
         {
           amd_dbgapi_status_t status = agent->enable_debug_mode ();
-          if (status == AMD_DBGAPI_STATUS_ERROR_OUT_OF_RESOURCES)
+          if (status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
             {
               /* This agent does not support concurrent debugging, and another
                  process is already attached to it.  */
@@ -1169,12 +1169,12 @@ process_t::attach ()
     set_flag (flag_t::ENABLE_AGENT_DEBUG_MODE);
 
     status = update_agents ();
-    if (status == AMD_DBGAPI_STATUS_ERROR_OUT_OF_RESOURCES)
+    if (status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
       {
         warning ("update_agents failed (rc=%d)", status);
         enqueue_event (create<event_t> (
             *this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
-            AMD_DBGAPI_RUNTIME_STATE_LOADED_DEBUGGING_UNSUPPORTED));
+            AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION));
         return;
       }
     else if (status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -1226,7 +1226,7 @@ process_t::attach ()
                  library.name ().c_str (), ROCR_RDEBUG_VERSION, r_version);
         enqueue_event (create<event_t> (
             *this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
-            AMD_DBGAPI_RUNTIME_STATE_LOADED_VERSION_UNSUPPORTED));
+            AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION));
         return;
       }
 
@@ -1283,7 +1283,7 @@ process_t::attach ()
 
     enqueue_event (
         create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
-                         AMD_DBGAPI_RUNTIME_STATE_LOADED_SUPPORTED));
+                         AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS));
 
     update_code_objects ();
 

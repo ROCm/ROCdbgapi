@@ -283,7 +283,7 @@ kfd_driver_t::check_version () const
       warning ("ioctl version %d.%d does not match %d.%d+ requirement",
                get_version_args.major_version, get_version_args.minor_version,
                KFD_IOCTL_MAJOR_VERSION, KFD_IOCTL_MINOR_VERSION);
-      return AMD_DBGAPI_STATUS_ERROR_VERSION_MISMATCH;
+      return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
     }
 
   /* KFD_IOC_DBG_TRAP_GET_VERSION (#8)
@@ -312,7 +312,7 @@ kfd_driver_t::check_version () const
           "debugger driver version %d.%d does not match %d.%d+ requirement",
           major, minor, KFD_IOCTL_DBG_MAJOR_VERSION,
           KFD_IOCTL_DBG_MINOR_VERSION);
-      return AMD_DBGAPI_STATUS_ERROR_VERSION_MISMATCH;
+      return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
     }
 
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "using debugger driver version %d.%d",
@@ -470,7 +470,9 @@ kfd_driver_t::enable_debug_trap (os_agent_id_t os_agent_id,
   if (err == -ESRCH)
     return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
   else if (err == -EBUSY)
-    return AMD_DBGAPI_STATUS_ERROR_OUT_OF_RESOURCES;
+    /* The agent does not support multi-process debugging and already has debug
+       trap enabled by another process.  */
+    return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
   else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 

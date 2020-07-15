@@ -259,9 +259,9 @@
  * (4 bytes) in global memory for better cache performance.
  *
  * For an AMD Vega 10 GPU the work-group size limit is 1,024 work-items, the
- * wavefront size is 64, and the CU count is 64.  A CU can hold up to 40 waves
- * (this is limited to 32 if using scratch memory).  Therefore, a work-group
- * can comprise between 1 and 16 waves inclusive, and there can be up to 2,560
+ * wave size is 64, and the CU count is 64.  A CU can hold up to 40 waves (this
+ * is limited to 32 if using scratch memory).  Therefore, a work-group can
+ * comprise between 1 and 16 waves inclusive, and there can be up to 2,560
  * waves, making a maximum of 163,840 work-items.  A CU is organized as 4 SIMDs
  * that can each hold 10 waves.  Each SIMD has 256 DWORD vector registers and
  * 800 scalar registers.  A single wave can access up to 256 vector registers
@@ -287,7 +287,6 @@
  *
  * 1.  The following *_get_info queries are not yet implemented:
  *
- *     - AMD_DBGAPI_EVENT_INFO_RUNTIME_VERSION
  *     - AMD_DBGAPI_QUEUE_INFO_ERROR_REASON
  *     - AMD_DBGAPI_QUEUE_INFO_STATE
  *
@@ -464,10 +463,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_24
 
 /**
- * The function was introduced in version 0.29 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.29"``.
+ * The function was introduced in version 0.30 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.30"``.
  */
-#define AMD_DBGAPI_VERSION_0_29
+#define AMD_DBGAPI_VERSION_0_30
 
 /** @} */
 
@@ -634,10 +633,18 @@ typedef enum
    */
   AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED = -8,
   /**
-   * The version of the kernel driver does not match the version required by
-   * the library.
+   * There is a restriction error that prevents debugging the process.  Reasons
+   * include:
+   *
+   * - The installed AMD GPU driver version is not compatible with the library.
+   * - The runtime version is not compatible with the library.
+   * - One of the agents has an architecture not supported by the library.
+   * - The firmware version of one of the agents is not compatible with the
+   *   library.
+   * - A limitation on the number of debuggers that can be active for an agent
+   *   has been exceeded.
    */
-  AMD_DBGAPI_STATUS_ERROR_VERSION_MISMATCH = -9,
+  AMD_DBGAPI_STATUS_ERROR_RESTRICTION = -9,
   /**
    * The process is already attached to the given inferior process.
    */
@@ -775,11 +782,7 @@ typedef enum
   /**
    * The address is not within the shared library.
    */
-  AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS = -43,
-  /**
-   * The operation could not be completed due to resource limitations.
-   */
-  AMD_DBGAPI_STATUS_ERROR_OUT_OF_RESOURCES = -44
+  AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS = -43
 } amd_dbgapi_status_t;
 
 /**
@@ -906,7 +909,7 @@ amd_dbgapi_get_build_name (void) AMD_DBGAPI_VERSION_0_24;
  * error.  The library remains uninitialized.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_initialize (
-    amd_dbgapi_callbacks_t *callbacks) AMD_DBGAPI_VERSION_0_29;
+    amd_dbgapi_callbacks_t *callbacks) AMD_DBGAPI_VERSION_0_30;
 
 /**
  * Finalize the library.
@@ -1066,7 +1069,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_get_info (
     amd_dbgapi_architecture_id_t architecture_id,
     amd_dbgapi_architecture_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_29;
+    void *value) AMD_DBGAPI_VERSION_0_30;
 
 /**
  * Get an architecture from the AMD GPU ELF \p EF_AMDGPU_MACH value
@@ -1207,7 +1210,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_disassemble_instruction (
     amd_dbgapi_status_t (*symbolizer) (
         amd_dbgapi_symbolizer_id_t symbolizer_id,
         amd_dbgapi_global_address_t address,
-        char **symbol_text)) AMD_DBGAPI_VERSION_0_29;
+        char **symbol_text)) AMD_DBGAPI_VERSION_0_30;
 
 /**
  * The kinds of instruction classifications.
@@ -1555,18 +1558,14 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
  * \retval ::AMD_DBGAPI_STATUS_ERROR_ALREADY_ATTACHED The process is already
  * attached.  The process remains attached and \p process_id is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_VERSION_MISMATCH The installed AMD GPU
- * driver version is not compatible with the library.  The process is not
- * attached and \p process_id is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_RESTRICTION There is a restriction error
+ * that prevents debugging process \p client_process_id.  See
+ * ::AMD_DBGAPI_STATUS_ERROR_RESTRICTION for possible reasons.  The process is
+ * not attached and \p process_id is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p client_process_id or
  * \p process_id are NULL.  The process is not attached and \p process_id is
  * unaltered.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_OUT_OF_RESOURCES The process executing the
- * library is out of resources such as file descriptors or exceeded limits such
- * as number of processes that can be enabled for debugging.  The process is
- * not attached and \p process_id is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR Encountered some other error while
  * attaching to the process.  The process is not attached and \p process_id is
@@ -1574,7 +1573,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_attach (
     amd_dbgapi_client_process_id_t client_process_id,
-    amd_dbgapi_process_id_t *process_id) AMD_DBGAPI_VERSION_0_24;
+    amd_dbgapi_process_id_t *process_id) AMD_DBGAPI_VERSION_0_30;
 
 /**
  * Detach from a process and no longer have debug control of the AMD GPU
@@ -2887,7 +2886,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
     amd_dbgapi_wave_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_29;
+    void *value) AMD_DBGAPI_VERSION_0_30;
 
 /**
  * The execution state of a wave.
@@ -4876,7 +4875,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_space_get_info (
     amd_dbgapi_architecture_id_t architecture_id,
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_address_space_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_29;
+    void *value) AMD_DBGAPI_VERSION_0_30;
 
 /**
  * Report the list of address spaces supported by the architecture.
@@ -5298,7 +5297,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_memory (
     amd_dbgapi_lane_id_t lane_id,
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_segment_address_t segment_address,
-    amd_dbgapi_size_t *value_size, void *value) AMD_DBGAPI_VERSION_0_29;
+    amd_dbgapi_size_t *value_size, void *value) AMD_DBGAPI_VERSION_0_30;
 
 /**
  * Write memory.
@@ -5386,7 +5385,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_memory (
     amd_dbgapi_lane_id_t lane_id,
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_segment_address_t segment_address,
-    amd_dbgapi_size_t *value_size, const void *value) AMD_DBGAPI_VERSION_0_29;
+    amd_dbgapi_size_t *value_size, const void *value) AMD_DBGAPI_VERSION_0_30;
 
 /**
  * Memory access precision.
@@ -5647,23 +5646,19 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_next_pending_event (
 typedef enum
 {
   /**
-   * The runtime has been loaded and is supported by the library.
+   * The runtime has been loaded and debugging is supported by the library.
    */
-  AMD_DBGAPI_RUNTIME_STATE_LOADED_SUPPORTED = 1,
+  AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS = 1,
   /**
    * The runtime has been unloaded.
    */
   AMD_DBGAPI_RUNTIME_STATE_UNLOADED = 2,
   /**
-   * The runtime has been loaded but its version is not supported by the
-   * library.
+   * The runtime has been loaded but there is a restriction error that prevents
+   * debugging the process.  See ::AMD_DBGAPI_STATUS_ERROR_RESTRICTION for
+   * possible reasons.
    */
-  AMD_DBGAPI_RUNTIME_STATE_LOADED_VERSION_UNSUPPORTED = 3,
-  /**
-   * The runtime has been loaded but is unable to support debugging.  This may
-   * be due to resource, device driver, or hardware limitations.
-   */
-  AMD_DBGAPI_RUNTIME_STATE_LOADED_DEBUGGING_UNSUPPORTED = 4
+  AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION = 3
 } amd_dbgapi_runtime_state_t;
 
 /**
@@ -5701,15 +5696,7 @@ typedef enum
    * attribute is \p uint32_t with a value defined by
    * ::amd_dbgapi_runtime_state_t.
    */
-  AMD_DBGAPI_EVENT_INFO_RUNTIME_STATE = 5,
-  /**
-   * Return the version of the runtime loaded in the inferior for a
-   * ::AMD_DBGAPI_EVENT_KIND_RUNTIME event.  The type of this attribute is a
-   * pointer to a NUL terminated \p char*.  It is allocated by the
-   * amd_dbgapi_callbacks_s::allocate_memory callback and is owned by the
-   * client.
-   */
-  AMD_DBGAPI_EVENT_INFO_RUNTIME_VERSION = 6
+  AMD_DBGAPI_EVENT_INFO_RUNTIME_STATE = 5
 } amd_dbgapi_event_info_t;
 
 /**
@@ -5758,7 +5745,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_event_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_event_id_t event_id,
     amd_dbgapi_event_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_29;
+    void *value) AMD_DBGAPI_VERSION_0_30;
 
 /**
  * Report that an event has been processed.
