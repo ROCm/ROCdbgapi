@@ -82,13 +82,13 @@ constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_INEXACT_MASK = 1 << 5;
 constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_INT_DIV0_MASK = 1 << 6;
 constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_ADDR_WATCH0_MASK = 1 << 7;
 constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_MEM_VIOL_MASK = 1 << 8;
-constexpr uint32_t [[maybe_unused]] SQ_WAVE_TRAPSTS_SAVECTX_MASK = 1 << 10;
+[[maybe_unused]] constexpr uint32_t SQ_WAVE_TRAPSTS_SAVECTX_MASK = 1 << 10;
 constexpr uint32_t SQ_WAVE_TRAPSTS_ILLEGAL_INST_MASK = 1 << 11;
 constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_HI_ADDR_WATCH1_MASK = 1 << 12;
 constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_HI_ADDR_WATCH2_MASK = 1 << 13;
 constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_HI_ADDR_WATCH3_MASK = 1 << 14;
 
-constexpr uint32_t [[maybe_unused]] SQ_WAVE_TRAPSTS_XNACK_ERROR_MASK = 1 << 28;
+[[maybe_unused]] constexpr uint32_t SQ_WAVE_TRAPSTS_XNACK_ERROR_MASK = 1 << 28;
 
 monotonic_counter_t<decltype (amd_dbgapi_architecture_id_t::handle)>
     architecture_t::s_next_architecture_id{ 1 };
