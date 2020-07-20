@@ -219,10 +219,12 @@ if(DOXYGEN_FOUND)
   install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/doc/latex/refman.pdf"
     DESTINATION share/doc/amd-dbgapi
-    RENAME "amd-dbgapi.pdf" OPTIONAL)
+    RENAME "amd-dbgapi.pdf"
+    OPTIONAL)
 
   install(DIRECTORY
     "${CMAKE_CURRENT_BINARY_DIR}/doc/html/"
-    DESTINATION share/html/amd-dbgapi)
+    DESTINATION share/html/amd-dbgapi
+    OPTIONAL)
 
 endif()
