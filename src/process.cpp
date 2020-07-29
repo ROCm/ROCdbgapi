@@ -320,6 +320,14 @@ process_t::set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode)
 
   for (auto &&agent : range<agent_t> ())
     {
+      if (!agent.is_debug_mode_enabled ())
+        {
+          /* This agent is not available for debugging.  If it becomes
+             available in the future, its wave_launch_mode will be set at that
+             time.  */
+          continue;
+        }
+
       amd_dbgapi_status_t status = os_driver ().set_wave_launch_mode (
           agent.os_agent_id (), wave_launch_mode);
       if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
@@ -383,8 +391,22 @@ process_t::set_wave_launch_trap_override (os_wave_launch_trap_mask_t mask,
   if ((bits & supported_trap_mask_bits) != bits)
     return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
 
+  os_wave_launch_trap_mask_t wave_trap_mask
+      = (m_wave_trap_mask & ~bits) | (mask & bits);
+
+  if (wave_trap_mask == m_wave_trap_mask)
+    return AMD_DBGAPI_STATUS_SUCCESS;
+
   for (auto &&agent : range<agent_t> ())
     {
+      if (!agent.is_debug_mode_enabled ())
+        {
+          /* This agent is not available for debugging.  If it becomes
+             available in the future, its wave_launch_trap mask will be set at
+             that time.  */
+          continue;
+        }
+
       os_wave_launch_trap_mask_t ignored;
 
       amd_dbgapi_status_t status = os_driver ().set_wave_launch_trap_override (
@@ -398,6 +420,7 @@ process_t::set_wave_launch_trap_override (os_wave_launch_trap_mask_t mask,
                status);
     }
 
+  m_wave_trap_mask = wave_trap_mask;
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
@@ -500,8 +523,10 @@ process_t::update_agents ()
                                   *architecture, /* architecture  */
                                   agent_info);   /* os_agent_info  */
 
+      bool agent_debug_mode_enabled = agent->is_debug_mode_enabled ();
+
       if (is_flag_set (flag_t::ENABLE_AGENT_DEBUG_MODE)
-          && !agent->is_debug_mode_enabled ())
+          && !agent_debug_mode_enabled)
         {
           amd_dbgapi_status_t status = agent->enable_debug_mode ();
           if (status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
@@ -518,7 +543,7 @@ process_t::update_agents ()
                    agent->os_agent_id (), status);
         }
       else if (!is_flag_set (flag_t::ENABLE_AGENT_DEBUG_MODE)
-               && agent->is_debug_mode_enabled ())
+               && agent_debug_mode_enabled)
         {
           amd_dbgapi_status_t status = agent->disable_debug_mode ();
           if (status != AMD_DBGAPI_STATUS_SUCCESS
@@ -527,14 +552,28 @@ process_t::update_agents ()
                    agent->os_agent_id (), status);
         }
 
-      if (agent->is_debug_mode_enabled ())
+      if (!agent_debug_mode_enabled && agent->is_debug_mode_enabled ())
         {
+          /* If this agent's debug mode got enabled in this update, set its
+             wave launch configuration now.  */
+
           amd_dbgapi_status_t status = os_driver ().set_wave_launch_mode (
               agent->os_agent_id (), m_wave_launch_mode);
           if (status != AMD_DBGAPI_STATUS_SUCCESS
               && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
             error ("Could not set the wave launch mode for os_agent_id %d "
                    "(rc=%d).",
+                   agent->os_agent_id (), status);
+
+          os_wave_launch_trap_mask_t ignored;
+          status = os_driver ().set_wave_launch_trap_override (
+              agent->os_agent_id (), os_wave_launch_trap_override_t::OR,
+              m_wave_trap_mask, agent->supported_trap_mask (), &ignored,
+              &ignored);
+          if (status != AMD_DBGAPI_STATUS_SUCCESS
+              && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+            error ("Could not set the wave launch trap override for "
+                   "os_agent_id %d (rc=%d).",
                    agent->os_agent_id (), status);
         }
     }

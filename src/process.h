@@ -315,6 +315,9 @@ private:
   flag_t m_flags{};
 
   os_wave_launch_mode_t m_wave_launch_mode{ os_wave_launch_mode_t::NORMAL };
+  os_wave_launch_trap_mask_t m_wave_trap_mask{
+    os_wave_launch_trap_mask_t::NONE
+  };
   bool m_forward_progress_needed{ true };
 
   std::thread *m_event_thread{ nullptr };
