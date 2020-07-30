@@ -655,7 +655,7 @@ amdgcn_architecture_t::pseudo_to_raw_regnum (const wave_t &wave,
 
     case amdgpu_regnum_t::VCC_32:
     case amdgpu_regnum_t::VCC_64:
-      return amdgpu_regnum_t::S0 + wave.sgpr_count () - 2;
+      return amdgpu_regnum_t::S0 + std::min (108ul, wave.sgpr_count ()) - 2;
 
     case amdgpu_regnum_t::XNACK_MASK_32:
     case amdgpu_regnum_t::XNACK_MASK_64:
@@ -668,7 +668,7 @@ amdgcn_architecture_t::pseudo_to_raw_regnum (const wave_t &wave,
       return amdgpu_regnum_t::TTMP4;
 
     case amdgpu_regnum_t::FLAT_SCRATCH:
-      return amdgpu_regnum_t::S0 + wave.sgpr_count () - 6;
+      return amdgpu_regnum_t::S0 + std::min (108ul, wave.sgpr_count ()) - 6;
 
     default:
       break;

@@ -373,11 +373,11 @@ wave_t::register_offset_and_size (amdgpu_regnum_t regnum,
     }
   if (regnum >= amdgpu_regnum_t::FIRST_SGPR
       && regnum <= amdgpu_regnum_t::LAST_SGPR
-      && (regnum - amdgpu_regnum_t::S0) < std::min (
-             102ul, m_sgpr_count -
-                        /* TODO: make an architecture query to return the
-                           number of special registers.  */
-                        (include_aliased_registers ? 0 : 6)))
+      && (regnum - amdgpu_regnum_t::S0)
+             < std::min (108ul, m_sgpr_count) -
+                   /* TODO: make an architecture query to return the
+                      number of special registers.  */
+                   (include_aliased_registers ? 0 : 6))
     {
       size_t sgprs_offset
           = (m_vgpr_count + m_accvgpr_count) * sizeof (int32_t) * m_lane_count;
