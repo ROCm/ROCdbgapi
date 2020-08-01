@@ -647,7 +647,7 @@ kfd_driver_t::set_address_watch (os_agent_id_t os_agent_id,
   else if (err == -ESRCH)
     return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
   else if (err < 0)
-    return AMD_DBGAPI_STATUS_ERROR;
+    error ("failed to set address watch: %s", strerror (err));
 
   *os_watch_id = args.data1;
 

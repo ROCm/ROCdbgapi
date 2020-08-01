@@ -468,6 +468,12 @@ extern "C" {
  */
 #define AMD_DBGAPI_VERSION_0_30
 
+/**
+ * The function was introduced in version 0.31 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.31"``.
+ */
+#define AMD_DBGAPI_VERSION_0_31
+
 /** @} */
 
 /** \ingroup callbacks_group
@@ -3728,8 +3734,18 @@ typedef struct
  * watchpoints that can be set, and the limitations may vary by architecture. A
  * watchpoint is created with the smallest range, supported by the
  * architectures of all the agents of a process, that covers the requested
- * range specified by \p address and \p size.  The range of the created
- * watchpoint is returned in \p watchpoint_address and \p watchpoint_size.
+ * range specified by \p address and \p size.
+ *
+ * If the requested range is larger than is supported by the architectures of
+ * all the agents of a process, then a watchpoint is created with the smallest
+ * range that includes \p address and covers as much of the requested range as
+ * possible.
+ *
+ * The range of the created watchpoint is returned in \p watchpoint_address and
+ * \p watchpoint_size.  The client is responsible for determining if the
+ * created watchpoint completely covers the requested range.  If it does not,
+ * the client can attempt to create additional watchpoints for the uncovered
+ * portion of the requested range.
  *
  * When a watchpoint is triggered, the client is responsible for determining if
  * the access was to the requested range.  For example, for writes the client
@@ -3791,8 +3807,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_watchpoint (
     amd_dbgapi_size_t size, amd_dbgapi_watchpoint_kind_t kind,
     amd_dbgapi_watchpoint_id_t *watchpoint_id,
     amd_dbgapi_global_address_t *watchpoint_address,
-    amd_dbgapi_size_t *watchpoint_size) AMD_DBGAPI_VERSION_0_24;
-;
+    amd_dbgapi_size_t *watchpoint_size) AMD_DBGAPI_VERSION_0_31;
 
 /**
  * Remove a hardware data watchpoint previously set by

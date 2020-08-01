@@ -77,7 +77,8 @@ amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
 
   amd_dbgapi_status_t status = process->insert_watchpoint (
       watchpoint, watchpoint_address, watchpoint_size);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+  if (status != AMD_DBGAPI_STATUS_SUCCESS
+      && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
     {
       process->destroy (&watchpoint);
       return status;

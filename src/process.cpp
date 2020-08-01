@@ -741,7 +741,7 @@ process_t::insert_watchpoint (const watchpoint_t &watchpoint,
       = first_address + watchpoint.requested_size () - 1;
 
   amd_dbgapi_global_address_t stable_bits
-      = ~(utils::next_power_of_two (first_address ^ last_address) - 1);
+      = -utils::next_power_of_two ((first_address ^ last_address) + 1);
 
   /* programmable_mask_bits is the intersection of all the process' agents
      capabilities.  architecture_t::watchpoint_mask_bits returns a mask
@@ -758,16 +758,22 @@ process_t::insert_watchpoint (const watchpoint_t &watchpoint,
 
   /* Check that the required mask is within the agents capabilities.  */
   if (stable_bits < field_A)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+    {
+      /* Set the mask to the smallest range that includes first_address and
+         covers as much of first_address..last_address as possible.  The
+         smallest range that includes the first_address extends up to the end
+         of the largest range that covers it.  So set last_address to that
+         boundary and compute the stable_bits again.  This time the stable_bits
+         mask must be in the agent capabilities.  */
+      last_address = ((first_address + ~field_A) & field_A) - 1;
+      stable_bits
+          = -utils::next_power_of_two ((first_address ^ last_address) + 1);
+      dbgapi_assert (stable_bits >= field_A);
+    }
 
   amd_dbgapi_global_address_t watch_mask = stable_bits & ~field_C;
   amd_dbgapi_global_address_t watch_address
       = watchpoint.requested_address () & watch_mask;
-
-  dbgapi_assert (
-      (watchpoint.requested_address () + watchpoint.requested_size ())
-          <= (watch_address - watch_mask)
-      && "the adjusted range does not contain the requested range");
 
   /* Insert the watchpoint on all agents.  */
   auto &&agent_range = range<agent_t> ();
@@ -1667,16 +1673,25 @@ amd_dbgapi_process_set_wave_creation (amd_dbgapi_process_id_t process_id,
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
+  amd_dbgapi_status_t status;
   switch (creation)
     {
     case AMD_DBGAPI_WAVE_CREATION_NORMAL:
-      return process->set_wave_launch_mode (os_wave_launch_mode_t::NORMAL);
+      status = process->set_wave_launch_mode (os_wave_launch_mode_t::NORMAL);
+      break;
     case AMD_DBGAPI_WAVE_CREATION_STOP:
-      return process->set_wave_launch_mode (os_wave_launch_mode_t::HALT);
+      status = process->set_wave_launch_mode (os_wave_launch_mode_t::HALT);
+      break;
     default:
       return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
     }
 
+  if (status != AMD_DBGAPI_STATUS_SUCCESS
+      && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    error ("Could not set wave creation for %s (rc=%d)",
+           to_string (process_id).c_str (), status);
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
 }
 

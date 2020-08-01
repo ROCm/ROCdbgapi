@@ -180,6 +180,9 @@ next_power_of_two (Integral x)
 {
   std::make_unsigned_t<Integral> v{ x };
 
+  /* Edge case where v equals 0 should return 1.  */
+  v += (v == 0);
+
   --v;
   v |= v >> 1;
   v |= v >> 2;
