@@ -395,8 +395,8 @@
  * AMD debugger API interface.
  */
 
-#ifndef _AMD_DBGAPI_H
-#define _AMD_DBGAPI_H 1
+#ifndef AMD_DBGAPI_H
+#define AMD_DBGAPI_H 1
 
 /* Placeholder for calling convention and import/export macros */
 #if !defined(AMD_DBGAPI_CALL)

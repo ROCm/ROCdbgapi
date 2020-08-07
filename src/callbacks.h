@@ -18,8 +18,8 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#ifndef _AMD_DBGAPI_CALLBACKS_H
-#define _AMD_DBGAPI_CALLBACKS_H 1
+#ifndef AMD_DBGAPI_CALLBACKS_H
+#define AMD_DBGAPI_CALLBACKS_H 1
 
 #include "amd-dbgapi.h"
 #include "handle_object.h"
@@ -93,4 +93,4 @@ private:
 
 } /* namespace amd::dbgapi */
 
-#endif /* _AMD_DBGAPI_CALLBACKS_H */
+#endif /* AMD_DBGAPI_CALLBACKS_H */

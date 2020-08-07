@@ -18,8 +18,8 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#ifndef _AMD_DBGAPI_DEBUG_H
-#define _AMD_DBGAPI_DEBUG_H 1
+#ifndef AMD_DBGAPI_DEBUG_H
+#define AMD_DBGAPI_DEBUG_H 1
 
 #include "amd-dbgapi.h"
 
@@ -76,4 +76,4 @@ __attribute__ ((format (printf, 1, 2)))
 
 } /* namespace amd::dbgapi */
 
-#endif /* _AMD_DBGAPI_DEBUG_H */
+#endif /* AMD_DBGAPI_DEBUG_H */

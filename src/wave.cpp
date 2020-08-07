@@ -39,12 +39,6 @@
 #include <tuple>
 #include <type_traits>
 
-#if defined(__GNUC__)
-#define __UNUSED__ __attribute__ ((unused))
-#else /* !defined(__GNUC__) */
-#define __UNUSED__
-#endif /* !defined(__GNUC__) */
-
 namespace amd::dbgapi
 {
 

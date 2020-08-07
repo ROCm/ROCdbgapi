@@ -18,8 +18,8 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#ifndef _AMD_DBGAPI_INITIALIZATION_H
-#define _AMD_DBGAPI_INITIALIZATION_H 1
+#ifndef AMD_DBGAPI_INITIALIZATION_H
+#define AMD_DBGAPI_INITIALIZATION_H 1
 
 namespace amd::dbgapi
 {
@@ -28,4 +28,4 @@ extern bool is_initialized;
 
 } /* namespace amd::dbgapi */
 
-#endif /* _AMD_DBGAPI_INITIALIZATION_H */
+#endif /* AMD_DBGAPI_INITIALIZATION_H */

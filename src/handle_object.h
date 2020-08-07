@@ -18,8 +18,8 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#ifndef _AMD_DBGAPI_HANDLE_OBJECT_H
-#define _AMD_DBGAPI_HANDLE_OBJECT_H 1
+#ifndef AMD_DBGAPI_HANDLE_OBJECT_H
+#define AMD_DBGAPI_HANDLE_OBJECT_H 1
 
 #include "utils.h"
 
@@ -461,4 +461,4 @@ bool operator! (const Handle &handle)
   return handle == Handle{};
 }
 
-#endif /* _AMD_DBGAPI_HANDLE_OBJECT_H */
+#endif /* AMD_DBGAPI_HANDLE_OBJECT_H */

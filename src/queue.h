@@ -18,8 +18,8 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#ifndef _AMD_DBGAPI_QUEUE_H
-#define _AMD_DBGAPI_QUEUE_H 1
+#ifndef AMD_DBGAPI_QUEUE_H
+#define AMD_DBGAPI_QUEUE_H 1
 
 #include "agent.h"
 #include "amd-dbgapi.h"
@@ -190,4 +190,4 @@ public:
 
 } /* namespace amd::dbgapi */
 
-#endif /* _AMD_DBGAPI_QUEUE_H */
+#endif /* AMD_DBGAPI_QUEUE_H */
