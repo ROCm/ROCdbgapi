@@ -18,8 +18,8 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#ifndef _AMD_DBGAPI_OS_DRIVER_H
-#define _AMD_DBGAPI_OS_DRIVER_H 1
+#ifndef AMD_DBGAPI_OS_DRIVER_H
+#define AMD_DBGAPI_OS_DRIVER_H 1
 
 #include "amd-dbgapi.h"
 #include "linux/kfd_ioctl.h"
@@ -234,4 +234,4 @@ template <> std::string to_string (os_queue_status_t queue_status);
 
 } /* namespace amd::dbgapi */
 
-#endif /* _AMD_DBGAPI_OS_DRIVER_H */
+#endif /* AMD_DBGAPI_OS_DRIVER_H */

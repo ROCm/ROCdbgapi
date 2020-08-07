@@ -18,8 +18,8 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#ifndef _AMD_DBGAPI_DISPATCH_H
-#define _AMD_DBGAPI_DISPATCH_H 1
+#ifndef AMD_DBGAPI_DISPATCH_H
+#define AMD_DBGAPI_DISPATCH_H 1
 
 #include "agent.h"
 #include "amd-dbgapi.h"
@@ -87,4 +87,4 @@ private:
 
 } /* namespace amd::dbgapi */
 
-#endif /* _AMD_DBGAPI_DISPATCH_H */
+#endif /* AMD_DBGAPI_DISPATCH_H */

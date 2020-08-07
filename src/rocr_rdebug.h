@@ -18,8 +18,8 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#ifndef _ROCR_RDEBUG_H
-#define _ROCR_RDEBUG_H 1
+#ifndef ROCR_RDEBUG_H
+#define ROCR_RDEBUG_H 1
 
 #include <link.h> /* for struct r_debug */
 
@@ -32,4 +32,4 @@
 
 #define ROCR_RDEBUG_VERSION 2
 
-#endif /* _ROCR_RDEBUG_H */
+#endif /* ROCR_RDEBUG_H */

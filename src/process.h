@@ -18,8 +18,8 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE. */
 
-#ifndef _AMD_DBGAPI_PROCESS_H
-#define _AMD_DBGAPI_PROCESS_H 1
+#ifndef AMD_DBGAPI_PROCESS_H
+#define AMD_DBGAPI_PROCESS_H 1
 
 #include "amd-dbgapi.h"
 #include "architecture.h"
@@ -396,4 +396,4 @@ log_message (amd_dbgapi_log_level_t level, const char *message)
 
 } /* namespace amd::dbgapi */
 
-#endif /* _AMD_DBGAPI_PROCESS_H */
+#endif /* AMD_DBGAPI_PROCESS_H */
