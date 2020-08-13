@@ -49,47 +49,6 @@
 namespace amd::dbgapi
 {
 
-constexpr uint32_t SQ_WAVE_STATUS_SCC_MASK = (1 << 0);
-constexpr uint32_t SQ_WAVE_STATUS_EXECZ_MASK = (1 << 9);
-constexpr uint32_t SQ_WAVE_STATUS_VCCZ_MASK = (1 << 10);
-constexpr uint32_t SQ_WAVE_STATUS_HALT_MASK = 1 << 13;
-constexpr uint32_t SQ_WAVE_STATUS_COND_DBG_USER_MASK = (1 << 20);
-constexpr uint32_t SQ_WAVE_STATUS_COND_DBG_SYS_MASK = (1 << 21);
-
-constexpr uint32_t TTMP11_WAVE_IN_GROUP_MASK = 0x003F;
-constexpr uint32_t TTMP11_TRAP_HANDLER_TRAP_RAISED_MASK = 1 << 7;
-constexpr uint32_t TTMP11_TRAP_HANDLER_EXCP_RAISED_MASK = 1 << 8;
-constexpr uint32_t TTMP11_TRAP_HANDLER_EVENTS_MASK
-    = (TTMP11_TRAP_HANDLER_TRAP_RAISED_MASK
-       | TTMP11_TRAP_HANDLER_EXCP_RAISED_MASK);
-
-constexpr uint32_t SQ_WAVE_MODE_DEBUG_EN_MASK = 1 << 11;
-constexpr uint32_t SQ_WAVE_MODE_EXCP_EN_INVALID_MASK = 1 << 12;
-constexpr uint32_t SQ_WAVE_MODE_EXCP_EN_INPUT_DENORM_MASK = 1 << 13;
-constexpr uint32_t SQ_WAVE_MODE_EXCP_EN_DIV0_MASK = 1 << 14;
-constexpr uint32_t SQ_WAVE_MODE_EXCP_EN_OVERFLOW_MASK = 1 << 15;
-constexpr uint32_t SQ_WAVE_MODE_EXCP_EN_UNDERFLOW_MASK = 1 << 16;
-constexpr uint32_t SQ_WAVE_MODE_EXCP_EN_INEXACT_MASK = 1 << 17;
-constexpr uint32_t SQ_WAVE_MODE_EXCP_EN_INT_DIV0_MASK = 1 << 18;
-constexpr uint32_t SQ_WAVE_MODE_EXCP_EN_ADDR_WATCH_MASK = 1 << 19;
-
-constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_INVALID_MASK = 1 << 0;
-constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_INPUT_DENORM_MASK = 1 << 1;
-constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_DIV0_MASK = 1 << 2;
-constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_OVERFLOW_MASK = 1 << 3;
-constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_UNDERFLOW_MASK = 1 << 4;
-constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_INEXACT_MASK = 1 << 5;
-constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_INT_DIV0_MASK = 1 << 6;
-constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_ADDR_WATCH0_MASK = 1 << 7;
-constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_MEM_VIOL_MASK = 1 << 8;
-[[maybe_unused]] constexpr uint32_t SQ_WAVE_TRAPSTS_SAVECTX_MASK = 1 << 10;
-constexpr uint32_t SQ_WAVE_TRAPSTS_ILLEGAL_INST_MASK = 1 << 11;
-constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_HI_ADDR_WATCH1_MASK = 1 << 12;
-constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_HI_ADDR_WATCH2_MASK = 1 << 13;
-constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_HI_ADDR_WATCH3_MASK = 1 << 14;
-
-[[maybe_unused]] constexpr uint32_t SQ_WAVE_TRAPSTS_XNACK_ERROR_MASK = 1 << 28;
-
 monotonic_counter_t<decltype (amd_dbgapi_architecture_id_t::handle)>
     architecture_t::s_next_architecture_id{ 1 };
 
@@ -98,6 +57,56 @@ monotonic_counter_t<decltype (amd_dbgapi_architecture_id_t::handle)>
 class amdgcn_architecture_t : public architecture_t
 {
 protected:
+  static constexpr uint32_t SQ_WAVE_STATUS_SCC_MASK = (1 << 0);
+  static constexpr uint32_t SQ_WAVE_STATUS_EXECZ_MASK = (1 << 9);
+  static constexpr uint32_t SQ_WAVE_STATUS_VCCZ_MASK = (1 << 10);
+  static constexpr uint32_t SQ_WAVE_STATUS_HALT_MASK = 1 << 13;
+  static constexpr uint32_t SQ_WAVE_STATUS_COND_DBG_USER_MASK = (1 << 20);
+  static constexpr uint32_t SQ_WAVE_STATUS_COND_DBG_SYS_MASK = (1 << 21);
+
+  static constexpr uint32_t TTMP11_WAVE_IN_GROUP_MASK = 0x003F;
+  static constexpr uint32_t TTMP11_TRAP_HANDLER_TRAP_RAISED_MASK = 1 << 7;
+  static constexpr uint32_t TTMP11_TRAP_HANDLER_EXCP_RAISED_MASK = 1 << 8;
+  static constexpr uint32_t TTMP11_TRAP_HANDLER_EVENTS_MASK
+      = (TTMP11_TRAP_HANDLER_TRAP_RAISED_MASK
+         | TTMP11_TRAP_HANDLER_EXCP_RAISED_MASK);
+
+  static constexpr uint32_t SQ_WAVE_MODE_DEBUG_EN_MASK = 1 << 11;
+  static constexpr uint32_t SQ_WAVE_MODE_EXCP_EN_INVALID_MASK = 1 << 12;
+  static constexpr uint32_t SQ_WAVE_MODE_EXCP_EN_INPUT_DENORM_MASK = 1 << 13;
+  static constexpr uint32_t SQ_WAVE_MODE_EXCP_EN_DIV0_MASK = 1 << 14;
+  static constexpr uint32_t SQ_WAVE_MODE_EXCP_EN_OVERFLOW_MASK = 1 << 15;
+  static constexpr uint32_t SQ_WAVE_MODE_EXCP_EN_UNDERFLOW_MASK = 1 << 16;
+  static constexpr uint32_t SQ_WAVE_MODE_EXCP_EN_INEXACT_MASK = 1 << 17;
+  static constexpr uint32_t SQ_WAVE_MODE_EXCP_EN_INT_DIV0_MASK = 1 << 18;
+  static constexpr uint32_t SQ_WAVE_MODE_EXCP_EN_ADDR_WATCH_MASK = 1 << 19;
+
+  static constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_INVALID_MASK = 1 << 0;
+  static constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_INPUT_DENORM_MASK = 1 << 1;
+  static constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_DIV0_MASK = 1 << 2;
+  static constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_OVERFLOW_MASK = 1 << 3;
+  static constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_UNDERFLOW_MASK = 1 << 4;
+  static constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_INEXACT_MASK = 1 << 5;
+  static constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_INT_DIV0_MASK = 1 << 6;
+  static constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_ADDR_WATCH0_MASK = 1 << 7;
+  static constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_MEM_VIOL_MASK = 1 << 8;
+  static constexpr uint32_t SQ_WAVE_TRAPSTS_SAVECTX_MASK = 1 << 10;
+  static constexpr uint32_t SQ_WAVE_TRAPSTS_ILLEGAL_INST_MASK = 1 << 11;
+  static constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_HI_ADDR_WATCH1_MASK = 1 << 12;
+  static constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_HI_ADDR_WATCH2_MASK = 1 << 13;
+  static constexpr uint32_t SQ_WAVE_TRAPSTS_EXCP_HI_ADDR_WATCH3_MASK = 1 << 14;
+
+  static constexpr uint32_t SQ_WAVE_TRAPSTS_XNACK_ERROR_MASK = 1 << 28;
+
+  static constexpr uint32_t COMPUTE_RELAUNCH_IS_EVENT (uint32_t x)
+  {
+    return utils::bit_extract (x, 30, 30);
+  }
+  static constexpr uint32_t COMPUTE_RELAUNCH_IS_STATE (uint32_t x)
+  {
+    return utils::bit_extract (x, 31, 31);
+  }
+
   amdgcn_architecture_t (elf_amdgpu_machine_t e_machine,
                          std::string target_triple)
       : architecture_t (e_machine, std::move (target_triple))
@@ -659,6 +668,9 @@ amdgcn_architecture_t::pseudo_to_raw_regnum (const wave_t &wave,
 
     case amdgpu_regnum_t::XNACK_MASK_32:
     case amdgpu_regnum_t::XNACK_MASK_64:
+      /* The register should be at:
+           amdgpu_regnum_t::S0 + std::min (108ul, wave.sgpr_count ()) - 4
+         but the CWSR handler stores it in the HWREGs block.  */
       return amdgpu_regnum_t::XNACK_MASK_LO;
 
     case amdgpu_regnum_t::PC:
@@ -1758,28 +1770,140 @@ amdgcn_architecture_t::watchpoint_mode (
 class gfx9_base_t : public amdgcn_architecture_t
 {
 protected:
+  static constexpr uint32_t COMPUTE_RELAUNCH_PAYLOAD_VGPRS (uint32_t x)
+  {
+    return utils::bit_extract (x, 0, 5);
+  }
+  static constexpr uint32_t COMPUTE_RELAUNCH_PAYLOAD_SGPRS (uint32_t x)
+  {
+    return utils::bit_extract (x, 6, 8);
+  }
+  static constexpr uint32_t COMPUTE_RELAUNCH_PAYLOAD_LDS_SIZE (uint32_t x)
+  {
+    return utils::bit_extract (x, 9, 17);
+  }
+  static constexpr uint32_t COMPUTE_RELAUNCH_PAYLOAD_LAST_WAVE (uint32_t x)
+  {
+    return utils::bit_extract (x, 16, 16);
+  }
+  static constexpr uint32_t COMPUTE_RELAUNCH_PAYLOAD_FIRST_WAVE (uint32_t x)
+  {
+    return utils::bit_extract (x, 17, 17);
+  }
+
   gfx9_base_t (elf_amdgpu_machine_t e_machine, std::string target_triple)
       : amdgcn_architecture_t (e_machine, std::move (target_triple))
   {
   }
 
 public:
-  bool has_wave32_vgprs () const final { return false; }
-  bool has_wave64_vgprs () const final { return true; }
+  bool has_wave32_vgprs () const override { return false; }
+  bool has_wave64_vgprs () const override { return true; }
   bool has_acc_vgprs () const override { return false; }
+
   bool can_halt_at_endpgm () const override { return false; }
   size_t largest_instruction_size () const override { return 8; }
 
-  compute_relaunch_abi_t compute_relaunch_abi () const override
-  {
-    return compute_relaunch_abi_t::GFX900;
-  }
+  virtual uint32_t wave_get_info (cwsr_descriptor_t descriptor,
+                                  wave_info_t query) const override;
+
+  virtual void control_stack_iterate (
+      const uint32_t *control_stack, size_t control_stack_words,
+      amd_dbgapi_global_address_t wave_area_address,
+      std::function<void (cwsr_descriptor_t, amd_dbgapi_global_address_t)>
+          wave_callback) const override;
 
   virtual size_t watchpoint_mask_bits () const override
   {
     return utils::bit_mask (6, 29);
   }
 };
+
+uint32_t
+gfx9_base_t::wave_get_info (cwsr_descriptor_t descriptor,
+                            wave_info_t query) const
+{
+  using utils::bit_extract;
+
+  switch (query)
+    {
+    case wave_info_t::vgprs:
+      /* vgprs are allocated in blocks of 4 registers.  */
+      return (1 + COMPUTE_RELAUNCH_PAYLOAD_VGPRS (descriptor[1])) * 4;
+
+    case wave_info_t::acc_vgprs:
+      return 0;
+
+    case wave_info_t::sgprs:
+      /* sgprs are allocated in blocks of 16 registers. Subtract the ttmps
+         registers from this count, as they will be saved in a different
+         area than the sgprs.  */
+      return (1 + COMPUTE_RELAUNCH_PAYLOAD_SGPRS (descriptor[1])) * 16
+             - /* ttmps */ 16;
+
+    case wave_info_t::lds_size:
+      if (wave_get_info (descriptor, wave_info_t::first_wave))
+        return COMPUTE_RELAUNCH_PAYLOAD_LDS_SIZE (descriptor[1]) * 128
+               * sizeof (uint32_t);
+      return 0;
+
+    case wave_info_t::lane_count:
+      return 64;
+
+    case wave_info_t::last_wave:
+      return COMPUTE_RELAUNCH_PAYLOAD_LAST_WAVE (descriptor[0]);
+
+    case wave_info_t::first_wave:
+      return COMPUTE_RELAUNCH_PAYLOAD_FIRST_WAVE (descriptor[0]);
+
+    default:
+      error ("invalid wave_info query %d", static_cast<int> (query));
+    }
+}
+
+void
+gfx9_base_t::control_stack_iterate (
+    const uint32_t *control_stack, size_t control_stack_words,
+    amd_dbgapi_global_address_t wave_area_address,
+    std::function<void (cwsr_descriptor_t, amd_dbgapi_global_address_t)>
+        wave_callback) const
+{
+  uint32_t state{ 0 };
+
+  for (size_t i = 2; /* Skip the 2 PM4 packets at the top of the stack.  */
+       i < control_stack_words; ++i)
+    {
+      uint32_t relaunch = control_stack[i];
+
+      if (COMPUTE_RELAUNCH_IS_EVENT (relaunch))
+        {
+          /* Skip events.  */
+        }
+      else if (COMPUTE_RELAUNCH_IS_STATE (relaunch))
+        {
+          state = relaunch;
+        }
+      else
+        {
+          cwsr_descriptor_t descriptor{ relaunch, state };
+
+          wave_area_address
+              -= ((wave_get_info (descriptor, wave_info_t::vgprs)
+                   + wave_get_info (descriptor, wave_info_t::acc_vgprs))
+                      * wave_get_info (descriptor, wave_info_t::lane_count)
+                  + wave_get_info (descriptor, wave_info_t::sgprs)
+                  + 16 /* hwregs */ + 16 /* ttmps */ + 16 /* padding */)
+                 * sizeof (uint32_t);
+
+          /* Only the first wave in the threadgroup saves the LDS.  */
+          if (wave_get_info (descriptor, wave_info_t::first_wave))
+            wave_area_address
+                -= wave_get_info (descriptor, wave_info_t::lds_size);
+
+          wave_callback (descriptor, wave_area_address);
+        }
+    }
+}
 
 /* Vega10 Architecture.  */
 
@@ -1788,28 +1912,6 @@ class gfx900_t final : public gfx9_base_t
 public:
   gfx900_t ()
       : gfx9_base_t (EF_AMDGPU_MACH_AMDGCN_GFX900, "amdgcn-amd-amdhsa--gfx900")
-  {
-  }
-};
-
-/* Raven Architecture.  */
-
-class gfx902_t final : public gfx9_base_t
-{
-public:
-  gfx902_t ()
-      : gfx9_base_t (EF_AMDGPU_MACH_AMDGCN_GFX902, "amdgcn-amd-amdhsa--gfx902")
-  {
-  }
-};
-
-/* Vega12 Architecture.  */
-
-class gfx904_t final : public gfx9_base_t
-{
-public:
-  gfx904_t ()
-      : gfx9_base_t (EF_AMDGPU_MACH_AMDGCN_GFX904, "amdgcn-amd-amdhsa--gfx904")
   {
   }
 };
@@ -1837,31 +1939,61 @@ public:
 
   bool has_acc_vgprs () const override { return true; }
 
-  compute_relaunch_abi_t compute_relaunch_abi () const override
+  uint32_t wave_get_info (cwsr_descriptor_t descriptor,
+                          wave_info_t query) const
   {
-    return compute_relaunch_abi_t::GFX908;
+    switch (query)
+      {
+      case wave_info_t::acc_vgprs:
+        return gfx9_base_t::wave_get_info (descriptor, wave_info_t::vgprs);
+
+      default:
+        return gfx9_base_t::wave_get_info (descriptor, query);
+      }
   }
 };
 
-class gfx10_base_t : public amdgcn_architecture_t
+class gfx10_base_t : public gfx9_base_t
 {
 protected:
+  static constexpr uint32_t COMPUTE_RELAUNCH_PAYLOAD_LDS_SIZE (uint32_t x)
+  {
+    return utils::bit_extract (x, 10, 17);
+  }
+  static constexpr uint32_t COMPUTE_RELAUNCH_PAYLOAD_W32_EN (uint32_t x)
+  {
+    return utils::bit_extract (x, 24, 24);
+  }
+  static constexpr uint32_t COMPUTE_RELAUNCH_PAYLOAD_LAST_WAVE (uint32_t x)
+  {
+    return utils::bit_extract (x, 29, 29);
+  }
+  static constexpr uint32_t COMPUTE_RELAUNCH_PAYLOAD_FIRST_WAVE (uint32_t x)
+  {
+    return utils::bit_extract (x, 12, 12);
+  }
+
   gfx10_base_t (elf_amdgpu_machine_t e_machine, std::string target_triple)
-      : amdgcn_architecture_t (e_machine, std::move (target_triple))
+      : gfx9_base_t (e_machine, std::move (target_triple))
   {
   }
 
 public:
-  bool has_wave32_vgprs () const final { return true; }
-  bool has_wave64_vgprs () const final { return true; }
+  bool has_wave32_vgprs () const override { return true; }
+  bool has_wave64_vgprs () const override { return true; }
   bool has_acc_vgprs () const override { return false; }
+
+  virtual uint32_t wave_get_info (cwsr_descriptor_t descriptor,
+                                  wave_info_t query) const override;
+
+  virtual void control_stack_iterate (
+      const uint32_t *control_stack, size_t control_stack_words,
+      amd_dbgapi_global_address_t wave_area_address,
+      std::function<void (cwsr_descriptor_t, amd_dbgapi_global_address_t)>
+          wave_callback) const override;
+
   bool can_halt_at_endpgm () const override { return false; }
   size_t largest_instruction_size () const override { return 20; }
-
-  compute_relaunch_abi_t compute_relaunch_abi () const override
-  {
-    return compute_relaunch_abi_t::GFX1000;
-  }
 
   virtual size_t watchpoint_mask_bits () const override
   {
@@ -1872,6 +2004,83 @@ public:
   pseudo_to_raw_regnum (const wave_t &wave,
                         amdgpu_regnum_t regnum) const override;
 };
+
+uint32_t
+gfx10_base_t::wave_get_info (cwsr_descriptor_t descriptor,
+                             wave_info_t query) const
+{
+  using utils::bit_extract;
+
+  switch (query)
+    {
+    case wave_info_t::sgprs:
+      return 128;
+
+    case wave_info_t::lane_count:
+      return COMPUTE_RELAUNCH_PAYLOAD_W32_EN (descriptor[1]) ? 32 : 64;
+
+    case wave_info_t::lds_size:
+      /* lds_size: 128 dwords granularity.  */
+      return COMPUTE_RELAUNCH_PAYLOAD_LDS_SIZE (descriptor[1]) * 128
+             * sizeof (uint32_t);
+
+    case wave_info_t::last_wave:
+      return COMPUTE_RELAUNCH_PAYLOAD_LAST_WAVE (descriptor[0]);
+
+    case wave_info_t::first_wave:
+      return COMPUTE_RELAUNCH_PAYLOAD_FIRST_WAVE (descriptor[0]);
+
+    default:
+      return gfx9_base_t::wave_get_info (descriptor, query);
+    }
+}
+
+void
+gfx10_base_t::control_stack_iterate (
+    const uint32_t *control_stack, size_t control_stack_words,
+    amd_dbgapi_global_address_t wave_area_address,
+    std::function<void (cwsr_descriptor_t, amd_dbgapi_global_address_t)>
+        wave_callback) const
+{
+  uint32_t state{ 0 };
+
+  for (size_t i = 2; /* Skip the 2 PM4 packets at the top of the stack.  */
+       i < control_stack_words; ++i)
+    {
+      uint32_t relaunch = control_stack[i];
+
+      if (COMPUTE_RELAUNCH_IS_EVENT (relaunch))
+        {
+          /* Skip events.  */
+        }
+      else if (COMPUTE_RELAUNCH_IS_STATE (relaunch))
+        {
+          /* On gfx10, there are 2 COMPUTE_RELAUNCH registers for state.
+             Skip COMPUTE_RELAUNCH2 as it is currently unused. */
+          ++i;
+          state = relaunch;
+        }
+      else
+        {
+          cwsr_descriptor_t descriptor{ relaunch, state };
+
+          wave_area_address
+              -= ((wave_get_info (descriptor, wave_info_t::vgprs)
+                   + wave_get_info (descriptor, wave_info_t::acc_vgprs))
+                      * wave_get_info (descriptor, wave_info_t::lane_count)
+                  + wave_get_info (descriptor, wave_info_t::sgprs)
+                  + 16 /* hwregs */ + 16 /* ttmps */)
+                 * sizeof (uint32_t);
+
+          /* Only the first wave in the threadgroup saves the LDS.  */
+          if (wave_get_info (descriptor, wave_info_t::first_wave))
+            wave_area_address
+                -= wave_get_info (descriptor, wave_info_t::lds_size);
+
+          wave_callback (descriptor, wave_area_address);
+        }
+    }
+}
 
 std::optional<amdgpu_regnum_t>
 gfx10_base_t::pseudo_to_raw_regnum (const wave_t &wave,
@@ -2305,8 +2514,6 @@ decltype (
   [] () {
     decltype (s_architecture_map) map;
     map.emplace (create_architecture<gfx900_t> ());
-    map.emplace (create_architecture<gfx902_t> ());
-    map.emplace (create_architecture<gfx904_t> ());
     map.emplace (create_architecture<gfx906_t> ());
     map.emplace (create_architecture<gfx908_t> ());
     map.emplace (create_architecture<gfx1010_t> ());

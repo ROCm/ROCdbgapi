@@ -43,24 +43,8 @@
 namespace amd::dbgapi
 {
 
-using utils::bit_extract;
-
-#define SQ_WAVE_TRAPSTS_XNACK_ERROR(x) bit_extract ((x), 28, 28)
-#define SQ_WAVE_STATUS_HALT_MASK utils::bit_mask (13, 13)
-#define TTMP11_TRAP_HANDLER_EVENTS_MASK utils::bit_mask (7, 8)
-
-/* COMPUTE_RELAUNCH register fields.  */
-#define COMPUTE_RELAUNCH_PAYLOAD_VGPRS(x) bit_extract ((x), 0, 5)
-#define COMPUTE_RELAUNCH_PAYLOAD_SGPRS(x) bit_extract ((x), 6, 8)
-#define COMPUTE_RELAUNCH_GFX9_PAYLOAD_LDS_SIZE(x) bit_extract ((x), 9, 17)
-#define COMPUTE_RELAUNCH_GFX10_PAYLOAD_LDS_SIZE(x) bit_extract ((x), 10, 17)
-#define COMPUTE_RELAUNCH_GFX9_PAYLOAD_LAST_WAVE(x) bit_extract ((x), 16, 16)
-#define COMPUTE_RELAUNCH_GFX9_PAYLOAD_FIRST_WAVE(x) bit_extract ((x), 17, 17)
-#define COMPUTE_RELAUNCH_GFX10_PAYLOAD_LAST_WAVE(x) bit_extract ((x), 29, 29)
-#define COMPUTE_RELAUNCH_GFX10_PAYLOAD_FIRST_WAVE(x) bit_extract ((x), 12, 12)
-#define COMPUTE_RELAUNCH_GFX10_PAYLOAD_W32_EN(x) bit_extract ((x), 24, 24)
-#define COMPUTE_RELAUNCH_IS_EVENT(x) bit_extract ((x), 30, 30)
-#define COMPUTE_RELAUNCH_IS_STATE(x) bit_extract ((x), 31, 31)
+constexpr uint32_t SQ_WAVE_STATUS_HALT_MASK = utils::bit_mask (13, 13);
+constexpr uint32_t TTMP11_TRAP_HANDLER_EVENTS_MASK = utils::bit_mask (7, 8);
 
 /* Base class for all queue implementations.  */
 
@@ -312,342 +296,226 @@ queue_t::aql_queue_impl_t::update_waves ()
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
 
-  /* Decode the ctrl stack.  TODO: We should move the decoding to the
-     architecture class as the layout may change between gfxips.  */
-  amd_dbgapi_global_address_t wave_area_address
-      = m_queue.m_os_queue_info.ctx_save_restore_address
-        + header.wave_state_offset;
-  uint32_t wave_lanes = 0, n_vgprs = 0, n_accvgprs = 0, n_sgprs = 0,
-           lds_size = 0, padding = 0;
-  constexpr uint32_t n_ttmps = 16, n_hwregs = 16;
   wave_t *group_leader = nullptr;
 
-  for (size_t i = 2; /* Skip the 2 PM4 packets at the top of the stack.  */
-       i < header.ctrl_stack_size / sizeof (uint32_t); ++i)
-    {
-      uint32_t relaunch = ctrl_stack[i];
-      auto relaunch_abi = m_queue.architecture ().compute_relaunch_abi ();
+  auto wave_callback = [&] (architecture_t::cwsr_descriptor_t descriptor,
+                            amd_dbgapi_global_address_t context_save_address) {
+    /* FIXME: will remove this in the next commit */
+    const amd_dbgapi_global_address_t hwregs_address
+        = context_save_address
+          + ((m_queue.architecture ().wave_get_info (
+                  descriptor, architecture_t::wave_info_t::vgprs)
+              + m_queue.architecture ().wave_get_info (
+                  descriptor, architecture_t::wave_info_t::acc_vgprs))
+                 * m_queue.architecture ().wave_get_info (
+                     descriptor, architecture_t::wave_info_t::lane_count)
+             + m_queue.architecture ().wave_get_info (
+                 descriptor, architecture_t::wave_info_t::sgprs))
+                * sizeof (uint32_t);
 
-      if (COMPUTE_RELAUNCH_IS_EVENT (relaunch))
-        {
-          /* Skip events.  */
-          continue;
-        }
-      else if (COMPUTE_RELAUNCH_IS_STATE (relaunch))
-        {
-          switch (relaunch_abi)
-            {
-            case architecture_t::compute_relaunch_abi_t::GFX900:
-            case architecture_t::compute_relaunch_abi_t::GFX908:
-              /* gfx9 only supports wave64 mode.  */
-              wave_lanes = 64;
+    const amd_dbgapi_global_address_t ttmps_address
+        = hwregs_address + 16 * sizeof (uint32_t);
 
-              /* vgprs are allocated in blocks of 4 registers.  */
-              n_vgprs = (1 + COMPUTE_RELAUNCH_PAYLOAD_VGPRS (relaunch)) * 4;
+    amd_dbgapi_wave_id_t wave_id;
+    wave_t::visibility_t visibility{ wave_t::visibility_t::VISIBLE };
 
-              /* sgprs are allocated in blocks of 16 registers. Subtract
-                 the ttmps registers from this count, as they will be saved in
-                 a different area than the sgprs.  */
-              n_sgprs = (1 + COMPUTE_RELAUNCH_PAYLOAD_SGPRS (relaunch)) * 16
-                        - n_ttmps;
-              padding = n_ttmps * sizeof (uint32_t);
+    if (process.is_flag_set (process_t::flag_t::ASSIGN_NEW_IDS_TO_ALL_WAVES))
+      {
+        /* We will never have hidden waves when assigning new ids. All waves
+           seen in the control stack get a new wave_t instance with a new wave
+           id.  */
+        wave_id = wave_t::undefined;
+      }
+    else
+      {
+        /* The wave id is preserved in registers ttmp[4:5].  */
+        const amd_dbgapi_global_address_t ttmp4_5_address
+            = ttmps_address
+              + (amdgpu_regnum_t::TTMP4 - amdgpu_regnum_t::FIRST_TTMP)
+                    * sizeof (uint32_t);
 
-              /* lds_size: 128 bytes granularity.  */
-              lds_size = COMPUTE_RELAUNCH_GFX9_PAYLOAD_LDS_SIZE (relaunch)
-                         * 128 * 4;
-              break;
-            case architecture_t::compute_relaunch_abi_t::GFX1000:
-              /* On gfx10, there are 2 COMPUTE_RELAUNCH registers for state.
-                 Skip COMPUTE_RELAUNCH2 as it is currently unused.  */
-              ++i;
+        status = process.read_global_memory (ttmp4_5_address, &wave_id,
+                                             sizeof (wave_id));
+        if (status != AMD_DBGAPI_STATUS_SUCCESS)
+          error ("read_global_memory failed at %lx", ttmp4_5_address);
 
-              wave_lanes
-                  = COMPUTE_RELAUNCH_GFX10_PAYLOAD_W32_EN (relaunch) ? 32 : 64;
+        /* If this is a new wave, check its visibility.  Waves halted at launch
+           should remain hidden until the wave creation mode is changed to
+           NORMAL.  A wave is halted at launch if it is halted without having
+           entered the trap handler.
+         */
+        if (wave_id == wave_t::undefined)
+          {
+            uint32_t status_reg;
+            const amd_dbgapi_global_address_t status_reg_address
+                = hwregs_address
+                  + (amdgpu_regnum_t::STATUS - amdgpu_regnum_t::FIRST_HWREG)
+                        * sizeof (uint32_t);
 
-              /* vgprs are allocated in blocks of 4/8 registers (W64/32).  */
-              n_vgprs = (1 + COMPUTE_RELAUNCH_PAYLOAD_VGPRS (relaunch))
-                        * (256 / wave_lanes);
+            status = process.read_global_memory (
+                status_reg_address, &status_reg, sizeof (status_reg));
+            if (status != AMD_DBGAPI_STATUS_SUCCESS)
+              error ("read_global_memory failed at %lx", status_reg_address);
 
-              /* Each wave gets 128 scalar registers.  */
-              n_sgprs = 128;
-              padding = 0;
+            const bool halted = !!(status_reg & SQ_WAVE_STATUS_HALT_MASK);
 
-              /* lds_size: 128 bytes granularity.  */
-              lds_size = COMPUTE_RELAUNCH_GFX10_PAYLOAD_LDS_SIZE (relaunch)
-                         * 128 * 4;
-              break;
-            default:
-              dbgapi_assert_not_reached (
-                  "compute_relaunch register ABI not supported");
-              break;
-            }
+            const amd_dbgapi_global_address_t ttmp11_address
+                = ttmps_address
+                  + (amdgpu_regnum_t::TTMP11 - amdgpu_regnum_t::FIRST_TTMP)
+                        * sizeof (uint32_t);
 
-          switch (relaunch_abi)
-            {
-            case architecture_t::compute_relaunch_abi_t::GFX900:
-            case architecture_t::compute_relaunch_abi_t::GFX1000:
-              n_accvgprs = 0;
-              break;
-            case architecture_t::compute_relaunch_abi_t::GFX908:
-              n_accvgprs = n_vgprs;
-              break;
-            default:
-              dbgapi_assert_not_reached (
-                  "compute_relaunch register ABI not supported");
-              break;
-            }
+            uint32_t ttmp11;
+            status = process.read_global_memory (ttmp11_address, &ttmp11,
+                                                 sizeof (ttmp11));
+            if (status != AMD_DBGAPI_STATUS_SUCCESS)
+              error ("read_global_memory failed at %lx", ttmp11_address);
 
-          continue;
-        }
+            /* trap_handler_events is true if the trap handler was entered
+               because of a trap instruction or an exception.  */
+            const bool trap_handler_events
+                = !!(ttmp11 & TTMP11_TRAP_HANDLER_EVENTS_MASK);
 
-      /* The first wave in the group saves the group lds in its save area.  */
-      bool first_in_group, last_in_group;
-      switch (relaunch_abi)
-        {
-        case architecture_t::compute_relaunch_abi_t::GFX1000:
-          first_in_group
-              = COMPUTE_RELAUNCH_GFX10_PAYLOAD_FIRST_WAVE (relaunch);
-          last_in_group = COMPUTE_RELAUNCH_GFX10_PAYLOAD_LAST_WAVE (relaunch);
-          break;
-        case architecture_t::compute_relaunch_abi_t::GFX900:
-        case architecture_t::compute_relaunch_abi_t::GFX908:
-          first_in_group = COMPUTE_RELAUNCH_GFX9_PAYLOAD_FIRST_WAVE (relaunch);
-          last_in_group = COMPUTE_RELAUNCH_GFX9_PAYLOAD_LAST_WAVE (relaunch);
-          break;
-        default:
-          dbgapi_assert_not_reached (
-              "compute_relaunch register ABI not supported");
-          break;
-        }
+            /* Waves halted at launch do not have trap handler events).  */
+            if (halted && !trap_handler_events)
+              visibility = wave_t::visibility_t::HIDDEN_HALTED_AT_LAUNCH;
+          }
+      }
 
-      uint32_t wave_area_size = /* vgprs save area */
-          (n_vgprs + n_accvgprs) * sizeof (uint32_t) * wave_lanes
-          + n_sgprs * sizeof (uint32_t)     /* sgprs save area */
-          + n_hwregs * sizeof (uint32_t)    /* hwregs save area */
-          + n_ttmps * sizeof (uint32_t)     /* ttmp sgprs save area */
-          + (first_in_group ? lds_size : 0) /* lds save area */
-          + padding;
+    wave_t *wave = nullptr;
 
-      wave_area_address -= wave_area_size;
+    if (wave_id != wave_t::undefined)
+      {
+        /* The wave already exists, so we should find it and update its context
+           save area address.  */
+        wave = process.find (wave_id);
+        if (!wave)
+          warning ("%s not found in the process map",
+                   to_string (wave_id).c_str ());
+      }
 
-      const amd_dbgapi_global_address_t hwregs_address
-          = wave_area_address
-            + (n_vgprs + n_accvgprs) * sizeof (uint32_t) * wave_lanes
-            + n_sgprs * sizeof (uint32_t);
+    if (!wave)
+      {
+        /* The dispatch_ptr is preserved in registers ttmp[6:7].  */
+        const amd_dbgapi_global_address_t ttmp6_7_address
+            = ttmps_address
+              + (amdgpu_regnum_t::TTMP6 - amdgpu_regnum_t::FIRST_TTMP)
+                    * sizeof (uint32_t);
 
-      const amd_dbgapi_global_address_t ttmps_address
-          = hwregs_address + n_hwregs * sizeof (uint32_t);
+        amd_dbgapi_global_address_t dispatch_ptr;
+        status = process.read_global_memory (ttmp6_7_address, &dispatch_ptr,
+                                             sizeof (dispatch_ptr));
+        if (status != AMD_DBGAPI_STATUS_SUCCESS)
+          error ("read_global_memory failed at %lx", ttmp6_7_address);
 
-      const amd_dbgapi_global_address_t lds_address
-          = ttmps_address + n_ttmps * sizeof (uint32_t);
+        if (!dispatch_ptr)
+          /* TODO: See comment above for corrupted wavefronts. This could be
+             attached to a CORRUPT_DISPATCH instance.  */
+          error ("invalid null dispatch_ptr at 0x%lx", ttmp6_7_address);
 
-      amd_dbgapi_wave_id_t wave_id;
-      wave_t::visibility_t visibility{ wave_t::visibility_t::VISIBLE };
+        /* SPI only sends us the lower 40 bits of the dispatch_ptr, so we need
+           to reconstitute it using the ring_base_address for the missing upper
+           8 bits.  */
 
-      if (process.is_flag_set (process_t::flag_t::ASSIGN_NEW_IDS_TO_ALL_WAVES))
-        {
-          /* We will never have hidden waves when assigning new ids. All waves
-             seen in the control stack get a new wave_t instance with a new
-             wave id.  */
-          wave_id = wave_t::undefined;
-        }
-      else
-        {
-          /* The wave id is preserved in registers ttmp[4:5].  */
-          const amd_dbgapi_global_address_t ttmp4_5_address
-              = ttmps_address
-                + (amdgpu_regnum_t::TTMP4 - amdgpu_regnum_t::FIRST_TTMP)
-                      * sizeof (uint32_t);
+        constexpr uint64_t spi_mask = utils::bit_mask (0, 39);
+        if (dispatch_ptr)
+          dispatch_ptr
+              = (dispatch_ptr & spi_mask)
+                | (m_queue.m_os_queue_info.ring_base_address & ~spi_mask);
 
-          status = process.read_global_memory (ttmp4_5_address, &wave_id,
-                                               sizeof (wave_id));
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
-            return status;
+        if ((dispatch_ptr % AQL_PACKET_SIZE) != 0)
+          /* TODO: See comment above for corrupted wavefronts. This could be
+             attached to a CORRUPT_DISPATCH instance.  */
+          error ("dispatch_ptr is not aligned on the packet size");
 
-          /* If this is a new wave, check its visibility.  Waves halted at
-             launch should remain hidden until the wave creation mode is
-             changed to NORMAL.  A wave is halted at launch if it is halted
-             without having entered the trap handler.
-           */
-          if (wave_id == wave_t::undefined)
-            {
-              uint32_t status_reg;
-              const amd_dbgapi_global_address_t status_reg_address
-                  = hwregs_address
-                    + (amdgpu_regnum_t::STATUS - amdgpu_regnum_t::FIRST_HWREG)
-                          * sizeof (uint32_t);
+        /* Calculate the monotonic dispatch id for this packet.  It is between
+           read_dispatch_id and write_dispatch_id.  */
 
-              status = process.read_global_memory (
-                  status_reg_address, &status_reg, sizeof (status_reg));
-              if (status != AMD_DBGAPI_STATUS_SUCCESS)
-                return status;
+        amd_dbgapi_queue_packet_id_t queue_packet_id
+            = (dispatch_ptr - m_queue.m_os_queue_info.ring_base_address)
+              / AQL_PACKET_SIZE;
 
-              const bool halted = !!(status_reg & SQ_WAVE_STATUS_HALT_MASK);
+        /* Check that 0 <= queue_packet_id < queue_size.  */
+        if (queue_packet_id
+            >= m_queue.m_os_queue_info.ring_size / AQL_PACKET_SIZE)
+          /* TODO: See comment above for corrupted wavefronts. This could be
+             attached to a CORRUPT_DISPATCH instance.  */
+          error ("invalid queue_packet_id (%#lx)", queue_packet_id);
 
-              const amd_dbgapi_global_address_t ttmp11_address
-                  = ttmps_address
-                    + (amdgpu_regnum_t::TTMP11 - amdgpu_regnum_t::FIRST_TTMP)
-                          * sizeof (uint32_t);
+        /* ring_size must be a power of 2.  */
+        if (!utils::is_power_of_two (m_queue.m_os_queue_info.ring_size))
+          error ("ring_size is not a power of 2");
 
-              uint32_t ttmp11;
-              status = process.read_global_memory (ttmp11_address, &ttmp11,
-                                                   sizeof (ttmp11));
-              if (status != AMD_DBGAPI_STATUS_SUCCESS)
-                return status;
+        /* Need to mask by the number of packets in the ring (which is a
+           power of 2 so -1 makes the correct mask).  */
+        const uint64_t id_mask
+            = m_queue.m_os_queue_info.ring_size / AQL_PACKET_SIZE - 1;
 
-              /* trap_handler_events is true if the trap handler was entered
-                 because of a trap instruction or an exception.  */
-              const bool trap_handler_events
-                  = !!(ttmp11 & TTMP11_TRAP_HANDLER_EVENTS_MASK);
+        queue_packet_id |= queue_packet_id >= (read_dispatch_id & id_mask)
+                               ? (read_dispatch_id & ~id_mask)
+                               : (write_dispatch_id & ~id_mask);
 
-              /* Waves halted at launch do not have trap handler events).  */
-              if (halted && !trap_handler_events)
-                visibility = wave_t::visibility_t::HIDDEN_HALTED_AT_LAUNCH;
-            }
-        }
+        /* Check that read_dispatch_id <= dispatch_id < write_dispatch_id  */
+        if (read_dispatch_id > queue_packet_id
+            || queue_packet_id >= write_dispatch_id)
+          /* TODO: See comment above for corrupted wavefronts. This could be
+             attached to a CORRUPT_DISPATCH instance.  */
+          error ("invalid dispatch id (%#lx), with read_dispatch_id=%#lx, "
+                 "and write_dispatch_id=%#lx",
+                 queue_packet_id, read_dispatch_id, write_dispatch_id);
 
-      wave_t *wave = nullptr;
+        /* Check if the dispatch already exists.  */
+        dispatch_t *dispatch = process.find_if ([&] (const dispatch_t &x) {
+          return x.queue ().id () == m_queue.id ()
+                 && x.queue_packet_id () == queue_packet_id;
+        });
 
-      if (wave_id != wave_t::undefined)
-        {
-          /* The wave already exists, so we should find it and update its
-             context save area address.  */
-          wave = process.find (wave_id);
-          if (!wave)
-            warning ("%s not found in the process map",
-                     to_string (wave_id).c_str ());
-        }
+        /* If we did not find the current dispatch, create a new one.  */
+        if (!dispatch)
+          dispatch = &process.create<dispatch_t> (
+              m_queue,         /* queue  */
+              queue_packet_id, /* queue_packet_id  */
+              dispatch_ptr);   /* packet_address  */
 
-      if (!wave)
-        {
-          /* The dispatch_ptr is preserved in registers ttmp[6:7].  */
-          const amd_dbgapi_global_address_t ttmp6_7_address
-              = ttmps_address
-                + (amdgpu_regnum_t::TTMP6 - amdgpu_regnum_t::FIRST_TTMP)
-                      * sizeof (uint32_t);
+        wave = &process.create<wave_t> (*dispatch);
 
-          amd_dbgapi_global_address_t dispatch_ptr;
-          status = process.read_global_memory (ttmp6_7_address, &dispatch_ptr,
-                                               sizeof (dispatch_ptr));
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
-            return status;
+        wave->set_visibility (visibility);
+      }
 
-          if (!dispatch_ptr)
-            /* TODO: See comment above for corrupted wavefronts. This could be
-               attached to a CORRUPT_DISPATCH instance.  */
-            error ("invalid null dispatch_ptr at 0x%lx", ttmp6_7_address);
+    /* The first wave in the group is the group leader.  The group leader owns
+       the backing store for the group memory (LDS).  */
+    if (m_queue.architecture ().wave_get_info (
+            descriptor, architecture_t::wave_info_t::first_wave))
+      group_leader = wave;
 
-          /* SPI only sends us the lower 40 bits of the dispatch_ptr, so we
-             need to reconstitute it using the ring_base_address for the
-             missing upper 8 bits.  */
+    if (!group_leader)
+      error ("No group_leader, the control stack may be corrupted");
 
-          constexpr uint64_t spi_mask = utils::bit_mask (0, 39);
-          if (dispatch_ptr)
-            dispatch_ptr
-                = (dispatch_ptr & spi_mask)
-                  | (m_queue.m_os_queue_info.ring_base_address & ~spi_mask);
+    status = wave->update (*group_leader, descriptor, context_save_address);
+    if (status != AMD_DBGAPI_STATUS_SUCCESS)
+      error ("wave_t::update failed");
 
-          if ((dispatch_ptr % AQL_PACKET_SIZE) != 0)
-            /* TODO: See comment above for corrupted wavefronts. This could be
-               attached to a CORRUPT_DISPATCH instance.  */
-            error ("dispatch_ptr is not aligned on the packet size");
+    /* This was the last wave in the group. Make sure we have a new group
+       leader for the remaining waves.  */
+    if (m_queue.architecture ().wave_get_info (
+            descriptor, architecture_t::wave_info_t::last_wave))
+      group_leader = nullptr;
 
-          /* Calculate the monotonic dispatch id for this packet.  It is
-             between read_dispatch_id and write_dispatch_id.  */
+    /* Check that the wave is in the same group as its group leader.  */
+    if (wave->group_ids () != wave->group_leader ().group_ids ())
+      error ("wave is not in the same group as group_leader");
 
-          amd_dbgapi_queue_packet_id_t queue_packet_id
-              = (dispatch_ptr - m_queue.m_os_queue_info.ring_base_address)
-                / AQL_PACKET_SIZE;
+    wave->set_mark (wave_mark);
+  };
 
-          /* Check that 0 <= queue_packet_id < queue_size.  */
-          if (queue_packet_id
-              >= m_queue.m_os_queue_info.ring_size / AQL_PACKET_SIZE)
-            /* TODO: See comment above for corrupted wavefronts. This could be
-               attached to a CORRUPT_DISPATCH instance.  */
-            error ("invalid queue_packet_id (%#lx)", queue_packet_id);
+  /* Decode the control stack.  For each wave entry in the control stack, the
+     provided function is called with a wave descriptor and a pointer to its
+     context save area.  */
 
-          /* ring_size must be a power of 2.  */
-          if (!utils::is_power_of_two (m_queue.m_os_queue_info.ring_size))
-            error ("ring_size is not a power of 2");
-
-          /* Need to mask by the number of packets in the ring (which is a
-             power of 2 so -1 makes the correct mask).  */
-          const uint64_t id_mask
-              = m_queue.m_os_queue_info.ring_size / AQL_PACKET_SIZE - 1;
-
-          queue_packet_id |= queue_packet_id >= (read_dispatch_id & id_mask)
-                                 ? (read_dispatch_id & ~id_mask)
-                                 : (write_dispatch_id & ~id_mask);
-
-          /* Check that read_dispatch_id <= dispatch_id < write_dispatch_id  */
-          if (read_dispatch_id > queue_packet_id
-              || queue_packet_id >= write_dispatch_id)
-            /* TODO: See comment above for corrupted wavefronts. This could be
-               attached to a CORRUPT_DISPATCH instance.  */
-            error ("invalid dispatch id (%#lx), with read_dispatch_id=%#lx, "
-                   "and write_dispatch_id=%#lx",
-                   queue_packet_id, read_dispatch_id, write_dispatch_id);
-
-          /* Check if the dispatch already exists.  */
-          dispatch_t *dispatch = process.find_if ([&] (const dispatch_t &x) {
-            return x.queue ().id () == m_queue.id ()
-                   && x.queue_packet_id () == queue_packet_id;
-          });
-
-          /* If we did not find the current dispatch, create a new one.  */
-          if (!dispatch)
-            dispatch = &process.create<dispatch_t> (
-                m_queue,         /* queue  */
-                queue_packet_id, /* queue_packet_id  */
-                dispatch_ptr);   /* packet_address  */
-
-          amd_dbgapi_size_t lds_offset = lds_address - wave_area_address;
-          wave = &process.create<wave_t> (*dispatch,  /* dispatch  */
-                                          n_vgprs,    /* vgpr_count  */
-                                          n_accvgprs, /* accvgpr_count */
-                                          n_sgprs,    /* sgpr_count  */
-                                          lds_offset, /* local_memory_offset */
-                                          lds_size,   /* local_memory_size  */
-                                          wave_lanes); /* lane_count  */
-
-          wave->set_visibility (visibility);
-        }
-
-      /* The first wave in the group is the group leader.  The group leader
-         owns the backing store for the group memory (LDS).  */
-      if (first_in_group)
-        group_leader = wave;
-
-      if (!group_leader)
-        error ("No group_leader, the control stack may be corrupted");
-
-      status = wave->update (*group_leader, wave_area_address);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
-
-      /* This was the last wave in the group. Make sure we have a new group
-         leader for the remaining waves.  */
-      if (last_in_group)
-        group_leader = nullptr;
-
-      /* Check that the wave is in the same group as its group leader.  */
-      if (wave->group_ids () != wave->group_leader ().group_ids ())
-        error ("wave is not in the same group as group_leader");
-
-      wave->set_mark (wave_mark);
-    }
-
-  /* Check that we have correctly walked the control stack. At the end,
-     wave_area_address should point to the bottom of the context save area.  */
-
-  if (wave_area_address
-      != (m_queue.m_os_queue_info.ctx_save_restore_address
-          + header.wave_state_offset - header.wave_state_size))
-    warning ("Computed save_area_size does match expected size. "
-             "Expected %d bytes, calculated %lld bytes.",
-             header.wave_state_size,
-             m_queue.m_os_queue_info.ctx_save_restore_address
-                 + header.wave_state_offset - wave_area_address);
+  m_queue.architecture ().control_stack_iterate (
+      &ctrl_stack[0], header.ctrl_stack_size / sizeof (uint32_t),
+      m_queue.m_os_queue_info.ctx_save_restore_address
+          + header.wave_state_offset,
+      wave_callback);
 
   /* Iterate all waves belonging to this queue, and prune those with a mark
      older than the current mark.  Note that the waves must be pruned before
