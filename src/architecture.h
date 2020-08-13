@@ -52,14 +52,6 @@ class wave_t;
 
 class architecture_t
 {
-public:
-  enum class compute_relaunch_abi_t
-  {
-    GFX900,
-    GFX908,
-    GFX1000,
-  };
-
 private:
   static_assert (is_handle_type_v<amd_dbgapi_architecture_id_t>,
                  "amd_dbgapi_architecture_id_t is not a handle type");
@@ -84,7 +76,29 @@ public:
   virtual bool has_wave32_vgprs () const = 0;
   virtual bool has_wave64_vgprs () const = 0;
   virtual bool has_acc_vgprs () const = 0;
-  virtual compute_relaunch_abi_t compute_relaunch_abi () const = 0;
+
+  enum class wave_info_t
+  {
+    vgprs,      /* Number of VGPRs.  */
+    acc_vgprs,  /* Number of AccVGPR. */
+    sgprs,      /* Number of SGPRs.  */
+    lds_size,   /* LDS space (bytes).  */
+    lane_count, /* Number of lanes.  */
+
+    last_wave,  /* Last wave of threadgroup.  */
+    first_wave, /* First wave of threadgroup.  */
+  };
+
+  using cwsr_descriptor_t = std::array<uint32_t, 2>;
+  virtual uint32_t wave_get_info (cwsr_descriptor_t descriptor,
+                                  wave_info_t query) const = 0;
+
+  virtual void control_stack_iterate (
+      const uint32_t *control_stack, size_t control_stack_words,
+      amd_dbgapi_global_address_t wave_area_address,
+      std::function<void (cwsr_descriptor_t, amd_dbgapi_global_address_t)>
+          wave_callback) const = 0;
+
   virtual bool can_halt_at_endpgm () const = 0;
   virtual bool is_endpgm (const std::vector<uint8_t> &bytes) const = 0;
   virtual bool is_trap (const std::vector<uint8_t> &bytes,
