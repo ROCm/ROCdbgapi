@@ -106,9 +106,14 @@ enum class amdgpu_regnum_t : decltype (amd_dbgapi_register_id_t::handle)
   XNACK_MASK_64,      /* XNACK mask for wave64 wavefronts.  */
   FLAT_SCRATCH,       /* Flat scratch.  */
 
-  WAVE_ID,        /* Debug[0:1].  */
-  DISPATCH_PTR,   /* Pointer to the dispatch packet.  */
-  SCRATCH_OFFSET, /* Scracth memory offset from the scratch base.  */
+  WAVE_ID,         /* Debug[0:1].  */
+  DISPATCH_PTR,    /* Pointer to the dispatch packet.  */
+  DISPATCH_GRID_X, /* Dispatch grid X.  */
+  DISPATCH_GRID_Y, /* Dispatch grid Y.  */
+  DISPATCH_GRID_Z, /* Dispatch grid Z.  */
+  SCRATCH_OFFSET,  /* Scracth memory offset from the scratch base.  */
+
+  LDS_0, /* First dword of the LDS backing store.  */
 };
 
 constexpr size_t

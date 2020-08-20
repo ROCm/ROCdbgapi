@@ -299,8 +299,8 @@ queue_t::aql_queue_impl_t::update_waves ()
 
   wave_t *group_leader = nullptr;
 
-  auto wave_callback = [&] (architecture_t::cwsr_descriptor_t descriptor,
-                            amd_dbgapi_global_address_t context_save_address) {
+  auto callback = [&] (std::unique_ptr<architecture_t::cwsr_descriptor_t>
+                           descriptor) {
     amd_dbgapi_wave_id_t wave_id;
     wave_t::visibility_t visibility{ wave_t::visibility_t::VISIBLE };
 
@@ -315,10 +315,9 @@ queue_t::aql_queue_impl_t::update_waves ()
       {
         /* The wave id is preserved in ttmp registers.  */
         const amd_dbgapi_global_address_t wave_id_address
-            = context_save_address
-              + architecture
-                    .register_offset (descriptor, amdgpu_regnum_t::WAVE_ID)
-                    .value ();
+            = architecture
+                  .register_address (*descriptor, amdgpu_regnum_t::WAVE_ID)
+                  .value ();
 
         status = process.read_global_memory (wave_id_address, &wave_id,
                                              sizeof (wave_id));
@@ -334,10 +333,9 @@ queue_t::aql_queue_impl_t::update_waves ()
           {
             uint32_t status_reg;
             const amd_dbgapi_global_address_t status_reg_address
-                = context_save_address
-                  + architecture
-                        .register_offset (descriptor, amdgpu_regnum_t::STATUS)
-                        .value ();
+                = architecture
+                      .register_address (*descriptor, amdgpu_regnum_t::STATUS)
+                      .value ();
 
             status = process.read_global_memory (
                 status_reg_address, &status_reg, sizeof (status_reg));
@@ -347,10 +345,9 @@ queue_t::aql_queue_impl_t::update_waves ()
             const bool halted = !!(status_reg & SQ_WAVE_STATUS_HALT_MASK);
 
             const amd_dbgapi_global_address_t ttmp11_address
-                = context_save_address
-                  + architecture
-                        .register_offset (descriptor, amdgpu_regnum_t::TTMP11)
-                        .value ();
+                = architecture
+                      .register_address (*descriptor, amdgpu_regnum_t::TTMP11)
+                      .value ();
 
             uint32_t ttmp11;
             status = process.read_global_memory (ttmp11_address, &ttmp11,
@@ -384,11 +381,10 @@ queue_t::aql_queue_impl_t::update_waves ()
     if (!wave)
       {
         const amd_dbgapi_global_address_t dispatch_ptr_address
-            = context_save_address
-              + architecture
-                    .register_offset (descriptor,
-                                      amdgpu_regnum_t::DISPATCH_PTR)
-                    .value ();
+            = architecture
+                  .register_address (*descriptor,
+                                     amdgpu_regnum_t::DISPATCH_PTR)
+                  .value ();
 
         amd_dbgapi_global_address_t dispatch_ptr;
         status = process.read_global_memory (
@@ -435,8 +431,8 @@ queue_t::aql_queue_impl_t::update_waves ()
         if (!utils::is_power_of_two (m_queue.m_os_queue_info.ring_size))
           error ("ring_size is not a power of 2");
 
-        /* Need to mask by the number of packets in the ring (which is a
-           power of 2 so -1 makes the correct mask).  */
+        /* Need to mask by the number of packets in the ring (which is a power
+           of 2 so -1 makes the correct mask).  */
         const uint64_t id_mask
             = m_queue.m_os_queue_info.ring_size / AQL_PACKET_SIZE - 1;
 
@@ -444,7 +440,7 @@ queue_t::aql_queue_impl_t::update_waves ()
                                ? (read_dispatch_id & ~id_mask)
                                : (write_dispatch_id & ~id_mask);
 
-        /* Check that read_dispatch_id <= dispatch_id < write_dispatch_id  */
+        /* Check that read_dispatch_id <= dispatch_id < write_dispatch_id */
         if (read_dispatch_id > queue_packet_id
             || queue_packet_id >= write_dispatch_id)
           /* TODO: See comment above for corrupted wavefronts. This could be
@@ -471,23 +467,26 @@ queue_t::aql_queue_impl_t::update_waves ()
         wave->set_visibility (visibility);
       }
 
+    bool first_wave = architecture.wave_get_info (
+        *descriptor, architecture_t::wave_info_t::first_wave);
+    bool last_wave = architecture.wave_get_info (
+        *descriptor, architecture_t::wave_info_t::last_wave);
+
     /* The first wave in the group is the group leader.  The group leader owns
        the backing store for the group memory (LDS).  */
-    if (architecture.wave_get_info (descriptor,
-                                    architecture_t::wave_info_t::first_wave))
+    if (first_wave)
       group_leader = wave;
 
     if (!group_leader)
       error ("No group_leader, the control stack may be corrupted");
 
-    status = wave->update (*group_leader, descriptor, context_save_address);
+    status = wave->update (*group_leader, std::move (descriptor));
     if (status != AMD_DBGAPI_STATUS_SUCCESS)
       error ("wave_t::update failed");
 
     /* This was the last wave in the group. Make sure we have a new group
        leader for the remaining waves.  */
-    if (architecture.wave_get_info (descriptor,
-                                    architecture_t::wave_info_t::last_wave))
+    if (last_wave)
       group_leader = nullptr;
 
     /* Check that the wave is in the same group as its group leader.  */
@@ -505,7 +504,7 @@ queue_t::aql_queue_impl_t::update_waves ()
       &ctrl_stack[0], header.ctrl_stack_size / sizeof (uint32_t),
       m_queue.m_os_queue_info.ctx_save_restore_address
           + header.wave_state_offset,
-      wave_callback);
+      callback);
 
   /* Iterate all waves belonging to this queue, and prune those with a mark
      older than the current mark.  Note that the waves must be pruned before
@@ -518,9 +517,9 @@ queue_t::aql_queue_impl_t::update_waves ()
              ? process.destroy (it)
              : ++it;
 
-  /* Prune old dispatches. Dispatches with ids older (smaller) than the
-     queue current read dispatch id are now retired, so remove them from
-     the process.  */
+  /* Prune old dispatches. Dispatches with ids older (smaller) than the queue
+     current read dispatch id are now retired, so remove them from the process.
+   */
 
   auto &&dispatch_range = process.range<dispatch_t> ();
   for (auto it = dispatch_range.begin (); it != dispatch_range.end ();)

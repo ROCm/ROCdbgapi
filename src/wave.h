@@ -109,37 +109,32 @@ public:
 
   size_t vgpr_count () const
   {
-    return architecture ().wave_get_info (m_descriptor,
+    return architecture ().wave_get_info (*m_descriptor,
                                           architecture_t::wave_info_t::vgprs);
   }
 
   size_t accvgpr_count () const
   {
     return architecture ().wave_get_info (
-        m_descriptor, architecture_t::wave_info_t::acc_vgprs);
+        *m_descriptor, architecture_t::wave_info_t::acc_vgprs);
   }
 
   size_t sgpr_count () const
   {
-    return architecture ().wave_get_info (m_descriptor,
+    return architecture ().wave_get_info (*m_descriptor,
                                           architecture_t::wave_info_t::sgprs);
   }
 
   size_t lane_count () const
   {
     return architecture ().wave_get_info (
-        m_descriptor, architecture_t::wave_info_t::lane_count);
-  }
-
-  amd_dbgapi_global_address_t context_save_address () const
-  {
-    return m_context_save_address;
+        *m_descriptor, architecture_t::wave_info_t::lane_count);
   }
 
   amd_dbgapi_size_t local_memory_size () const
   {
     return architecture ().wave_get_info (
-        m_descriptor, architecture_t::wave_info_t::lds_size);
+        *m_descriptor, architecture_t::wave_info_t::lds_size);
   }
 
   amd_dbgapi_global_address_t local_memory_base_address () const
@@ -147,13 +142,8 @@ public:
     if (m_group_leader != this)
       return group_leader ().local_memory_base_address ();
 
-    const size_t m_local_memory_offset
-        = ((vgpr_count () + accvgpr_count ()) * lane_count () + sgpr_count ()
-           + 16 /* hwregs */
-           + 16 /* ttmps */)
-          * sizeof (uint32_t);
-
-    return m_context_save_address + m_local_memory_offset;
+    return architecture ().wave_get_info (
+        *m_descriptor, architecture_t::wave_info_t::lds_addr);
   }
 
   auto group_ids () const { return m_group_ids; }
@@ -168,8 +158,7 @@ public:
 
   amd_dbgapi_status_t
   update (const wave_t &group_leader,
-          architecture_t::cwsr_descriptor_t descriptor,
-          amd_dbgapi_global_address_t context_save_address);
+          std::unique_ptr<architecture_t::cwsr_descriptor_t> descriptor);
 
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }
@@ -191,9 +180,10 @@ public:
   bool is_register_cached (amdgpu_regnum_t regnum) const;
   bool is_register_available (amdgpu_regnum_t regnum) const;
 
-  std::optional<size_t> register_offset (amdgpu_regnum_t regnum) const
+  std::optional<amd_dbgapi_global_address_t>
+  register_address (amdgpu_regnum_t regnum) const
   {
-    return architecture ().register_offset (m_descriptor, regnum);
+    return architecture ().register_address (*m_descriptor, regnum);
   }
 
   amd_dbgapi_status_t read_register (amdgpu_regnum_t regnum, size_t offset,
@@ -241,11 +231,7 @@ private:
   uint32_t m_hwregs_cache[amdgpu_regnum_t::LAST_HWREG
                           - amdgpu_regnum_t::FIRST_HWREG + 1];
 
-  /* TODO: make an abstraction that encompasses both the cwsr descriptor and
-     the context save area address. If possible make it opaque and architecture
-     dependent.  */
-  amd_dbgapi_global_address_t m_context_save_address{ 0 };
-  architecture_t::cwsr_descriptor_t m_descriptor{};
+  std::unique_ptr<architecture_t::cwsr_descriptor_t> m_descriptor;
 
   amd_dbgapi_size_t m_scratch_offset{ 0 };
   amd_dbgapi_global_address_t m_saved_pc{ 0 };

@@ -63,6 +63,10 @@ protected:
   virtual void initialize () = 0;
 
 public:
+  struct cwsr_descriptor_t
+  {
+  };
+
   virtual ~architecture_t ();
 
   /* Disallow copying & moving architecture instances.  */
@@ -83,21 +87,21 @@ public:
     acc_vgprs,  /* Number of AccVGPR. */
     sgprs,      /* Number of SGPRs.  */
     lds_size,   /* LDS space (bytes).  */
+    lds_addr,   /* Address of the LDS save area.  */
     lane_count, /* Number of lanes.  */
 
     last_wave,  /* Last wave of threadgroup.  */
     first_wave, /* First wave of threadgroup.  */
   };
 
-  using cwsr_descriptor_t = std::array<uint32_t, 2>;
-  virtual uint32_t wave_get_info (cwsr_descriptor_t descriptor,
+  virtual uint64_t wave_get_info (const cwsr_descriptor_t &descriptor,
                                   wave_info_t query) const = 0;
 
   virtual void control_stack_iterate (
       const uint32_t *control_stack, size_t control_stack_words,
       amd_dbgapi_global_address_t wave_area_address,
-      std::function<void (cwsr_descriptor_t, amd_dbgapi_global_address_t)>
-          wave_callback) const = 0;
+      const std::function<void (std::unique_ptr<cwsr_descriptor_t>)>
+          &wave_callback) const = 0;
 
   virtual bool can_halt_at_endpgm () const = 0;
   virtual bool is_endpgm (const std::vector<uint8_t> &bytes) const = 0;
@@ -198,9 +202,9 @@ public:
   std::optional<amd_dbgapi_size_t>
   register_size (amdgpu_regnum_t regnum) const;
 
-  virtual std::optional<size_t>
-  register_offset (cwsr_descriptor_t descriptor,
-                   amdgpu_regnum_t regnum) const = 0;
+  virtual std::optional<amd_dbgapi_global_address_t>
+  register_address (const cwsr_descriptor_t &descriptor,
+                    amdgpu_regnum_t regnum) const = 0;
 
   amd_dbgapi_status_t instruction_size (const void *memory,
                                         size_t *size) const;

@@ -330,8 +330,8 @@ amdgcn_architecture_t::initialize ()
   /* System registers: [ttmps, hwregs, flat_scratch, xnack_mask, vcc]  */
   register_class_t::register_map_t system_registers;
 
-  system_registers.emplace (amdgpu_regnum_t::FIRST_TTMP,
-                            amdgpu_regnum_t::LAST_TTMP);
+  system_registers.emplace (amdgpu_regnum_t::TTMP4, amdgpu_regnum_t::TTMP11);
+  system_registers.emplace (amdgpu_regnum_t::TTMP13, amdgpu_regnum_t::TTMP13);
 
   system_registers.emplace (amdgpu_regnum_t::M0, amdgpu_regnum_t::M0);
   system_registers.emplace (amdgpu_regnum_t::STATUS, amdgpu_regnum_t::STATUS);
@@ -1015,10 +1015,9 @@ amdgcn_architecture_t::get_wave_coords (wave_t &wave,
   amd_dbgapi_status_t status;
   dbgapi_assert (wave_in_group && "Invalid parameter");
 
-  /* Read group_ids[0:3] from ttmp[8:10].  */
+  /* Read group_ids[0:3].  */
   status = wave.process ().read_global_memory (
-      wave.context_save_address ()
-          + wave.register_offset (amdgpu_regnum_t::TTMP8).value (),
+      wave.register_address (amdgpu_regnum_t::DISPATCH_GRID_X).value (),
       &group_ids[0], sizeof (group_ids));
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     {
@@ -1600,6 +1599,13 @@ protected:
   {
   }
 
+  struct gfx9_cwsr_descriptor_t : cwsr_descriptor_t
+  {
+    uint32_t m_compute_relaunch_wave;
+    uint32_t m_compute_relaunch_state;
+    amd_dbgapi_global_address_t m_context_save_address;
+  };
+
 public:
   bool has_wave32_vgprs () const override { return false; }
   bool has_wave64_vgprs () const override { return true; }
@@ -1608,18 +1614,18 @@ public:
   bool can_halt_at_endpgm () const override { return false; }
   size_t largest_instruction_size () const override { return 8; }
 
-  virtual uint32_t wave_get_info (cwsr_descriptor_t descriptor,
+  virtual uint64_t wave_get_info (const cwsr_descriptor_t &descriptor,
                                   wave_info_t query) const override;
 
-  virtual std::optional<size_t>
-  register_offset (cwsr_descriptor_t descriptor,
-                   amdgpu_regnum_t regnum) const override;
+  virtual std::optional<amd_dbgapi_global_address_t>
+  register_address (const cwsr_descriptor_t &descriptor,
+                    amdgpu_regnum_t regnum) const override;
 
   virtual void control_stack_iterate (
       const uint32_t *control_stack, size_t control_stack_words,
       amd_dbgapi_global_address_t wave_area_address,
-      std::function<void (cwsr_descriptor_t, amd_dbgapi_global_address_t)>
-          wave_callback) const override;
+      const std::function<void (std::unique_ptr<cwsr_descriptor_t>)>
+          &wave_callback) const override;
 
   virtual size_t watchpoint_mask_bits () const override
   {
@@ -1627,17 +1633,21 @@ public:
   }
 };
 
-uint32_t
-gfx9_base_t::wave_get_info (cwsr_descriptor_t descriptor,
+uint64_t
+gfx9_base_t::wave_get_info (const cwsr_descriptor_t &descriptor,
                             wave_info_t query) const
 {
-  using utils::bit_extract;
+  const gfx9_cwsr_descriptor_t &gfx9_descriptor
+      = static_cast<const gfx9_cwsr_descriptor_t &> (descriptor);
+
+  uint32_t wave = gfx9_descriptor.m_compute_relaunch_wave;
+  uint32_t state = gfx9_descriptor.m_compute_relaunch_state;
 
   switch (query)
     {
     case wave_info_t::vgprs:
       /* vgprs are allocated in blocks of 4 registers.  */
-      return (1 + COMPUTE_RELAUNCH_PAYLOAD_VGPRS (descriptor[1])) * 4;
+      return (1 + COMPUTE_RELAUNCH_PAYLOAD_VGPRS (state)) * 4;
 
     case wave_info_t::acc_vgprs:
       return 0;
@@ -1646,108 +1656,88 @@ gfx9_base_t::wave_get_info (cwsr_descriptor_t descriptor,
       /* sgprs are allocated in blocks of 16 registers. Subtract the ttmps
          registers from this count, as they will be saved in a different
          area than the sgprs.  */
-      return (1 + COMPUTE_RELAUNCH_PAYLOAD_SGPRS (descriptor[1])) * 16
+      return (1 + COMPUTE_RELAUNCH_PAYLOAD_SGPRS (state)) * 16
              - /* ttmps */ 16;
 
     case wave_info_t::lds_size:
       if (wave_get_info (descriptor, wave_info_t::first_wave))
-        return COMPUTE_RELAUNCH_PAYLOAD_LDS_SIZE (descriptor[1]) * 128
+        return COMPUTE_RELAUNCH_PAYLOAD_LDS_SIZE (state) * 128
                * sizeof (uint32_t);
+      return 0;
+
+    case wave_info_t::lds_addr:
+      if (wave_get_info (descriptor, wave_info_t::first_wave))
+        return register_address (descriptor, amdgpu_regnum_t::LDS_0).value ();
       return 0;
 
     case wave_info_t::lane_count:
       return 64;
 
     case wave_info_t::last_wave:
-      return COMPUTE_RELAUNCH_PAYLOAD_LAST_WAVE (descriptor[0]);
+      return COMPUTE_RELAUNCH_PAYLOAD_LAST_WAVE (wave);
 
     case wave_info_t::first_wave:
-      return COMPUTE_RELAUNCH_PAYLOAD_FIRST_WAVE (descriptor[0]);
+      return COMPUTE_RELAUNCH_PAYLOAD_FIRST_WAVE (wave);
 
     default:
       error ("invalid wave_info query %d", static_cast<int> (query));
     }
 }
 
-std::optional<size_t>
-gfx9_base_t::register_offset (cwsr_descriptor_t descriptor,
-                              amdgpu_regnum_t regnum) const
+std::optional<amd_dbgapi_global_address_t>
+gfx9_base_t::register_address (const cwsr_descriptor_t &descriptor,
+                               amdgpu_regnum_t regnum) const
 {
   size_t lane_count = wave_get_info (descriptor, wave_info_t::lane_count);
+  amd_dbgapi_global_address_t save_area_addr
+      = static_cast<const gfx9_cwsr_descriptor_t &> (descriptor)
+            .m_context_save_address;
 
-  size_t vgpr_count = wave_get_info (descriptor, wave_info_t::vgprs);
-  size_t vgpr_size = sizeof (int32_t) * lane_count;
-  size_t vgprs_offset = 0;
-
-  if (lane_count == 32 && regnum >= amdgpu_regnum_t::FIRST_VGPR_32
-      && regnum <= amdgpu_regnum_t::LAST_VGPR_32
-      && ((regnum - amdgpu_regnum_t::V0_32) < vgpr_count))
+  if (wave_get_info (descriptor, wave_info_t::first_wave))
     {
-      return vgprs_offset + (regnum - amdgpu_regnum_t::V0_32) * vgpr_size;
+      save_area_addr -= wave_get_info (descriptor, wave_info_t::lds_size);
+
+      if (regnum == amdgpu_regnum_t::LDS_0)
+        return save_area_addr;
     }
 
-  if (lane_count == 64 && regnum >= amdgpu_regnum_t::FIRST_VGPR_64
-      && regnum <= amdgpu_regnum_t::LAST_VGPR_64
-      && ((regnum - amdgpu_regnum_t::V0_64) < vgpr_count))
+  size_t ttmp_size = sizeof (uint32_t);
+  size_t ttmp_count = 16;
+  size_t ttmps_addr = save_area_addr - ttmp_count * ttmp_size;
+
+  switch (regnum)
     {
-      return vgprs_offset + (regnum - amdgpu_regnum_t::V0_64) * vgpr_size;
+    case amdgpu_regnum_t::WAVE_ID:
+      regnum = amdgpu_regnum_t::TTMP4;
+      break;
+    case amdgpu_regnum_t::DISPATCH_PTR:
+      regnum = amdgpu_regnum_t::TTMP6;
+      break;
+    case amdgpu_regnum_t::DISPATCH_GRID_X:
+      regnum = amdgpu_regnum_t::TTMP8;
+      break;
+    case amdgpu_regnum_t::DISPATCH_GRID_Y:
+      regnum = amdgpu_regnum_t::TTMP9;
+      break;
+    case amdgpu_regnum_t::DISPATCH_GRID_Z:
+      regnum = amdgpu_regnum_t::TTMP10;
+      break;
+    case amdgpu_regnum_t::SCRATCH_OFFSET:
+      regnum = amdgpu_regnum_t::TTMP13;
+      break;
+    default:
+      break;
     }
 
-  size_t accvgpr_count = wave_get_info (descriptor, wave_info_t::acc_vgprs);
-  size_t accvgpr_size = sizeof (int32_t) * lane_count;
-  size_t accvgprs_offset = vgprs_offset + vgpr_count * vgpr_size;
-
-  if (lane_count == 32 && regnum >= amdgpu_regnum_t::FIRST_ACCVGPR_32
-      && regnum <= amdgpu_regnum_t::LAST_ACCVGPR_32
-      && ((regnum - amdgpu_regnum_t::ACC0_32) < accvgpr_count))
+  if (regnum >= amdgpu_regnum_t::FIRST_TTMP
+      && regnum <= amdgpu_regnum_t::LAST_TTMP)
     {
-      return accvgprs_offset
-             + (regnum - amdgpu_regnum_t::ACC0_32) * accvgpr_size;
+      return ttmps_addr + (regnum - amdgpu_regnum_t::FIRST_TTMP) * ttmp_size;
     }
 
-  if (lane_count == 64 && regnum >= amdgpu_regnum_t::FIRST_ACCVGPR_64
-      && regnum <= amdgpu_regnum_t::LAST_ACCVGPR_64
-      && ((regnum - amdgpu_regnum_t::ACC0_64) < accvgpr_count))
-    {
-      return accvgprs_offset
-             + (regnum - amdgpu_regnum_t::ACC0_64) * accvgpr_size;
-    }
-
-  size_t sgpr_count = wave_get_info (descriptor, wave_info_t::sgprs);
-  size_t sgpr_size = sizeof (int32_t);
-  size_t sgprs_offset = accvgprs_offset + accvgpr_count * accvgpr_size;
-
-  /* Exclude the aliased sgprs.  */
-  if (regnum >= amdgpu_regnum_t::FIRST_SGPR
-      && regnum <= amdgpu_regnum_t::LAST_SGPR
-      && (regnum - amdgpu_regnum_t::S0) >= (std::min (108ul, sgpr_count) - 6))
-    return {};
-
-  /* Rename registers that alias to sgprs.  */
-  if ((lane_count == 32 && regnum == amdgpu_regnum_t::VCC_32)
-      || (lane_count == 64 && regnum == amdgpu_regnum_t::VCC_64))
-    {
-      regnum = amdgpu_regnum_t::S0 + std::min (108ul, sgpr_count) - 2;
-    }
-
-  /* Note: While EXEC_32 and EXEC_64 alias to sgpr_count - 2, the CWSR handler
-     saves them in the hwreg block.  */
-
-  if (regnum == amdgpu_regnum_t::FLAT_SCRATCH)
-    {
-      regnum = amdgpu_regnum_t::S0 + std::min (108ul, sgpr_count) - 6;
-    }
-
-  if (regnum >= amdgpu_regnum_t::FIRST_SGPR
-      && regnum <= amdgpu_regnum_t::LAST_SGPR
-      && (regnum - amdgpu_regnum_t::S0) < std::min (108ul, sgpr_count))
-    {
-      return sgprs_offset + (regnum - amdgpu_regnum_t::S0) * sgpr_size;
-    }
-
-  size_t hwregs_count = 16;
+  size_t hwreg_count = 16;
   size_t hwreg_size = sizeof (uint32_t);
-  size_t hwregs_offset = sgprs_offset + sgpr_count * sgpr_size;
+  size_t hwregs_addr = ttmps_addr - hwreg_count * hwreg_size;
 
   if (((regnum == amdgpu_regnum_t::EXEC_32
         || regnum == amdgpu_regnum_t::XNACK_MASK_32)
@@ -1790,32 +1780,78 @@ gfx9_base_t::register_offset (cwsr_descriptor_t descriptor,
   if (regnum >= amdgpu_regnum_t::FIRST_HWREG
       && regnum <= amdgpu_regnum_t::LAST_HWREG)
     {
-      return hwregs_offset
+      return hwregs_addr
              + (regnum - amdgpu_regnum_t::FIRST_HWREG) * hwreg_size;
     }
 
-  size_t ttmp_size = sizeof (uint32_t);
-  size_t ttmps_offset = hwregs_offset + hwregs_count * hwreg_size;
+  size_t sgpr_count = wave_get_info (descriptor, wave_info_t::sgprs);
+  size_t sgpr_size = sizeof (int32_t);
+  size_t sgprs_addr = hwregs_addr - sgpr_count * sgpr_size;
 
-  switch (regnum)
+  /* Exclude the aliased sgprs.  */
+  if (regnum >= amdgpu_regnum_t::FIRST_SGPR
+      && regnum <= amdgpu_regnum_t::LAST_SGPR
+      && (regnum - amdgpu_regnum_t::S0) >= (std::min (108ul, sgpr_count) - 6))
+    return {};
+
+  /* Rename registers that alias to sgprs.  */
+  if ((lane_count == 32 && regnum == amdgpu_regnum_t::VCC_32)
+      || (lane_count == 64 && regnum == amdgpu_regnum_t::VCC_64))
     {
-    case amdgpu_regnum_t::WAVE_ID:
-      regnum = amdgpu_regnum_t::TTMP4;
-      break;
-    case amdgpu_regnum_t::DISPATCH_PTR:
-      regnum = amdgpu_regnum_t::TTMP6;
-      break;
-    case amdgpu_regnum_t::SCRATCH_OFFSET:
-      regnum = amdgpu_regnum_t::TTMP13;
-      break;
-    default:
-      break;
+      regnum = amdgpu_regnum_t::S0 + std::min (108ul, sgpr_count) - 2;
     }
 
-  if ((regnum >= amdgpu_regnum_t::TTMP4 && regnum <= amdgpu_regnum_t::TTMP11)
-      || regnum == amdgpu_regnum_t::TTMP13)
+  /* Note: While EXEC_32 and EXEC_64 alias to sgpr_count - 2, the CWSR handler
+     saves them in the hwreg block.  */
+
+  if (regnum == amdgpu_regnum_t::FLAT_SCRATCH)
     {
-      return ttmps_offset + (regnum - amdgpu_regnum_t::FIRST_TTMP) * ttmp_size;
+      regnum = amdgpu_regnum_t::S0 + std::min (108ul, sgpr_count) - 6;
+    }
+
+  if (regnum >= amdgpu_regnum_t::FIRST_SGPR
+      && regnum <= amdgpu_regnum_t::LAST_SGPR
+      && (regnum - amdgpu_regnum_t::S0) < std::min (108ul, sgpr_count))
+    {
+      return sgprs_addr + (regnum - amdgpu_regnum_t::S0) * sgpr_size;
+    }
+
+  size_t accvgpr_count = wave_get_info (descriptor, wave_info_t::acc_vgprs);
+  size_t accvgpr_size = sizeof (int32_t) * lane_count;
+  size_t accvgprs_addr = sgprs_addr - accvgpr_count * accvgpr_size;
+
+  if (lane_count == 32 && regnum >= amdgpu_regnum_t::FIRST_ACCVGPR_32
+      && regnum <= amdgpu_regnum_t::LAST_ACCVGPR_32
+      && ((regnum - amdgpu_regnum_t::ACC0_32) < accvgpr_count))
+    {
+      return accvgprs_addr
+             + (regnum - amdgpu_regnum_t::ACC0_32) * accvgpr_size;
+    }
+
+  if (lane_count == 64 && regnum >= amdgpu_regnum_t::FIRST_ACCVGPR_64
+      && regnum <= amdgpu_regnum_t::LAST_ACCVGPR_64
+      && ((regnum - amdgpu_regnum_t::ACC0_64) < accvgpr_count))
+    {
+      return accvgprs_addr
+             + (regnum - amdgpu_regnum_t::ACC0_64) * accvgpr_size;
+    }
+
+  size_t vgpr_count = wave_get_info (descriptor, wave_info_t::vgprs);
+  size_t vgpr_size = sizeof (int32_t) * lane_count;
+  size_t vgprs_addr = accvgprs_addr - vgpr_count * vgpr_size;
+
+  if (lane_count == 32 && regnum >= amdgpu_regnum_t::FIRST_VGPR_32
+      && regnum <= amdgpu_regnum_t::LAST_VGPR_32
+      && ((regnum - amdgpu_regnum_t::V0_32) < vgpr_count))
+    {
+      return vgprs_addr + (regnum - amdgpu_regnum_t::V0_32) * vgpr_size;
+    }
+
+  if (lane_count == 64 && regnum >= amdgpu_regnum_t::FIRST_VGPR_64
+      && regnum <= amdgpu_regnum_t::LAST_VGPR_64
+      && ((regnum - amdgpu_regnum_t::V0_64) < vgpr_count))
+    {
+      return vgprs_addr + (regnum - amdgpu_regnum_t::V0_64) * vgpr_size;
     }
 
   return {};
@@ -1825,8 +1861,8 @@ void
 gfx9_base_t::control_stack_iterate (
     const uint32_t *control_stack, size_t control_stack_words,
     amd_dbgapi_global_address_t wave_area_address,
-    std::function<void (cwsr_descriptor_t, amd_dbgapi_global_address_t)>
-        wave_callback) const
+    const std::function<void (std::unique_ptr<cwsr_descriptor_t>)>
+        &wave_callback) const
 {
   uint32_t state{ 0 };
 
@@ -1845,22 +1881,15 @@ gfx9_base_t::control_stack_iterate (
         }
       else
         {
-          cwsr_descriptor_t descriptor{ relaunch, state };
+          std::unique_ptr<cwsr_descriptor_t> descriptor (
+              new gfx9_cwsr_descriptor_t{
+                  {}, relaunch, state, wave_area_address - 64 });
 
           wave_area_address
-              -= ((wave_get_info (descriptor, wave_info_t::vgprs)
-                   + wave_get_info (descriptor, wave_info_t::acc_vgprs))
-                      * wave_get_info (descriptor, wave_info_t::lane_count)
-                  + wave_get_info (descriptor, wave_info_t::sgprs)
-                  + 16 /* hwregs */ + 16 /* ttmps */ + 16 /* padding */)
-                 * sizeof (uint32_t);
+              = register_address (*descriptor, amdgpu_regnum_t::FIRST_VGPR_64)
+                    .value ();
 
-          /* Only the first wave in the threadgroup saves the LDS.  */
-          if (wave_get_info (descriptor, wave_info_t::first_wave))
-            wave_area_address
-                -= wave_get_info (descriptor, wave_info_t::lds_size);
-
-          wave_callback (descriptor, wave_area_address);
+          wave_callback (std::move (descriptor));
         }
     }
 }
@@ -1899,8 +1928,8 @@ public:
 
   bool has_acc_vgprs () const override { return true; }
 
-  uint32_t wave_get_info (cwsr_descriptor_t descriptor,
-                          wave_info_t query) const
+  virtual uint64_t wave_get_info (const cwsr_descriptor_t &descriptor,
+                                  wave_info_t query) const override
   {
     switch (query)
       {
@@ -1933,6 +1962,12 @@ protected:
     return utils::bit_extract (x, 12, 12);
   }
 
+  struct gfx10_cwsr_descriptor_t : gfx9_cwsr_descriptor_t
+  {
+    /* On gfx10, there are 2 COMPUTE_RELAUNCH registers for state.  */
+    uint32_t m_compute_relaunch2_state;
+  };
+
   gfx10_base_t (elf_amdgpu_machine_t e_machine, std::string target_triple)
       : gfx9_base_t (e_machine, std::move (target_triple))
   {
@@ -1943,18 +1978,18 @@ public:
   bool has_wave64_vgprs () const override { return true; }
   bool has_acc_vgprs () const override { return false; }
 
-  std::optional<size_t>
-  register_offset (cwsr_descriptor_t descriptor,
-                   amdgpu_regnum_t regnum) const override;
+  std::optional<amd_dbgapi_global_address_t>
+  register_address (const cwsr_descriptor_t &descriptor,
+                    amdgpu_regnum_t regnum) const override;
 
-  virtual uint32_t wave_get_info (cwsr_descriptor_t descriptor,
+  virtual uint64_t wave_get_info (const cwsr_descriptor_t &descriptor,
                                   wave_info_t query) const override;
 
   virtual void control_stack_iterate (
       const uint32_t *control_stack, size_t control_stack_words,
       amd_dbgapi_global_address_t wave_area_address,
-      std::function<void (cwsr_descriptor_t, amd_dbgapi_global_address_t)>
-          wave_callback) const override;
+      const std::function<void (std::unique_ptr<cwsr_descriptor_t>)>
+          &wave_callback) const override;
 
   bool can_halt_at_endpgm () const override { return false; }
   size_t largest_instruction_size () const override { return 20; }
@@ -1965,9 +2000,9 @@ public:
   }
 };
 
-std::optional<size_t>
-gfx10_base_t::register_offset (cwsr_descriptor_t descriptor,
-                               amdgpu_regnum_t regnum) const
+std::optional<amd_dbgapi_global_address_t>
+gfx10_base_t::register_address (const cwsr_descriptor_t &descriptor,
+                                amdgpu_regnum_t regnum) const
 {
   switch (regnum)
     {
@@ -1985,14 +2020,18 @@ gfx10_base_t::register_offset (cwsr_descriptor_t descriptor,
       break;
     }
 
-  return gfx9_base_t::register_offset (descriptor, regnum);
+  return gfx9_base_t::register_address (descriptor, regnum);
 }
 
-uint32_t
-gfx10_base_t::wave_get_info (cwsr_descriptor_t descriptor,
+uint64_t
+gfx10_base_t::wave_get_info (const cwsr_descriptor_t &descriptor,
                              wave_info_t query) const
 {
-  using utils::bit_extract;
+  const gfx10_cwsr_descriptor_t &gfx10_descriptor
+      = static_cast<const gfx10_cwsr_descriptor_t &> (descriptor);
+
+  uint32_t wave = gfx10_descriptor.m_compute_relaunch_wave;
+  uint32_t state = gfx10_descriptor.m_compute_relaunch_state;
 
   switch (query)
     {
@@ -2001,22 +2040,22 @@ gfx10_base_t::wave_get_info (cwsr_descriptor_t descriptor,
 
     case wave_info_t::vgprs:
       /* vgprs are allocated in blocks of 8/4 registers (W32/W64).  */
-      return (1 + COMPUTE_RELAUNCH_PAYLOAD_VGPRS (descriptor[1]))
-             * (COMPUTE_RELAUNCH_PAYLOAD_W32_EN (descriptor[1]) ? 8 : 4);
+      return (1 + COMPUTE_RELAUNCH_PAYLOAD_VGPRS (state))
+             * (COMPUTE_RELAUNCH_PAYLOAD_W32_EN (state) ? 8 : 4);
 
     case wave_info_t::lane_count:
-      return COMPUTE_RELAUNCH_PAYLOAD_W32_EN (descriptor[1]) ? 32 : 64;
+      return COMPUTE_RELAUNCH_PAYLOAD_W32_EN (state) ? 32 : 64;
 
     case wave_info_t::lds_size:
       /* lds_size: 128 dwords granularity.  */
-      return COMPUTE_RELAUNCH_PAYLOAD_LDS_SIZE (descriptor[1]) * 128
+      return COMPUTE_RELAUNCH_PAYLOAD_LDS_SIZE (state) * 128
              * sizeof (uint32_t);
 
     case wave_info_t::last_wave:
-      return COMPUTE_RELAUNCH_PAYLOAD_LAST_WAVE (descriptor[0]);
+      return COMPUTE_RELAUNCH_PAYLOAD_LAST_WAVE (wave);
 
     case wave_info_t::first_wave:
-      return COMPUTE_RELAUNCH_PAYLOAD_FIRST_WAVE (descriptor[0]);
+      return COMPUTE_RELAUNCH_PAYLOAD_FIRST_WAVE (wave);
 
     default:
       return gfx9_base_t::wave_get_info (descriptor, query);
@@ -2027,10 +2066,10 @@ void
 gfx10_base_t::control_stack_iterate (
     const uint32_t *control_stack, size_t control_stack_words,
     amd_dbgapi_global_address_t wave_area_address,
-    std::function<void (cwsr_descriptor_t, amd_dbgapi_global_address_t)>
-        wave_callback) const
+    const std::function<void (std::unique_ptr<cwsr_descriptor_t>)>
+        &wave_callback) const
 {
-  uint32_t state{ 0 };
+  uint32_t state0{ 0 }, state1{ 0 };
 
   for (size_t i = 2; /* Skip the 2 PM4 packets at the top of the stack.  */
        i < control_stack_words; ++i)
@@ -2043,29 +2082,25 @@ gfx10_base_t::control_stack_iterate (
         }
       else if (COMPUTE_RELAUNCH_IS_STATE (relaunch))
         {
-          /* On gfx10, there are 2 COMPUTE_RELAUNCH registers for state.
-             Skip COMPUTE_RELAUNCH2 as it is currently unused. */
-          ++i;
-          state = relaunch;
+          state0 = relaunch;
+          /* On gfx10, there are 2 COMPUTE_RELAUNCH registers for state.  */
+          state1 = control_stack[++i];
         }
       else
         {
-          cwsr_descriptor_t descriptor{ relaunch, state };
+          std::unique_ptr<cwsr_descriptor_t> descriptor (
+              new gfx10_cwsr_descriptor_t{
+                  { {}, relaunch, state0, wave_area_address }, state1 });
 
           wave_area_address
-              -= ((wave_get_info (descriptor, wave_info_t::vgprs)
-                   + wave_get_info (descriptor, wave_info_t::acc_vgprs))
-                      * wave_get_info (descriptor, wave_info_t::lane_count)
-                  + wave_get_info (descriptor, wave_info_t::sgprs)
-                  + 16 /* hwregs */ + 16 /* ttmps */)
-                 * sizeof (uint32_t);
+              = register_address (
+                    *descriptor,
+                    wave_get_info (*descriptor, wave_info_t::lane_count) == 32
+                        ? amdgpu_regnum_t::FIRST_VGPR_32
+                        : amdgpu_regnum_t::FIRST_VGPR_64)
+                    .value ();
 
-          /* Only the first wave in the threadgroup saves the LDS.  */
-          if (wave_get_info (descriptor, wave_info_t::first_wave))
-            wave_area_address
-                -= wave_get_info (descriptor, wave_info_t::lds_size);
-
-          wave_callback (descriptor, wave_area_address);
+          wave_callback (std::move (descriptor));
         }
     }
 }
@@ -2216,26 +2251,7 @@ architecture_t::register_name (amdgpu_regnum_t regnum) const
     {
       return string_printf ("hwreg%ld", regnum - amdgpu_regnum_t::FIRST_HWREG);
     }
-  if (regnum == amdgpu_regnum_t::M0)
-    {
-      return "m0";
-    }
-  if (regnum == amdgpu_regnum_t::STATUS)
-    {
-      return "status";
-    }
-  if (regnum == amdgpu_regnum_t::TRAPSTS)
-    {
-      return "trapsts";
-    }
-  if (regnum == amdgpu_regnum_t::MODE)
-    {
-      return "mode";
-    }
-  if (regnum == amdgpu_regnum_t::PC)
-    {
-      return "pc";
-    }
+
   if ((has_wave32_vgprs () && regnum == amdgpu_regnum_t::EXEC_32)
       || (has_wave64_vgprs () && regnum == amdgpu_regnum_t::EXEC_64))
     {
@@ -2251,9 +2267,35 @@ architecture_t::register_name (amdgpu_regnum_t regnum) const
     {
       return "xnack_mask";
     }
-  if (regnum == amdgpu_regnum_t::FLAT_SCRATCH)
+
+  switch (regnum)
     {
+    case amdgpu_regnum_t::M0:
+      return "m0";
+    case amdgpu_regnum_t::PC:
+      return "pc";
+    case amdgpu_regnum_t::STATUS:
+      return "status";
+    case amdgpu_regnum_t::MODE:
+      return "mode";
+    case amdgpu_regnum_t::TRAPSTS:
+      return "trapsts";
+    case amdgpu_regnum_t::FLAT_SCRATCH:
       return "flat_scratch";
+    case amdgpu_regnum_t::WAVE_ID:
+      return "wave_id";
+    case amdgpu_regnum_t::DISPATCH_PTR:
+      return "dispatch_ptr";
+    case amdgpu_regnum_t::DISPATCH_GRID_X:
+      return "grid_x";
+    case amdgpu_regnum_t::DISPATCH_GRID_Y:
+      return "grid_y";
+    case amdgpu_regnum_t::DISPATCH_GRID_Z:
+      return "grid_z";
+    case amdgpu_regnum_t::SCRATCH_OFFSET:
+      return "scratch_offset";
+    default:
+      break;
     }
   return {};
 }
@@ -2290,6 +2332,10 @@ architecture_t::register_type (amdgpu_regnum_t regnum) const
       || (regnum == amdgpu_regnum_t::MODE)
       || (regnum >= amdgpu_regnum_t::FIRST_HWREG
           && regnum <= amdgpu_regnum_t::LAST_HWREG)
+      || (regnum == amdgpu_regnum_t::DISPATCH_GRID_X)
+      || (regnum == amdgpu_regnum_t::DISPATCH_GRID_Y)
+      || (regnum == amdgpu_regnum_t::DISPATCH_GRID_Z)
+      || (regnum == amdgpu_regnum_t::SCRATCH_OFFSET)
       || (regnum >= amdgpu_regnum_t::FIRST_TTMP
           && regnum <= amdgpu_regnum_t::LAST_TTMP))
     {
@@ -2313,7 +2359,9 @@ architecture_t::register_type (amdgpu_regnum_t regnum) const
     {
       return "uint64_t";
     }
-  if (regnum == amdgpu_regnum_t::FLAT_SCRATCH)
+  if (regnum == amdgpu_regnum_t::WAVE_ID
+      || regnum == amdgpu_regnum_t::DISPATCH_PTR
+      || regnum == amdgpu_regnum_t::FLAT_SCRATCH)
     {
       return "uint64_t";
     }
@@ -2352,6 +2400,9 @@ architecture_t::register_size (amdgpu_regnum_t regnum) const
       || (regnum == amdgpu_regnum_t::MODE)
       || (regnum >= amdgpu_regnum_t::FIRST_HWREG
           && regnum <= amdgpu_regnum_t::LAST_HWREG)
+      || (regnum == amdgpu_regnum_t::DISPATCH_GRID_X)
+      || (regnum == amdgpu_regnum_t::DISPATCH_GRID_Y)
+      || (regnum == amdgpu_regnum_t::DISPATCH_GRID_Z)
       || (regnum == amdgpu_regnum_t::SCRATCH_OFFSET)
       || (regnum >= amdgpu_regnum_t::FIRST_TTMP
           && regnum <= amdgpu_regnum_t::LAST_TTMP))
