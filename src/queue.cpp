@@ -236,6 +236,7 @@ queue_t::aql_queue_impl_t::~aql_queue_impl_t ()
 amd_dbgapi_status_t
 queue_t::aql_queue_impl_t::update_waves ()
 {
+  const architecture_t &architecture = m_queue.architecture ();
   process_t &process = m_queue.process ();
   const epoch_t wave_mark = m_queue.m_next_wave_mark++;
   amd_dbgapi_status_t status;
@@ -300,22 +301,6 @@ queue_t::aql_queue_impl_t::update_waves ()
 
   auto wave_callback = [&] (architecture_t::cwsr_descriptor_t descriptor,
                             amd_dbgapi_global_address_t context_save_address) {
-    /* FIXME: will remove this in the next commit */
-    const amd_dbgapi_global_address_t hwregs_address
-        = context_save_address
-          + ((m_queue.architecture ().wave_get_info (
-                  descriptor, architecture_t::wave_info_t::vgprs)
-              + m_queue.architecture ().wave_get_info (
-                  descriptor, architecture_t::wave_info_t::acc_vgprs))
-                 * m_queue.architecture ().wave_get_info (
-                     descriptor, architecture_t::wave_info_t::lane_count)
-             + m_queue.architecture ().wave_get_info (
-                 descriptor, architecture_t::wave_info_t::sgprs))
-                * sizeof (uint32_t);
-
-    const amd_dbgapi_global_address_t ttmps_address
-        = hwregs_address + 16 * sizeof (uint32_t);
-
     amd_dbgapi_wave_id_t wave_id;
     wave_t::visibility_t visibility{ wave_t::visibility_t::VISIBLE };
 
@@ -328,16 +313,17 @@ queue_t::aql_queue_impl_t::update_waves ()
       }
     else
       {
-        /* The wave id is preserved in registers ttmp[4:5].  */
-        const amd_dbgapi_global_address_t ttmp4_5_address
-            = ttmps_address
-              + (amdgpu_regnum_t::TTMP4 - amdgpu_regnum_t::FIRST_TTMP)
-                    * sizeof (uint32_t);
+        /* The wave id is preserved in ttmp registers.  */
+        const amd_dbgapi_global_address_t wave_id_address
+            = context_save_address
+              + architecture
+                    .register_offset (descriptor, amdgpu_regnum_t::WAVE_ID)
+                    .value ();
 
-        status = process.read_global_memory (ttmp4_5_address, &wave_id,
+        status = process.read_global_memory (wave_id_address, &wave_id,
                                              sizeof (wave_id));
         if (status != AMD_DBGAPI_STATUS_SUCCESS)
-          error ("read_global_memory failed at %lx", ttmp4_5_address);
+          error ("read_global_memory failed at %lx", wave_id_address);
 
         /* If this is a new wave, check its visibility.  Waves halted at launch
            should remain hidden until the wave creation mode is changed to
@@ -348,9 +334,10 @@ queue_t::aql_queue_impl_t::update_waves ()
           {
             uint32_t status_reg;
             const amd_dbgapi_global_address_t status_reg_address
-                = hwregs_address
-                  + (amdgpu_regnum_t::STATUS - amdgpu_regnum_t::FIRST_HWREG)
-                        * sizeof (uint32_t);
+                = context_save_address
+                  + architecture
+                        .register_offset (descriptor, amdgpu_regnum_t::STATUS)
+                        .value ();
 
             status = process.read_global_memory (
                 status_reg_address, &status_reg, sizeof (status_reg));
@@ -360,9 +347,10 @@ queue_t::aql_queue_impl_t::update_waves ()
             const bool halted = !!(status_reg & SQ_WAVE_STATUS_HALT_MASK);
 
             const amd_dbgapi_global_address_t ttmp11_address
-                = ttmps_address
-                  + (amdgpu_regnum_t::TTMP11 - amdgpu_regnum_t::FIRST_TTMP)
-                        * sizeof (uint32_t);
+                = context_save_address
+                  + architecture
+                        .register_offset (descriptor, amdgpu_regnum_t::TTMP11)
+                        .value ();
 
             uint32_t ttmp11;
             status = process.read_global_memory (ttmp11_address, &ttmp11,
@@ -395,22 +383,24 @@ queue_t::aql_queue_impl_t::update_waves ()
 
     if (!wave)
       {
-        /* The dispatch_ptr is preserved in registers ttmp[6:7].  */
-        const amd_dbgapi_global_address_t ttmp6_7_address
-            = ttmps_address
-              + (amdgpu_regnum_t::TTMP6 - amdgpu_regnum_t::FIRST_TTMP)
-                    * sizeof (uint32_t);
+        const amd_dbgapi_global_address_t dispatch_ptr_address
+            = context_save_address
+              + architecture
+                    .register_offset (descriptor,
+                                      amdgpu_regnum_t::DISPATCH_PTR)
+                    .value ();
 
         amd_dbgapi_global_address_t dispatch_ptr;
-        status = process.read_global_memory (ttmp6_7_address, &dispatch_ptr,
-                                             sizeof (dispatch_ptr));
+        status = process.read_global_memory (
+            dispatch_ptr_address, &dispatch_ptr, sizeof (dispatch_ptr));
         if (status != AMD_DBGAPI_STATUS_SUCCESS)
-          error ("read_global_memory failed at %lx", ttmp6_7_address);
+          error ("read_global_memory failed at %lx", dispatch_ptr_address);
 
         if (!dispatch_ptr)
           /* TODO: See comment above for corrupted wavefronts. This could be
              attached to a CORRUPT_DISPATCH instance.  */
-          error ("invalid null dispatch_ptr at 0x%lx", ttmp6_7_address);
+          error ("invalid null dispatch_ptr for %s",
+                 to_string (wave_id).c_str ());
 
         /* SPI only sends us the lower 40 bits of the dispatch_ptr, so we need
            to reconstitute it using the ring_base_address for the missing upper
@@ -483,8 +473,8 @@ queue_t::aql_queue_impl_t::update_waves ()
 
     /* The first wave in the group is the group leader.  The group leader owns
        the backing store for the group memory (LDS).  */
-    if (m_queue.architecture ().wave_get_info (
-            descriptor, architecture_t::wave_info_t::first_wave))
+    if (architecture.wave_get_info (descriptor,
+                                    architecture_t::wave_info_t::first_wave))
       group_leader = wave;
 
     if (!group_leader)
@@ -496,8 +486,8 @@ queue_t::aql_queue_impl_t::update_waves ()
 
     /* This was the last wave in the group. Make sure we have a new group
        leader for the remaining waves.  */
-    if (m_queue.architecture ().wave_get_info (
-            descriptor, architecture_t::wave_info_t::last_wave))
+    if (architecture.wave_get_info (descriptor,
+                                    architecture_t::wave_info_t::last_wave))
       group_leader = nullptr;
 
     /* Check that the wave is in the same group as its group leader.  */
@@ -511,7 +501,7 @@ queue_t::aql_queue_impl_t::update_waves ()
      provided function is called with a wave descriptor and a pointer to its
      context save area.  */
 
-  m_queue.architecture ().control_stack_iterate (
+  architecture.control_stack_iterate (
       &ctrl_stack[0], header.ctrl_stack_size / sizeof (uint32_t),
       m_queue.m_os_queue_info.ctx_save_restore_address
           + header.wave_state_offset,

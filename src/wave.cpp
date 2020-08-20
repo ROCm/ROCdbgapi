@@ -170,7 +170,8 @@ wave_t::update (const wave_t &group_leader,
       if (dispatch ().is_scratch_enabled ())
         {
           uint32_t scratch_offset;
-          status = read_register (amdgpu_regnum_t::TTMP13, &scratch_offset);
+          status = read_register (amdgpu_regnum_t::SCRATCH_OFFSET,
+                                  &scratch_offset);
           if (status != AMD_DBGAPI_STATUS_SUCCESS)
             return status;
           m_scratch_offset = scratch_offset;
@@ -188,7 +189,7 @@ wave_t::update (const wave_t &group_leader,
 
       status = process.read_global_memory (
           m_context_save_address
-              + register_offset_and_size (amdgpu_regnum_t::FIRST_HWREG).first,
+              + register_offset (amdgpu_regnum_t::FIRST_HWREG).value (),
           &m_hwregs_cache[0], sizeof (m_hwregs_cache));
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
@@ -287,9 +288,24 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
 }
 
 bool
+wave_t::is_register_cached (amdgpu_regnum_t regnum) const
+{
+  auto reg_offset = register_offset (regnum);
+
+  if (!reg_offset)
+    return false;
+
+  size_t hwregs_offset
+      = register_offset (amdgpu_regnum_t::FIRST_HWREG).value ();
+
+  return *reg_offset >= hwregs_offset
+         && *reg_offset < (hwregs_offset + sizeof (m_hwregs_cache));
+}
+
+bool
 wave_t::is_register_available (amdgpu_regnum_t regnum) const
 {
-  return register_offset_and_size (regnum, false).second != 0;
+  return register_offset (regnum).has_value ();
 }
 
 std::optional<std::string>
@@ -310,133 +326,27 @@ wave_t::register_type (amdgpu_regnum_t regnum) const
   return {};
 }
 
-std::pair<size_t, size_t>
-wave_t::register_offset_and_size (amdgpu_regnum_t regnum,
-                                  bool include_aliased_registers) const
+std::optional<amd_dbgapi_size_t>
+wave_t::register_size (amdgpu_regnum_t regnum) const
 {
-  if (lane_count () == 32 && regnum >= amdgpu_regnum_t::FIRST_VGPR_32
-      && regnum <= amdgpu_regnum_t::LAST_VGPR_32
-      && ((regnum - amdgpu_regnum_t::V0_32) < vgpr_count ()))
-    {
-      size_t vgprs_offset = 0;
-      size_t vgpr_size = sizeof (int32_t) * 32;
-      size_t vgpr_num = regnum - amdgpu_regnum_t::V0_32;
+  if (is_register_available (regnum))
+    return architecture ().register_size (regnum);
 
-      return std::make_pair (vgprs_offset + vgpr_num * vgpr_size, vgpr_size);
-    }
-  if (lane_count () == 64 && regnum >= amdgpu_regnum_t::FIRST_VGPR_64
-      && regnum <= amdgpu_regnum_t::LAST_VGPR_64
-      && ((regnum - amdgpu_regnum_t::V0_64) < vgpr_count ()))
-    {
-      size_t vgprs_offset = 0;
-      size_t vgpr_size = sizeof (int32_t) * 64;
-      size_t vgpr_num = regnum - amdgpu_regnum_t::V0_64;
-
-      return std::make_pair (vgprs_offset + vgpr_num * vgpr_size, vgpr_size);
-    }
-  if (lane_count () == 32 && regnum >= amdgpu_regnum_t::FIRST_ACCVGPR_32
-      && regnum <= amdgpu_regnum_t::LAST_ACCVGPR_32
-      && ((regnum - amdgpu_regnum_t::ACC0_32) < accvgpr_count ()))
-    {
-      size_t accvgprs_offset
-          = vgpr_count () * sizeof (int32_t) * lane_count ();
-      size_t accvgpr_size = sizeof (int32_t) * lane_count ();
-      size_t accvgpr_num = regnum - amdgpu_regnum_t::ACC0_32;
-
-      return std::make_pair (accvgprs_offset + accvgpr_num * accvgpr_size,
-                             accvgpr_size);
-    }
-  if (lane_count () == 64 && regnum >= amdgpu_regnum_t::FIRST_ACCVGPR_64
-      && regnum <= amdgpu_regnum_t::LAST_ACCVGPR_64
-      && ((regnum - amdgpu_regnum_t::ACC0_64) < accvgpr_count ()))
-    {
-      size_t accvgprs_offset
-          = vgpr_count () * sizeof (int32_t) * lane_count ();
-      size_t accvgpr_size = sizeof (int32_t) * lane_count ();
-      size_t accvgpr_num = regnum - amdgpu_regnum_t::ACC0_64;
-
-      return std::make_pair (accvgprs_offset + accvgpr_num * accvgpr_size,
-                             accvgpr_size);
-    }
-  if (regnum >= amdgpu_regnum_t::FIRST_SGPR
-      && regnum <= amdgpu_regnum_t::LAST_SGPR
-      && (regnum - amdgpu_regnum_t::S0)
-             < std::min (108ul, sgpr_count ()) -
-                   /* TODO: make an architecture query to return the
-                      number of special registers.  */
-                   (include_aliased_registers ? 0 : 6))
-    {
-      size_t sgprs_offset = (vgpr_count () + accvgpr_count ())
-                            * sizeof (int32_t) * lane_count ();
-      size_t sgpr_num = regnum - amdgpu_regnum_t::S0;
-
-      return std::make_pair (sgprs_offset + sgpr_num * sizeof (int32_t),
-                             sizeof (int32_t));
-    }
-  if ((regnum == amdgpu_regnum_t::M0 || regnum == amdgpu_regnum_t::STATUS
-       || regnum == amdgpu_regnum_t::TRAPSTS
-       || regnum == amdgpu_regnum_t::MODE)
-      || (include_aliased_registers && regnum >= amdgpu_regnum_t::FIRST_HWREG
-          && regnum <= amdgpu_regnum_t::LAST_HWREG))
-    {
-      size_t hwregs_offset = (vgpr_count () + accvgpr_count ())
-                                 * sizeof (int32_t) * lane_count ()
-                             + sgpr_count () * sizeof (int32_t);
-      size_t hwreg_size = sizeof (uint32_t);
-      size_t hwreg_num = regnum - amdgpu_regnum_t::FIRST_HWREG;
-
-      return std::make_pair (hwregs_offset + hwreg_num * sizeof (uint32_t),
-                             hwreg_size);
-    }
-  if ((regnum >= amdgpu_regnum_t::TTMP4 && regnum <= amdgpu_regnum_t::TTMP11)
-      || regnum == amdgpu_regnum_t::TTMP13)
-    {
-      size_t ttmps_offset = (vgpr_count () + accvgpr_count ())
-                                * sizeof (int32_t) * lane_count ()
-                            + sgpr_count () * sizeof (int32_t)
-                            + 16 * sizeof (uint32_t);
-      size_t ttmp_num = regnum - amdgpu_regnum_t::FIRST_TTMP;
-
-      return std::make_pair (ttmps_offset + ttmp_num * sizeof (uint32_t),
-                             sizeof (uint32_t));
-    }
-  if (regnum == amdgpu_regnum_t::PC)
-    {
-      return std::make_pair (-1, sizeof (void (*) ()));
-    }
-  if (regnum == amdgpu_regnum_t::WAVE_ID
-      || regnum == amdgpu_regnum_t::FLAT_SCRATCH)
-    {
-      return std::make_pair (-1, sizeof (uint64_t));
-    }
-  if (lane_count () == 32
-      && (regnum == amdgpu_regnum_t::EXEC_32
-          || regnum == amdgpu_regnum_t::VCC_32
-          || regnum == amdgpu_regnum_t::XNACK_MASK_32))
-    {
-      return std::make_pair (-1, sizeof (uint32_t));
-    }
-  if (lane_count () == 64
-      && (regnum == amdgpu_regnum_t::EXEC_64
-          || regnum == amdgpu_regnum_t::VCC_64
-          || regnum == amdgpu_regnum_t::XNACK_MASK_64))
-    {
-      return std::make_pair (-1, sizeof (uint64_t));
-    }
-
-  return std::make_pair (-1, 0);
+  return {};
 }
 
 amd_dbgapi_status_t
 wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
                        size_t value_size, void *value) const
 {
-  auto [reg_offset, reg_size] = register_offset_and_size (regnum);
+  auto reg_offset = register_offset (regnum);
 
-  if (!reg_size)
+  if (!reg_offset)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
-  if (!value_size || (offset + value_size) > reg_size)
+  if (!value_size
+      || (offset + value_size)
+             > architecture ().register_size (regnum).value ())
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE;
 
   if (m_parked && regnum == amdgpu_regnum_t::PC)
@@ -447,21 +357,16 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
 
-  if (regnum >= amdgpu_regnum_t::FIRST_PSEUDO
-      && regnum <= amdgpu_regnum_t::LAST_PSEUDO)
-    {
-      return architecture ().read_pseudo_register (*this, regnum, offset,
-                                                   value_size, value);
-    }
+  size_t hwregs_offset
+      = register_offset (amdgpu_regnum_t::FIRST_HWREG).value ();
 
   /* hwregs are cached, so return the value from the cache.  */
-  if (regnum >= amdgpu_regnum_t::FIRST_HWREG
-      && regnum <= amdgpu_regnum_t::LAST_HWREG)
+  if (*reg_offset >= hwregs_offset
+      && *reg_offset < (hwregs_offset + sizeof (m_hwregs_cache)))
     {
       memcpy (static_cast<char *> (value) + offset,
-              reinterpret_cast<const char *> (
-                  &m_hwregs_cache[regnum - amdgpu_regnum_t::FIRST_HWREG])
-                  + offset,
+              reinterpret_cast<const char *> (&m_hwregs_cache[0]) + *reg_offset
+                  - hwregs_offset + offset,
               value_size);
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
@@ -469,7 +374,7 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
   dbgapi_assert (queue ().is_suspended ());
 
   return process ().read_global_memory (
-      m_context_save_address + reg_offset + offset,
+      m_context_save_address + *reg_offset + offset,
       static_cast<char *> (value) + offset, value_size);
 }
 
@@ -477,12 +382,14 @@ amd_dbgapi_status_t
 wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
                         size_t value_size, const void *value)
 {
-  auto [reg_offset, reg_size] = register_offset_and_size (regnum);
+  auto reg_offset = register_offset (regnum);
 
-  if (!reg_size)
+  if (!reg_offset)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
-  if (!value_size || (offset + value_size) > reg_size)
+  if (!value_size
+      || (offset + value_size)
+             > architecture ().register_size (regnum).value ())
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE;
 
   if (m_parked && regnum == amdgpu_regnum_t::PC)
@@ -492,23 +399,22 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
 
-  if (regnum >= amdgpu_regnum_t::FIRST_PSEUDO
-      && regnum <= amdgpu_regnum_t::LAST_PSEUDO)
-    return architecture ().write_pseudo_register (*this, regnum, offset,
-                                                  value_size, value);
+  size_t hwregs_offset
+      = register_offset (amdgpu_regnum_t::FIRST_HWREG).value ();
 
-  /* Update the cached hwregs.  */
-  if (regnum >= amdgpu_regnum_t::FIRST_HWREG
-      && regnum <= amdgpu_regnum_t::LAST_HWREG)
-    memcpy (reinterpret_cast<char *> (
-                &m_hwregs_cache[regnum - amdgpu_regnum_t::FIRST_HWREG])
-                + offset,
-            static_cast<const char *> (value) + offset, value_size);
+  /* Update the hwregs cache.  */
+  if (*reg_offset >= hwregs_offset
+      && *reg_offset < (hwregs_offset + sizeof (m_hwregs_cache)))
+    {
+      memcpy (reinterpret_cast<char *> (&m_hwregs_cache[0]) + *reg_offset
+                  - hwregs_offset + offset,
+              static_cast<const char *> (value) + offset, value_size);
+    }
 
   dbgapi_assert (queue ().is_suspended ());
 
   return process ().write_global_memory (
-      m_context_save_address + reg_offset + offset,
+      m_context_save_address + *reg_offset + offset,
       static_cast<const char *> (value) + offset, value_size);
 }
 

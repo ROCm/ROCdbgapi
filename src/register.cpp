@@ -171,11 +171,30 @@ amd_dbgapi_architecture_register_get_info (
       {
         auto name = architecture->register_name (
             static_cast<amdgpu_regnum_t> (register_id.handle));
-
         if (!name)
           return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
         return utils::get_info (value_size, value, *name);
+      }
+
+    case AMD_DBGAPI_REGISTER_INFO_TYPE:
+      {
+        auto type = architecture->register_type (
+            static_cast<amdgpu_regnum_t> (register_id.handle));
+        if (!type)
+          return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
+
+        return utils::get_info (value_size, value, *type);
+      }
+
+    case AMD_DBGAPI_REGISTER_INFO_SIZE:
+      {
+        auto size = architecture->register_size (
+            static_cast<amdgpu_regnum_t> (register_id.handle));
+        if (!size)
+          return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
+
+        return utils::get_info (value_size, value, *size);
       }
 
     default:
@@ -299,6 +318,10 @@ amd_dbgapi_dwarf_register_to_register (
     {
       /* Scalar registers 0-63.  */
       regnum = amdgpu_regnum_t::FIRST_SGPR + (dwarf_register - 32);
+    }
+  else if (dwarf_register == 128)
+    {
+      regnum = amdgpu_regnum_t::STATUS;
     }
   else if (dwarf_register >= 1088 && dwarf_register <= 1129)
     {
@@ -473,12 +496,11 @@ amd_dbgapi_wave_register_get_info (amd_dbgapi_process_id_t process_id,
 
     case AMD_DBGAPI_REGISTER_INFO_SIZE:
       {
-        amd_dbgapi_size_t size;
-        size = wave->register_offset_and_size (regnum, false).second;
+        auto size = wave->register_size (regnum);
         if (!size)
           return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
-        return utils::get_info (value_size, value, size);
+        return utils::get_info (value_size, value, *size);
       }
 
     default:
