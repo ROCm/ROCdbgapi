@@ -142,16 +142,14 @@ wave_t::unpark ()
 
 amd_dbgapi_status_t
 wave_t::update (const wave_t &group_leader,
-                architecture_t::cwsr_descriptor_t descriptor,
-                amd_dbgapi_global_address_t context_save_address)
+                std::unique_ptr<architecture_t::cwsr_descriptor_t> descriptor)
 {
   dbgapi_assert (queue ().is_suspended ());
   process_t &process = this->process ();
   amd_dbgapi_status_t status;
 
-  bool first_update = !m_context_save_address;
-  m_descriptor = descriptor;
-  m_context_save_address = context_save_address;
+  bool first_update = !m_descriptor;
+  m_descriptor = std::move (descriptor);
   m_group_leader = &group_leader;
 
   if (first_update)
@@ -188,8 +186,7 @@ wave_t::update (const wave_t &group_leader,
         m_saved_pc = pc ();
 
       status = process.read_global_memory (
-          m_context_save_address
-              + register_offset (amdgpu_regnum_t::FIRST_HWREG).value (),
+          register_address (amdgpu_regnum_t::FIRST_HWREG).value (),
           &m_hwregs_cache[0], sizeof (m_hwregs_cache));
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
@@ -290,22 +287,22 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
 bool
 wave_t::is_register_cached (amdgpu_regnum_t regnum) const
 {
-  auto reg_offset = register_offset (regnum);
+  auto reg_addr = register_address (regnum);
 
-  if (!reg_offset)
+  if (!reg_addr)
     return false;
 
-  size_t hwregs_offset
-      = register_offset (amdgpu_regnum_t::FIRST_HWREG).value ();
+  amd_dbgapi_global_address_t hwregs_addr
+      = register_address (amdgpu_regnum_t::FIRST_HWREG).value ();
 
-  return *reg_offset >= hwregs_offset
-         && *reg_offset < (hwregs_offset + sizeof (m_hwregs_cache));
+  return *reg_addr >= hwregs_addr
+         && *reg_addr < (hwregs_addr + sizeof (m_hwregs_cache));
 }
 
 bool
 wave_t::is_register_available (amdgpu_regnum_t regnum) const
 {
-  return register_offset (regnum).has_value ();
+  return register_address (regnum).has_value ();
 }
 
 std::optional<std::string>
@@ -339,9 +336,9 @@ amd_dbgapi_status_t
 wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
                        size_t value_size, void *value) const
 {
-  auto reg_offset = register_offset (regnum);
+  auto reg_addr = register_address (regnum);
 
-  if (!reg_offset)
+  if (!reg_addr)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
   if (!value_size
@@ -357,16 +354,16 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
 
-  size_t hwregs_offset
-      = register_offset (amdgpu_regnum_t::FIRST_HWREG).value ();
+  amd_dbgapi_global_address_t hwregs_addr
+      = register_address (amdgpu_regnum_t::FIRST_HWREG).value ();
 
   /* hwregs are cached, so return the value from the cache.  */
-  if (*reg_offset >= hwregs_offset
-      && *reg_offset < (hwregs_offset + sizeof (m_hwregs_cache)))
+  if (*reg_addr >= hwregs_addr
+      && *reg_addr < (hwregs_addr + sizeof (m_hwregs_cache)))
     {
       memcpy (static_cast<char *> (value) + offset,
-              reinterpret_cast<const char *> (&m_hwregs_cache[0]) + *reg_offset
-                  - hwregs_offset + offset,
+              reinterpret_cast<const char *> (&m_hwregs_cache[0]) + *reg_addr
+                  - hwregs_addr + offset,
               value_size);
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
@@ -374,17 +371,16 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
   dbgapi_assert (queue ().is_suspended ());
 
   return process ().read_global_memory (
-      m_context_save_address + *reg_offset + offset,
-      static_cast<char *> (value) + offset, value_size);
+      *reg_addr + offset, static_cast<char *> (value) + offset, value_size);
 }
 
 amd_dbgapi_status_t
 wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
                         size_t value_size, const void *value)
 {
-  auto reg_offset = register_offset (regnum);
+  auto reg_addr = register_address (regnum);
 
-  if (!reg_offset)
+  if (!reg_addr)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
   if (!value_size
@@ -399,23 +395,23 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
 
-  size_t hwregs_offset
-      = register_offset (amdgpu_regnum_t::FIRST_HWREG).value ();
+  size_t hwregs_addr
+      = register_address (amdgpu_regnum_t::FIRST_HWREG).value ();
 
   /* Update the hwregs cache.  */
-  if (*reg_offset >= hwregs_offset
-      && *reg_offset < (hwregs_offset + sizeof (m_hwregs_cache)))
+  if (*reg_addr >= hwregs_addr
+      && *reg_addr < (hwregs_addr + sizeof (m_hwregs_cache)))
     {
-      memcpy (reinterpret_cast<char *> (&m_hwregs_cache[0]) + *reg_offset
-                  - hwregs_offset + offset,
+      memcpy (reinterpret_cast<char *> (&m_hwregs_cache[0]) + *reg_addr
+                  - hwregs_addr + offset,
               static_cast<const char *> (value) + offset, value_size);
     }
 
   dbgapi_assert (queue ().is_suspended ());
 
   return process ().write_global_memory (
-      m_context_save_address + *reg_offset + offset,
-      static_cast<const char *> (value) + offset, value_size);
+      *reg_addr + offset, static_cast<const char *> (value) + offset,
+      value_size);
 }
 
 amd_dbgapi_status_t
