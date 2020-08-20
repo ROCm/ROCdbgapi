@@ -49,7 +49,8 @@
   {                                                                           \
     ex.print_message ();                                                      \
     return ex.error_code ();                                                  \
-  }
+  }                                                                           \
+  catch (...) { return AMD_DBGAPI_STATUS_FATAL; }
 
 #define CONCAT_NX(x, y) x##y
 #define CONCAT(x, y) CONCAT_NX (x, y)

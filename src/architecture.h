@@ -195,15 +195,12 @@ public:
   std::set<amdgpu_regnum_t> register_set () const;
   std::optional<std::string> register_name (amdgpu_regnum_t regnum) const;
   std::optional<std::string> register_type (amdgpu_regnum_t regnum) const;
+  std::optional<amd_dbgapi_size_t>
+  register_size (amdgpu_regnum_t regnum) const;
 
-  virtual amd_dbgapi_status_t read_pseudo_register (const wave_t &wave,
-                                                    amdgpu_regnum_t regnum,
-                                                    size_t offset,
-                                                    size_t value_size,
-                                                    void *value) const = 0;
-  virtual amd_dbgapi_status_t
-  write_pseudo_register (wave_t &wave, amdgpu_regnum_t regnum, size_t offset,
-                         size_t value_size, const void *value) const = 0;
+  virtual std::optional<size_t>
+  register_offset (cwsr_descriptor_t descriptor,
+                   amdgpu_regnum_t regnum) const = 0;
 
   amd_dbgapi_status_t instruction_size (const void *memory,
                                         size_t *size) const;

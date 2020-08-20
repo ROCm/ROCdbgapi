@@ -185,22 +185,21 @@ public:
 
   std::optional<std::string> register_name (amdgpu_regnum_t regnum) const;
   std::optional<std::string> register_type (amdgpu_regnum_t regnum) const;
+  std::optional<amd_dbgapi_size_t>
+  register_size (amdgpu_regnum_t regnum) const;
 
-  bool is_register_cached (amdgpu_regnum_t regnum) const
-  {
-    return m_context_save_address
-           && (regnum == amdgpu_regnum_t::PC
-               || regnum == amdgpu_regnum_t::EXEC_32
-               || regnum == amdgpu_regnum_t::EXEC_64
-               || (regnum >= amdgpu_regnum_t::FIRST_HWREG
-                   && regnum <= amdgpu_regnum_t::LAST_HWREG));
-  }
-
+  bool is_register_cached (amdgpu_regnum_t regnum) const;
   bool is_register_available (amdgpu_regnum_t regnum) const;
 
-  std::pair<size_t, size_t>
-  register_offset_and_size (amdgpu_regnum_t regnum,
-                            bool include_aliased_registers = true) const;
+  std::optional<size_t> register_offset (amdgpu_regnum_t regnum) const
+  {
+    return architecture ().register_offset (m_descriptor, regnum);
+  }
+
+  amd_dbgapi_status_t read_register (amdgpu_regnum_t regnum, size_t offset,
+                                     size_t value_size, void *value) const;
+  amd_dbgapi_status_t write_register (amdgpu_regnum_t regnum, size_t offset,
+                                      size_t value_size, const void *value);
 
   template <typename T>
   amd_dbgapi_status_t read_register (amdgpu_regnum_t regnum, T *value) const
@@ -213,11 +212,6 @@ public:
   {
     return write_register (regnum, 0, sizeof (T), value);
   }
-
-  amd_dbgapi_status_t read_register (amdgpu_regnum_t regnum, size_t offset,
-                                     size_t value_size, void *value) const;
-  amd_dbgapi_status_t write_register (amdgpu_regnum_t regnum, size_t offset,
-                                      size_t value_size, const void *value);
 
   amd_dbgapi_status_t
   xfer_segment_memory (const address_space_t &address_space,

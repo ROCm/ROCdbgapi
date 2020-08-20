@@ -37,8 +37,7 @@ namespace amd::dbgapi
 
 enum class amdgpu_regnum_t : decltype (amd_dbgapi_register_id_t::handle)
 {
-  FIRST_RAW = 0,
-  FIRST_VGPR_32 = FIRST_RAW,
+  FIRST_VGPR_32 = 0,
 
   /* 32-bit Vector registers (vgprs) for wave32 wavefronts.  */
   V0_32 = FIRST_VGPR_32,
@@ -73,25 +72,11 @@ enum class amdgpu_regnum_t : decltype (amd_dbgapi_register_id_t::handle)
   S111 = S0 + 111,
 
   LAST_SGPR = S111,
-  FIRST_HWREG = LAST_SGPR + 1,
 
   /* Hardware registers (hwregs).  */
-  M0 = FIRST_HWREG, /* Memory Descriptor.  */
-  PC_LO,            /* Program counter (lower 32-bit).  */
-  PC_HI,            /* Program counter (higher 32-bit).  */
-  EXEC_LO,          /* Execution mask (lower 32-bit).  */
-  EXEC_HI,          /* Execution mask (higher 32-bit).  */
-  STATUS,           /* Status register.  */
-  TRAPSTS,          /* Exception status registers.  */
-  XNACK_MASK_LO,    /* XNACK mask (lower 32-bit).  */
-  XNACK_MASK_HI,    /* XNACK mask (higher 32-bit).  */
-  MODE,             /* Mode register.  */
-  FLAT_SCRATCH_LO,  /* Flat scratch (lower 32-bit) (gfx10 and above).  */
-  FLAT_SCRATCH_HI,  /* Flat scratch (higher 32-bit) (gfx10 and above).  */
-  HWREG12,
-  HWREG15 = HWREG12 + 5,
+  FIRST_HWREG = LAST_SGPR + 1,
+  LAST_HWREG = FIRST_HWREG + 15,
 
-  LAST_HWREG = HWREG15,
   FIRST_TTMP = LAST_HWREG + 1,
 
   /* Trap temporary registers (ttmps).  */
@@ -107,21 +92,23 @@ enum class amdgpu_regnum_t : decltype (amd_dbgapi_register_id_t::handle)
 
   LAST_TTMP = TTMP13 + 2,
 
-  LAST_RAW = LAST_TTMP,
-  FIRST_PSEUDO = LAST_RAW + 1,
+  /* Register aliases.  */
+  M0 = LAST_TTMP + 1, /* Memory Descriptor.  */
+  PC,                 /* Program counter.  */
+  STATUS,             /* Status register.  */
+  MODE,               /* Mode register.  */
+  TRAPSTS,            /* Exception status registers.  */
+  EXEC_32,            /* Execution mask for wave32 wavefronts.  */
+  EXEC_64,            /* Execution mask for wave64 wavefronts.  */
+  VCC_32,             /* Vector Condition Code for wave32 wavefronts.  */
+  VCC_64,             /* Vector Condition Code for wave64 wavefronts.  */
+  XNACK_MASK_32,      /* XNACK mask for wave32 wavefronts.  */
+  XNACK_MASK_64,      /* XNACK mask for wave64 wavefronts.  */
+  FLAT_SCRATCH,       /* Flat scratch.  */
 
-  /* Pseudo registers.  */
-  PC = FIRST_PSEUDO, /* Program counter.  */
-  EXEC_32,           /* Execution mask for wave32 wavefronts.  */
-  EXEC_64,           /* Execution mask for wave64 wavefronts.  */
-  VCC_32,            /* Vector Condition Code for wave32 wavefronts.  */
-  VCC_64,            /* Vector Condition Code for wave64 wavefronts.  */
-  XNACK_MASK_32,     /* XNACK mask for wave32 wavefronts.  */
-  XNACK_MASK_64,     /* XNACK mask for wave64 wavefronts.  */
-  FLAT_SCRATCH,      /* Flat scratch.  */
-  WAVE_ID,           /* Debug[0:1].  */
-
-  LAST_PSEUDO = WAVE_ID,
+  WAVE_ID,        /* Debug[0:1].  */
+  DISPATCH_PTR,   /* Pointer to the dispatch packet.  */
+  SCRATCH_OFFSET, /* Scracth memory offset from the scratch base.  */
 };
 
 constexpr size_t
@@ -172,10 +159,6 @@ constexpr size_t AMDGPU_HWREGS_COUNT
     = amdgpu_regnum_t::LAST_HWREG - amdgpu_regnum_t::FIRST_HWREG + 1;
 constexpr size_t AMDGPU_TTMPS_COUNT
     = amdgpu_regnum_t::LAST_TTMP - amdgpu_regnum_t::FIRST_TTMP + 1;
-constexpr size_t AMDGPU_RAW_REGS_COUNT
-    = amdgpu_regnum_t::LAST_RAW - amdgpu_regnum_t::FIRST_RAW + 1;
-constexpr size_t AMDGPU_PSEUDO_REGS_COUNT
-    = amdgpu_regnum_t::LAST_PSEUDO - amdgpu_regnum_t::FIRST_PSEUDO + 1;
 
 /* Register class.  */
 
