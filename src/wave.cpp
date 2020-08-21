@@ -346,6 +346,12 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
              > architecture ().register_size (regnum).value ())
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE;
 
+  if (regnum == amdgpu_regnum_t::NULL_)
+    {
+      memset (static_cast<char *> (value) + offset, '\0', value_size);
+      return AMD_DBGAPI_STATUS_SUCCESS;
+    }
+
   if (m_parked && regnum == amdgpu_regnum_t::PC)
     {
       memcpy (static_cast<char *> (value) + offset,
@@ -387,6 +393,9 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
       || (offset + value_size)
              > architecture ().register_size (regnum).value ())
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE;
+
+  if (regnum == amdgpu_regnum_t::NULL_)
+    return AMD_DBGAPI_STATUS_SUCCESS;
 
   if (m_parked && regnum == amdgpu_regnum_t::PC)
     {
@@ -517,7 +526,8 @@ wave_t::xfer_local_memory (amd_dbgapi_segment_address_t segment_address,
   /* The LDS is stored in the context save area.  */
   dbgapi_assert (queue ().is_suspended ());
 
-  amd_dbgapi_size_t limit = local_memory_size ();
+  amd_dbgapi_size_t limit = architecture ().wave_get_info (
+      *m_descriptor, architecture_t::wave_info_t::lds_size);
   amd_dbgapi_size_t offset = segment_address;
 
   if ((offset + *size) > limit)
@@ -528,8 +538,14 @@ wave_t::xfer_local_memory (amd_dbgapi_segment_address_t segment_address,
       *size = max_size;
     }
 
+  auto local_memory_base_address = architecture ().register_address (
+      *group_leader ().m_descriptor, amdgpu_regnum_t::LDS_0);
+
+  if (!local_memory_base_address)
+    error ("local memory is not accessible");
+
   amd_dbgapi_global_address_t global_address
-      = local_memory_base_address () + offset;
+      = *local_memory_base_address + offset;
 
   if (read)
     return process ().read_global_memory_partial (global_address, read, size);

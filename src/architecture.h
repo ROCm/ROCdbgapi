@@ -87,7 +87,6 @@ public:
     acc_vgprs,  /* Number of AccVGPR. */
     sgprs,      /* Number of SGPRs.  */
     lds_size,   /* LDS space (bytes).  */
-    lds_addr,   /* Address of the LDS save area.  */
     lane_count, /* Number of lanes.  */
 
     last_wave,  /* Last wave of threadgroup.  */

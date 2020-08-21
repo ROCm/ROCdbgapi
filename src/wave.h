@@ -107,43 +107,10 @@ public:
     return *m_group_leader;
   }
 
-  size_t vgpr_count () const
-  {
-    return architecture ().wave_get_info (*m_descriptor,
-                                          architecture_t::wave_info_t::vgprs);
-  }
-
-  size_t accvgpr_count () const
-  {
-    return architecture ().wave_get_info (
-        *m_descriptor, architecture_t::wave_info_t::acc_vgprs);
-  }
-
-  size_t sgpr_count () const
-  {
-    return architecture ().wave_get_info (*m_descriptor,
-                                          architecture_t::wave_info_t::sgprs);
-  }
-
   size_t lane_count () const
   {
     return architecture ().wave_get_info (
         *m_descriptor, architecture_t::wave_info_t::lane_count);
-  }
-
-  amd_dbgapi_size_t local_memory_size () const
-  {
-    return architecture ().wave_get_info (
-        *m_descriptor, architecture_t::wave_info_t::lds_size);
-  }
-
-  amd_dbgapi_global_address_t local_memory_base_address () const
-  {
-    if (m_group_leader != this)
-      return group_leader ().local_memory_base_address ();
-
-    return architecture ().wave_get_info (
-        *m_descriptor, architecture_t::wave_info_t::lds_addr);
   }
 
   auto group_ids () const { return m_group_ids; }
