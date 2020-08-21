@@ -106,6 +106,15 @@ enum class amdgpu_regnum_t : decltype (amd_dbgapi_register_id_t::handle)
   XNACK_MASK_64,      /* XNACK mask for wave64 wavefronts.  */
   FLAT_SCRATCH,       /* Flat scratch.  */
 
+  FLAT_SCRATCH_LO, /* Flat scratch lower 32 bits.  */
+  FLAT_SCRATCH_HI, /* Flat scratch lower 32 bits.  */
+  EXEC_LO,         /* Execution mask lower 32bits.  */
+  EXEC_HI,         /* Execution mask lower 32bits.  */
+  VCC_LO,          /* Vector Condition Code lower 32 bits.  */
+  VCC_HI,          /* Vector Condition Code higher 32 bits.  */
+  XNACK_MASK_LO,   /* XNACK mask lower 32 bits.  */
+  XNACK_MASK_HI,   /* XNACK mask higher 32 bits.  */
+
   WAVE_ID,         /* Debug[0:1].  */
   DISPATCH_PTR,    /* Pointer to the dispatch packet.  */
   DISPATCH_GRID_X, /* Dispatch grid X.  */
@@ -114,6 +123,8 @@ enum class amdgpu_regnum_t : decltype (amd_dbgapi_register_id_t::handle)
   SCRATCH_OFFSET,  /* Scracth memory offset from the scratch base.  */
 
   LDS_0, /* First dword of the LDS backing store.  */
+
+  NULL_, /* Special register: read returns 0, write is ignored.  */
 };
 
 constexpr size_t

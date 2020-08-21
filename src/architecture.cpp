@@ -216,7 +216,9 @@ protected:
   static int encoding_simm16 (const std::vector<uint8_t> &bytes);
 
   /* Return the regnum for a scalar register operand.  */
-  static amdgpu_regnum_t scalar_operand_to_regnum (wave_t &wave, int code);
+  virtual amdgpu_regnum_t scalar_operand_to_regnum (int operand) const = 0;
+  /* Return the number of aliased scalar registers (e.g. vcc, flat_scratch)  */
+  virtual size_t scalar_alias_count () const = 0;
 
   virtual bool is_call (const std::vector<uint8_t> &bytes) const;
   virtual bool is_getpc (const std::vector<uint8_t> &bytes) const;
@@ -686,35 +688,6 @@ amdgcn_architecture_t::breakpoint_instruction_pc_adjust () const
   return 0;
 }
 
-/* Return the regnum for a scalar register operand.  */
-amdgpu_regnum_t
-amdgcn_architecture_t::scalar_operand_to_regnum (wave_t &wave, int operand)
-{
-  if (operand >= 0 && operand <= 101)
-    {
-      /* SGPR[0] through SGPR[101]  */
-      return amdgpu_regnum_t::S0 + operand;
-    }
-  else if (operand >= 102 && operand <= 107)
-    {
-      /* FLAT_SCRATCH[102:103], XNACK_MASK[104:105], VCC[106:107]  */
-      return amdgpu_regnum_t::S0 + (wave.sgpr_count () + operand - 108);
-    }
-  else if (operand >= 108 && operand <= 123)
-    {
-      /* TTMP[0] through TTMP[15]  */
-      return amdgpu_regnum_t::FIRST_TTMP + (operand - 108);
-    }
-  else if (operand >= 126 && operand <= 127)
-    {
-      return amdgpu_regnum_t::EXEC_32 + (operand - 126);
-    }
-  else
-    {
-      error ("Invalid scalar operand");
-    }
-}
-
 amd_dbgapi_global_address_t
 amdgcn_architecture_t::branch_target (
     wave_t &wave, amd_dbgapi_global_address_t pc,
@@ -830,7 +803,7 @@ amdgcn_architecture_t::simulate_instruction (
 
       /* Save the return address.  */
       amdgpu_regnum_t sdst_regnum
-          = scalar_operand_to_regnum (wave, encoding_sdst (instruction));
+          = scalar_operand_to_regnum (encoding_sdst (instruction));
 
       uint32_t sdst_lo = static_cast<uint32_t> (return_pc);
       uint32_t sdst_hi = static_cast<uint32_t> (return_pc >> 32);
@@ -851,7 +824,7 @@ amdgcn_architecture_t::simulate_instruction (
       if (is_getpc (instruction) || is_swappc (instruction))
         {
           amdgpu_regnum_t sdst_regnum
-              = scalar_operand_to_regnum (wave, encoding_sdst (instruction));
+              = scalar_operand_to_regnum (encoding_sdst (instruction));
 
           new_pc = pc + instruction.size ();
 
@@ -870,7 +843,7 @@ amdgcn_architecture_t::simulate_instruction (
       if (is_setpc (instruction) || is_swappc (instruction))
         {
           amdgpu_regnum_t ssrc_regnum
-              = scalar_operand_to_regnum (wave, encoding_ssrc0 (instruction));
+              = scalar_operand_to_regnum (encoding_ssrc0 (instruction));
 
           uint32_t ssrc_lo, ssrc_hi;
 
@@ -1594,10 +1567,15 @@ protected:
     return utils::bit_extract (x, 17, 17);
   }
 
+  virtual amdgpu_regnum_t
+  scalar_operand_to_regnum (int operand) const override;
+
   gfx9_base_t (elf_amdgpu_machine_t e_machine, std::string target_triple)
       : amdgcn_architecture_t (e_machine, std::move (target_triple))
   {
   }
+
+  virtual size_t scalar_alias_count () const override { return 6; }
 
   struct gfx9_cwsr_descriptor_t : cwsr_descriptor_t
   {
@@ -1660,15 +1638,8 @@ gfx9_base_t::wave_get_info (const cwsr_descriptor_t &descriptor,
              - /* ttmps */ 16;
 
     case wave_info_t::lds_size:
-      if (wave_get_info (descriptor, wave_info_t::first_wave))
-        return COMPUTE_RELAUNCH_PAYLOAD_LDS_SIZE (state) * 128
-               * sizeof (uint32_t);
-      return 0;
-
-    case wave_info_t::lds_addr:
-      if (wave_get_info (descriptor, wave_info_t::first_wave))
-        return register_address (descriptor, amdgpu_regnum_t::LDS_0).value ();
-      return 0;
+      return COMPUTE_RELAUNCH_PAYLOAD_LDS_SIZE (state) * 128
+             * sizeof (uint32_t);
 
     case wave_info_t::lane_count:
       return 64;
@@ -1684,10 +1655,53 @@ gfx9_base_t::wave_get_info (const cwsr_descriptor_t &descriptor,
     }
 }
 
+amdgpu_regnum_t
+gfx9_base_t::scalar_operand_to_regnum (int operand) const
+{
+  if (operand >= 0 && operand <= 101)
+    {
+      /* SGPR[0] through SGPR[101]  */
+      return amdgpu_regnum_t::S0 + operand;
+    }
+
+  if (operand >= 108 && operand <= 123)
+    {
+      /* TTMP[0] through TTMP[15]  */
+      return amdgpu_regnum_t::FIRST_TTMP + (operand - 108);
+    }
+
+  switch (operand)
+    {
+    case 102:
+      return amdgpu_regnum_t::FLAT_SCRATCH_LO;
+    case 103:
+      return amdgpu_regnum_t::FLAT_SCRATCH_HI;
+    case 104:
+      return amdgpu_regnum_t::XNACK_MASK_LO;
+    case 105:
+      return amdgpu_regnum_t::XNACK_MASK_HI;
+    case 106:
+      return amdgpu_regnum_t::VCC_LO;
+    case 107:
+      return amdgpu_regnum_t::VCC_HI;
+    case 124:
+      return amdgpu_regnum_t::M0;
+    case 126:
+      return amdgpu_regnum_t::EXEC_LO;
+    case 127:
+      return amdgpu_regnum_t::EXEC_HI;
+    default:
+      error ("Invalid scalar operand");
+    }
+}
+
 std::optional<amd_dbgapi_global_address_t>
 gfx9_base_t::register_address (const cwsr_descriptor_t &descriptor,
                                amdgpu_regnum_t regnum) const
 {
+  if (regnum == amdgpu_regnum_t::NULL_)
+    return 0;
+
   size_t lane_count = wave_get_info (descriptor, wave_info_t::lane_count);
   amd_dbgapi_global_address_t save_area_addr
       = static_cast<const gfx9_cwsr_descriptor_t &> (descriptor)
@@ -1756,9 +1770,13 @@ gfx9_base_t::register_address (const cwsr_descriptor_t &descriptor,
     case amdgpu_regnum_t::PC:
       regnum = amdgpu_regnum_t::FIRST_HWREG + 1;
       break;
+    case amdgpu_regnum_t::EXEC_LO:
     case amdgpu_regnum_t::EXEC_32:
     case amdgpu_regnum_t::EXEC_64:
       regnum = amdgpu_regnum_t::FIRST_HWREG + 3;
+      break;
+    case amdgpu_regnum_t::EXEC_HI:
+      regnum = amdgpu_regnum_t::FIRST_HWREG + 4;
       break;
     case amdgpu_regnum_t::STATUS:
       regnum = amdgpu_regnum_t::FIRST_HWREG + 5;
@@ -1766,9 +1784,13 @@ gfx9_base_t::register_address (const cwsr_descriptor_t &descriptor,
     case amdgpu_regnum_t::TRAPSTS:
       regnum = amdgpu_regnum_t::FIRST_HWREG + 6;
       break;
+    case amdgpu_regnum_t::XNACK_MASK_LO:
     case amdgpu_regnum_t::XNACK_MASK_32:
     case amdgpu_regnum_t::XNACK_MASK_64:
       regnum = amdgpu_regnum_t::FIRST_HWREG + 7;
+      break;
+    case amdgpu_regnum_t::XNACK_MASK_HI:
+      regnum = amdgpu_regnum_t::FIRST_HWREG + 8;
       break;
     case amdgpu_regnum_t::MODE:
       regnum = amdgpu_regnum_t::FIRST_HWREG + 9;
@@ -1791,22 +1813,33 @@ gfx9_base_t::register_address (const cwsr_descriptor_t &descriptor,
   /* Exclude the aliased sgprs.  */
   if (regnum >= amdgpu_regnum_t::FIRST_SGPR
       && regnum <= amdgpu_regnum_t::LAST_SGPR
-      && (regnum - amdgpu_regnum_t::S0) >= (std::min (108ul, sgpr_count) - 6))
+      && (regnum - amdgpu_regnum_t::S0)
+             >= (std::min (108ul, sgpr_count) - scalar_alias_count ()))
     return {};
 
   /* Rename registers that alias to sgprs.  */
   if ((lane_count == 32 && regnum == amdgpu_regnum_t::VCC_32)
-      || (lane_count == 64 && regnum == amdgpu_regnum_t::VCC_64))
+      || (lane_count == 64 && regnum == amdgpu_regnum_t::VCC_64)
+      || regnum == amdgpu_regnum_t::VCC_LO)
     {
       regnum = amdgpu_regnum_t::S0 + std::min (108ul, sgpr_count) - 2;
+    }
+  if (regnum == amdgpu_regnum_t::VCC_HI)
+    {
+      regnum = amdgpu_regnum_t::S0 + std::min (108ul, sgpr_count) - 1;
     }
 
   /* Note: While EXEC_32 and EXEC_64 alias to sgpr_count - 2, the CWSR handler
      saves them in the hwreg block.  */
 
-  if (regnum == amdgpu_regnum_t::FLAT_SCRATCH)
+  if (regnum == amdgpu_regnum_t::FLAT_SCRATCH
+      || regnum == amdgpu_regnum_t::FLAT_SCRATCH_LO)
     {
       regnum = amdgpu_regnum_t::S0 + std::min (108ul, sgpr_count) - 6;
+    }
+  if (regnum == amdgpu_regnum_t::FLAT_SCRATCH_HI)
+    {
+      regnum = amdgpu_regnum_t::S0 + std::min (108ul, sgpr_count) - 5;
     }
 
   if (regnum >= amdgpu_regnum_t::FIRST_SGPR
@@ -1968,10 +2001,15 @@ protected:
     uint32_t m_compute_relaunch2_state;
   };
 
+  virtual amdgpu_regnum_t
+  scalar_operand_to_regnum (int operand) const override;
+
   gfx10_base_t (elf_amdgpu_machine_t e_machine, std::string target_triple)
       : gfx9_base_t (e_machine, std::move (target_triple))
   {
   }
+
+  virtual size_t scalar_alias_count () const override { return 2; }
 
 public:
   bool has_wave32_vgprs () const override { return true; }
@@ -2000,15 +2038,59 @@ public:
   }
 };
 
+amdgpu_regnum_t
+gfx10_base_t::scalar_operand_to_regnum (int operand) const
+{
+  if (operand >= 0 && operand <= 105)
+    {
+      /* SGPR[0] through SGPR[105]  */
+      return amdgpu_regnum_t::S0 + operand;
+    }
+
+  if (operand >= 108 && operand <= 123)
+    {
+      /* TTMP[0] through TTMP[15]  */
+      return amdgpu_regnum_t::FIRST_TTMP + (operand - 108);
+    }
+
+  switch (operand)
+    {
+    case 106:
+      return amdgpu_regnum_t::VCC_LO;
+    case 107:
+      return amdgpu_regnum_t::VCC_HI;
+    case 124:
+      return amdgpu_regnum_t::M0;
+    case 125:
+      return amdgpu_regnum_t::NULL_;
+    case 126:
+      return amdgpu_regnum_t::EXEC_LO;
+    case 127:
+      return amdgpu_regnum_t::EXEC_HI;
+    default:
+      error ("Invalid scalar operand");
+    }
+}
+
 std::optional<amd_dbgapi_global_address_t>
 gfx10_base_t::register_address (const cwsr_descriptor_t &descriptor,
                                 amdgpu_regnum_t regnum) const
 {
   switch (regnum)
     {
+    case amdgpu_regnum_t::XNACK_MASK_32:
+      regnum = amdgpu_regnum_t::FIRST_HWREG + 7;
+      break;
+
     case amdgpu_regnum_t::MODE:
       regnum = amdgpu_regnum_t::FIRST_HWREG + 8;
       break;
+
+    case amdgpu_regnum_t::XNACK_MASK_LO:
+    case amdgpu_regnum_t::XNACK_MASK_HI:
+    case amdgpu_regnum_t::XNACK_MASK_64:
+      /* On gfx10, xnack_mask is now a 32bit register.  */
+      return {};
 
     case amdgpu_regnum_t::FLAT_SCRATCH:
       /* On gfx10, flat_scratch is an architected register, so it is saved in
@@ -2270,16 +2352,32 @@ architecture_t::register_name (amdgpu_regnum_t regnum) const
 
   switch (regnum)
     {
-    case amdgpu_regnum_t::M0:
-      return "m0";
     case amdgpu_regnum_t::PC:
       return "pc";
+    case amdgpu_regnum_t::M0:
+      return "m0";
     case amdgpu_regnum_t::STATUS:
       return "status";
-    case amdgpu_regnum_t::MODE:
-      return "mode";
     case amdgpu_regnum_t::TRAPSTS:
       return "trapsts";
+    case amdgpu_regnum_t::MODE:
+      return "mode";
+    case amdgpu_regnum_t::FLAT_SCRATCH_LO:
+      return "flat_scratch_lo";
+    case amdgpu_regnum_t::FLAT_SCRATCH_HI:
+      return "flat_scratch_hi";
+    case amdgpu_regnum_t::EXEC_LO:;
+      return "exec_lo";
+    case amdgpu_regnum_t::EXEC_HI:;
+      return "exec_hi";
+    case amdgpu_regnum_t::VCC_LO:;
+      return "vcc_lo";
+    case amdgpu_regnum_t::VCC_HI:;
+      return "vcc_hi";
+    case amdgpu_regnum_t::XNACK_MASK_LO:;
+      return "xnack_mask_lo";
+    case amdgpu_regnum_t::XNACK_MASK_HI:;
+      return "xnack_mask_hi";
     case amdgpu_regnum_t::FLAT_SCRATCH:
       return "flat_scratch";
     case amdgpu_regnum_t::WAVE_ID:
@@ -2294,6 +2392,8 @@ architecture_t::register_name (amdgpu_regnum_t regnum) const
       return "grid_z";
     case amdgpu_regnum_t::SCRATCH_OFFSET:
       return "scratch_offset";
+    case amdgpu_regnum_t::NULL_:
+      return "null";
     default:
       break;
     }
@@ -2326,24 +2426,13 @@ architecture_t::register_type (amdgpu_regnum_t regnum) const
     {
       return "int32_t";
     }
-  /* Everything else (hwregs, ttmps).  */
-  if ((regnum == amdgpu_regnum_t::M0) || (regnum == amdgpu_regnum_t::STATUS)
-      || (regnum == amdgpu_regnum_t::TRAPSTS)
-      || (regnum == amdgpu_regnum_t::MODE)
-      || (regnum >= amdgpu_regnum_t::FIRST_HWREG
-          && regnum <= amdgpu_regnum_t::LAST_HWREG)
-      || (regnum == amdgpu_regnum_t::DISPATCH_GRID_X)
-      || (regnum == amdgpu_regnum_t::DISPATCH_GRID_Y)
-      || (regnum == amdgpu_regnum_t::DISPATCH_GRID_Z)
-      || (regnum == amdgpu_regnum_t::SCRATCH_OFFSET)
+  /* hwregs, ttmps.  */
+  if ((regnum >= amdgpu_regnum_t::FIRST_HWREG
+       && regnum <= amdgpu_regnum_t::LAST_HWREG)
       || (regnum >= amdgpu_regnum_t::FIRST_TTMP
           && regnum <= amdgpu_regnum_t::LAST_TTMP))
     {
       return "uint32_t";
-    }
-  if (regnum == amdgpu_regnum_t::PC)
-    {
-      return "void (*)()";
     }
   if (has_wave32_vgprs ()
       && (regnum == amdgpu_regnum_t::EXEC_32
@@ -2359,13 +2448,38 @@ architecture_t::register_type (amdgpu_regnum_t regnum) const
     {
       return "uint64_t";
     }
-  if (regnum == amdgpu_regnum_t::WAVE_ID
-      || regnum == amdgpu_regnum_t::DISPATCH_PTR
-      || regnum == amdgpu_regnum_t::FLAT_SCRATCH)
+  switch (regnum)
     {
+    case amdgpu_regnum_t::PC:
+      return "void (*)()";
+
+    case amdgpu_regnum_t::M0:
+    case amdgpu_regnum_t::STATUS:
+    case amdgpu_regnum_t::TRAPSTS:
+    case amdgpu_regnum_t::MODE:
+    case amdgpu_regnum_t::FLAT_SCRATCH_LO:
+    case amdgpu_regnum_t::FLAT_SCRATCH_HI:
+    case amdgpu_regnum_t::EXEC_LO:
+    case amdgpu_regnum_t::EXEC_HI:
+    case amdgpu_regnum_t::VCC_LO:
+    case amdgpu_regnum_t::VCC_HI:
+    case amdgpu_regnum_t::XNACK_MASK_LO:
+    case amdgpu_regnum_t::XNACK_MASK_HI:
+    case amdgpu_regnum_t::DISPATCH_GRID_X:
+    case amdgpu_regnum_t::DISPATCH_GRID_Y:
+    case amdgpu_regnum_t::DISPATCH_GRID_Z:
+    case amdgpu_regnum_t::SCRATCH_OFFSET:
+    case amdgpu_regnum_t::NULL_:
+      return "uint32_t";
+
+    case amdgpu_regnum_t::WAVE_ID:
+    case amdgpu_regnum_t::FLAT_SCRATCH:
+    case amdgpu_regnum_t::DISPATCH_PTR:
       return "uint64_t";
+
+    default:
+      return {};
     }
-  return {};
 }
 
 std::optional<amd_dbgapi_size_t>
@@ -2394,24 +2508,13 @@ architecture_t::register_size (amdgpu_regnum_t regnum) const
     {
       return sizeof (int32_t);
     }
-  /* Everything else (hwregs, ttmps).  */
-  if ((regnum == amdgpu_regnum_t::M0) || (regnum == amdgpu_regnum_t::STATUS)
-      || (regnum == amdgpu_regnum_t::TRAPSTS)
-      || (regnum == amdgpu_regnum_t::MODE)
-      || (regnum >= amdgpu_regnum_t::FIRST_HWREG
-          && regnum <= amdgpu_regnum_t::LAST_HWREG)
-      || (regnum == amdgpu_regnum_t::DISPATCH_GRID_X)
-      || (regnum == amdgpu_regnum_t::DISPATCH_GRID_Y)
-      || (regnum == amdgpu_regnum_t::DISPATCH_GRID_Z)
-      || (regnum == amdgpu_regnum_t::SCRATCH_OFFSET)
+  /* hwregs, ttmps.  */
+  if ((regnum >= amdgpu_regnum_t::FIRST_HWREG
+       && regnum <= amdgpu_regnum_t::LAST_HWREG)
       || (regnum >= amdgpu_regnum_t::FIRST_TTMP
           && regnum <= amdgpu_regnum_t::LAST_TTMP))
     {
       return sizeof (uint32_t);
-    }
-  if (regnum == amdgpu_regnum_t::PC)
-    {
-      return sizeof (void (*) ());
     }
   if (has_wave32_vgprs ()
       && (regnum == amdgpu_regnum_t::EXEC_32
@@ -2427,13 +2530,38 @@ architecture_t::register_size (amdgpu_regnum_t regnum) const
     {
       return sizeof (uint64_t);
     }
-  if (regnum == amdgpu_regnum_t::WAVE_ID
-      || regnum == amdgpu_regnum_t::FLAT_SCRATCH
-      || regnum == amdgpu_regnum_t::DISPATCH_PTR)
+  switch (regnum)
     {
+    case amdgpu_regnum_t::PC:
+      return sizeof (void (*) ());
+
+    case amdgpu_regnum_t::M0:
+    case amdgpu_regnum_t::STATUS:
+    case amdgpu_regnum_t::TRAPSTS:
+    case amdgpu_regnum_t::MODE:
+    case amdgpu_regnum_t::FLAT_SCRATCH_LO:
+    case amdgpu_regnum_t::FLAT_SCRATCH_HI:
+    case amdgpu_regnum_t::EXEC_LO:
+    case amdgpu_regnum_t::EXEC_HI:
+    case amdgpu_regnum_t::VCC_LO:
+    case amdgpu_regnum_t::VCC_HI:
+    case amdgpu_regnum_t::XNACK_MASK_LO:
+    case amdgpu_regnum_t::XNACK_MASK_HI:
+    case amdgpu_regnum_t::DISPATCH_GRID_X:
+    case amdgpu_regnum_t::DISPATCH_GRID_Y:
+    case amdgpu_regnum_t::DISPATCH_GRID_Z:
+    case amdgpu_regnum_t::SCRATCH_OFFSET:
+    case amdgpu_regnum_t::NULL_:
+      return sizeof (uint32_t);
+
+    case amdgpu_regnum_t::WAVE_ID:
+    case amdgpu_regnum_t::FLAT_SCRATCH:
+    case amdgpu_regnum_t::DISPATCH_PTR:
       return sizeof (uint64_t);
+
+    default:
+      return {};
     }
-  return {};
 }
 
 namespace detail
