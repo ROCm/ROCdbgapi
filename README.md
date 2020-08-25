@@ -15,12 +15,12 @@ For more information about the AMD ROCm ecosystem, see:
 Build the AMD Debugger API Library
 ----------------------------------
 
-The ROCdbgapi library can be built on Ubuntu 16.04, Ubuntu 18.04, Centos 8.1,
+The ROCdbgapi library can be built on Ubuntu 18.04, Ubuntu 20.04, Centos 8.1,
 RHEL 8.1, and SLES 15 Service Pack 1.
 
 Building the ROCdbgapi library has the following prerequisites:
 
-1. A C++14 compiler such as GCC 5 or Clang 3.4.
+1. A C++17 compiler such as GCC 7 or Clang 5.
 
 2. AMD Code Object Manager Library (ROCcomgr) which can be installed as part of
    the AMD ROCm release by the ``comgr`` package.
@@ -28,7 +28,37 @@ Building the ROCdbgapi library has the following prerequisites:
 3. ROCm CMake modules which can be installed as part of the AMD ROCm release by
    the ``rocm-cmake`` package.
 
-An example command-line to build and install the ROCdbgapi library on Linux is:
+4. For Ubuntu 18.04 and Ubuntu 20.04 the following adds the needed packages:
+
+   ````shell
+   apt install gcc g++ make cmake doxygen graphviz texlive-full
+   ````
+
+   NOTE: The ``doxygen`` 1.8.13 that is installed by Ubuntu 18.04 has a bug
+   that prevents the PDF from being created.  ``doxygen`` 1.8.11 can be built
+   from source to avoid the issue.
+
+5. For CentOS 8.1 and RHEL 8.1 the following adds the needed packages:
+
+   ````shell
+   yum install -y gcc gcc-g++ make cmake doxygen graphviz texlive \
+     texlive-xtab texlive-multirow texlive-sectsty texlive-tocloft \
+     texlive-tabu texlive-adjustbox
+   ````
+
+   NOTE: The ``doxygen`` 1.8.14 that is installed by CentOS 8.1 and RHEL 8.1,
+   has a bug that prevents the PDF from being created. ``doxygen`` 1.8.11 can be
+   built from source to avoid the issue.
+
+6. For SLES 15 Service Pack 15 the following adds the needed packages:
+
+   ````shell
+   zypper in gcc gcc-g++ make cmake doxygen graphviz texlive-scheme-medium \
+     texlive-hanging texlive-stackengine texlive-tocloft texlive-etoc \
+     texlive-tabu
+   ````
+
+An example command-line to build the ROCdbgapi library on Linux is:
 
 ````shell
 cd rocdbgapi
@@ -45,60 +75,7 @@ The built ROCdbgapi library will be placed in:
 - ``build/include/amd-dbgapi.h``
 - ``build/librocm-dbgapi.so*``
 
-To install the ROCdbgapi library:
-
-````shell
-make install
-````
-
-The installed ROCdbgapi library will be placed in:
-
-- ``../install/include/amd-dbgapi.h``
-- ``../install/lib/librocm-dbgapi.so*``
-- ``../install/share/amd-dbgapi/LICENSE.txt``
-- ``../install/share/amd-dbgapi/README.md``
-
-To use the ROCdbgapi library, the ROCcomgr library must be installed.  This can
-be installed as part of the AMD ROCm release by the ``comgr`` package:
-
-- ``libamd_comgr.so.1``
-
-Build the AMD Debugger API Specification Documentation
-------------------------------------------------------
-
-Generating the *AMD Debugger API Specification* documentation has the following
-prerequisites:
-
-1. For Ubuntu 16.04 and Ubuntu 18.04 the following adds the needed packages:
-
-   ````shell
-   apt install doxygen graphviz texlive-full
-   ````
-
-   NOTE: The ``doxygen`` 1.8.13 that is installed by Ubuntu 18.04 has a bug
-   that prevents the PDF from being created.  ``doxygen`` 1.8.11 can be built
-   from source to avoid the issue.
-
-2. For CentOS 8.1 and RHEL 8.1 the following adds the needed packages:
-
-   ````shell
-   yum install -y doxygen graphviz texlive texlive-xtab texlive-multirow \
-     texlive-sectsty texlive-tocloft texlive-tabu texlive-adjustbox
-   ````
-
-   NOTE: The ``doxygen`` 1.8.14 that is installed by CentOS 8.1 and RHEL 8.1,
-   has a bug that prevents the PDF from being created. ``doxygen`` 1.8.11 can be
-   built from source to avoid the issue.
-
-3. For SLES 15 Service Pack 15 the following adds the needed packages:
-
-   ````shell
-   zypper in doxygen graphviz texlive-scheme-medium texlive-hanging \
-     texlive-stackengine texlive-tocloft texlive-etoc texlive-tabu
-   ````
-
-An example command-line to generate the HTML and PDF documentation after running
-the above ``cmake`` is:
+An example command-line to generate the HTML and PDF library documentation is:
 
 ````shell
 make doc
@@ -109,10 +86,25 @@ The generated ROCdbgapi library documentation is put in:
 - ``doc/html/index.html``
 - ``doc/latex/refman.pdf``
 
-If the ROCdbgapi library PDF documentation has been generated, ``make install``
-will place it in:
+To install the ROCdbgapi library and documentation:
 
+````shell
+make install
+````
+
+The installed ROCdbgapi library and documentation will be placed in:
+
+- ``../install/include/amd-dbgapi.h``
+- ``../install/lib/librocm-dbgapi.so*``
+- ``../install/share/amd-dbgapi/LICENSE.txt``
+- ``../install/share/amd-dbgapi/README.md``
+- ``../install/share/html/amd-dbgapi/index.html``
 - ``../install/share/doc/amd-dbgapi/amd-dbgapi.pdf``
+
+To use the ROCdbgapi library, the ROCcomgr library must be installed.  This can
+be installed as part of the AMD ROCm release by the ``comgr`` package:
+
+- ``libamd_comgr.so.1``
 
 Known Limitations and Restrictions
 ----------------------------------
