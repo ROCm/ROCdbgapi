@@ -287,7 +287,10 @@
  *
  * 1.  The following *_get_info queries are not yet implemented:
  *
+ *     - AMD_DBGAPI_DISPATCH_INFO_KERNEL_COMPLETION_ADDRESS
+ *     - AMD_DBGAPI_QUEUE_INFO_ADDRESS
  *     - AMD_DBGAPI_QUEUE_INFO_ERROR_REASON
+ *     - AMD_DBGAPI_QUEUE_INFO_SIZE
  *     - AMD_DBGAPI_QUEUE_INFO_STATE
  *
  * 2.  The following functions are not yet implemented:
@@ -469,10 +472,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_30
 
 /**
- * The function was introduced in version 0.31 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.31"``.
+ * The function was introduced in version 0.32 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.32"``.
  */
-#define AMD_DBGAPI_VERSION_0_31
+#define AMD_DBGAPI_VERSION_0_32
 
 /** @} */
 
@@ -2198,7 +2201,17 @@ typedef enum
    * The type of this attribute is \p uint64_t with values defined by
    * ::amd_dbgapi_queue_error_reason_t.
    */
-  AMD_DBGAPI_QUEUE_INFO_ERROR_REASON = 5
+  AMD_DBGAPI_QUEUE_INFO_ERROR_REASON = 5,
+  /**
+   * Return the base address of the memory holding the queue packets.  The type
+   * of this attribute is ::amd_dbgapi_global_address_t.
+   */
+  AMD_DBGAPI_QUEUE_INFO_ADDRESS = 6,
+  /**
+   * Return the size in bytes of the memory holding the queue packets.  The
+   * type of this attribute is ::amd_dbgapi_size_t.
+   */
+  AMD_DBGAPI_QUEUE_INFO_SIZE = 7
 } amd_dbgapi_queue_info_t;
 
 /**
@@ -2246,7 +2259,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_queue_id_t queue_id,
     amd_dbgapi_queue_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_24;
+    void *value) AMD_DBGAPI_VERSION_0_32;
 
 /**
  * Queue type.
@@ -2449,9 +2462,10 @@ typedef uint64_t amd_dbgapi_queue_packet_id_t;
  *
  * \param[out] packets_byte_size The number of bytes of packets on the queue.
  *
- * \param[out] packets_bytes A pointer to an array of \p packets_byte_size
- * bytes.  It is allocated by the amd_dbgapi_callbacks_s::allocate_memory
- * callback and is owned by the client.
+ * \param[out] packets_bytes If non-NULL, it references a pointer to an array
+ * of \p packets_byte_size bytes which is allocated by the
+ * amd_dbgapi_callbacks_s::allocate_memory callback and is owned by the client.
+ * If NULL, the packet bytes are not returned, just \p packets_byte_size.
  *
  * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
  * successfully and the result is stored in \p packets_byte_size and
@@ -2468,9 +2482,8 @@ typedef uint64_t amd_dbgapi_queue_packet_id_t;
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
  * invalid.  \p packets_byte_size and \p packets_bytes are unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p packets_byte_size or
- * \p packets_bytes are NULL.  \p packets_byte_size and \p packets_bytes are
- * unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p packets_byte_size is
+ * NULL.  \p packets_byte_size and \p packets_bytes are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
  * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
@@ -2481,7 +2494,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_packet_list (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_queue_id_t queue_id,
     amd_dbgapi_queue_packet_id_t *first_packet_id,
     amd_dbgapi_size_t *packets_byte_size,
-    void **packets_bytes) AMD_DBGAPI_VERSION_0_24;
+    void **packets_bytes) AMD_DBGAPI_VERSION_0_32;
 
 /** @} */
 
@@ -2589,7 +2602,17 @@ typedef enum
    * Return the dispatch kernel function address.  The type of this attribute
    * is ::amd_dbgapi_global_address_t.
    */
-  AMD_DBGAPI_DISPATCH_INFO_KERNEL_ENTRY_ADDRESS = 14
+  AMD_DBGAPI_DISPATCH_INFO_KERNEL_ENTRY_ADDRESS = 14,
+  /**
+   * Return the dispatch completion event address.  The ABI of the completion
+   * event varies depending on the queue type available using the
+   * ::AMD_DBGAPI_QUEUE_TYPE query.  See ::amd_dbgapi_queue_type_t.  The type
+   * of this attribute is ::amd_dbgapi_global_address_t.  If the queue type
+   * does not use completion events, or the dispatch packet does not define a
+   * completion event, then ::amd_dbgapi_dispatch_get_info will return
+   * ::AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED.
+   */
+  AMD_DBGAPI_DISPATCH_INFO_KERNEL_COMPLETION_ADDRESS = 15
 } amd_dbgapi_dispatch_info_t;
 
 /**
@@ -2624,6 +2647,9 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_DISPATCH_ID \p queue_id is
  * invalid.  \p value is unaltered.
  *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED The requested \p query is
+ * not supported for the specified \p dispatch_id.  \p value is unaltered.
+ *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or
  * \p query is invalid.  \p value is unaltered.
  *
@@ -2637,7 +2663,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_dispatch_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_dispatch_id_t dispatch_id,
     amd_dbgapi_dispatch_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_24;
+    void *value) AMD_DBGAPI_VERSION_0_32;
 
 /**
  * Dispatch barrier.
@@ -3807,7 +3833,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_watchpoint (
     amd_dbgapi_size_t size, amd_dbgapi_watchpoint_kind_t kind,
     amd_dbgapi_watchpoint_id_t *watchpoint_id,
     amd_dbgapi_global_address_t *watchpoint_address,
-    amd_dbgapi_size_t *watchpoint_size) AMD_DBGAPI_VERSION_0_31;
+    amd_dbgapi_size_t *watchpoint_size) AMD_DBGAPI_VERSION_0_32;
 
 /**
  * Remove a hardware data watchpoint previously set by

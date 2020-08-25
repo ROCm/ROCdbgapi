@@ -361,6 +361,8 @@ to_string (amd_dbgapi_queue_info_t queue_info)
       CASE (QUEUE_TYPE);
       CASE (QUEUE_INFO_STATE);
       CASE (QUEUE_INFO_ERROR_REASON);
+      CASE (QUEUE_INFO_ADDRESS);
+      CASE (QUEUE_INFO_SIZE);
     }
   return to_string (make_hex (queue_info));
 }
@@ -460,6 +462,7 @@ to_string (amd_dbgapi_dispatch_info_t dispatch_info)
       CASE (DISPATCH_INFO_GROUP_SEGMENT_SIZE);
       CASE (DISPATCH_INFO_KERNEL_ARGUMENT_SEGMENT_ADDRESS);
       CASE (DISPATCH_INFO_KERNEL_ENTRY_ADDRESS);
+      CASE (DISPATCH_INFO_KERNEL_COMPLETION_ADDRESS);
     }
   return to_string (make_hex (dispatch_info));
 }
