@@ -55,8 +55,8 @@ public:
   virtual ~queue_impl_t () = default;
 
   /* Return a snapshot of the packets present in this queue.  */
-  virtual std::pair<amd_dbgapi_os_queue_packet_id_t, std::vector<uint8_t>>
-  packets () const = 0;
+  virtual std::pair<amd_dbgapi_os_queue_packet_id_t, size_t>
+  packets (void **packets_bytes) const = 0;
 
   /* Return the queue's type.  */
   virtual amd_dbgapi_os_queue_type_t type () const = 0;
@@ -89,8 +89,8 @@ public:
   aql_queue_impl_t (queue_t &queue);
   virtual ~aql_queue_impl_t () override;
 
-  virtual std::pair<amd_dbgapi_os_queue_packet_id_t, std::vector<uint8_t>>
-  packets () const override;
+  std::pair<amd_dbgapi_os_queue_packet_id_t, size_t>
+  packets (void **packets_bytes) const override;
 
   virtual amd_dbgapi_os_queue_type_t type () const override;
 
@@ -436,9 +436,10 @@ queue_t::aql_queue_impl_t::update_waves ()
         const uint64_t id_mask
             = m_queue.m_os_queue_info.ring_size / AQL_PACKET_SIZE - 1;
 
-        os_queue_packet_id |= os_queue_packet_id >= (read_dispatch_id & id_mask)
-                               ? (read_dispatch_id & ~id_mask)
-                               : (write_dispatch_id & ~id_mask);
+        os_queue_packet_id
+            |= os_queue_packet_id >= (read_dispatch_id & id_mask)
+                   ? (read_dispatch_id & ~id_mask)
+                   : (write_dispatch_id & ~id_mask);
 
         /* Check that read_dispatch_id <= dispatch_id < write_dispatch_id */
         if (read_dispatch_id > os_queue_packet_id
@@ -458,9 +459,9 @@ queue_t::aql_queue_impl_t::update_waves ()
         /* If we did not find the current dispatch, create a new one.  */
         if (!dispatch)
           dispatch = &process.create<dispatch_t> (
-              m_queue,         /* queue  */
+              m_queue,            /* queue  */
               os_queue_packet_id, /* os_queue_packet_id  */
-              dispatch_ptr);   /* packet_address  */
+              dispatch_ptr);      /* packet_address  */
 
         wave = &process.create<wave_t> (*dispatch);
 
@@ -531,8 +532,8 @@ queue_t::aql_queue_impl_t::update_waves ()
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
-std::pair<amd_dbgapi_os_queue_packet_id_t, std::vector<uint8_t>>
-queue_t::aql_queue_impl_t::packets () const
+std::pair<amd_dbgapi_os_queue_packet_id_t, size_t>
+queue_t::aql_queue_impl_t::packets (void **packets_bytes) const
 {
   dbgapi_assert (m_queue.is_suspended ());
   process_t &process = m_queue.process ();
@@ -552,6 +553,12 @@ queue_t::aql_queue_impl_t::packets () const
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     error ("Could not read the queue's write_dispatch_id (rc=%d)", status);
 
+  amd_dbgapi_size_t packets_byte_size
+      = (write_dispatch_id - read_dispatch_id) * AQL_PACKET_SIZE;
+
+  if (!packets_bytes)
+    return { read_dispatch_id, packets_byte_size };
+
   /* ring_size must be a power of 2.  */
   if (!utils::is_power_of_two (m_queue.m_os_queue_info.ring_size))
     error ("ring_size is not a power of 2");
@@ -566,14 +573,18 @@ queue_t::aql_queue_impl_t::packets () const
       = m_queue.m_os_queue_info.ring_base_address
         + (write_dispatch_id & id_mask) * AQL_PACKET_SIZE;
 
-  std::vector<uint8_t> packets;
   dbgapi_assert (write_dispatch_id >= read_dispatch_id);
-  packets.resize ((write_dispatch_id - read_dispatch_id) * AQL_PACKET_SIZE);
 
-  if (read_dispatch_ptr < write_dispatch_ptr)
+  *packets_bytes = amd::dbgapi::allocate_memory (packets_byte_size);
+  if (packets_byte_size && !*packets_bytes)
     {
-      status = process.read_global_memory (read_dispatch_ptr, &packets[0],
-                                           packets.size ());
+      /* The memory allocation failure will be detected by the caller.  */
+    }
+  else if (read_dispatch_ptr < write_dispatch_ptr)
+    {
+      status = process.read_global_memory (read_dispatch_ptr, *packets_bytes,
+                                           packets_byte_size);
+      /* FIXME: convert this to AMD_DBGAPI_STATUS_ERROR.  */
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not read the queue's packets (rc=%d)", status);
     }
@@ -582,8 +593,9 @@ queue_t::aql_queue_impl_t::packets () const
       size_t size = m_queue.m_os_queue_info.ring_base_address
                     + m_queue.m_os_queue_info.ring_size - read_dispatch_ptr;
 
-      status
-          = process.read_global_memory (read_dispatch_ptr, &packets[0], size);
+      status = process.read_global_memory (read_dispatch_ptr, *packets_bytes,
+                                           size);
+      /* FIXME: convert this to AMD_DBGAPI_STATUS_ERROR.  */
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not read the queue's packets (rc=%d)", status);
 
@@ -591,12 +603,14 @@ queue_t::aql_queue_impl_t::packets () const
       size = write_dispatch_ptr - m_queue.m_os_queue_info.ring_base_address;
 
       status = process.read_global_memory (
-          m_queue.m_os_queue_info.ring_base_address, &packets[offset], size);
+          m_queue.m_os_queue_info.ring_base_address,
+          static_cast<char *> (*packets_bytes) + offset, size);
+      /* FIXME: convert this to AMD_DBGAPI_STATUS_ERROR.  */
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not read the queue's packets (rc=%d)", status);
     }
 
-  return std::make_pair (read_dispatch_id, std::move (packets));
+  return { read_dispatch_id, packets_byte_size };
 }
 
 amd_dbgapi_os_queue_type_t
@@ -670,8 +684,8 @@ class queue_t::pm4_queue_impl_t : public queue_impl_t
 public:
   pm4_queue_impl_t (queue_t &queue) : queue_impl_t (queue) {}
 
-  virtual std::pair<amd_dbgapi_os_queue_packet_id_t, std::vector<uint8_t>>
-  packets () const override
+  std::pair<amd_dbgapi_os_queue_packet_id_t, size_t>
+  packets (void **packets_bytes) const override
   {
     /* FIXME: Not yet implemented.  */
     return {};
@@ -712,11 +726,11 @@ queue_t::queue_t (amd_dbgapi_queue_id_t queue_id, agent_t &agent,
 
 queue_t::~queue_t () {}
 
-std::pair<amd_dbgapi_os_queue_packet_id_t, std::vector<uint8_t>>
-queue_t::packets () const
+std::pair<amd_dbgapi_os_queue_packet_id_t, size_t>
+queue_t::packets (void **packets_bytes) const
 {
   if (m_impl)
-    return m_impl->packets ();
+    return m_impl->packets (packets_bytes);
 
   return {};
 }
@@ -791,10 +805,15 @@ queue_t::get_info (amd_dbgapi_queue_info_t query, size_t value_size,
           value_size, value,
           static_cast<amd_dbgapi_os_queue_id_t> (m_os_queue_info.queue_id));
 
+    case AMD_DBGAPI_QUEUE_INFO_ADDRESS:
+      return utils::get_info (value_size, value,
+                              m_os_queue_info.ring_base_address);
+
+    case AMD_DBGAPI_QUEUE_INFO_SIZE:
+      return utils::get_info (value_size, value, m_os_queue_info.ring_size);
+
     case AMD_DBGAPI_QUEUE_INFO_STATE:
     case AMD_DBGAPI_QUEUE_INFO_ERROR_REASON:
-    case AMD_DBGAPI_QUEUE_INFO_ADDRESS:
-    case AMD_DBGAPI_QUEUE_INFO_SIZE:
       return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
     }
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
@@ -886,7 +905,7 @@ amd_dbgapi_queue_packet_list (amd_dbgapi_process_id_t process_id,
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
-  if (!first_packet_id || !packets_byte_size || !packets_bytes)
+  if (!first_packet_id || !packets_byte_size)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   process_t *process = process_t::find (process_id);
@@ -901,17 +920,11 @@ amd_dbgapi_queue_packet_list (amd_dbgapi_process_id_t process_id,
 
   scoped_queue_suspend_t suspend (*queue);
 
-  std::vector<uint8_t> packets;
-  std::tie (*first_packet_id, packets) = queue->packets ();
+  std::tie (*first_packet_id, *packets_byte_size)
+      = queue->packets (packets_bytes);
 
-  void *retval = amd::dbgapi::allocate_memory (packets.size ());
-  if (packets.size () && !retval)
+  if (packets_bytes && *packets_byte_size && !*packets_bytes)
     return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
-
-  memcpy (retval, packets.data (), packets.size ());
-
-  *packets_bytes = retval;
-  *packets_byte_size = packets.size ();
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;

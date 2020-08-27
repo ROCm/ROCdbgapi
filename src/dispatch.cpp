@@ -143,7 +143,7 @@ dispatch_t::get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
       return utils::get_info (value_size, value, kernel_entry_address ());
 
     case AMD_DBGAPI_DISPATCH_INFO_KERNEL_COMPLETION_ADDRESS:
-      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+      return utils::get_info (value_size, value, m_packet.completion_signal);
     }
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }

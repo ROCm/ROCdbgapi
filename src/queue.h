@@ -95,8 +95,9 @@ public:
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }
 
-  std::pair<amd_dbgapi_os_queue_packet_id_t, std::vector<uint8_t>>
-  packets () const;
+  std::pair<amd_dbgapi_os_queue_packet_id_t /* read_packet_id */,
+            size_t /* packets_byte_size */>
+  packets (void **packets_bytes) const;
 
   amd_dbgapi_global_address_t displaced_stepping_buffer_address () const
   {

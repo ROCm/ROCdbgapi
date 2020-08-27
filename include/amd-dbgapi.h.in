@@ -287,10 +287,7 @@
  *
  * 1.  The following *_get_info queries are not yet implemented:
  *
- *     - AMD_DBGAPI_DISPATCH_INFO_KERNEL_COMPLETION_ADDRESS
- *     - AMD_DBGAPI_QUEUE_INFO_ADDRESS
  *     - AMD_DBGAPI_QUEUE_INFO_ERROR_REASON
- *     - AMD_DBGAPI_QUEUE_INFO_SIZE
  *     - AMD_DBGAPI_QUEUE_INFO_STATE
  *
  * 2.  The following functions are not yet implemented:
@@ -2537,8 +2534,7 @@ amd_dbgapi_queue_list (amd_dbgapi_process_id_t process_id, size_t *queue_count,
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_packet_list (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_queue_id_t queue_id,
     amd_dbgapi_os_queue_packet_id_t *first_packet_id,
-    amd_dbgapi_size_t *packets_byte_size,
-    void **packets_bytes) AMD_DBGAPI_VERSION_0_33;
+    size_t *packets_byte_size, void **packets_bytes) AMD_DBGAPI_VERSION_0_33;
 
 /** @} */
 
