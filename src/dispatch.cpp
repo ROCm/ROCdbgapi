@@ -34,9 +34,9 @@ namespace amd::dbgapi
 {
 
 dispatch_t::dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id, queue_t &queue,
-                        amd_dbgapi_queue_packet_id_t queue_packet_id,
+                        amd_dbgapi_os_queue_packet_id_t os_queue_packet_id,
                         amd_dbgapi_global_address_t packet_address)
-    : handle_object (dispatch_id), m_queue_packet_id (queue_packet_id),
+    : handle_object (dispatch_id), m_os_queue_packet_id (os_queue_packet_id),
       m_queue (queue)
 {
   amd_dbgapi_status_t status;
@@ -83,8 +83,8 @@ dispatch_t::get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
     case AMD_DBGAPI_DISPATCH_INFO_ARCHITECTURE:
       return utils::get_info (value_size, value, architecture ().id ());
 
-    case AMD_DBGAPI_DISPATCH_INFO_PACKET_ID:
-      return utils::get_info (value_size, value, m_queue_packet_id);
+    case AMD_DBGAPI_DISPATCH_INFO_OS_QUEUE_PACKET_ID:
+      return utils::get_info (value_size, value, m_os_queue_packet_id);
 
     case AMD_DBGAPI_DISPATCH_INFO_BARRIER:
       return utils::get_info (value_size, value,

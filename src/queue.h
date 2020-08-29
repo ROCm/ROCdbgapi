@@ -90,12 +90,12 @@ public:
     return amd::dbgapi::os_queue_type (m_os_queue_info);
   }
 
-  amd_dbgapi_queue_type_t type () const;
+  amd_dbgapi_os_queue_type_t type () const;
 
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }
 
-  std::pair<amd_dbgapi_queue_packet_id_t, std::vector<uint8_t>>
+  std::pair<amd_dbgapi_os_queue_packet_id_t, std::vector<uint8_t>>
   packets () const;
 
   amd_dbgapi_global_address_t displaced_stepping_buffer_address () const

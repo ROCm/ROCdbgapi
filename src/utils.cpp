@@ -73,7 +73,7 @@ static_assert (
                == sizeof (amd_dbgapi_enum_underlying_type64_t)
         && sizeof (amd_dbgapi_queue_state_t)
                == sizeof (amd_dbgapi_enum_underlying_type32_t)
-        && sizeof (amd_dbgapi_queue_type_t)
+        && sizeof (amd_dbgapi_os_queue_type_t)
                == sizeof (amd_dbgapi_enum_underlying_type32_t)
         && sizeof (amd_dbgapi_register_class_state_t)
                == sizeof (amd_dbgapi_enum_underlying_type32_t)

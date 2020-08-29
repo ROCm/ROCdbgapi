@@ -133,7 +133,7 @@ to_string (detail::hex<T> v)
   F (amd_dbgapi_code_object_info_t)                                           \
   F (amd_dbgapi_agent_info_t)                                                 \
   F (amd_dbgapi_queue_info_t)                                                 \
-  F (amd_dbgapi_queue_type_t)                                                 \
+  F (amd_dbgapi_os_queue_type_t)                                                 \
   F (amd_dbgapi_queue_state_t)                                                \
   F (amd_dbgapi_queue_error_reason_t)                                         \
   F (amd_dbgapi_dispatch_info_t)                                              \

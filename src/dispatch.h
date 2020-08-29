@@ -57,12 +57,12 @@ class dispatch_t : public detail::handle_object<amd_dbgapi_dispatch_id_t>
 
 public:
   dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id, queue_t &queue,
-              amd_dbgapi_queue_packet_id_t queue_packet_id,
+              amd_dbgapi_os_queue_packet_id_t os_queue_packet_id,
               amd_dbgapi_global_address_t packet_address);
 
   ~dispatch_t () {}
 
-  uint64_t queue_packet_id () const { return m_queue_packet_id; }
+  uint64_t os_queue_packet_id () const { return m_os_queue_packet_id; }
   amd_dbgapi_global_address_t kernel_entry_address () const;
   bool is_scratch_enabled () const;
 
@@ -78,7 +78,7 @@ public:
   }
 
 private:
-  amd_dbgapi_queue_packet_id_t const m_queue_packet_id;
+  amd_dbgapi_os_queue_packet_id_t const m_os_queue_packet_id;
   hsa_kernel_dispatch_packet_t m_packet;
 
   kernel_descriptor_t m_kernel_descriptor;

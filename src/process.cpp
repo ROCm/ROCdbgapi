@@ -68,9 +68,9 @@ process_t::process_t (amd_dbgapi_client_process_id_t client_process_id,
                       amd_dbgapi_process_id_t process_id)
     : m_process_id (process_id), m_client_process_id (client_process_id),
       m_os_driver (os_driver_t::create ([this] () {
-        std::optional<amd_dbgapi_os_pid_t> os_pid;
+        std::optional<amd_dbgapi_os_process_id_t> os_pid;
 
-        amd_dbgapi_os_pid_t value;
+        amd_dbgapi_os_process_id_t value;
         if (get_os_pid (&value) == AMD_DBGAPI_STATUS_SUCCESS)
           os_pid.emplace (value);
 

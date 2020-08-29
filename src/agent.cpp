@@ -317,6 +317,11 @@ agent_t::get_info (amd_dbgapi_agent_info_t query, size_t value_size,
     case AMD_DBGAPI_AGENT_INFO_MAX_WAVES_PER_SIMD:
       return utils::get_info (value_size, value,
                               m_os_agent_info.max_waves_per_simd);
+
+    case AMD_DBGAPI_AGENT_INFO_OS_ID:
+      return utils::get_info (
+          value_size, value,
+          static_cast<amd_dbgapi_os_agent_id_t> (m_os_agent_info.os_agent_id));
     }
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }

@@ -291,6 +291,7 @@ to_string (amd_dbgapi_process_info_t process_info)
       CASE (PROCESS_INFO_WATCHPOINT_COUNT);
       CASE (PROCESS_INFO_WATCHPOINT_SHARE);
       CASE (PROCESS_INFO_PRECISE_MEMORY_SUPPORTED);
+      CASE (PROCESS_INFO_OS_ID);
     }
   return to_string (make_hex (process_info));
 }
@@ -346,6 +347,7 @@ to_string (amd_dbgapi_agent_info_t agent_info)
       CASE (AGENT_INFO_COMPUTE_UNIT_COUNT);
       CASE (AGENT_INFO_NUM_SIMD_PER_COMPUTE_UNIT);
       CASE (AGENT_INFO_MAX_WAVES_PER_SIMD);
+      CASE (AGENT_INFO_OS_ID);
     }
   return to_string (make_hex (agent_info));
 }
@@ -363,23 +365,24 @@ to_string (amd_dbgapi_queue_info_t queue_info)
       CASE (QUEUE_INFO_ERROR_REASON);
       CASE (QUEUE_INFO_ADDRESS);
       CASE (QUEUE_INFO_SIZE);
+      CASE (QUEUE_INFO_OS_ID);
     }
   return to_string (make_hex (queue_info));
 }
 
 template <>
 std::string
-to_string (amd_dbgapi_queue_type_t queue_type)
+to_string (amd_dbgapi_os_queue_type_t queue_type)
 {
   switch (queue_type)
     {
-      CASE (QUEUE_TYPE_UNKNOWN);
-      CASE (QUEUE_TYPE_HSA_KERNEL_DISPATCH_MULTIPLE_PRODUCER);
-      CASE (QUEUE_TYPE_HSA_KERNEL_DISPATCH_SINGLE_PRODUCER);
-      CASE (QUEUE_TYPE_HSA_KERNEL_DISPATCH_COOPERATIVE);
-      CASE (QUEUE_TYPE_AMD_PM4);
-      CASE (QUEUE_TYPE_AMD_SDMA);
-      CASE (QUEUE_TYPE_AMD_SDMA_XGMI);
+      CASE (OS_QUEUE_TYPE_UNKNOWN);
+      CASE (OS_QUEUE_TYPE_HSA_KERNEL_DISPATCH_MULTIPLE_PRODUCER);
+      CASE (OS_QUEUE_TYPE_HSA_KERNEL_DISPATCH_SINGLE_PRODUCER);
+      CASE (OS_QUEUE_TYPE_HSA_KERNEL_DISPATCH_COOPERATIVE);
+      CASE (OS_QUEUE_TYPE_AMD_PM4);
+      CASE (OS_QUEUE_TYPE_AMD_SDMA);
+      CASE (OS_QUEUE_TYPE_AMD_SDMA_XGMI);
     }
   return to_string (make_hex (queue_type));
 }
@@ -451,7 +454,7 @@ to_string (amd_dbgapi_dispatch_info_t dispatch_info)
       CASE (DISPATCH_INFO_QUEUE);
       CASE (DISPATCH_INFO_AGENT);
       CASE (DISPATCH_INFO_ARCHITECTURE);
-      CASE (DISPATCH_INFO_PACKET_ID);
+      CASE (DISPATCH_INFO_OS_QUEUE_PACKET_ID);
       CASE (DISPATCH_INFO_BARRIER);
       CASE (DISPATCH_INFO_ACQUIRE_FENCE);
       CASE (DISPATCH_INFO_RELEASE_FENCE);

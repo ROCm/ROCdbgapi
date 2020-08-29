@@ -472,10 +472,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_30
 
 /**
- * The function was introduced in version 0.32 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.32"``.
+ * The function was introduced in version 0.33 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.33"``.
  */
-#define AMD_DBGAPI_VERSION_0_32
+#define AMD_DBGAPI_VERSION_0_33
 
 /** @} */
 
@@ -534,14 +534,14 @@ typedef enum
 } amd_dbgapi_changed_t;
 
 /**
- * Native operating system process id.
+ * Native operating system process ID.
  *
- * This is the process id used by the operating system that is executing the
+ * This is the process ID used by the operating system that is executing the
  * library.  It is used in the implementation of the library to interact with
- * the AMD GPU device driver.
+ * the operating system AMD GPU device driver.
  */
 #if defined(__linux__)
-typedef pid_t amd_dbgapi_os_pid_t;
+typedef pid_t amd_dbgapi_os_process_id_t;
 #endif /* __linux__ */
 
 /**
@@ -569,6 +569,109 @@ typedef pid_t amd_dbgapi_os_pid_t;
  */
 #if defined(__linux__)
 typedef int amd_dbgapi_notifier_t;
+#endif /* __linux__ */
+
+/**
+ * Native operating system agent ID.
+ *
+ * This is the agent ID used by the operating system AMD GPU device driver that
+ * is executing the library to specify the AMD GPU agents accessible to a
+ * process.
+ */
+#if defined(__linux__)
+typedef uint64_t amd_dbgapi_os_agent_id_t;
+#endif /* __linux__ */
+
+/**
+ * Native operating system queue ID.
+ *
+ * This is the queue ID used by the operating system AMD GPU device driver that
+ * is executing the library to specify the AMD GPU queues of a process.
+ */
+#if defined(__linux__)
+typedef uint64_t amd_dbgapi_os_queue_id_t;
+#endif /* __linux__ */
+
+/**
+ * Native operating system queue packet ID.
+ *
+ * This is the queue packet ID used by the operating system AMD GPU device
+ * driver that is executing the library to specify the AMD GPU packets of a
+ * queue of a process.  The meaning of the queue packet ID is dependent on the
+ * queue type.  See ::amd_dbgapi_os_queue_type_t.
+ */
+#if defined(__linux__)
+typedef uint64_t amd_dbgapi_os_queue_packet_id_t;
+#endif /* __linux__ */
+
+/**
+ * Native operating system queue type.
+ *
+ * This is used by the operating system AMD GPU device driver that is executing
+ * the library to specify the AMD GPU queue mechanics supported by the queues
+ * of a process.
+ */
+#if defined(__linux__)
+typedef enum
+{
+  /**
+   * Unknown queue type.
+   */
+  AMD_DBGAPI_OS_QUEUE_TYPE_UNKNOWN = 0,
+  /**
+   * Queue supports the HSA kernel dispatch with multiple producers protocol.
+   *
+   * This follows the multiple producers mechanics described by [HSA Platform
+   * System Architecture Specification: Requirement: User mode queuing]
+   * (http://www.hsafoundation.com/html_spec111/HSA_Library.htm#SysArch/Topics/02_Details/req_user_mode_queuing.htm)
+   * and uses the HSA Architected Queuing Language (AQL) packet format
+   * described in [HSA Platform System Architecture Specification: Requirement:
+   * Architected Queuing Language (AQL)]
+   * (http://www.hsafoundation.com/html_spec111/HSA_Library.htm#SysArch/Topics/02_Details/req_architected_queuing_language_AQL.htm).
+   *
+   * For this queue type the AQL dispatch ID is used for
+   * ::amd_dbgapi_os_queue_packet_id_t.
+   */
+  AMD_DBGAPI_OS_QUEUE_TYPE_HSA_KERNEL_DISPATCH_MULTIPLE_PRODUCER = 1,
+  /**
+   * Queue supports the HSA kernel dispatch with single producer protocol.
+   *
+   * This follows the single producer mechanics described by [HSA Platform
+   * System Architecture Specification: Requirement: User mode queuing]
+   * (http://www.hsafoundation.com/html_spec111/HSA_Library.htm#SysArch/Topics/02_Details/req_user_mode_queuing.htm)
+   * and uses the HSA Architected Queuing Language (AQL) packet format
+   * described in [HSA Platform System Architecture Specification: Requirement:
+   * Architected Queuing Language (AQL)]
+   * (http://www.hsafoundation.com/html_spec111/HSA_Library.htm#SysArch/Topics/02_Details/req_architected_queuing_language_AQL.htm).
+   *
+   * For this queue type the AQL dispatch ID is used for
+   * ::amd_dbgapi_os_queue_packet_id_t.  It is only unique within a single queue
+   * of a single process.
+   */
+  AMD_DBGAPI_OS_QUEUE_TYPE_HSA_KERNEL_DISPATCH_SINGLE_PRODUCER = 2,
+  /**
+   * Queue supports HSA kernel dispatch with multiple producers protocol that
+   * supports cooperative dispatches.
+   *
+   * Queues of this type follow the same protocol as
+   * ::AMD_DBGAPI_OS_QUEUE_TYPE_HSA_KERNEL_DISPATCH_MULTIPLE_PRODUCER.  In
+   * addition, dispatches are able to use global wave synchronization (GWS)
+   * operations.
+   */
+  AMD_DBGAPI_OS_QUEUE_TYPE_HSA_KERNEL_DISPATCH_COOPERATIVE = 3,
+  /**
+   * Queue supports the AMD PM4 protocol.
+   */
+  AMD_DBGAPI_OS_QUEUE_TYPE_AMD_PM4 = 257,
+  /**
+   * Queue supports the AMD SDMA protocol.
+   */
+  AMD_DBGAPI_OS_QUEUE_TYPE_AMD_SDMA = 513,
+  /**
+   * Queue supports the AMD SDMA XGMI protocol.
+   */
+  AMD_DBGAPI_OS_QUEUE_TYPE_AMD_SDMA_XGMI = 514
+} amd_dbgapi_os_queue_type_t;
 #endif /* __linux__ */
 
 /** @} */
@@ -1471,7 +1574,12 @@ typedef enum
    * controlling memory precision.  The type of this attribute is \p uint32_t
    * with the values defined by ::amd_dbgapi_memory_precision_t.
    */
-  AMD_DBGAPI_PROCESS_INFO_PRECISE_MEMORY_SUPPORTED = 4
+  AMD_DBGAPI_PROCESS_INFO_PRECISE_MEMORY_SUPPORTED = 4,
+  /**
+   * Native operating system process ID.  The type of this attribute is
+   * ::amd_dbgapi_os_process_id_t.
+   */
+  AMD_DBGAPI_PROCESS_INFO_OS_ID = 5
 } amd_dbgapi_process_info_t;
 
 /**
@@ -1513,7 +1621,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_process_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_24;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_33;
 
 /**
  * Attach to a process in order to provide debug control of the AMD GPUs it
@@ -2039,7 +2147,12 @@ typedef enum
    * Maximum number of waves possible in a SIMD.  The type of this attribute is
    * \p size_t.
    */
-  AMD_DBGAPI_AGENT_INFO_MAX_WAVES_PER_SIMD = 9
+  AMD_DBGAPI_AGENT_INFO_MAX_WAVES_PER_SIMD = 9,
+  /**
+   * Native operating system agent ID.  The type of this attribute is
+   * ::amd_dbgapi_os_agent_id_t.
+   */
+  AMD_DBGAPI_AGENT_INFO_OS_ID = 10
 } amd_dbgapi_agent_info_t;
 
 /**
@@ -2087,7 +2200,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_agent_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_agent_id_t agent_id,
     amd_dbgapi_agent_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_24;
+    void *value) AMD_DBGAPI_VERSION_0_33;
 
 /**
  * Return the list of agents for a process.
@@ -2187,7 +2300,7 @@ typedef enum
   AMD_DBGAPI_QUEUE_INFO_ARCHITECTURE = 2,
   /**
    * Return the queue type.  The type of this attribute is \p uint32_t with
-   * values from ::amd_dbgapi_queue_type_t.
+   * values from ::amd_dbgapi_os_queue_type_t.
    */
   AMD_DBGAPI_QUEUE_TYPE = 3,
   /**
@@ -2211,7 +2324,12 @@ typedef enum
    * Return the size in bytes of the memory holding the queue packets.  The
    * type of this attribute is ::amd_dbgapi_size_t.
    */
-  AMD_DBGAPI_QUEUE_INFO_SIZE = 7
+  AMD_DBGAPI_QUEUE_INFO_SIZE = 7,
+  /**
+   * Native operating system queue ID.  The type of this attribute is
+   * ::amd_dbgapi_os_queue_id_t.
+   */
+  AMD_DBGAPI_QUEUE_INFO_OS_ID = 8
 } amd_dbgapi_queue_info_t;
 
 /**
@@ -2259,73 +2377,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_queue_id_t queue_id,
     amd_dbgapi_queue_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_32;
-
-/**
- * Queue type.
- *
- * Indicates which queue mechanic is supported by the queue.
- */
-typedef enum
-{
-  /**
-   * Unknown queue type.
-   */
-  AMD_DBGAPI_QUEUE_TYPE_UNKNOWN = 0,
-  /**
-   * Queue supports the HSA kernel dispatch with multiple producers protocol.
-   *
-   * This follows the multiple producers mechanics described by [HSA Platform
-   * System Architecture Specification: Requirement: User mode queuing]
-   * (http://www.hsafoundation.com/html_spec111/HSA_Library.htm#SysArch/Topics/02_Details/req_user_mode_queuing.htm)
-   * and uses the HSA Architected Queuing Language (AQL) packet format
-   * described in [HSA Platform System Architecture Specification: Requirement:
-   * Architected Queuing Language (AQL)]
-   * (http://www.hsafoundation.com/html_spec111/HSA_Library.htm#SysArch/Topics/02_Details/req_architected_queuing_language_AQL.htm).
-   *
-   * For this queue type the AQL dispatch ID is used for
-   * ::amd_dbgapi_queue_packet_id_t.
-   */
-  AMD_DBGAPI_QUEUE_TYPE_HSA_KERNEL_DISPATCH_MULTIPLE_PRODUCER = 1,
-  /**
-   * Queue supports the HSA kernel dispatch with single producer protocol.
-   *
-   * This follows the single producer mechanics described by [HSA Platform
-   * System Architecture Specification: Requirement: User mode queuing]
-   * (http://www.hsafoundation.com/html_spec111/HSA_Library.htm#SysArch/Topics/02_Details/req_user_mode_queuing.htm)
-   * and uses the HSA Architected Queuing Language (AQL) packet format
-   * described in [HSA Platform System Architecture Specification: Requirement:
-   * Architected Queuing Language (AQL)]
-   * (http://www.hsafoundation.com/html_spec111/HSA_Library.htm#SysArch/Topics/02_Details/req_architected_queuing_language_AQL.htm).
-   *
-   * For this queue type the AQL dispatch ID is used for
-   * ::amd_dbgapi_queue_packet_id_t.  It is only unique within a single queue
-   * of a single process.
-   */
-  AMD_DBGAPI_QUEUE_TYPE_HSA_KERNEL_DISPATCH_SINGLE_PRODUCER = 2,
-  /**
-   * Queue supports HSA kernel dispatch with multiple producers protocol that
-   * supports cooperative dispatches.
-   *
-   * Queues of this type follow the same protocol as
-   * ::AMD_DBGAPI_QUEUE_TYPE_HSA_KERNEL_DISPATCH_MULTIPLE_PRODUCER.  In
-   * addition, dispatches are able to use global wave synchronization (GWS)
-   * operations.
-   */
-  AMD_DBGAPI_QUEUE_TYPE_HSA_KERNEL_DISPATCH_COOPERATIVE = 3,
-  /**
-   * Queue supports the AMD PM4 protocol.
-   */
-  AMD_DBGAPI_QUEUE_TYPE_AMD_PM4 = 257,
-  /**
-   * Queue supports the AMD SDMA protocol.
-   */
-  AMD_DBGAPI_QUEUE_TYPE_AMD_SDMA = 513,
-  /**
-   * Queue supports the AMD SDMA XGMI protocol.
-   */
-  AMD_DBGAPI_QUEUE_TYPE_AMD_SDMA_XGMI = 514
-} amd_dbgapi_queue_type_t;
+    void *value) AMD_DBGAPI_VERSION_0_33;
 
 /**
  * Queue state.
@@ -2431,14 +2483,6 @@ amd_dbgapi_queue_list (amd_dbgapi_process_id_t process_id, size_t *queue_count,
                        amd_dbgapi_changed_t *changed) AMD_DBGAPI_VERSION_0_24;
 
 /**
- * Queue packet ID.
- *
- * The meaning of the packet ID is dependent on the queue type.  See
- * ::amd_dbgapi_queue_type_t.
- */
-typedef uint64_t amd_dbgapi_queue_packet_id_t;
-
-/**
  * Return the packets for a queue of a process.
  *
  * Since the AMD GPU is asynchronously reading the packets this is only a
@@ -2449,7 +2493,7 @@ typedef uint64_t amd_dbgapi_queue_packet_id_t;
  *
  * The queue packets are returned as a byte block that the client must
  * interpret according to the packet ABI determined by the queue type available
- * using the ::AMD_DBGAPI_QUEUE_TYPE query.  See ::amd_dbgapi_queue_type_t.
+ * using the ::AMD_DBGAPI_QUEUE_TYPE query.  See ::amd_dbgapi_os_queue_type_t.
  *
  * \param[in] process_id The process of the queue for which the packet list is
  * requested.
@@ -2492,9 +2536,9 @@ typedef uint64_t amd_dbgapi_queue_packet_id_t;
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_packet_list (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_queue_id_t queue_id,
-    amd_dbgapi_queue_packet_id_t *first_packet_id,
+    amd_dbgapi_os_queue_packet_id_t *first_packet_id,
     amd_dbgapi_size_t *packets_byte_size,
-    void **packets_bytes) AMD_DBGAPI_VERSION_0_32;
+    void **packets_bytes) AMD_DBGAPI_VERSION_0_33;
 
 /** @} */
 
@@ -2503,7 +2547,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_packet_list (
  * Operations related to AMD GPU dispatches.
  *
  * Dispatches are initiated by queue dispatch packets in the format supported
- * by the queue.  See ::amd_dbgapi_queue_type_t.  Dispatches are the means that
+ * by the queue.  See ::amd_dbgapi_os_queue_type_t.  Dispatches are the means that
  * waves are created on the AMD GPU.
  *
  * @{
@@ -2550,9 +2594,10 @@ typedef enum
   AMD_DBGAPI_DISPATCH_INFO_ARCHITECTURE = 3,
   /**
    * Return the queue packet ID of the dispatch packet that initiated the
-   * dispatch.  The type of this attribute is \p amd_dbgapi_queue_packet_id_t.
+   * dispatch.  The type of this attribute is \p
+   * amd_dbgapi_os_queue_packet_id_t.
    */
-  AMD_DBGAPI_DISPATCH_INFO_PACKET_ID = 4,
+  AMD_DBGAPI_DISPATCH_INFO_OS_QUEUE_PACKET_ID = 4,
   /**
    * Return the dispatch barrier setting.  The type of this attribute is
    * \p uint32_t with values defined by ::amd_dbgapi_dispatch_barrier_t.
@@ -2604,12 +2649,12 @@ typedef enum
    */
   AMD_DBGAPI_DISPATCH_INFO_KERNEL_ENTRY_ADDRESS = 14,
   /**
-   * Return the dispatch completion event address.  The ABI of the completion
-   * event varies depending on the queue type available using the
-   * ::AMD_DBGAPI_QUEUE_TYPE query.  See ::amd_dbgapi_queue_type_t.  The type
-   * of this attribute is ::amd_dbgapi_global_address_t.  If the queue type
-   * does not use completion events, or the dispatch packet does not define a
-   * completion event, then ::amd_dbgapi_dispatch_get_info will return
+   * Return the dispatch completion event address.  The type of this attribute
+   * is ::amd_dbgapi_global_address_t.  The ABI of the completion event varies
+   * depending on the queue type available using the ::AMD_DBGAPI_QUEUE_TYPE
+   * query.  See ::amd_dbgapi_os_queue_type_t.  If the queue type does not use
+   * completion events, or the dispatch packet does not define a completion
+   * event, then ::amd_dbgapi_dispatch_get_info will return
    * ::AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED.
    */
   AMD_DBGAPI_DISPATCH_INFO_KERNEL_COMPLETION_ADDRESS = 15
@@ -2663,7 +2708,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_dispatch_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_dispatch_id_t dispatch_id,
     amd_dbgapi_dispatch_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_32;
+    void *value) AMD_DBGAPI_VERSION_0_33;
 
 /**
  * Dispatch barrier.
@@ -3833,7 +3878,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_watchpoint (
     amd_dbgapi_size_t size, amd_dbgapi_watchpoint_kind_t kind,
     amd_dbgapi_watchpoint_id_t *watchpoint_id,
     amd_dbgapi_global_address_t *watchpoint_address,
-    amd_dbgapi_size_t *watchpoint_size) AMD_DBGAPI_VERSION_0_32;
+    amd_dbgapi_size_t *watchpoint_size) AMD_DBGAPI_VERSION_0_33;
 
 /**
  * Remove a hardware data watchpoint previously set by
@@ -6154,7 +6199,7 @@ struct amd_dbgapi_callbacks_s
    */
   amd_dbgapi_status_t (*get_os_pid) (
       amd_dbgapi_client_process_id_t client_process_id,
-      amd_dbgapi_os_pid_t *os_pid);
+      amd_dbgapi_os_process_id_t *os_pid);
 
   /**
    * Request to be notified when a shared library is loaded and unloaded.

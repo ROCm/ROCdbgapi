@@ -55,11 +55,11 @@ public:
   virtual ~queue_impl_t () = default;
 
   /* Return a snapshot of the packets present in this queue.  */
-  virtual std::pair<amd_dbgapi_queue_packet_id_t, std::vector<uint8_t>>
+  virtual std::pair<amd_dbgapi_os_queue_packet_id_t, std::vector<uint8_t>>
   packets () const = 0;
 
   /* Return the queue's type.  */
-  virtual amd_dbgapi_queue_type_t type () const = 0;
+  virtual amd_dbgapi_os_queue_type_t type () const = 0;
 
   /* Notify the impl that the queue was suspended/resumed.  */
   virtual void state_changed (state_t) {}
@@ -89,10 +89,10 @@ public:
   aql_queue_impl_t (queue_t &queue);
   virtual ~aql_queue_impl_t () override;
 
-  virtual std::pair<amd_dbgapi_queue_packet_id_t, std::vector<uint8_t>>
+  virtual std::pair<amd_dbgapi_os_queue_packet_id_t, std::vector<uint8_t>>
   packets () const override;
 
-  virtual amd_dbgapi_queue_type_t type () const override;
+  virtual amd_dbgapi_os_queue_type_t type () const override;
 
   virtual void state_changed (state_t state) override;
 
@@ -416,16 +416,16 @@ queue_t::aql_queue_impl_t::update_waves ()
         /* Calculate the monotonic dispatch id for this packet.  It is between
            read_dispatch_id and write_dispatch_id.  */
 
-        amd_dbgapi_queue_packet_id_t queue_packet_id
+        amd_dbgapi_os_queue_packet_id_t os_queue_packet_id
             = (dispatch_ptr - m_queue.m_os_queue_info.ring_base_address)
               / AQL_PACKET_SIZE;
 
-        /* Check that 0 <= queue_packet_id < queue_size.  */
-        if (queue_packet_id
+        /* Check that 0 <= os_queue_packet_id < queue_size.  */
+        if (os_queue_packet_id
             >= m_queue.m_os_queue_info.ring_size / AQL_PACKET_SIZE)
           /* TODO: See comment above for corrupted wavefronts. This could be
              attached to a CORRUPT_DISPATCH instance.  */
-          error ("invalid queue_packet_id (%#lx)", queue_packet_id);
+          error ("invalid os_queue_packet_id (%#lx)", os_queue_packet_id);
 
         /* ring_size must be a power of 2.  */
         if (!utils::is_power_of_two (m_queue.m_os_queue_info.ring_size))
@@ -436,30 +436,30 @@ queue_t::aql_queue_impl_t::update_waves ()
         const uint64_t id_mask
             = m_queue.m_os_queue_info.ring_size / AQL_PACKET_SIZE - 1;
 
-        queue_packet_id |= queue_packet_id >= (read_dispatch_id & id_mask)
+        os_queue_packet_id |= os_queue_packet_id >= (read_dispatch_id & id_mask)
                                ? (read_dispatch_id & ~id_mask)
                                : (write_dispatch_id & ~id_mask);
 
         /* Check that read_dispatch_id <= dispatch_id < write_dispatch_id */
-        if (read_dispatch_id > queue_packet_id
-            || queue_packet_id >= write_dispatch_id)
+        if (read_dispatch_id > os_queue_packet_id
+            || os_queue_packet_id >= write_dispatch_id)
           /* TODO: See comment above for corrupted wavefronts. This could be
              attached to a CORRUPT_DISPATCH instance.  */
           error ("invalid dispatch id (%#lx), with read_dispatch_id=%#lx, "
                  "and write_dispatch_id=%#lx",
-                 queue_packet_id, read_dispatch_id, write_dispatch_id);
+                 os_queue_packet_id, read_dispatch_id, write_dispatch_id);
 
         /* Check if the dispatch already exists.  */
         dispatch_t *dispatch = process.find_if ([&] (const dispatch_t &x) {
           return x.queue ().id () == m_queue.id ()
-                 && x.queue_packet_id () == queue_packet_id;
+                 && x.os_queue_packet_id () == os_queue_packet_id;
         });
 
         /* If we did not find the current dispatch, create a new one.  */
         if (!dispatch)
           dispatch = &process.create<dispatch_t> (
               m_queue,         /* queue  */
-              queue_packet_id, /* queue_packet_id  */
+              os_queue_packet_id, /* os_queue_packet_id  */
               dispatch_ptr);   /* packet_address  */
 
         wave = &process.create<wave_t> (*dispatch);
@@ -524,14 +524,14 @@ queue_t::aql_queue_impl_t::update_waves ()
   auto &&dispatch_range = process.range<dispatch_t> ();
   for (auto it = dispatch_range.begin (); it != dispatch_range.end ();)
     it = (it->queue ().id () == m_queue.id ()
-          && it->queue_packet_id () < read_dispatch_id)
+          && it->os_queue_packet_id () < read_dispatch_id)
              ? process.destroy (it)
              : ++it;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
-std::pair<amd_dbgapi_queue_packet_id_t, std::vector<uint8_t>>
+std::pair<amd_dbgapi_os_queue_packet_id_t, std::vector<uint8_t>>
 queue_t::aql_queue_impl_t::packets () const
 {
   dbgapi_assert (m_queue.is_suspended ());
@@ -599,19 +599,19 @@ queue_t::aql_queue_impl_t::packets () const
   return std::make_pair (read_dispatch_id, std::move (packets));
 }
 
-amd_dbgapi_queue_type_t
+amd_dbgapi_os_queue_type_t
 queue_t::aql_queue_impl_t::type () const
 {
   switch (m_hsa_queue.type)
     {
     case HSA_QUEUE_TYPE_SINGLE:
-      return AMD_DBGAPI_QUEUE_TYPE_HSA_KERNEL_DISPATCH_SINGLE_PRODUCER;
+      return AMD_DBGAPI_OS_QUEUE_TYPE_HSA_KERNEL_DISPATCH_SINGLE_PRODUCER;
     case HSA_QUEUE_TYPE_MULTI:
-      return AMD_DBGAPI_QUEUE_TYPE_HSA_KERNEL_DISPATCH_MULTIPLE_PRODUCER;
+      return AMD_DBGAPI_OS_QUEUE_TYPE_HSA_KERNEL_DISPATCH_MULTIPLE_PRODUCER;
     case HSA_QUEUE_TYPE_COOPERATIVE:
-      return AMD_DBGAPI_QUEUE_TYPE_HSA_KERNEL_DISPATCH_COOPERATIVE;
+      return AMD_DBGAPI_OS_QUEUE_TYPE_HSA_KERNEL_DISPATCH_COOPERATIVE;
     }
-  return AMD_DBGAPI_QUEUE_TYPE_UNKNOWN;
+  return AMD_DBGAPI_OS_QUEUE_TYPE_UNKNOWN;
 }
 
 void
@@ -670,17 +670,17 @@ class queue_t::pm4_queue_impl_t : public queue_impl_t
 public:
   pm4_queue_impl_t (queue_t &queue) : queue_impl_t (queue) {}
 
-  virtual std::pair<amd_dbgapi_queue_packet_id_t, std::vector<uint8_t>>
+  virtual std::pair<amd_dbgapi_os_queue_packet_id_t, std::vector<uint8_t>>
   packets () const override
   {
     /* FIXME: Not yet implemented.  */
     return {};
   }
 
-  virtual amd_dbgapi_queue_type_t type () const override
+  virtual amd_dbgapi_os_queue_type_t type () const override
   {
     /* FIXME: Not yet implemented.  */
-    return AMD_DBGAPI_QUEUE_TYPE_AMD_PM4;
+    return AMD_DBGAPI_OS_QUEUE_TYPE_AMD_PM4;
   }
 };
 
@@ -712,7 +712,7 @@ queue_t::queue_t (amd_dbgapi_queue_id_t queue_id, agent_t &agent,
 
 queue_t::~queue_t () {}
 
-std::pair<amd_dbgapi_queue_packet_id_t, std::vector<uint8_t>>
+std::pair<amd_dbgapi_os_queue_packet_id_t, std::vector<uint8_t>>
 queue_t::packets () const
 {
   if (m_impl)
@@ -721,13 +721,13 @@ queue_t::packets () const
   return {};
 }
 
-amd_dbgapi_queue_type_t
+amd_dbgapi_os_queue_type_t
 queue_t::type () const
 {
   if (m_impl)
     return m_impl->type ();
 
-  return AMD_DBGAPI_QUEUE_TYPE_UNKNOWN;
+  return AMD_DBGAPI_OS_QUEUE_TYPE_UNKNOWN;
 }
 
 void
@@ -785,6 +785,11 @@ queue_t::get_info (amd_dbgapi_queue_info_t query, size_t value_size,
 
     case AMD_DBGAPI_QUEUE_TYPE:
       return utils::get_info (value_size, value, type ());
+
+    case AMD_DBGAPI_QUEUE_INFO_OS_ID:
+      return utils::get_info (
+          value_size, value,
+          static_cast<amd_dbgapi_os_queue_id_t> (m_os_queue_info.queue_id));
 
     case AMD_DBGAPI_QUEUE_INFO_STATE:
     case AMD_DBGAPI_QUEUE_INFO_ERROR_REASON:
@@ -871,7 +876,7 @@ amd_dbgapi_queue_list (amd_dbgapi_process_id_t process_id, size_t *queue_count,
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_queue_packet_list (amd_dbgapi_process_id_t process_id,
                               amd_dbgapi_queue_id_t queue_id,
-                              amd_dbgapi_queue_packet_id_t *first_packet_id,
+                              amd_dbgapi_os_queue_packet_id_t *first_packet_id,
                               amd_dbgapi_size_t *packets_byte_size,
                               void **packets_bytes)
 {

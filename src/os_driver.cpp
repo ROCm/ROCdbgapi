@@ -49,7 +49,7 @@ namespace
 class linux_driver_t : public os_driver_t
 {
 public:
-  linux_driver_t (std::optional<amd_dbgapi_os_pid_t> os_pid);
+  linux_driver_t (std::optional<amd_dbgapi_os_process_id_t> os_pid);
   virtual ~linux_driver_t ();
 
   virtual bool is_valid () const override
@@ -65,7 +65,7 @@ private:
   std::optional<file_desc_t> m_proc_mem_fd;
 };
 
-linux_driver_t::linux_driver_t (std::optional<amd_dbgapi_os_pid_t> os_pid)
+linux_driver_t::linux_driver_t (std::optional<amd_dbgapi_os_process_id_t> os_pid)
     : os_driver_t (std::move (os_pid))
 {
   if (!m_os_pid)
@@ -144,7 +144,7 @@ private:
                           kfd_ioctl_dbg_trap_args *args) const;
 
 public:
-  kfd_driver_t (std::optional<amd_dbgapi_os_pid_t> os_pid)
+  kfd_driver_t (std::optional<amd_dbgapi_os_process_id_t> os_pid)
       : linux_driver_t (std::move (os_pid))
   {
     open_kfd ();
@@ -736,7 +736,7 @@ kfd_driver_t::set_wave_launch_trap_override (
 class no_agents_driver_t : public linux_driver_t
 {
 public:
-  no_agents_driver_t (std::optional<amd_dbgapi_os_pid_t> os_pid)
+  no_agents_driver_t (std::optional<amd_dbgapi_os_process_id_t> os_pid)
       : linux_driver_t (std::move (os_pid))
   {
   }
@@ -835,13 +835,13 @@ public:
 
 } /* namespace */
 
-os_driver_t::os_driver_t (std::optional<amd_dbgapi_os_pid_t> os_pid)
+os_driver_t::os_driver_t (std::optional<amd_dbgapi_os_process_id_t> os_pid)
     : m_os_pid (std::move (os_pid))
 {
 }
 
 std::unique_ptr<const os_driver_t>
-os_driver_t::create (std::optional<amd_dbgapi_os_pid_t> os_pid)
+os_driver_t::create (std::optional<amd_dbgapi_os_process_id_t> os_pid)
 {
   std::unique_ptr<const os_driver_t> os_driver{ new kfd_driver_t (os_pid) };
 

@@ -166,13 +166,13 @@ enum class os_wave_launch_mode_t : uint32_t
 class os_driver_t
 {
 protected:
-  os_driver_t (std::optional<amd_dbgapi_os_pid_t> os_pid);
+  os_driver_t (std::optional<amd_dbgapi_os_process_id_t> os_pid);
 
 public:
   virtual ~os_driver_t () = default;
 
   static std::unique_ptr<const os_driver_t>
-  create (std::optional<amd_dbgapi_os_pid_t> os_pid);
+  create (std::optional<amd_dbgapi_os_process_id_t> os_pid);
 
   virtual bool is_valid () const { return m_os_pid.has_value (); }
 
@@ -226,7 +226,7 @@ public:
                               const void *write, size_t *size) const = 0;
 
 protected:
-  std::optional<amd_dbgapi_os_pid_t> const m_os_pid;
+  std::optional<amd_dbgapi_os_process_id_t> const m_os_pid;
 };
 
 template <> std::string to_string (os_wave_launch_mode_t mode);

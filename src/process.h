@@ -175,7 +175,7 @@ public:
   amd_dbgapi_status_t get_info (amd_dbgapi_process_info_t query,
                                 size_t value_size, void *value) const;
 
-  amd_dbgapi_status_t get_os_pid (amd_dbgapi_os_pid_t *pid) const
+  amd_dbgapi_status_t get_os_pid (amd_dbgapi_os_process_id_t *pid) const
   {
     TRACE_CALLBACK ();
     return (*process_callbacks.get_os_pid) (m_client_process_id, pid);
