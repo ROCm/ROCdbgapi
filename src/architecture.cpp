@@ -401,9 +401,9 @@ address_space_for_generic_address (
   amd_dbgapi_global_address_t aperture
       = generic_address & utils::bit_mask (32, 63);
 
-  if (aperture == wave.queue ().private_address_space_aperture ())
+  if (aperture == wave.agent ().private_address_space_aperture ())
     address_space_kind = address_space_t::PRIVATE_SWIZZLED;
-  else if (aperture == wave.queue ().shared_address_space_aperture ())
+  else if (aperture == wave.agent ().shared_address_space_aperture ())
     address_space_kind = address_space_t::LOCAL;
   else /* all other addresses are treated as global addresses  */
     address_space_kind = address_space_t::GLOBAL;
@@ -431,9 +431,9 @@ generic_address_for_address_space (
   amd_dbgapi_segment_address_t aperture{ 0 };
 
   if (segment_address_space.kind () == address_space_t::LOCAL)
-    aperture = wave.queue ().shared_address_space_aperture ();
+    aperture = wave.agent ().shared_address_space_aperture ();
   if (segment_address_space.kind () == address_space_t::PRIVATE_SWIZZLED)
-    aperture = wave.queue ().private_address_space_aperture ();
+    aperture = wave.agent ().private_address_space_aperture ();
   else if (segment_address_space.kind () != address_space_t::GLOBAL)
     /* not a valid address space conversion.  */
     return {};
@@ -2242,11 +2242,11 @@ architecture_t::find (amd_dbgapi_architecture_id_t architecture_id, int ignore)
 const architecture_t *
 architecture_t::find (elf_amdgpu_machine_t elf_amdgpu_machine)
 {
-  auto it = std::find_if (
-      s_architecture_map.begin (), s_architecture_map.end (),
-      [&] (const decltype (s_architecture_map)::value_type &value) {
-        return value.second->elf_amdgpu_machine () == elf_amdgpu_machine;
-      });
+  auto it = std::find_if (s_architecture_map.begin (),
+                          s_architecture_map.end (), [&] (const auto &value) {
+                            return value.second->elf_amdgpu_machine ()
+                                   == elf_amdgpu_machine;
+                          });
 
   return it != s_architecture_map.end () ? it->second.get () : nullptr;
 }

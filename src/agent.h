@@ -83,6 +83,18 @@ public:
   amd_dbgapi_status_t get_info (amd_dbgapi_agent_info_t query,
                                 size_t value_size, void *value) const;
 
+  amd_dbgapi_global_address_t shared_address_space_aperture () const
+  {
+    dbgapi_assert (m_os_agent_info.local_address_space_aperture);
+    return m_os_agent_info.local_address_space_aperture;
+  }
+
+  amd_dbgapi_global_address_t private_address_space_aperture () const
+  {
+    dbgapi_assert (m_os_agent_info.private_address_space_aperture);
+    return m_os_agent_info.private_address_space_aperture;
+  }
+
   const architecture_t &architecture () const { return m_architecture; }
   process_t &process () const { return m_process; }
 

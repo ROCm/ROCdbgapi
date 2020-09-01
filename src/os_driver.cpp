@@ -38,6 +38,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+using namespace std::string_literals;
+
 namespace amd::dbgapi
 {
 
@@ -296,11 +298,8 @@ kfd_driver_t::check_version () const
   dbg_trap_args.pid = static_cast<uint32_t> (getpid ());
   dbg_trap_args.op = KFD_IOC_DBG_TRAP_GET_VERSION;
 
-  int err = ::ioctl (*s_kfd_fd, AMDKFD_IOC_DBG_TRAP, &dbg_trap_args);
-  if (err == -ESRCH)
-    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
-  else if (err < 0)
-    return AMD_DBGAPI_STATUS_ERROR;
+  if (::ioctl (*s_kfd_fd, AMDKFD_IOC_DBG_TRAP, &dbg_trap_args))
+    error ("KFD_IOC_DBG_TRAP_GET_VERSION failed");
 
   uint32_t major = dbg_trap_args.data1;
   uint32_t minor = dbg_trap_args.data2;
@@ -352,10 +351,33 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
     error ("Could not opendir `%s': %s", sysfs_nodes_path.c_str (),
            strerror (errno));
 
+  size_t node_count{ 0 };
+
   struct dirent *dir;
   while ((dir = readdir (dirp.get ())))
+    if (dir->d_name != "."s && dir->d_name != ".."s)
+      ++node_count;
+
+  std::vector<kfd_process_device_apertures> node_aperture_infos (node_count);
+
+  kfd_ioctl_get_process_apertures_new_args args{};
+  args.kfd_process_device_apertures_ptr
+      = reinterpret_cast<uintptr_t> (node_aperture_infos.data ());
+  args.num_of_nodes = node_aperture_infos.size ();
+
+  /* FIXME: There is no guarantee that the the debugger's apertures are the
+     same as the inferior's, so we really should be using a dbgtrap ioctl.  */
+  if (::ioctl (*s_kfd_fd, AMDKFD_IOC_GET_PROCESS_APERTURES_NEW, &args))
+    error ("AMDKFD_IOC_GET_PROCESS_APERTURES_NEW failed");
+
+  /* KFD returns the actual number of entries copied to the array. */
+  dbgapi_assert (args.num_of_nodes <= node_aperture_infos.size ());
+  node_aperture_infos.resize (args.num_of_nodes);
+
+  rewinddir (dirp.get ());
+  while ((dir = readdir (dirp.get ())))
     {
-      if (!strcmp (dir->d_name, ".") || !strcmp (dir->d_name, ".."))
+      if (dir->d_name == "."s || dir->d_name == ".."s)
         continue;
 
       os_agent_snapshot_entry_t agent_info;
@@ -387,6 +409,21 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
       if (agent_info.name.empty ())
         error ("os_agent_id %d: asic family name not present in the sysfs.",
                agent_info.os_agent_id);
+
+      /* Fill in the apertures for this agent.  */
+
+      auto it = std::find_if (
+          node_aperture_infos.begin (), node_aperture_infos.end (),
+          [&] (const auto &node_aperture_info) {
+            return node_aperture_info.gpu_id == agent_info.os_agent_id;
+          });
+
+      if (it == node_aperture_infos.end ())
+        error ("Could not get apertures for gpu_id %d",
+               agent_info.os_agent_id);
+
+      agent_info.local_address_space_aperture = it->lds_base;
+      agent_info.private_address_space_aperture = it->scratch_base;
 
       /* Retrieve the GPU node properties.  */
 

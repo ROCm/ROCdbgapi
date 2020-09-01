@@ -581,11 +581,10 @@ process_t::update_agents ()
   /* Delete agents that are no longer present in this process. */
   auto &&agent_range = range<agent_t> ();
   for (auto it = agent_range.begin (); it != agent_range.end ();)
-    if (std::find_if (
-            agent_infos.begin (), agent_infos.end (),
-            [&] (const decltype (agent_infos)::value_type &agent_info) {
-              return it->os_agent_id () == agent_info.os_agent_id;
-            })
+    if (std::find_if (agent_infos.begin (), agent_infos.end (),
+                      [&] (const auto &agent_info) {
+                        return it->os_agent_id () == agent_info.os_agent_id;
+                      })
         == agent_infos.end ())
       it = destroy (it);
     else
@@ -1349,9 +1348,7 @@ process_t::attach ()
     /* Remove the breakpoints we've inserted when the library was loaded.  */
     auto &&breakpoint_range = process.range<breakpoint_t> ();
     for (auto it = breakpoint_range.begin (); it != breakpoint_range.end ();)
-      it = (it->shared_library ().id () == library.id ())
-               ? process.destroy (it)
-               : ++it;
+      it = (it->shared_library () == library) ? process.destroy (it) : ++it;
 
     /* Destruct the code objects.  */
     std::get<handle_object_set_t<code_object_t>> (m_handle_object_sets)

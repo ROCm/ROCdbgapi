@@ -70,6 +70,11 @@ protected:
 public:
   handle_type id () const { return m_id; }
 
+  /* Since handle_object ids are unique, two handle_objects are identical if
+     they have the same id.  */
+  bool operator== (const handle_object &rhs) const { return m_id == rhs.m_id; }
+  bool operator!= (const handle_object &rhs) const { return m_id != rhs.m_id; }
+
 private:
   handle_type const m_id;
 };
@@ -309,21 +314,19 @@ public:
 
   template <typename Functor> Object *find_if (Functor predicate)
   {
-    auto it = std::find_if (m_map.begin (), m_map.end (),
-                            [=] (const typename map_type::value_type &value) {
-                              return bool{ is_valid (value.second)
-                                           && predicate (value.second) };
-                            });
+    auto it
+        = std::find_if (m_map.begin (), m_map.end (), [=] (const auto &value) {
+            return bool{ is_valid (value.second) && predicate (value.second) };
+          });
     return (it != m_map.end ()) ? &it->second : nullptr;
   }
 
   template <typename Functor> const Object *find_if (Functor predicate) const
   {
-    auto it = std::find_if (m_map.begin (), m_map.end (),
-                            [=] (const typename map_type::value_type &value) {
-                              return bool{ is_valid (value.second)
-                                           && predicate (value.second) };
-                            });
+    auto it
+        = std::find_if (m_map.begin (), m_map.end (), [=] (const auto &value) {
+            return bool{ is_valid (value.second) && predicate (value.second) };
+          });
     return (it != m_map.end ()) ? &it->second : nullptr;
   }
 

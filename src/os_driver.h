@@ -80,6 +80,10 @@ struct os_agent_snapshot_entry_t
   uint32_t fw_version{ 0 };
   /* ucode version required to support debugging.  */
   uint32_t fw_version_required{ 0 };
+  /* local/shared address space aperture base.  */
+  amd_dbgapi_global_address_t local_address_space_aperture{ 0 };
+  /* private/scratch address space aperture base.  */
+  amd_dbgapi_global_address_t private_address_space_aperture{ 0 };
   /* ELF e_machine.  */
   elf_amdgpu_machine_t e_machine{ EF_AMDGPU_MACH_NONE };
 };

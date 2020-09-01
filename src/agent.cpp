@@ -249,11 +249,10 @@ agent_t::remove_watchpoint (const watchpoint_t &watchpoint)
 {
   /* Find watchpoint in the os_watch_id to watchpoint_t map.  The key will be
      the os_watch_id to clear for this agent.  */
-  auto it = std::find_if (
-      m_watchpoint_map.begin (), m_watchpoint_map.end (),
-      [&watchpoint] (const decltype (m_watchpoint_map)::value_type &value) {
-        return value.second == &watchpoint;
-      });
+  auto it = std::find_if (m_watchpoint_map.begin (), m_watchpoint_map.end (),
+                          [&watchpoint] (const auto &value) {
+                            return value.second == &watchpoint;
+                          });
 
   if (it == m_watchpoint_map.end ())
     error ("watchpoint is not inserted");

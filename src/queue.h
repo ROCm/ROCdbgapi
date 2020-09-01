@@ -44,15 +44,9 @@ class process_t;
 
 class queue_t : public detail::handle_object<amd_dbgapi_queue_id_t>
 {
-private:
+public:
   class queue_impl_t; /* Base class for all queue implementations.  */
 
-  /* TODO: Move the specific implementations to the detail namespace in
-   * queue.cpp, need to expose access to queue_t's state from queue_impl_t.  */
-  class aql_queue_impl_t; /* AQL queue implementation.  */
-  class pm4_queue_impl_t; /* PM4 queue implemnatation.  */
-
-public:
   enum class state_t
   {
     INVALID,   /* The queue is invalid. Calls to os_queue_id () will return the
@@ -81,16 +75,7 @@ public:
   bool is_suspended () const { return m_state == state_t::SUSPENDED; }
   bool is_running () const { return m_state == state_t::RUNNING; }
 
-  os_queue_id_t os_queue_id () const
-  {
-    return is_valid () ? m_os_queue_info.queue_id : OS_INVALID_QUEUEID;
-  }
-  os_queue_type_t os_queue_type () const
-  {
-    return amd::dbgapi::os_queue_type (m_os_queue_info);
-  }
-
-  amd_dbgapi_os_queue_type_t type () const;
+  os_queue_id_t os_queue_id () const;
 
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }
@@ -99,39 +84,12 @@ public:
             size_t /* packets_byte_size */>
   packets (void **packets_bytes) const;
 
-  amd_dbgapi_global_address_t displaced_stepping_buffer_address () const
-  {
-    return m_displaced_stepping_buffer_address;
-  }
-  amd_dbgapi_global_address_t parked_wave_buffer_address () const
-  {
-    return m_parked_wave_buffer_address;
-  }
-  amd_dbgapi_global_address_t endpgm_buffer_address () const
-  {
-    return m_endpgm_buffer_address;
-  }
+  amd_dbgapi_global_address_t displaced_stepping_buffer_address () const;
+  amd_dbgapi_global_address_t parked_wave_buffer_address () const;
+  amd_dbgapi_global_address_t endpgm_buffer_address () const;
 
-  amd_dbgapi_global_address_t scratch_backing_memory_address () const
-  {
-    dbgapi_assert (m_scratch_backing_memory_address);
-    return m_scratch_backing_memory_address;
-  }
-  amd_dbgapi_size_t scratch_backing_memory_size () const
-  {
-    return m_scratch_backing_memory_size;
-  }
-
-  amd_dbgapi_global_address_t shared_address_space_aperture ()
-  {
-    dbgapi_assert (m_local_address_space_aperture);
-    return m_local_address_space_aperture;
-  }
-  amd_dbgapi_global_address_t private_address_space_aperture ()
-  {
-    dbgapi_assert (m_private_address_space_aperture);
-    return m_private_address_space_aperture;
-  }
+  amd_dbgapi_global_address_t scratch_backing_memory_address () const;
+  amd_dbgapi_size_t scratch_backing_memory_size () const;
 
   amd_dbgapi_status_t get_info (amd_dbgapi_queue_info_t query,
                                 size_t value_size, void *value) const;
@@ -144,28 +102,13 @@ public:
   }
 
 private:
-  os_queue_snapshot_entry_t const m_os_queue_info;
   state_t m_state{ state_t::RUNNING };
-
-  amd_dbgapi_global_address_t m_displaced_stepping_buffer_address{ 0 };
-  amd_dbgapi_global_address_t m_parked_wave_buffer_address{ 0 };
-  amd_dbgapi_global_address_t m_endpgm_buffer_address{ 0 };
-
-  amd_dbgapi_global_address_t m_scratch_backing_memory_address{ 0 };
-  amd_dbgapi_global_address_t m_scratch_backing_memory_size{ 0 };
-
-  amd_dbgapi_global_address_t m_local_address_space_aperture{ 0 };
-  amd_dbgapi_global_address_t m_private_address_space_aperture{ 0 };
-
   epoch_t m_mark{ 0 };
 
-  /* Value used to mark waves that are found in the context save area. When
-     sweeping, any wave found with a mark less than the current mark will be
-     deleted, as these waves are no longer active.  */
-  monotonic_counter_t<epoch_t> m_next_wave_mark{ 1 };
-
-  std::unique_ptr<queue_impl_t> m_impl;
   agent_t &m_agent;
+
+  /* Must be initialized last.  */
+  std::unique_ptr<queue_impl_t> m_impl;
 };
 
 /* Wraps a queue and provides a RAII mechanism to suspend it if it wasn't
