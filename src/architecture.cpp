@@ -1579,9 +1579,17 @@ protected:
 
   struct gfx9_cwsr_descriptor_t : cwsr_descriptor_t
   {
-    uint32_t m_compute_relaunch_wave;
-    uint32_t m_compute_relaunch_state;
-    amd_dbgapi_global_address_t m_context_save_address;
+    gfx9_cwsr_descriptor_t (uint32_t compute_relaunch_wave,
+                            uint32_t compute_relaunch_state,
+                            amd_dbgapi_global_address_t context_save_address)
+        : m_compute_relaunch_wave (compute_relaunch_wave),
+          m_compute_relaunch_state (compute_relaunch_state),
+          m_context_save_address (context_save_address)
+    {
+    }
+    uint32_t const m_compute_relaunch_wave;
+    uint32_t const m_compute_relaunch_state;
+    amd_dbgapi_global_address_t const m_context_save_address;
   };
 
 public:
@@ -1915,8 +1923,8 @@ gfx9_base_t::control_stack_iterate (
       else
         {
           std::unique_ptr<cwsr_descriptor_t> descriptor (
-              new gfx9_cwsr_descriptor_t{
-                  {}, relaunch, state, wave_area_address - 64 });
+              new gfx9_cwsr_descriptor_t{ relaunch, state,
+                                          wave_area_address - 64 });
 
           wave_area_address
               = register_address (*descriptor, amdgpu_regnum_t::FIRST_VGPR_64)
@@ -1997,8 +2005,18 @@ protected:
 
   struct gfx10_cwsr_descriptor_t : gfx9_cwsr_descriptor_t
   {
+    gfx10_cwsr_descriptor_t (uint32_t compute_relaunch_wave,
+                             uint32_t compute_relaunch_state,
+                             uint32_t compute_relaunch2_state,
+                             amd_dbgapi_global_address_t context_save_address)
+        : gfx9_cwsr_descriptor_t (compute_relaunch_wave,
+                                  compute_relaunch_state,
+                                  context_save_address),
+          m_compute_relaunch2_state (compute_relaunch2_state)
+    {
+    }
     /* On gfx10, there are 2 COMPUTE_RELAUNCH registers for state.  */
-    uint32_t m_compute_relaunch2_state;
+    uint32_t const m_compute_relaunch2_state;
   };
 
   virtual amdgpu_regnum_t
@@ -2171,8 +2189,8 @@ gfx10_base_t::control_stack_iterate (
       else
         {
           std::unique_ptr<cwsr_descriptor_t> descriptor (
-              new gfx10_cwsr_descriptor_t{
-                  { {}, relaunch, state0, wave_area_address }, state1 });
+              new gfx10_cwsr_descriptor_t{ relaunch, state0, state1,
+                                           wave_area_address });
 
           wave_area_address
               = register_address (
