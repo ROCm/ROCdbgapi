@@ -65,6 +65,8 @@ protected:
 public:
   struct cwsr_descriptor_t
   {
+    /* cwsr_descriptor_t is a polymorphic base class.  */
+    virtual ~cwsr_descriptor_t () = default;
   };
 
   virtual ~architecture_t ();
