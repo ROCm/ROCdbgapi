@@ -60,7 +60,7 @@ global: amd_dbgapi_architecture_address_class_get_info;
         amd_dbgapi_write_memory;
 } @AMD_DBGAPI_NAME@_0.24;
 
-@AMD_DBGAPI_NAME@_0.33 {
+@AMD_DBGAPI_NAME@_0.34 {
 global: amd_dbgapi_agent_get_info;
         amd_dbgapi_dispatch_get_info;
         amd_dbgapi_process_get_info;

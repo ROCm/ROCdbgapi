@@ -258,14 +258,16 @@
  * hardware swizzles this address so that adjacent lanes access adjacent DWORDs
  * (4 bytes) in global memory for better cache performance.
  *
- * For an AMD Vega 10 GPU the work-group size limit is 1,024 work-items, the
- * wave size is 64, and the CU count is 64.  A CU can hold up to 40 waves (this
- * is limited to 32 if using scratch memory).  Therefore, a work-group can
- * comprise between 1 and 16 waves inclusive, and there can be up to 2,560
- * waves, making a maximum of 163,840 work-items.  A CU is organized as 4 SIMDs
- * that can each hold 10 waves.  Each SIMD has 256 DWORD vector registers and
- * 800 scalar registers.  A single wave can access up to 256 vector registers
- * and 112 scalar registers.  A CU has 64KiB of LDS.
+ * For an AMD Radeon Instinct™ MI60 GPU the work-group size limit is 1,024
+ * work-items, the wave size is 64, and the CU count is 64.  A CU can hold up
+ * to 40 waves (this is limited to 32 if using scratch memory).  Therefore, a
+ * work-group can comprise between 1 and 16 waves inclusive, and there can be
+ * up to 2,560 waves, making a maximum of 163,840 work-items.  A CU is
+ * organized as 4 Execution Units (EUs) also referred to as Single Instruction
+ * Multiple Data units (SIMDs) that can each hold 10 waves.  Each SIMD has 256
+ * 64-wide DWORD vector registers and each CU has 800 DWORD scalar registers.
+ * A single wave can access up to 256 64-wide vector registers and 112 scalar
+ * registers.  A CU has 64KiB of LDS.
  *
  * \section supported_amd_gpu_architectures Supported AMD GPU Architectures
  *
@@ -469,10 +471,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_30
 
 /**
- * The function was introduced in version 0.33 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.33"``.
+ * The function was introduced in version 0.34 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.34"``.
  */
-#define AMD_DBGAPI_VERSION_0_33
+#define AMD_DBGAPI_VERSION_0_34
 
 /** @} */
 
@@ -1618,7 +1620,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_process_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_33;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_34;
 
 /**
  * Attach to a process in order to provide debug control of the AMD GPUs it
@@ -2126,30 +2128,20 @@ typedef enum
    */
   AMD_DBGAPI_AGENT_INFO_PCI_DEVICE_ID = 5,
   /**
-   * The number of Shader Engines (SE) in the agent.  The type of this
+   * Total number of Execution Units (EUs) available in the agent.  The type of
+   * this attribute is \p size_t.
+   */
+  AMD_DBGAPI_AGENT_INFO_EXECUTION_UNIT_COUNT = 6,
+  /**
+   * Maximum number of waves supported by an execution unit.  The type of this
    * attribute is \p size_t.
    */
-  AMD_DBGAPI_AGENT_INFO_SHADER_ENGINE_COUNT = 6,
-  /**
-   * Number of compute units available in the agent.  The type of this
-   * attribute is \p size_t.
-   * */
-  AMD_DBGAPI_AGENT_INFO_COMPUTE_UNIT_COUNT = 7,
-  /**
-   * Number of SIMDs per compute unit (CU).  The type of this attribute is
-   * \p size_t.
-   */
-  AMD_DBGAPI_AGENT_INFO_NUM_SIMD_PER_COMPUTE_UNIT = 8,
-  /**
-   * Maximum number of waves possible in a SIMD.  The type of this attribute is
-   * \p size_t.
-   */
-  AMD_DBGAPI_AGENT_INFO_MAX_WAVES_PER_SIMD = 9,
+  AMD_DBGAPI_AGENT_INFO_MAX_WAVES_PER_EXECUTION_UNIT = 7,
   /**
    * Native operating system agent ID.  The type of this attribute is
    * ::amd_dbgapi_os_agent_id_t.
    */
-  AMD_DBGAPI_AGENT_INFO_OS_ID = 10
+  AMD_DBGAPI_AGENT_INFO_OS_ID = 8
 } amd_dbgapi_agent_info_t;
 
 /**
@@ -2197,7 +2189,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_agent_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_agent_id_t agent_id,
     amd_dbgapi_agent_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_33;
+    void *value) AMD_DBGAPI_VERSION_0_34;
 
 /**
  * Return the list of agents for a process.
@@ -2374,7 +2366,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_queue_id_t queue_id,
     amd_dbgapi_queue_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_33;
+    void *value) AMD_DBGAPI_VERSION_0_34;
 
 /**
  * Queue state.
@@ -2526,6 +2518,10 @@ amd_dbgapi_queue_list (amd_dbgapi_process_id_t process_id, size_t *queue_count,
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p packets_byte_size is
  * NULL.  \p packets_byte_size and \p packets_bytes are unaltered.
  *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR An error was encountered when attempting
+ * to access the queue \p queue_id.  For example, the queue may be corrupted.
+ * \p packets_byte_size and \p packets_bytes are unaltered.
+ *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
  * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
  * allocate \p packets_bytes returns NULL.  \p packets_byte_size and
@@ -2534,7 +2530,7 @@ amd_dbgapi_queue_list (amd_dbgapi_process_id_t process_id, size_t *queue_count,
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_packet_list (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_queue_id_t queue_id,
     amd_dbgapi_os_queue_packet_id_t *first_packet_id,
-    size_t *packets_byte_size, void **packets_bytes) AMD_DBGAPI_VERSION_0_33;
+    size_t *packets_byte_size, void **packets_bytes) AMD_DBGAPI_VERSION_0_34;
 
 /** @} */
 
@@ -2704,7 +2700,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_dispatch_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_dispatch_id_t dispatch_id,
     amd_dbgapi_dispatch_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_33;
+    void *value) AMD_DBGAPI_VERSION_0_34;
 
 /**
  * Dispatch barrier.
@@ -3874,7 +3870,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_watchpoint (
     amd_dbgapi_size_t size, amd_dbgapi_watchpoint_kind_t kind,
     amd_dbgapi_watchpoint_id_t *watchpoint_id,
     amd_dbgapi_global_address_t *watchpoint_address,
-    amd_dbgapi_size_t *watchpoint_size) AMD_DBGAPI_VERSION_0_33;
+    amd_dbgapi_size_t *watchpoint_size) AMD_DBGAPI_VERSION_0_34;
 
 /**
  * Remove a hardware data watchpoint previously set by
