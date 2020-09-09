@@ -67,7 +67,8 @@ private:
   std::optional<file_desc_t> m_proc_mem_fd;
 };
 
-linux_driver_t::linux_driver_t (std::optional<amd_dbgapi_os_process_id_t> os_pid)
+linux_driver_t::linux_driver_t (
+    std::optional<amd_dbgapi_os_process_id_t> os_pid)
     : os_driver_t (std::move (os_pid))
 {
   if (!m_os_pid)
@@ -436,21 +437,11 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
       while (props_ifs >> prop_name >> prop_value)
         {
           if (prop_name == "location_id")
-            agent_info.location_id = static_cast<uint32_t> (prop_value);
+            agent_info.location_id = static_cast<uint16_t> (prop_value);
           else if (prop_name == "simd_count")
-            agent_info.simd_count = static_cast<uint32_t> (prop_value);
-          else if (prop_name == "array_count")
-            agent_info.shader_engine_count
-                = static_cast<uint32_t> (prop_value);
-          else if (prop_name == "simd_arrays_per_engine")
-            agent_info.simd_arrays_per_engine
-                = static_cast<uint32_t> (prop_value);
-          else if (prop_name == "cu_per_simd_array")
-            agent_info.cu_per_simd_array = static_cast<uint32_t> (prop_value);
-          else if (prop_name == "simd_per_cu")
-            agent_info.simd_per_cu = static_cast<uint32_t> (prop_value);
+            agent_info.simd_count = static_cast<size_t> (prop_value);
           else if (prop_name == "max_waves_per_simd")
-            agent_info.max_waves_per_simd = static_cast<uint32_t> (prop_value);
+            agent_info.max_waves_per_simd = static_cast<size_t> (prop_value);
           else if (prop_name == "vendor_id")
             agent_info.vendor_id = static_cast<uint32_t> (prop_value);
           else if (prop_name == "device_id")

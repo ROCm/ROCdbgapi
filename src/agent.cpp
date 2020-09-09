@@ -302,8 +302,7 @@ agent_t::get_info (amd_dbgapi_agent_info_t query, size_t value_size,
       return utils::get_info (value_size, value, m_os_agent_info.device_id);
 
     case AMD_DBGAPI_AGENT_INFO_EXECUTION_UNIT_COUNT:
-      return utils::get_info (value_size, value,
-                              m_os_agent_info.simd_count);
+      return utils::get_info (value_size, value, m_os_agent_info.simd_count);
 
     case AMD_DBGAPI_AGENT_INFO_MAX_WAVES_PER_EXECUTION_UNIT:
       return utils::get_info (value_size, value,

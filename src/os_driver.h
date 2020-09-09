@@ -59,19 +59,11 @@ struct os_agent_snapshot_entry_t
   /* Public name of the "device".  */
   std::string name;
   /* BDF - Identifies the device location in the overall system.  */
-  uint32_t location_id{ 0 };
+  uint16_t location_id{ 0 };
   /* Number of FCompute cores.  */
-  uint32_t simd_count{ 0 };
-  /* Number of Shader Banks or Shader Engines.  */
-  uint32_t shader_engine_count{ 0 };
-  /* Number of SIMD arrays per engine.  */
-  uint32_t simd_arrays_per_engine{ 0 };
-  /* Number of Compute Units (CU) per SIMD array.  */
-  uint32_t cu_per_simd_array{ 0 };
-  /* Number of SIMD representing a Compute Unit (CU).  */
-  uint32_t simd_per_cu{ 0 };
+  size_t simd_count{ 0 };
   /* Maximum number of launched waves per SIMD.  */
-  uint32_t max_waves_per_simd{ 0 };
+  size_t max_waves_per_simd{ 0 };
   /* PCI vendor id.  */
   uint32_t vendor_id{ 0 };
   /* PCI device id.  */
