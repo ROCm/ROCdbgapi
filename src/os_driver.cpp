@@ -138,7 +138,9 @@ private:
           { "arcturus", EF_AMDGPU_MACH_AMDGCN_GFX908, 48 },
           { "navi10", EF_AMDGPU_MACH_AMDGCN_GFX1010, 0 },
           { "navi12", EF_AMDGPU_MACH_AMDGCN_GFX1011, 0 },
-          { "navi14", EF_AMDGPU_MACH_AMDGCN_GFX1012, 0 } };
+          { "navi14", EF_AMDGPU_MACH_AMDGCN_GFX1012, 0 },
+          { "sienna_cichlid", EF_AMDGPU_MACH_AMDGCN_GFX1030, 0 },
+          { "navy_flounder", EF_AMDGPU_MACH_AMDGCN_GFX1031, 0 } };
 
   static void open_kfd ();
   static void close_kfd ();

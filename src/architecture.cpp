@@ -2235,6 +2235,26 @@ public:
   }
 };
 
+class gfx1030_t final : public gfx10_base_t
+{
+public:
+  gfx1030_t ()
+      : gfx10_base_t (EF_AMDGPU_MACH_AMDGCN_GFX1030,
+                      "amdgcn-amd-amdhsa--gfx1030")
+  {
+  }
+};
+
+class gfx1031_t final : public gfx10_base_t
+{
+public:
+  gfx1031_t ()
+      : gfx10_base_t (EF_AMDGPU_MACH_AMDGCN_GFX1031,
+                      "amdgcn-amd-amdhsa--gfx1031")
+  {
+  }
+};
+
 architecture_t::architecture_t (elf_amdgpu_machine_t e_machine,
                                 std::string target_triple)
     : m_architecture_id (
@@ -2758,6 +2778,8 @@ decltype (
     map.emplace (create_architecture<gfx1010_t> ());
     map.emplace (create_architecture<gfx1011_t> ());
     map.emplace (create_architecture<gfx1012_t> ());
+    map.emplace (create_architecture<gfx1030_t> ());
+    map.emplace (create_architecture<gfx1031_t> ());
     return map;
   }()
 };
