@@ -268,7 +268,6 @@ aql_queue_impl_t::~aql_queue_impl_t ()
 amd_dbgapi_status_t
 aql_queue_impl_t::update_waves ()
 {
-  const architecture_t &architecture = m_queue.architecture ();
   process_t &process = m_queue.process ();
   const epoch_t wave_mark = m_next_wave_mark++;
   amd_dbgapi_status_t status;
@@ -299,15 +298,9 @@ aql_queue_impl_t::update_waves ()
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
 
-  constexpr size_t max_ctrl_stack_size
-      = 32 /* max_waves_per_cu */ * 2 /* registers */ * sizeof (uint32_t)
-        + 2 /* PM4 packets */ * sizeof (uint32_t)
-        + sizeof (context_save_area_header_s);
-
   /* Make sure the top of the control stack does not overwrite the displaced
      stepping buffer or parked wave buffer.  */
   if (m_os_queue_info.ctx_save_restore_address + header.ctrl_stack_offset
-          + header.ctrl_stack_size - max_ctrl_stack_size
       < m_context_save_start_address)
     error ("not enough free space in the control stack");
 
@@ -328,10 +321,15 @@ aql_queue_impl_t::update_waves ()
 
   wave_t *group_leader = nullptr;
 
-  auto callback = [&] (std::unique_ptr<architecture_t::cwsr_descriptor_t>
-                           descriptor) {
+  auto callback = [=, &group_leader] (
+                      std::unique_ptr<architecture_t::cwsr_descriptor_t>
+                          descriptor) {
+    const architecture_t &architecture = m_queue.architecture ();
+    process_t &process = m_queue.process ();
+
     amd_dbgapi_wave_id_t wave_id;
     wave_t::visibility_t visibility{ wave_t::visibility_t::VISIBLE };
+    amd_dbgapi_status_t status;
 
     if (process.is_flag_set (process_t::flag_t::ASSIGN_NEW_IDS_TO_ALL_WAVES))
       {
@@ -526,7 +524,7 @@ aql_queue_impl_t::update_waves ()
      provided function is called with a wave descriptor and a pointer to its
      context save area.  */
 
-  architecture.control_stack_iterate (
+  m_queue.architecture ().control_stack_iterate (
       &ctrl_stack[0], header.ctrl_stack_size / sizeof (uint32_t),
       m_os_queue_info.ctx_save_restore_address + header.wave_state_offset,
       callback);

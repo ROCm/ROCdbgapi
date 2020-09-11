@@ -69,9 +69,9 @@ enum class amdgpu_regnum_t : decltype (amd_dbgapi_register_id_t::handle)
 
   /* 32-bit Scalar registers (sgprs).  */
   S0 = FIRST_SGPR,
-  S111 = S0 + 111,
+  S105 = S0 + 105,
 
-  LAST_SGPR = S111,
+  LAST_SGPR = S105,
 
   /* Hardware registers (hwregs).  */
   FIRST_HWREG = LAST_SGPR + 1,
