@@ -89,7 +89,7 @@ wave_t::pc () const
   return pc;
 }
 
-std::vector<uint8_t>
+std::optional<std::vector<uint8_t>>
 wave_t::instruction_at_pc () const
 {
   size_t size = architecture ().largest_instruction_size ();
@@ -98,7 +98,7 @@ wave_t::instruction_at_pc () const
   amd_dbgapi_status_t status = process ().read_global_memory_partial (
       pc (), instruction_bytes.data (), &size);
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not read the instruction at %#lx (rc=%d)", pc (), status);
+    return {};
 
   /* Trim unread bytes.  */
   instruction_bytes.resize (size);

@@ -118,7 +118,7 @@ public:
   uint64_t exec_mask () const;
   amd_dbgapi_global_address_t pc () const;
   amd_dbgapi_global_address_t saved_pc () const { return m_saved_pc; }
-  std::vector<uint8_t> instruction_at_pc () const;
+  std::optional<std::vector<uint8_t>> instruction_at_pc () const;
 
   amd_dbgapi_status_t park ();
   amd_dbgapi_status_t unpark ();

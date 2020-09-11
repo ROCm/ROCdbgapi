@@ -160,7 +160,8 @@ public:
   virtual const std::vector<uint8_t> &breakpoint_instruction () const = 0;
   virtual const std::vector<uint8_t> &endpgm_instruction () const = 0;
 
-  bool can_halt_at (const std::vector<uint8_t> &instruction) const;
+  bool
+  can_halt_at (const std::optional<std::vector<uint8_t>> &instruction) const;
 
   virtual size_t displaced_stepping_buffer_size () const = 0;
   virtual bool

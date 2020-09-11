@@ -1117,18 +1117,18 @@ amdgcn_architecture_t::get_wave_state (
           = saved_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
             && wave.saved_pc () == pc && !trap_raised;
 
-      if (ignore_single_step_event)
+      if (instruction && ignore_single_step_event)
         {
           /* Trim to size of instruction, simulate_instruction needs the
              exact instruction bytes.  */
-          size_t size = instruction_size (instruction);
+          size_t size = instruction_size (*instruction);
           dbgapi_assert (size != 0 && "Invalid instruction");
-          instruction.resize (size);
+          instruction->resize (size);
 
           /* Branch instructions should be simulated, and the event
              reported, as we cannot tell if a branch to self
              instruction has executed.  */
-          status = simulate_instruction (wave, pc, instruction);
+          status = simulate_instruction (wave, pc, *instruction);
           if (status == AMD_DBGAPI_STATUS_SUCCESS)
             {
               /* We successfully simulated the instruction, report the
@@ -1164,7 +1164,7 @@ amdgcn_architecture_t::get_wave_state (
         {
           uint16_t trap_id;
 
-          if (!is_trap (instruction, &trap_id))
+          if (instruction && !is_trap (*instruction, &trap_id))
             {
               /* FIXME: We should be getting the stop reason from the trap
                  handler.  As a workaround, assume the the trap_id is of a
@@ -2270,14 +2270,16 @@ architecture_t::find (elf_amdgpu_machine_t elf_amdgpu_machine)
 }
 
 bool
-architecture_t::can_halt_at (const std::vector<uint8_t> &instruction) const
+architecture_t::can_halt_at (
+    const std::optional<std::vector<uint8_t>> &instruction) const
 {
   /* A wave cannot halt at an s_endpgm instruction. An s_trap may be used as a
      breakpoint instruction, and since it could be removed and the original
      instruction restored, which could reveal an s_endpgm, we also
      cannot halt at an s_strap. */
   return can_halt_at_endpgm ()
-         || (!is_endpgm (instruction) && !is_trap (instruction));
+         || (instruction && !is_endpgm (*instruction)
+             && !is_trap (*instruction));
 }
 
 std::set<amdgpu_regnum_t>
