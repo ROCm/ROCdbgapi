@@ -358,7 +358,7 @@ to_string (amd_dbgapi_queue_info_t queue_info)
     {
       CASE (QUEUE_INFO_AGENT);
       CASE (QUEUE_INFO_ARCHITECTURE);
-      CASE (QUEUE_TYPE);
+      CASE (QUEUE_INFO_TYPE);
       CASE (QUEUE_INFO_STATE);
       CASE (QUEUE_INFO_ERROR_REASON);
       CASE (QUEUE_INFO_ADDRESS);

@@ -2291,7 +2291,7 @@ typedef enum
    * Return the queue type.  The type of this attribute is \p uint32_t with
    * values from ::amd_dbgapi_os_queue_type_t.
    */
-  AMD_DBGAPI_QUEUE_TYPE = 3,
+  AMD_DBGAPI_QUEUE_INFO_TYPE = 3,
   /**
    * Return the queue state.  The type of this attribute is \p uint32_t with
    * values from ::amd_dbgapi_queue_state_t.

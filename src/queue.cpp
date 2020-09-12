@@ -861,7 +861,7 @@ queue_t::get_info (amd_dbgapi_queue_info_t query, size_t value_size,
     case AMD_DBGAPI_QUEUE_INFO_ARCHITECTURE:
       return utils::get_info (value_size, value, architecture ().id ());
 
-    case AMD_DBGAPI_QUEUE_TYPE:
+    case AMD_DBGAPI_QUEUE_INFO_TYPE:
       return utils::get_info (value_size, value, m_impl->type ());
 
     case AMD_DBGAPI_QUEUE_INFO_OS_ID:
