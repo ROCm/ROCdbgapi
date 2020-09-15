@@ -958,7 +958,8 @@ amd_dbgapi_queue_list (amd_dbgapi_process_id_t process_id, size_t *queue_count,
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_queue_packet_list (amd_dbgapi_process_id_t process_id,
                               amd_dbgapi_queue_id_t queue_id,
-                              amd_dbgapi_os_queue_packet_id_t *first_packet_id,
+                              amd_dbgapi_os_queue_packet_id_t *read_packet_id,
+                              amd_dbgapi_os_queue_packet_id_t *write_packet_id,
                               amd_dbgapi_size_t *packets_byte_size,
                               void **packets_bytes)
 {
@@ -968,7 +969,7 @@ amd_dbgapi_queue_packet_list (amd_dbgapi_process_id_t process_id,
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
-  if (!first_packet_id || !packets_byte_size)
+  if (!read_packet_id || !write_packet_id || !packets_byte_size)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   process_t *process = process_t::find (process_id);
@@ -983,7 +984,7 @@ amd_dbgapi_queue_packet_list (amd_dbgapi_process_id_t process_id,
 
   scoped_queue_suspend_t suspend (*queue);
 
-  std::tie (*first_packet_id, *packets_byte_size)
+  std::tie (*read_packet_id, *packets_byte_size)
       = queue->packets (packets_bytes);
 
   if (packets_bytes && *packets_byte_size && !*packets_bytes)

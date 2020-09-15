@@ -471,10 +471,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_30
 
 /**
- * The function was introduced in version 0.34 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.34"``.
+ * The function was introduced in version 0.35 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.35"``.
  */
-#define AMD_DBGAPI_VERSION_0_34
+#define AMD_DBGAPI_VERSION_0_35
 
 /** @} */
 
@@ -1620,7 +1620,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_process_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_34;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_35;
 
 /**
  * Attach to a process in order to provide debug control of the AMD GPUs it
@@ -2189,7 +2189,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_agent_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_agent_id_t agent_id,
     amd_dbgapi_agent_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_34;
+    void *value) AMD_DBGAPI_VERSION_0_35;
 
 /**
  * Return the list of agents for a process.
@@ -2366,7 +2366,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_queue_id_t queue_id,
     amd_dbgapi_queue_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_34;
+    void *value) AMD_DBGAPI_VERSION_0_35;
 
 /**
  * Queue state.
@@ -2489,9 +2489,15 @@ amd_dbgapi_queue_list (amd_dbgapi_process_id_t process_id, size_t *queue_count,
  *
  * \param[in] queue_id The queue for which the packet list is requested.
  *
- * \param[out] first_packet_id The packet ID for the first packet in
- * \p packets_bytes.  If \p packets_byte_size is zero, then the packet ID for
- * the next packet added to the queue.
+ * \param[out] read_packet_id The packet ID for the next packet to be read from
+ * the queue. It corresponds to the first packet in \p packets_bytes.  If \p
+ * packets_byte_size is zero, then the packet ID for the next packet added to
+ * the queue.
+ *
+ * \param[out] write_packet_id The packet ID for the next packet to be written
+ * to the queue. It corresponds to the next packet after the last packet in \p
+ * packets_bytes.  If \p packets_byte_size is zero, then the packet ID for the
+ * next packet added to the queue.
  *
  * \param[out] packets_byte_size The number of bytes of packets on the queue.
  *
@@ -2501,36 +2507,39 @@ amd_dbgapi_queue_list (amd_dbgapi_process_id_t process_id, size_t *queue_count,
  * If NULL, the packet bytes are not returned, just \p packets_byte_size.
  *
  * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
- * successfully and the result is stored in \p packets_byte_size and
- * \p packets_bytes.
+ * successfully and the result is stored in \p read_packet_id, \p
+ * write_packet_id, \p packets_byte_size and \p packets_bytes.
  *
- * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library
- * is left uninitialized; and \p packets_byte_size and \p packets_bytes are
- * unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
+ * left uninitialized; and \p read_packet_id, \p write_packet_id, \p
+ * packets_byte_size and \p packets_bytes are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
- * initialized.  The library is left uninitialized; and \p packets_byte_size
- * and \p packets_bytes are unaltered.
+ * initialized.  The library is left uninitialized; and \p read_packet_id, \p
+ * write_packet_id, \p packets_byte_size and \p packets_bytes are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
- * invalid.  \p packets_byte_size and \p packets_bytes are unaltered.
+ * invalid.  \p read_packet_id, \p write_packet_id, \p packets_byte_size and \p
+ * packets_bytes are unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p packets_byte_size is
- * NULL.  \p packets_byte_size and \p packets_bytes are unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p read_packet_id, \p
+ * write_packet_id, or \p packets_byte_size are NULL.  \p read_packet_id, \p
+ * write_packet_id, \p packets_byte_size and \p packets_bytes are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR An error was encountered when attempting
  * to access the queue \p queue_id.  For example, the queue may be corrupted.
- * \p packets_byte_size and \p packets_bytes are unaltered.
+ * \p read_packet_id, \p write_packet_id, \p packets_byte_size and \p
+ * packets_bytes are unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
- * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
- * allocate \p packets_bytes returns NULL.  \p packets_byte_size and
- * \p packets_bytes are unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be reported if
+ * the amd_dbgapi_callbacks_s::allocate_memory callback used to allocate \p
+ * packets_bytes returns NULL.  \p read_packet_id, \p write_packet_id, \p
+ * packets_byte_size and \p packets_bytes are unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_packet_list (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_queue_id_t queue_id,
-    amd_dbgapi_os_queue_packet_id_t *first_packet_id,
-    size_t *packets_byte_size, void **packets_bytes) AMD_DBGAPI_VERSION_0_34;
+    amd_dbgapi_os_queue_packet_id_t *read_packet_id, amd_dbgapi_os_queue_packet_id_t *write_packet_id,
+    size_t *packets_byte_size, void **packets_bytes) AMD_DBGAPI_VERSION_0_35;
 
 /** @} */
 
@@ -2700,7 +2709,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_dispatch_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_dispatch_id_t dispatch_id,
     amd_dbgapi_dispatch_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_34;
+    void *value) AMD_DBGAPI_VERSION_0_35;
 
 /**
  * Dispatch barrier.
@@ -3870,7 +3879,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_watchpoint (
     amd_dbgapi_size_t size, amd_dbgapi_watchpoint_kind_t kind,
     amd_dbgapi_watchpoint_id_t *watchpoint_id,
     amd_dbgapi_global_address_t *watchpoint_address,
-    amd_dbgapi_size_t *watchpoint_size) AMD_DBGAPI_VERSION_0_34;
+    amd_dbgapi_size_t *watchpoint_size) AMD_DBGAPI_VERSION_0_35;
 
 /**
  * Remove a hardware data watchpoint previously set by
