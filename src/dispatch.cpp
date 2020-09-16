@@ -88,7 +88,9 @@ dispatch_t::get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
 
     case AMD_DBGAPI_DISPATCH_INFO_BARRIER:
       return utils::get_info (value_size, value,
-                              m_packet.header & HSA_PACKET_HEADER_BARRIER
+                              utils::bit_extract (m_packet.header,
+                                                  HSA_PACKET_HEADER_BARRIER,
+                                                  HSA_PACKET_HEADER_BARRIER)
                                   ? AMD_DBGAPI_DISPATCH_BARRIER_PRESENT
                                   : AMD_DBGAPI_DISPATCH_BARRIER_NONE);
 
@@ -105,20 +107,26 @@ dispatch_t::get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
 
       return utils::get_info (
           value_size, value,
-          static_cast<amd_dbgapi_dispatch_fence_scope_t> (
-              utils::bit_extract (m_packet.header, 9, 10)));
+          static_cast<amd_dbgapi_dispatch_fence_scope_t> (utils::bit_extract (
+              m_packet.header, HSA_PACKET_HEADER_SCACQUIRE_FENCE_SCOPE,
+              HSA_PACKET_HEADER_SCACQUIRE_FENCE_SCOPE
+                  + HSA_PACKET_HEADER_WIDTH_SCACQUIRE_FENCE_SCOPE - 1)));
 
     case AMD_DBGAPI_DISPATCH_INFO_RELEASE_FENCE:
       return utils::get_info (
           value_size, value,
-          static_cast<amd_dbgapi_dispatch_fence_scope_t> (
-              utils::bit_extract (m_packet.header, 11, 12)));
+          static_cast<amd_dbgapi_dispatch_fence_scope_t> (utils::bit_extract (
+              m_packet.header, HSA_PACKET_HEADER_SCRELEASE_FENCE_SCOPE,
+              HSA_PACKET_HEADER_SCRELEASE_FENCE_SCOPE
+                  + HSA_PACKET_HEADER_WIDTH_SCRELEASE_FENCE_SCOPE - 1)));
 
     case AMD_DBGAPI_DISPATCH_INFO_GRID_DIMENSIONS:
-      return utils::get_info (value_size, value,
-                              (uint32_t[3]){ m_packet.grid_size_x,
-                                             m_packet.grid_size_y,
-                                             m_packet.grid_size_z });
+      return utils::get_info (
+          value_size, value,
+          static_cast<uint32_t> (utils::bit_extract (
+              m_packet.setup, HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS,
+              HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS
+                  + HSA_KERNEL_DISPATCH_PACKET_SETUP_WIDTH_DIMENSIONS - 1)));
 
     case AMD_DBGAPI_DISPATCH_INFO_WORK_GROUP_SIZES:
       return utils::get_info (value_size, value,
@@ -127,20 +135,26 @@ dispatch_t::get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
                                              m_packet.workgroup_size_z });
 
     case AMD_DBGAPI_DISPATCH_INFO_GRID_SIZES:
-      return utils::get_info (value_size, value, m_packet.grid_size_x);
+      return utils::get_info (value_size, value,
+                              (uint32_t[3]){ m_packet.grid_size_x,
+                                             m_packet.grid_size_y,
+                                             m_packet.grid_size_z });
 
     case AMD_DBGAPI_DISPATCH_INFO_PRIVATE_SEGMENT_SIZE:
-      return utils::get_info (value_size, value,
-                              m_packet.private_segment_size);
+      return utils::get_info (
+          value_size, value,
+          static_cast<amd_dbgapi_size_t> (m_packet.private_segment_size));
 
     case AMD_DBGAPI_DISPATCH_INFO_GROUP_SEGMENT_SIZE:
-      return utils::get_info (value_size, value, m_packet.group_segment_size);
+      return utils::get_info (
+          value_size, value,
+          static_cast<amd_dbgapi_size_t> (m_packet.group_segment_size));
 
     case AMD_DBGAPI_DISPATCH_INFO_KERNEL_ARGUMENT_SEGMENT_ADDRESS:
       return utils::get_info (value_size, value, m_packet.kernarg_address);
 
     case AMD_DBGAPI_DISPATCH_INFO_KERNEL_ENTRY_ADDRESS:
-      return utils::get_info (value_size, value, kernel_entry_address ());
+      return utils::get_info (value_size, value, m_packet.kernel_object);
 
     case AMD_DBGAPI_DISPATCH_INFO_KERNEL_COMPLETION_ADDRESS:
       return utils::get_info (value_size, value, m_packet.completion_signal);
