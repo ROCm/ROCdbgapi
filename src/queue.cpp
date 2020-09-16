@@ -107,21 +107,12 @@ public:
   virtual amd_dbgapi_status_t
   active_packets_info (amd_dbgapi_os_queue_packet_id_t *read_packet_id_p,
                        amd_dbgapi_os_queue_packet_id_t *write_packet_id_p,
-                       size_t *packets_byte_size_p) const
-  {
-    *read_packet_id_p = *write_packet_id_p = *packets_byte_size_p = 0;
-    return AMD_DBGAPI_STATUS_SUCCESS;
-  }
+                       size_t *packets_byte_size_p) const = 0;
 
   virtual amd_dbgapi_status_t
   active_packets_bytes (amd_dbgapi_os_queue_packet_id_t read_packet_id,
                         amd_dbgapi_os_queue_packet_id_t write_packet_id,
-                        void *memory, size_t memory_size) const
-  {
-    return (read_packet_id == 0 && write_packet_id == 0 && memory_size == 0)
-               ? AMD_DBGAPI_STATUS_SUCCESS
-               : AMD_DBGAPI_STATUS_ERROR;
-  }
+                        void *memory, size_t memory_size) const = 0;
 
   /* Notify the impl that the queue was suspended/resumed.  */
   virtual void state_changed (queue_t::state_t) {}
@@ -728,35 +719,50 @@ aql_queue_impl_t::state_changed (queue_t::state_t state)
     }
 }
 
-/* PM4 Queue implementation.  */
-
-class pm4_queue_impl_t : public queue_t::queue_impl_t
+class unsupported_queue_impl_t : public queue_t::queue_impl_t
 {
 public:
-  pm4_queue_impl_t (queue_t &queue,
-                    const os_queue_snapshot_entry_t &os_queue_info)
+  unsupported_queue_impl_t (queue_t &queue,
+                            const os_queue_snapshot_entry_t &os_queue_info)
       : queue_impl_t (queue, os_queue_info)
   {
   }
 
   virtual amd_dbgapi_os_queue_type_t type () const override
   {
-    return AMD_DBGAPI_OS_QUEUE_TYPE_AMD_PM4;
-  }
-};
+    switch (os_queue_type (m_os_queue_info))
+      {
+      case os_queue_type_t::COMPUTE:
+        return AMD_DBGAPI_OS_QUEUE_TYPE_AMD_PM4;
 
-class unknown_queue_impl_t : public queue_t::queue_impl_t
-{
-public:
-  unknown_queue_impl_t (queue_t &queue,
-                        const os_queue_snapshot_entry_t &os_queue_info)
-      : queue_impl_t (queue, os_queue_info)
-  {
+      case os_queue_type_t::SDMA:
+        return AMD_DBGAPI_OS_QUEUE_TYPE_AMD_SDMA;
+
+      case os_queue_type_t::SDMA_XGMI:
+        return AMD_DBGAPI_OS_QUEUE_TYPE_AMD_SDMA_XGMI;
+
+      case os_queue_type_t::COMPUTE_AQL:
+        error ("should not reach here");
+
+      default:
+        return AMD_DBGAPI_OS_QUEUE_TYPE_UNKNOWN;
+      }
   }
 
-  virtual amd_dbgapi_os_queue_type_t type () const override
+  virtual amd_dbgapi_status_t
+  active_packets_info (amd_dbgapi_os_queue_packet_id_t *read_packet_id_p,
+                       amd_dbgapi_os_queue_packet_id_t *write_packet_id_p,
+                       size_t *packets_byte_size_p) const override
   {
-    return AMD_DBGAPI_OS_QUEUE_TYPE_UNKNOWN;
+    return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
+  }
+
+  virtual amd_dbgapi_status_t
+  active_packets_bytes (amd_dbgapi_os_queue_packet_id_t read_packet_id,
+                        amd_dbgapi_os_queue_packet_id_t write_packet_id,
+                        void *memory, size_t memory_size) const override
+  {
+    return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
   }
 };
 
@@ -768,14 +774,11 @@ queue_t::queue_impl_t::create (queue_t &queue,
 {
   switch (os_queue_type (os_queue_info))
     {
-    case os_queue_type_t::COMPUTE:
-      return new detail::pm4_queue_impl_t (queue, os_queue_info);
-
     case os_queue_type_t::COMPUTE_AQL:
       return new detail::aql_queue_impl_t (queue, os_queue_info);
 
     default:
-      return new detail::unknown_queue_impl_t (queue, os_queue_info);
+      return new detail::unsupported_queue_impl_t (queue, os_queue_info);
     }
 }
 
