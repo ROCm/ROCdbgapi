@@ -471,10 +471,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_30
 
 /**
- * The function was introduced in version 0.35 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.35"``.
+ * The function was introduced in version 0.36 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.36"``.
  */
-#define AMD_DBGAPI_VERSION_0_35
+#define AMD_DBGAPI_VERSION_0_36
 
 /** @} */
 
@@ -1620,7 +1620,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_process_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_35;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_36;
 
 /**
  * Attach to a process in order to provide debug control of the AMD GPUs it
@@ -2189,7 +2189,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_agent_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_agent_id_t agent_id,
     amd_dbgapi_agent_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_35;
+    void *value) AMD_DBGAPI_VERSION_0_36;
 
 /**
  * Return the list of agents for a process.
@@ -2366,7 +2366,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_queue_id_t queue_id,
     amd_dbgapi_queue_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_35;
+    void *value) AMD_DBGAPI_VERSION_0_36;
 
 /**
  * Queue state.
@@ -2539,7 +2539,7 @@ amd_dbgapi_queue_list (amd_dbgapi_process_id_t process_id, size_t *queue_count,
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_packet_list (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_queue_id_t queue_id,
     amd_dbgapi_os_queue_packet_id_t *read_packet_id, amd_dbgapi_os_queue_packet_id_t *write_packet_id,
-    size_t *packets_byte_size, void **packets_bytes) AMD_DBGAPI_VERSION_0_35;
+    size_t *packets_byte_size, void **packets_bytes) AMD_DBGAPI_VERSION_0_36;
 
 /** @} */
 
@@ -2645,10 +2645,15 @@ typedef enum
    */
   AMD_DBGAPI_DISPATCH_INFO_KERNEL_ARGUMENT_SEGMENT_ADDRESS = 13,
   /**
-   * Return the dispatch kernel function address.  The type of this attribute
+   * Return the dispatch kernel descriptor address.  The type of this attribute
    * is ::amd_dbgapi_global_address_t.
    */
-  AMD_DBGAPI_DISPATCH_INFO_KERNEL_ENTRY_ADDRESS = 14,
+  AMD_DBGAPI_DISPATCH_INFO_KERNEL_DESCRIPTOR_ADDRESS = 14,
+  /**
+   * Return the dispatch kernel code entry address.  The type of this attribute
+   * is ::amd_dbgapi_global_address_t.
+   */
+  AMD_DBGAPI_DISPATCH_INFO_KERNEL_CODE_ENTRY_ADDRESS = 15,
   /**
    * Return the dispatch completion event address.  The type of this attribute
    * is ::amd_dbgapi_global_address_t.  The ABI of the completion event varies
@@ -2658,7 +2663,7 @@ typedef enum
    * event, then ::amd_dbgapi_dispatch_get_info will return
    * ::AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED.
    */
-  AMD_DBGAPI_DISPATCH_INFO_KERNEL_COMPLETION_ADDRESS = 15
+  AMD_DBGAPI_DISPATCH_INFO_KERNEL_COMPLETION_ADDRESS = 16
 } amd_dbgapi_dispatch_info_t;
 
 /**
@@ -2709,7 +2714,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_dispatch_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_dispatch_id_t dispatch_id,
     amd_dbgapi_dispatch_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_35;
+    void *value) AMD_DBGAPI_VERSION_0_36;
 
 /**
  * Dispatch barrier.
@@ -3879,7 +3884,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_watchpoint (
     amd_dbgapi_size_t size, amd_dbgapi_watchpoint_kind_t kind,
     amd_dbgapi_watchpoint_id_t *watchpoint_id,
     amd_dbgapi_global_address_t *watchpoint_address,
-    amd_dbgapi_size_t *watchpoint_size) AMD_DBGAPI_VERSION_0_35;
+    amd_dbgapi_size_t *watchpoint_size) AMD_DBGAPI_VERSION_0_36;
 
 /**
  * Remove a hardware data watchpoint previously set by

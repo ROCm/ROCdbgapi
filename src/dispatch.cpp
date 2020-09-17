@@ -54,7 +54,13 @@ dispatch_t::dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id, queue_t &queue,
 }
 
 amd_dbgapi_global_address_t
-dispatch_t::kernel_entry_address () const
+dispatch_t::kernel_descriptor_address () const
+{
+  return m_packet.kernel_object;
+}
+
+amd_dbgapi_global_address_t
+dispatch_t::kernel_code_entry_address () const
 {
   return m_packet.kernel_object
          + m_kernel_descriptor.kernel_code_entry_byte_offset;
@@ -153,8 +159,11 @@ dispatch_t::get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
     case AMD_DBGAPI_DISPATCH_INFO_KERNEL_ARGUMENT_SEGMENT_ADDRESS:
       return utils::get_info (value_size, value, m_packet.kernarg_address);
 
-    case AMD_DBGAPI_DISPATCH_INFO_KERNEL_ENTRY_ADDRESS:
-      return utils::get_info (value_size, value, m_packet.kernel_object);
+    case AMD_DBGAPI_DISPATCH_INFO_KERNEL_DESCRIPTOR_ADDRESS:
+      return utils::get_info (value_size, value, kernel_descriptor_address ());
+
+    case AMD_DBGAPI_DISPATCH_INFO_KERNEL_CODE_ENTRY_ADDRESS:
+      return utils::get_info (value_size, value, kernel_code_entry_address ());
 
     case AMD_DBGAPI_DISPATCH_INFO_KERNEL_COMPLETION_ADDRESS:
       return utils::get_info (value_size, value, m_packet.completion_signal);

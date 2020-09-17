@@ -41,6 +41,8 @@ class process_t;
 
 class dispatch_t : public detail::handle_object<amd_dbgapi_dispatch_id_t>
 {
+  /* TODO: Move to Architecture as the descriptor is target architecture
+     specific.  */
   struct kernel_descriptor_t
   {
     uint32_t group_segment_fixed_size;
@@ -63,7 +65,8 @@ public:
   ~dispatch_t () {}
 
   uint64_t os_queue_packet_id () const { return m_os_queue_packet_id; }
-  amd_dbgapi_global_address_t kernel_entry_address () const;
+  amd_dbgapi_global_address_t kernel_descriptor_address () const;
+  amd_dbgapi_global_address_t kernel_code_entry_address () const;
   bool is_scratch_enabled () const;
 
   amd_dbgapi_status_t get_info (amd_dbgapi_dispatch_info_t query,
