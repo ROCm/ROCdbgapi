@@ -220,6 +220,10 @@ protected:
   /* Return the number of aliased scalar registers (e.g. vcc, flat_scratch)  */
   virtual size_t scalar_alias_count () const = 0;
 
+  virtual bool is_sethalt (const std::vector<uint8_t> &bytes) const;
+  virtual bool is_barrier (const std::vector<uint8_t> &bytes) const;
+  virtual bool is_sleep (const std::vector<uint8_t> &bytes) const;
+  virtual bool is_code_end (const std::vector<uint8_t> &bytes) const;
   virtual bool is_call (const std::vector<uint8_t> &bytes) const;
   virtual bool is_getpc (const std::vector<uint8_t> &bytes) const;
   virtual bool is_setpc (const std::vector<uint8_t> &bytes) const;
@@ -234,6 +238,12 @@ protected:
   virtual amd_dbgapi_global_address_t
   branch_target (wave_t &wave, amd_dbgapi_global_address_t pc,
                  const std::vector<uint8_t> &instruction) const;
+
+  virtual std::tuple<amd_dbgapi_instruction_kind_t, /* instruction_kind  */
+                     size_t,                        /* instruction_size  */
+                     std::vector<uint64_t> /* instruction_properties  */>
+  classify_instruction (const std::vector<uint8_t> &instruction,
+                        amd_dbgapi_global_address_t address) const override;
 
   virtual amd_dbgapi_status_t
   simulate_instruction (wave_t &wave, amd_dbgapi_global_address_t pc,
@@ -761,6 +771,111 @@ amdgcn_architecture_t::branch_target (
     error ("Invalid instruction");
 
   return new_pc;
+}
+
+std::tuple<amd_dbgapi_instruction_kind_t, size_t, std::vector<uint64_t>>
+amdgcn_architecture_t::classify_instruction (
+    const std::vector<uint8_t> &instruction,
+    amd_dbgapi_global_address_t address) const
+{
+  enum class properties_kind_t
+  {
+    none = 0,
+    pc_direct,
+    pc_indirect,
+    uint8,
+  } properties_kind;
+
+  amd_dbgapi_instruction_kind_t instruction_kind;
+
+  size_t size = instruction_size (instruction);
+  if (!size)
+    return { AMD_DBGAPI_INSTRUCTION_KIND_UNKNOWN, 0, {} };
+
+  if (is_branch (instruction))
+    {
+      instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_BRANCH;
+      properties_kind = properties_kind_t::pc_direct;
+    }
+  else if (is_cbranch (instruction))
+    {
+      instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_BRANCH_CONDITIONAL;
+      properties_kind = properties_kind_t::pc_direct;
+    }
+  else if (is_setpc (instruction))
+    {
+      instruction_kind
+          = AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_BRANCH_REGISTER_PAIR;
+      properties_kind = properties_kind_t::pc_indirect;
+    }
+  else if (is_call (instruction))
+    {
+      instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_CALL_REGISTER_PAIR;
+      properties_kind = properties_kind_t::pc_direct;
+    }
+  else if (is_swappc (instruction))
+    {
+      instruction_kind
+          = AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_CALL_REGISTER_PAIRS;
+      properties_kind = properties_kind_t::pc_indirect;
+    }
+  else if (is_endpgm (instruction))
+    {
+      instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_TERMINATE;
+      properties_kind = properties_kind_t::none;
+    }
+  else if (is_trap (instruction))
+    {
+      instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_TRAP;
+      properties_kind = properties_kind_t::uint8;
+    }
+  else if (is_sethalt (instruction) && (encoding_simm16 (instruction) & 0x1))
+    {
+      instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_HALT;
+      properties_kind = properties_kind_t::none;
+    }
+  else if (is_barrier (instruction))
+    {
+      instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_BARRIER;
+      properties_kind = properties_kind_t::none;
+    }
+  else if (is_sleep (instruction))
+    {
+      instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_SLEEP;
+      properties_kind = properties_kind_t::none;
+    }
+  else if (is_code_end (instruction))
+    {
+      instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_UNKNOWN;
+      properties_kind = properties_kind_t::none;
+    }
+  else
+    {
+      instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_SEQUENTIAL;
+      properties_kind = properties_kind_t::none;
+    }
+
+  std::vector<uint64_t> properties;
+
+  if (properties_kind == properties_kind_t::pc_direct)
+    {
+      ssize_t branch_offset = encoding_simm16 (instruction) << 2;
+      properties.emplace_back (address + size + branch_offset);
+    }
+  else if (properties_kind == properties_kind_t::pc_indirect)
+    {
+      amdgpu_regnum_t sdst_regnum
+          = scalar_operand_to_regnum (encoding_sdst (instruction));
+      properties.emplace_back (static_cast<uint64_t> (sdst_regnum));
+      properties.emplace_back (static_cast<uint64_t> (sdst_regnum) + 1);
+    }
+  else if (properties_kind == properties_kind_t::uint8)
+    {
+      properties.emplace_back (
+          utils::bit_extract (encoding_simm16 (instruction), 0, 7));
+    }
+
+  return { instruction_kind, size, std::move (properties) };
 }
 
 amd_dbgapi_status_t
@@ -1426,6 +1541,48 @@ amdgcn_architecture_t::is_trap (const std::vector<uint8_t> &bytes,
 }
 
 bool
+amdgcn_architecture_t::is_sethalt (const std::vector<uint8_t> &bytes) const
+{
+  if (bytes.size () < sizeof (uint32_t))
+    return false;
+
+  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
+
+  /* s_sethalt: SOPP Opcode 13 [10111111 10001101 SIMM16] */
+  return (encoding & 0xFFFF0000) == 0xBF8D0000;
+}
+
+bool
+amdgcn_architecture_t::is_barrier (const std::vector<uint8_t> &bytes) const
+{
+  if (bytes.size () < sizeof (uint32_t))
+    return false;
+
+  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
+
+  /* s_barrier: SOPP Opcode 10 [10111111 10001010 SIMM16] */
+  return (encoding & 0xFFFF0000) == 0xBF8A0000;
+}
+
+bool
+amdgcn_architecture_t::is_sleep (const std::vector<uint8_t> &bytes) const
+{
+  if (bytes.size () < sizeof (uint32_t))
+    return false;
+
+  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
+
+  /* s_sleep: SOPP Opcode 14 [10111111 10001110 SIMM16] */
+  return (encoding & 0xFFFF0000) == 0xBF8E0000;
+}
+
+bool
+amdgcn_architecture_t::is_code_end (const std::vector<uint8_t> &bytes) const
+{
+  return false;
+}
+
+bool
 amdgcn_architecture_t::is_call (const std::vector<uint8_t> &bytes) const
 {
   if (bytes.size () < sizeof (uint32_t))
@@ -2034,6 +2191,8 @@ public:
   bool has_wave64_vgprs () const override { return true; }
   bool has_acc_vgprs () const override { return false; }
 
+  bool is_code_end (const std::vector<uint8_t> &bytes) const override;
+
   std::optional<amd_dbgapi_global_address_t>
   register_address (const cwsr_descriptor_t &descriptor,
                     amdgpu_regnum_t regnum) const override;
@@ -2121,6 +2280,18 @@ gfx10_base_t::register_address (const cwsr_descriptor_t &descriptor,
     }
 
   return gfx9_base_t::register_address (descriptor, regnum);
+}
+
+bool
+gfx10_base_t::is_code_end (const std::vector<uint8_t> &bytes) const
+{
+  if (bytes.size () < sizeof (uint32_t))
+    return false;
+
+  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
+
+  /* s_code_end: SOPP Opcode 31 [10111111 10011111 SIMM16] */
+  return (encoding & 0xFFFF0000) == 0xBF9F0000;
 }
 
 uint64_t
@@ -2915,14 +3086,54 @@ amd_dbgapi_disassemble_instruction (
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_classify_instruction (
     amd_dbgapi_architecture_id_t architecture_id,
-    amd_dbgapi_global_address_t address, amd_dbgapi_size_t *size,
-    const void *memory, amd_dbgapi_instruction_kind_t *instruction_kind,
-    void **instruction_properties)
+    amd_dbgapi_global_address_t address, amd_dbgapi_size_t *size_p,
+    const void *memory, amd_dbgapi_instruction_kind_t *instruction_kind_p,
+    void **instruction_properties_p)
 {
   TRY;
   TRACE (architecture_id, address);
 
-  warning ("amd_dbgapi_classify_instruction is not yet implemented");
-  return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+  if (!amd::dbgapi::is_initialized)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+
+  if (!memory || !size_p || !*size_p || !instruction_kind_p)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
+  const architecture_t *architecture = architecture_t::find (architecture_id);
+
+  if (!architecture)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID;
+
+  std::vector<uint8_t> instruction (static_cast<const uint8_t *> (memory),
+                                    static_cast<const uint8_t *> (memory)
+                                        + *size_p);
+
+  auto [kind, size, properties]
+      = architecture->classify_instruction (instruction, address);
+
+  if (instruction_properties_p)
+    {
+      size_t mem_size
+          = properties.size () * sizeof (decltype (properties)::value_type);
+
+      if (!mem_size)
+        {
+          *instruction_properties_p = nullptr;
+        }
+      else
+        {
+          void *mem = allocate_memory (mem_size);
+          if (!mem)
+            return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
+
+          memcpy (mem, properties.data (), mem_size);
+          *instruction_properties_p = mem;
+        }
+    }
+
+  *size_p = size;
+  *instruction_kind_p = kind;
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
 }
