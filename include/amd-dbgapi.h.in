@@ -1415,8 +1415,8 @@ typedef enum
   AMD_DBGAPI_INSTRUCTION_KIND_BARRIER = 10,
   /**
    * The instruction causes the wave to stop executing for some period of time,
-   * before continuing execution with the next instruction. The instruction has
-   * no properties.
+   * before continuing execution with the next instruction.  The instruction
+   * has no properties.
    */
   AMD_DBGAPI_INSTRUCTION_KIND_SLEEP = 11,
   /**
@@ -5517,7 +5517,7 @@ typedef enum
 /**
  * Control precision of memory access reporting.
  *
- * An process can be set to ::AMD_DBGAPI_MEMORY_PRECISION_NONE to disable
+ * A process can be set to ::AMD_DBGAPI_MEMORY_PRECISION_NONE to disable
  * precise memory reporting.  Use the
  * ::AMD_DBGAPI_PROCESS_INFO_PRECISE_MEMORY_SUPPORTED query to determine if the
  * architectures of all the agents of a process support another memory
@@ -5545,12 +5545,12 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
  * invalid.  No configuration is changed.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED The requested
- * \p memory_precision is not supported for the architecture of the agent.  No
- * configuration is changed.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p memory_precision is
  * an invalid value.  No configuration is changed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED The requested \p
+ * memory_precision is not supported by the architecture of all the agents of
+ * \p process_id.  No configuration is changed.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_memory_precision (
     amd_dbgapi_process_id_t process_id,
