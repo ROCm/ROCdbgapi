@@ -367,10 +367,14 @@ private:
      as 0 is the null object handle.  */
   using monotonic_counter_underlying_type_t = decltype (handle_type::handle);
 
-  monotonic_counter_t<
-      monotonic_counter_underlying_type_t,
-      detail::handle_has_wrapped_around<monotonic_counter_underlying_type_t>>
-      m_next_id{ monotonic_counter_start_t<handle_type>::value };
+  static handle_type next_id ()
+  {
+    static monotonic_counter_t<
+        monotonic_counter_underlying_type_t,
+        detail::handle_has_wrapped_around<monotonic_counter_underlying_type_t>>
+        next_id{ monotonic_counter_start_t<handle_type>::value };
+    return handle_type{ next_id++ };
+  }
 
   /* Flag to tell if the content of the map has changed.  */
   bool m_changed = false;
@@ -386,7 +390,7 @@ handle_object_set_t<Object>::create_object (std::optional<handle_type> id,
      "re-create" objects that were place-holders (e.g. partially initialized
      queue object.  */
   if (!id)
-    id = handle_type{ m_next_id++ };
+    id = next_id ();
 
   auto [it, success] = m_map.emplace (
       std::piecewise_construct, std::forward_as_tuple (*id),
