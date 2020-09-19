@@ -142,7 +142,7 @@ error (const char *format, ...)
 #endif /* defined (ENABLE_BACKTRACE) */
 
   /* TODO: We should return a FATAL error here, and put the API
-     in a finalized state (maybe the catch should do that). */
+     in a finalized state (maybe the catch should do that).  */
   throw exception_t (AMD_DBGAPI_STATUS_FATAL, message);
 }
 
