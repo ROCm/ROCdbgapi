@@ -22,15 +22,14 @@
 #define AMD_DBGAPI_AGENT_H 1
 
 #include "amd-dbgapi.h"
+#include "debug.h"
 #include "handle_object.h"
 #include "os_driver.h"
 #include "utils.h"
 
 #include <atomic>
 #include <cstddef>
-#include <cstdint>
 #include <optional>
-#include <string>
 #include <unordered_map>
 
 namespace amd::dbgapi

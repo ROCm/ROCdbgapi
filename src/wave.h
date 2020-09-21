@@ -31,12 +31,12 @@
 #include "register.h"
 #include "utils.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
-#include <tuple>
-#include <utility>
 #include <vector>
 
 namespace amd::dbgapi

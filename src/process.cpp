@@ -31,10 +31,10 @@
 #include "queue.h"
 #include "register.h"
 #include "rocr_rdebug.h"
+#include "watchpoint.h"
 #include "wave.h"
 
 #include <algorithm>
-#include <atomic>
 #include <chrono>
 #include <cstring>
 #include <exception>
@@ -50,7 +50,6 @@
 #include <vector>
 
 #include <errno.h>
-#include <limits.h>
 #include <link.h>
 #include <poll.h>
 #include <signal.h>
@@ -60,7 +59,6 @@ namespace amd::dbgapi
 {
 
 class dispatch_t;
-class watchpoint_t;
 
 std::list<process_t *> process_list;
 

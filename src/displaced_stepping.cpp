@@ -31,6 +31,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <optional>
 
 namespace amd::dbgapi
 {

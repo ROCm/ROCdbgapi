@@ -31,10 +31,8 @@
 #include "wave.h"
 
 #include <algorithm>
-#include <atomic>
 #include <iterator>
 #include <string>
-#include <utility>
 #include <vector>
 
 namespace amd::dbgapi

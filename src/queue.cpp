@@ -33,12 +33,13 @@
 #include <hsa/amd_hsa_queue.h>
 #include <hsa/hsa.h>
 
+#include <array>
 #include <cstdint>
-#include <cstring>
 #include <memory>
+#include <optional>
 #include <string>
-#include <tuple>
-#include <type_traits>
+#include <utility>
+#include <vector>
 
 namespace amd::dbgapi
 {
