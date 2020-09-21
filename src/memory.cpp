@@ -33,8 +33,6 @@
 namespace amd::dbgapi
 {
 
-class agent_t;
-
 amd_dbgapi_status_t
 address_class_t::get_info (amd_dbgapi_address_class_info_t query,
                            size_t value_size, void *value) const

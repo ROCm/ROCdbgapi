@@ -27,6 +27,7 @@
 
 #include <cstddef>
 #include <string>
+#include <utility>
 
 namespace amd::dbgapi
 {

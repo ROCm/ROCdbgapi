@@ -28,8 +28,10 @@
 #include "register.h"
 #include "utils.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <set>

@@ -29,9 +29,9 @@
 #include "wave.h"
 
 #include <cstdint>
+#include <iterator>
 #include <map>
 #include <optional>
-#include <string>
 #include <type_traits>
 #include <utility>
 

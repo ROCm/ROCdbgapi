@@ -19,6 +19,7 @@
  THE SOFTWARE. */
 
 #include "architecture.h"
+#include "agent.h"
 #include "debug.h"
 #include "displaced_stepping.h"
 #include "initialization.h"
@@ -1277,7 +1278,7 @@ amdgcn_architecture_t::get_wave_state (
         }
       else if (trap_raised)
         {
-          uint16_t trap_id;
+          uint16_t trap_id = 0;
 
           if (instruction && !is_trap (*instruction, &trap_id))
             {

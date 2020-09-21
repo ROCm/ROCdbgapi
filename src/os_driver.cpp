@@ -22,20 +22,20 @@
 #include "debug.h"
 #include "logging.h"
 
+#include <algorithm>
 #include <fstream>
 #include <limits>
-#include <new>
 #include <optional>
 #include <type_traits>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <string.h>
 #include <sys/ioctl.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 using namespace std::string_literals;

@@ -19,22 +19,12 @@
  THE SOFTWARE. */
 
 #include "watchpoint.h"
-#include "agent.h"
 #include "amd-dbgapi.h"
-#include "architecture.h"
 #include "debug.h"
 #include "initialization.h"
 #include "logging.h"
-#include "os_driver.h"
 #include "process.h"
-#include "queue.h"
 #include "utils.h"
-#include "wave.h"
-
-#include <algorithm>
-#include <cstddef>
-#include <memory>
-#include <vector>
 
 using namespace amd::dbgapi;
 

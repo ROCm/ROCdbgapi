@@ -24,20 +24,16 @@
 #include "amd-dbgapi.h"
 #include "debug.h"
 
+#include <array>
 #include <cstdarg>
 #include <cstdint>
 #include <cstring>
 #include <functional>
-#include <new>
 #include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
-
-#if __cplusplus >= 201703L
-#include <optional>
-#endif /* __cplusplus >= 201703L */
 
 #define TRY                                                                   \
   try                                                                         \
