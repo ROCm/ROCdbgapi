@@ -100,12 +100,11 @@ using namespace amd::dbgapi;
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_report_shared_library (
-    amd_dbgapi_process_id_t process_id,
     amd_dbgapi_shared_library_id_t shared_library_id,
     amd_dbgapi_shared_library_state_t shared_library_state)
 {
   TRY;
-  TRACE (process_id, shared_library_id, shared_library_state);
+  TRACE (shared_library_id, shared_library_state);
 
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -113,11 +112,6 @@ amd_dbgapi_report_shared_library (
   if (shared_library_state != AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED
       && shared_library_state != AMD_DBGAPI_SHARED_LIBRARY_STATE_UNLOADED)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
-
-  process_t *process = process_t::find (process_id);
-
-  if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
   shared_library_t *shared_library = find (shared_library_id);
 
@@ -132,24 +126,18 @@ amd_dbgapi_report_shared_library (
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_report_breakpoint_hit (
-    amd_dbgapi_process_id_t process_id,
     amd_dbgapi_breakpoint_id_t breakpoint_id,
     amd_dbgapi_client_thread_id_t client_thread_id,
     amd_dbgapi_breakpoint_action_t *breakpoint_action)
 {
   TRY;
-  TRACE (process_id, breakpoint_id, client_thread_id);
+  TRACE (breakpoint_id, client_thread_id);
 
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   if (!breakpoint_action)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
-
-  process_t *process = process_t::find (process_id);
-
-  if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
   breakpoint_t *breakpoint = find (breakpoint_id);
 

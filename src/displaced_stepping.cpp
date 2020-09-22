@@ -120,23 +120,17 @@ using namespace amd::dbgapi;
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_displaced_stepping_start (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
-    const void *saved_instruction_bytes,
+    amd_dbgapi_wave_id_t wave_id, const void *saved_instruction_bytes,
     amd_dbgapi_displaced_stepping_id_t *displaced_stepping_id)
 {
   TRY;
-  TRACE (process_id, wave_id);
+  TRACE (wave_id);
 
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   if (!saved_instruction_bytes || !displaced_stepping_id)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
-
-  process_t *process = process_t::find (process_id);
-
-  if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
   wave_t *wave = find (wave_id);
 
@@ -168,7 +162,7 @@ amd_dbgapi_displaced_stepping_start (
          warning ("another stepping buffer is still in use");
          return AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_BUFFER_UNAVAILABLE;
        */
-      process->destroy (displaced_stepping);
+      wave->process ().destroy (displaced_stepping);
     }
 
   {
@@ -182,10 +176,10 @@ amd_dbgapi_displaced_stepping_start (
       return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
 
     amd_dbgapi_status_t status
-        = process
-              ->create<displaced_stepping_t> (std::make_optional (id),
-                                              wave->queue (), wave->pc (),
-                                              saved_instruction_bytes)
+        = wave->process ()
+              .create<displaced_stepping_t> (std::make_optional (id),
+                                             wave->queue (), wave->pc (),
+                                             saved_instruction_bytes)
               .start (*wave);
 
     if (status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -203,19 +197,14 @@ amd_dbgapi_displaced_stepping_start (
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_displaced_stepping_complete (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
+    amd_dbgapi_wave_id_t wave_id,
     amd_dbgapi_displaced_stepping_id_t displaced_stepping_id)
 {
   TRY;
-  TRACE (process_id, wave_id, displaced_stepping_id);
+  TRACE (wave_id, displaced_stepping_id);
 
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
-
-  process_t *process = process_t::find (process_id);
-
-  if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
   wave_t *wave = find (wave_id);
 
@@ -245,7 +234,7 @@ amd_dbgapi_displaced_stepping_complete (
     if (status != AMD_DBGAPI_STATUS_SUCCESS)
       warning ("displaced_stepping_t::complete failed (rc=%d)", status);
 
-    process->destroy (displaced_stepping);
+    wave->process ().destroy (displaced_stepping);
 
     return status;
   }

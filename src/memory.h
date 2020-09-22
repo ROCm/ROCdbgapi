@@ -33,6 +33,8 @@
 namespace amd::dbgapi
 {
 
+class architecture_t;
+
 /* AMDGPU DWARF Address Class Mapping
    See https://llvm.org/docs/AMDGPUUsage.html#address-class-identifier
  */
@@ -71,14 +73,15 @@ public:
   };
 
   address_space_t (amd_dbgapi_address_space_id_t address_space_id,
-                   std::string name, address_space_kind_t kind,
-                   uint64_t dwarf_value, amd_dbgapi_size_t address_size,
+                   const architecture_t &architecture, std::string name,
+                   address_space_kind_t kind, uint64_t dwarf_value,
+                   amd_dbgapi_size_t address_size,
                    amd_dbgapi_segment_address_t null_address,
                    amd_dbgapi_address_space_access_t access)
       : handle_object (address_space_id), m_name (std::move (name)),
         m_kind (kind), m_dwarf_value (dwarf_value),
         m_address_size (address_size), m_null_address (null_address),
-        m_access (access)
+        m_access (access), m_architecture (architecture)
   {
   }
 
@@ -91,6 +94,8 @@ public:
   amd_dbgapi_status_t get_info (amd_dbgapi_address_space_info_t query,
                                 size_t value_size, void *value) const;
 
+  const architecture_t &architecture () const { return m_architecture; }
+
 private:
   std::string const m_name;
   address_space_kind_t const m_kind;
@@ -98,6 +103,7 @@ private:
   amd_dbgapi_size_t const m_address_size;
   amd_dbgapi_segment_address_t const m_null_address;
   amd_dbgapi_address_space_access_t const m_access;
+  const architecture_t &m_architecture;
 };
 
 /* The amd_dbgapi_address_space_id_t{1} is reserved for the distinguished
@@ -114,10 +120,11 @@ class address_class_t
 {
 public:
   address_class_t (amd_dbgapi_address_class_id_t address_class_id,
-                   std::string name, uint64_t dwarf_value,
-                   const address_space_t &address_space)
+                   const architecture_t &architecture, std::string name,
+                   uint64_t dwarf_value, const address_space_t &address_space)
       : handle_object (address_class_id), m_name (std::move (name)),
-        m_dwarf_value (dwarf_value), m_address_space (address_space)
+        m_dwarf_value (dwarf_value), m_address_space (address_space),
+        m_architecture (architecture)
   {
   }
 
@@ -129,10 +136,13 @@ public:
   amd_dbgapi_status_t get_info (amd_dbgapi_address_class_info_t query,
                                 size_t value_size, void *value) const;
 
+  const architecture_t &architecture () const { return m_architecture; }
+
 private:
   std::string const m_name;
   uint64_t const m_dwarf_value;
   const address_space_t &m_address_space;
+  const architecture_t &m_architecture;
 };
 
 } /* namespace amd::dbgapi */

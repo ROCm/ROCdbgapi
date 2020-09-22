@@ -271,45 +271,48 @@ amdgcn_architecture_t::initialize ()
   /* Create address spaces.  */
 
   auto &as_global = create<address_space_t> (
-      std::make_optional (AMD_DBGAPI_ADDRESS_SPACE_GLOBAL), "global",
+      std::make_optional (AMD_DBGAPI_ADDRESS_SPACE_GLOBAL), *this, "global",
       address_space_t::GLOBAL, DW_ASPACE_none, 64, 0x0000000000000000,
       AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   auto &as_generic = create<address_space_t> (
-      "generic", address_space_t::GENERIC, DW_ASPACE_AMDGPU_generic, 64,
+      *this, "generic", address_space_t::GENERIC, DW_ASPACE_AMDGPU_generic, 64,
       0x0000000000000000, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   auto &as_region = create<address_space_t> (
-      "region", address_space_t::REGION, DW_ASPACE_AMDGPU_region, 32,
+      *this, "region", address_space_t::REGION, DW_ASPACE_AMDGPU_region, 32,
       0xFFFFFFFF, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   auto &as_local = create<address_space_t> (
-      "local", address_space_t::LOCAL, DW_ASPACE_AMDGPU_local, 32, 0xFFFFFFFF,
-      AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
+      *this, "local", address_space_t::LOCAL, DW_ASPACE_AMDGPU_local, 32,
+      0xFFFFFFFF, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   auto &as_private_lane = create<address_space_t> (
-      "private_lane", address_space_t::PRIVATE_SWIZZLED,
+      *this, "private_lane", address_space_t::PRIVATE_SWIZZLED,
       DW_ASPACE_AMDGPU_private_lane, 32, 0x00000000,
       AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
-  create<address_space_t> ("private_wave", address_space_t::PRIVATE_UNSWIZZLED,
+  create<address_space_t> (*this, "private_wave",
+                           address_space_t::PRIVATE_UNSWIZZLED,
                            DW_ASPACE_AMDGPU_private_wave, 32, 0x00000000,
                            AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   for (int i = 0; i < 63; i++)
-    create<address_space_t> (string_printf ("private_lane%d", i),
+    create<address_space_t> (*this, string_printf ("private_lane%d", i),
                              address_space_t::PRIVATE_SWIZZLED_N,
                              DW_ASPACE_AMDGPU_private_lane0 + i, 32,
                              0x00000000, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   /* Create address classes.  */
 
-  create<address_class_t> ("none", DW_ADDR_none, as_generic);
-  create<address_class_t> ("global", DW_ADDR_LLVM_global, as_global);
-  create<address_class_t> ("constant", DW_ADDR_LLVM_constant, as_global);
-  create<address_class_t> ("group", DW_ADDR_LLVM_group, as_local);
-  create<address_class_t> ("private", DW_ADDR_LLVM_private, as_private_lane);
-  create<address_class_t> ("region", DW_ADDR_AMDGPU_region, as_region);
+  create<address_class_t> (*this, "none", DW_ADDR_none, as_generic);
+  create<address_class_t> (*this, "global", DW_ADDR_LLVM_global, as_global);
+  create<address_class_t> (*this, "constant", DW_ADDR_LLVM_constant,
+                           as_global);
+  create<address_class_t> (*this, "group", DW_ADDR_LLVM_group, as_local);
+  create<address_class_t> (*this, "private", DW_ADDR_LLVM_private,
+                           as_private_lane);
+  create<address_class_t> (*this, "region", DW_ADDR_AMDGPU_region, as_region);
 
   /* Create register classes.  */
 
@@ -317,7 +320,7 @@ amdgcn_architecture_t::initialize ()
   register_class_t::register_map_t scalar_registers;
   scalar_registers.emplace (amdgpu_regnum_t::FIRST_SGPR,
                             amdgpu_regnum_t::LAST_SGPR);
-  create<register_class_t> ("scalar", scalar_registers);
+  create<register_class_t> (*this, "scalar", scalar_registers);
 
   /* Vector registers: [v0-v255, acc0-acc255]  */
   register_class_t::register_map_t vector_registers;
@@ -338,7 +341,7 @@ amdgcn_architecture_t::initialize ()
         vector_registers.emplace (amdgpu_regnum_t::FIRST_ACCVGPR_64,
                                   amdgpu_regnum_t::LAST_ACCVGPR_64);
     }
-  create<register_class_t> ("vector", vector_registers);
+  create<register_class_t> (*this, "vector", vector_registers);
 
   /* System registers: [ttmps, hwregs, flat_scratch, xnack_mask, vcc]  */
   register_class_t::register_map_t system_registers;
@@ -371,7 +374,7 @@ amdgcn_architecture_t::initialize ()
       system_registers.emplace (amdgpu_regnum_t::VCC_64,
                                 amdgpu_regnum_t::VCC_64);
     }
-  create<register_class_t> ("system", system_registers);
+  create<register_class_t> (*this, "system", system_registers);
 
   /* General registers: [{scalar}, {vector}, pc, exec, vcc]  */
   register_class_t::register_map_t general_registers;
@@ -394,7 +397,7 @@ amdgcn_architecture_t::initialize ()
       general_registers.emplace (amdgpu_regnum_t::VCC_64,
                                  amdgpu_regnum_t::VCC_64);
     }
-  create<register_class_t> ("general", general_registers);
+  create<register_class_t> (*this, "general", general_registers);
 }
 
 namespace

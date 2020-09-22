@@ -176,21 +176,15 @@ dispatch_t::get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
 using namespace amd::dbgapi;
 
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_dispatch_get_info (amd_dbgapi_process_id_t process_id,
-                              amd_dbgapi_dispatch_id_t dispatch_id,
+amd_dbgapi_dispatch_get_info (amd_dbgapi_dispatch_id_t dispatch_id,
                               amd_dbgapi_dispatch_info_t query,
                               size_t value_size, void *value)
 {
   TRY;
-  TRACE (process_id, dispatch_id, query, value_size, value);
+  TRACE (dispatch_id, query, value_size, value);
 
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
-
-  process_t *process = process_t::find (process_id);
-
-  if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
   dispatch_t *dispatch = find (dispatch_id);
 

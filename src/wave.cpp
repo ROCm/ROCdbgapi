@@ -674,19 +674,13 @@ wave_t::get_info (amd_dbgapi_wave_info_t query, size_t value_size,
 using namespace amd::dbgapi;
 
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_wave_stop (amd_dbgapi_process_id_t process_id,
-                      amd_dbgapi_wave_id_t wave_id)
+amd_dbgapi_wave_stop (amd_dbgapi_wave_id_t wave_id)
 {
   TRY;
-  TRACE (process_id, wave_id);
+  TRACE (wave_id);
 
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
-
-  process_t *process = process_t::find (process_id);
-
-  if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
   wave_t *wave = find (wave_id);
 
@@ -711,20 +705,14 @@ amd_dbgapi_wave_stop (amd_dbgapi_process_id_t process_id,
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_wave_resume (amd_dbgapi_process_id_t process_id,
-                        amd_dbgapi_wave_id_t wave_id,
+amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
                         amd_dbgapi_resume_mode_t resume_mode)
 {
   TRY;
-  TRACE (process_id, wave_id, resume_mode);
+  TRACE (wave_id, resume_mode);
 
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
-
-  process_t *process = process_t::find (process_id);
-
-  if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
   wave_t *wave = find (wave_id);
 
@@ -753,21 +741,15 @@ amd_dbgapi_wave_resume (amd_dbgapi_process_id_t process_id,
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_wave_get_info (amd_dbgapi_process_id_t process_id,
-                          amd_dbgapi_wave_id_t wave_id,
+amd_dbgapi_wave_get_info (amd_dbgapi_wave_id_t wave_id,
                           amd_dbgapi_wave_info_t query, size_t value_size,
                           void *value)
 {
   TRY;
-  TRACE (process_id, wave_id, query, value_size, value);
+  TRACE (wave_id, query, value_size, value);
 
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
-
-  process_t *process = process_t::find (process_id);
-
-  if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
   wave_t *wave = find (wave_id);
 

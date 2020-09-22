@@ -82,23 +82,16 @@ using namespace amd::dbgapi;
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_architecture_register_class_get_info (
-    amd_dbgapi_architecture_id_t architecture_id,
     amd_dbgapi_register_class_id_t register_class_id,
     amd_dbgapi_register_class_info_t query, size_t value_size, void *value)
 {
   TRY;
-  TRACE (architecture_id, register_class_id, query, value_size);
+  TRACE (register_class_id, query, value_size);
 
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
-  const architecture_t *architecture = architecture_t::find (architecture_id);
-
-  if (!architecture)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID;
-
-  const register_class_t *register_class
-      = architecture->find (register_class_id);
+  const register_class_t *register_class = find (register_class_id);
 
   if (!register_class)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_CLASS_ID;
@@ -245,13 +238,12 @@ amd_dbgapi_architecture_register_list (
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_register_is_in_register_class (
-    amd_dbgapi_architecture_id_t architecture_id,
-    amd_dbgapi_register_id_t register_id,
     amd_dbgapi_register_class_id_t register_class_id,
+    amd_dbgapi_register_id_t register_id,
     amd_dbgapi_register_class_state_t *register_class_state)
 {
   TRY;
-  TRACE (architecture_id, register_id, register_class_id);
+  TRACE (register_class_id, register_id);
 
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -259,13 +251,7 @@ amd_dbgapi_register_is_in_register_class (
   if (!register_class_state)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
-  const architecture_t *architecture = architecture_t::find (architecture_id);
-
-  if (!architecture)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID;
-
-  const register_class_t *register_class
-      = architecture->find (register_class_id);
+  const register_class_t *register_class = find (register_class_id);
 
   if (!register_class)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_CLASS_ID;
@@ -360,22 +346,16 @@ amd_dbgapi_dwarf_register_to_register (
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_read_register (amd_dbgapi_process_id_t process_id,
-                          amd_dbgapi_wave_id_t wave_id,
+amd_dbgapi_read_register (amd_dbgapi_wave_id_t wave_id,
                           amd_dbgapi_register_id_t register_id,
                           amd_dbgapi_size_t offset,
                           amd_dbgapi_size_t value_size, void *value)
 {
   TRY;
-  TRACE (process_id, wave_id, register_id, offset, value_size);
+  TRACE (wave_id, register_id, offset, value_size);
 
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
-
-  process_t *process = process_t::find (process_id);
-
-  if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
   wave_t *wave = find (wave_id);
 
@@ -406,22 +386,16 @@ amd_dbgapi_read_register (amd_dbgapi_process_id_t process_id,
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_write_register (amd_dbgapi_process_id_t process_id,
-                           amd_dbgapi_wave_id_t wave_id,
+amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
                            amd_dbgapi_register_id_t register_id,
                            amd_dbgapi_size_t offset,
                            amd_dbgapi_size_t value_size, const void *value)
 {
   TRY;
-  TRACE (process_id, wave_id, register_id, offset, value_size);
+  TRACE (wave_id, register_id, offset, value_size);
 
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
-
-  process_t *process = process_t::find (process_id);
-
-  if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
   wave_t *wave = find (wave_id);
 
@@ -447,22 +421,16 @@ amd_dbgapi_write_register (amd_dbgapi_process_id_t process_id,
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_wave_register_get_info (amd_dbgapi_process_id_t process_id,
-                                   amd_dbgapi_wave_id_t wave_id,
+amd_dbgapi_wave_register_get_info (amd_dbgapi_wave_id_t wave_id,
                                    amd_dbgapi_register_id_t register_id,
                                    amd_dbgapi_register_info_t query,
                                    size_t value_size, void *value)
 {
   TRY;
-  TRACE (process_id, wave_id, register_id, query, value_size);
+  TRACE (wave_id, register_id, query, value_size);
 
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
-
-  process_t *process = process_t::find (process_id);
-
-  if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
   wave_t *wave = find (wave_id);
 
@@ -510,24 +478,18 @@ amd_dbgapi_wave_register_get_info (amd_dbgapi_process_id_t process_id,
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_wave_register_list (amd_dbgapi_process_id_t process_id,
-                               amd_dbgapi_wave_id_t wave_id,
+amd_dbgapi_wave_register_list (amd_dbgapi_wave_id_t wave_id,
                                size_t *register_count,
                                amd_dbgapi_register_id_t **registers)
 {
   TRY;
-  TRACE (process_id, wave_id);
+  TRACE (wave_id);
 
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   if (!registers || !register_count)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
-
-  process_t *process = process_t::find (process_id);
-
-  if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
   wave_t *wave = find (wave_id);
 
@@ -556,13 +518,12 @@ amd_dbgapi_wave_register_list (amd_dbgapi_process_id_t process_id,
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_prefetch_register (amd_dbgapi_process_id_t process_id,
-                              amd_dbgapi_wave_id_t wave_id,
+amd_dbgapi_prefetch_register (amd_dbgapi_wave_id_t wave_id,
                               amd_dbgapi_register_id_t register_id,
                               amd_dbgapi_size_t register_count)
 {
   TRY;
-  TRACE (process_id, wave_id, register_id, register_count);
+  TRACE (wave_id, register_id, register_count);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;

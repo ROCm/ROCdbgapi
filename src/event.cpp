@@ -357,21 +357,15 @@ amd_dbgapi_next_pending_event (amd_dbgapi_process_id_t process_id,
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_event_get_info (amd_dbgapi_process_id_t process_id,
-                           amd_dbgapi_event_id_t event_id,
+amd_dbgapi_event_get_info (amd_dbgapi_event_id_t event_id,
                            amd_dbgapi_event_info_t query, size_t value_size,
                            void *value)
 {
   TRY;
-  TRACE (process_id, event_id, query, value_size);
+  TRACE (event_id, query, value_size);
 
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
-
-  process_t *process = process_t::find (process_id);
-
-  if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
   event_t *event = find (event_id);
 
@@ -383,19 +377,13 @@ amd_dbgapi_event_get_info (amd_dbgapi_process_id_t process_id,
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_event_processed (amd_dbgapi_process_id_t process_id,
-                            amd_dbgapi_event_id_t event_id)
+amd_dbgapi_event_processed (amd_dbgapi_event_id_t event_id)
 {
   TRY;
-  TRACE (process_id, event_id);
+  TRACE (event_id);
 
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
-
-  process_t *process = process_t::find (process_id);
-
-  if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
   event_t *event = find (event_id);
 
@@ -405,7 +393,7 @@ amd_dbgapi_event_processed (amd_dbgapi_process_id_t process_id,
   event->set_processed ();
 
   /* We are done with this event, remove it from the map.  */
-  process->destroy (event);
+  event->process ().destroy (event);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;

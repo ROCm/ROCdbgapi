@@ -33,6 +33,8 @@
 namespace amd::dbgapi
 {
 
+class architecture_t;
+
 /* Registers  */
 
 enum class amdgpu_regnum_t : decltype (amd_dbgapi_register_id_t::handle)
@@ -185,9 +187,11 @@ public:
   using register_map_t = std::map<amdgpu_regnum_t, amdgpu_regnum_t>;
 
   register_class_t (amd_dbgapi_register_class_id_t register_class_id,
-                    std::string name, register_map_t register_map)
+                    const architecture_t &architecture, std::string name,
+                    register_map_t register_map)
       : handle_object (register_class_id), m_name (std::move (name)),
-        m_register_map (std::move (register_map))
+        m_register_map (std::move (register_map)),
+        m_architecture (architecture)
   {
   }
 
@@ -199,9 +203,12 @@ public:
   amd_dbgapi_status_t get_info (amd_dbgapi_register_class_info_t query,
                                 size_t value_size, void *value) const;
 
+  const architecture_t &architecture () const { return m_architecture; }
+
 private:
   std::string const m_name;
   register_map_t const m_register_map;
+  const architecture_t &m_architecture;
 };
 
 } /* namespace amd::dbgapi */

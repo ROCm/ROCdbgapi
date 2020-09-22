@@ -76,17 +76,10 @@
  * These should not be modified directly.  See the handle definitions for
  * information on the lifetime and scope of handles of that type.  If a handle
  * becomes invalidated it is undefined to use it with any library operations.
- * A handle value is unique within its scope for the lifetime of its owning
- * entity.  This is true even if the handle becomes invalidated: handle values
- * are not reused within their scope and lifetime.  Every handle with \p handle
- * of 0 is reserved to indicate the handle does not reference an entity.
- *
- * For example, a wave handle type is unique within a process.  Every wave
- * handle relating to a process will have a unique value but may have the same
- * value as wave handles of another process.  No wave handle will have the same
- * value of another wave handle for the same process, even if the wave handle
- * is invalidated due to the wave terminating.  When the process is detached
- * its lifetime ends and all associated wave handles lifetime ends.
+ * A handle value is globally unique for the lifetime of the loaded library.
+ * This is true even if the handle becomes invalidated: handle values are not
+ * reused within the lifetime of the loaded library.  Every handle with \p
+ * handle of 0 is reserved to indicate the handle does not reference an entity.
  *
  * When the library is first loaded it is in the uninitialized state with the
  * logging level set to ::AMD_DBGAPI_LOG_LEVEL_NONE.
@@ -467,10 +460,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_30
 
 /**
- * The function was introduced in version 0.36 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.36"``.
+ * The function was introduced in version 0.37 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.37"``.
  */
-#define AMD_DBGAPI_VERSION_0_36
+#define AMD_DBGAPI_VERSION_0_37
 
 /** @} */
 
@@ -640,8 +633,8 @@ typedef enum
    * (http://www.hsafoundation.com/html_spec111/HSA_Library.htm#SysArch/Topics/02_Details/req_architected_queuing_language_AQL.htm).
    *
    * For this queue type the AQL dispatch ID is used for
-   * ::amd_dbgapi_os_queue_packet_id_t.  It is only unique within a single queue
-   * of a single process.
+   * ::amd_dbgapi_os_queue_packet_id_t.  It is only unique within a single
+   * queue of a single process.
    */
   AMD_DBGAPI_OS_QUEUE_TYPE_HSA_KERNEL_DISPATCH_SINGLE_PRODUCER = 2,
   /**
@@ -1616,7 +1609,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_process_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_36;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_37;
 
 /**
  * Attach to a process in order to provide debug control of the AMD GPUs it
@@ -1969,8 +1962,6 @@ typedef enum
  * ::amd_dbgapi_code_object_info_t specifies the queries supported and the
  * type returned using the \p value argument.
  *
- * \param[in] process_id The process to which the code object belongs.
- *
  * \param[in] code_object_id The handle of the code object being queried.
  *
  * \param[in] query The query being requested.
@@ -1989,9 +1980,6 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
  * initialized.  The library is left uninitialized and \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
- * invalid.  \p value is unaltered.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_CODE_OBJECT_ID \p code_object_id
  * is invalid.  \p value is unaltered.
  *
@@ -2006,10 +1994,9 @@ typedef enum
  * allocate \p value returns NULL.  \p value is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_code_object_get_info (
-    amd_dbgapi_process_id_t process_id,
     amd_dbgapi_code_object_id_t code_object_id,
     amd_dbgapi_code_object_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_24;
+    void *value) AMD_DBGAPI_VERSION_0_37;
 
 /**
  * Return the list of loaded code objects for a process.
@@ -2146,8 +2133,6 @@ typedef enum
  * ::amd_dbgapi_agent_info_t specifies the queries supported and the type
  * returned using the \p value argument.
  *
- * \param[in] process_id The process to which the agent belongs.
- *
  * \param[in] agent_id The handle of the agent being queried.
  *
  * \param[in] query The query being requested.
@@ -2166,9 +2151,6 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
  * initialized.  The library is left uninitialized and \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
- * invalid.  \p value is unaltered.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_AGENT_ID \p agent_id is invalid.
  * \p value is unaltered.
  *
@@ -2183,9 +2165,8 @@ typedef enum
  * allocate \p value returns NULL.  \p value is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_agent_get_info (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_agent_id_t agent_id,
-    amd_dbgapi_agent_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_36;
+    amd_dbgapi_agent_id_t agent_id, amd_dbgapi_agent_info_t query,
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_37;
 
 /**
  * Return the list of agents for a process.
@@ -2323,8 +2304,6 @@ typedef enum
  * ::amd_dbgapi_queue_info_t specifies the queries supported and the type
  * returned using the \p value argument.
  *
- * \param[in] process_id The process to which the queue belongs.
- *
  * \param[in] queue_id The handle of the queue being queried.
  *
  * \param[in] query The query being requested.
@@ -2343,9 +2322,6 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
  * initialized.  The library is left uninitialized and \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
- * invalid.  \p value is unaltered.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_QUEUE_ID \p queue_id is invalid.
  * \p value is unaltered.
  *
@@ -2360,9 +2336,8 @@ typedef enum
  * allocate \p value returns NULL.  \p value is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_get_info (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_queue_id_t queue_id,
-    amd_dbgapi_queue_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_36;
+    amd_dbgapi_queue_id_t queue_id, amd_dbgapi_queue_info_t query,
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_37;
 
 /**
  * Queue state.
@@ -2480,9 +2455,6 @@ amd_dbgapi_queue_list (amd_dbgapi_process_id_t process_id, size_t *queue_count,
  * interpret according to the packet ABI determined by the queue type available
  * using the ::AMD_DBGAPI_QUEUE_TYPE query.  See ::amd_dbgapi_os_queue_type_t.
  *
- * \param[in] process_id The process of the queue for which the packet list is
- * requested.
- *
  * \param[in] queue_id The queue for which the packet list is requested.
  *
  * \param[out] read_packet_id The packet ID for the next packet to be read from
@@ -2514,10 +2486,6 @@ amd_dbgapi_queue_list (amd_dbgapi_process_id_t process_id, size_t *queue_count,
  * initialized.  The library is left uninitialized; and \p read_packet_id, \p
  * write_packet_id, \p packets_byte_size and \p packets_bytes are unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
- * invalid.  \p read_packet_id, \p write_packet_id, \p packets_byte_size and \p
- * packets_bytes are unaltered.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p read_packet_id, \p
  * write_packet_id, or \p packets_byte_size are NULL.  \p read_packet_id, \p
  * write_packet_id, \p packets_byte_size and \p packets_bytes are unaltered.
@@ -2537,9 +2505,10 @@ amd_dbgapi_queue_list (amd_dbgapi_process_id_t process_id, size_t *queue_count,
  * packets_byte_size and \p packets_bytes are unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_packet_list (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_queue_id_t queue_id,
-    amd_dbgapi_os_queue_packet_id_t *read_packet_id, amd_dbgapi_os_queue_packet_id_t *write_packet_id,
-    size_t *packets_byte_size, void **packets_bytes) AMD_DBGAPI_VERSION_0_36;
+    amd_dbgapi_queue_id_t queue_id,
+    amd_dbgapi_os_queue_packet_id_t *read_packet_id,
+    amd_dbgapi_os_queue_packet_id_t *write_packet_id,
+    size_t *packets_byte_size, void **packets_bytes) AMD_DBGAPI_VERSION_0_37;
 
 /** @} */
 
@@ -2548,8 +2517,8 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_packet_list (
  * Operations related to AMD GPU dispatches.
  *
  * Dispatches are initiated by queue dispatch packets in the format supported
- * by the queue.  See ::amd_dbgapi_os_queue_type_t.  Dispatches are the means that
- * waves are created on the AMD GPU.
+ * by the queue.  See ::amd_dbgapi_os_queue_type_t.  Dispatches are the means
+ * that waves are created on the AMD GPU.
  *
  * @{
  */
@@ -2672,8 +2641,6 @@ typedef enum
  * ::amd_dbgapi_dispatch_info_t specifies the queries supported and the type
  * returned using the \p value argument.
  *
- * \param[in] process_id The process to which the queue belongs.
- *
  * \param[in] dispatch_id The handle of the dispatch being queried.
  *
  * \param[in] query The query being requested.
@@ -2692,9 +2659,6 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
  * initialized.  The library is left uninitialized and \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
- * invalid.  \p value is unaltered.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_DISPATCH_ID \p queue_id is
  * invalid.  \p value is unaltered.
  *
@@ -2712,9 +2676,8 @@ typedef enum
  * allocate \p value returns NULL.  \p value is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_dispatch_get_info (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_dispatch_id_t dispatch_id,
-    amd_dbgapi_dispatch_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_36;
+    amd_dbgapi_dispatch_id_t dispatch_id, amd_dbgapi_dispatch_info_t query,
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_37;
 
 /**
  * Dispatch barrier.
@@ -2929,8 +2892,6 @@ typedef enum
  * ::amd_dbgapi_wave_info_t specifies the queries supported and the type
  * returned using the \p value argument.
  *
- * \param[in] process_id The process to which the queue belongs.
- *
  * \param[in] wave_id The handle of the wave being queried.
  *
  * \param[in] query The query being requested.
@@ -2948,9 +2909,6 @@ typedef enum
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
  * initialized.  The library is left uninitialized and \p value is unaltered.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
- * invalid.  \p value is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID \p wave_id is invalid. \p
  * value is unaltered.
@@ -2970,9 +2928,8 @@ typedef enum
  * value returns NULL.  \p value is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_get_info (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
-    amd_dbgapi_wave_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_30;
+    amd_dbgapi_wave_id_t wave_id, amd_dbgapi_wave_info_t query,
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_37;
 
 /**
  * The execution state of a wave.
@@ -3299,8 +3256,6 @@ amd_dbgapi_wave_list (amd_dbgapi_process_id_t process_id, size_t *wave_count,
  * but terminates before completing the stop request, will result in a
  * ::AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED event.
  *
- * \param[in] process_id The process to which the wave belongs.
- *
  * \param[in] wave_id The wave being requested to stop.
  *
  * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
@@ -3314,9 +3269,6 @@ amd_dbgapi_wave_list (amd_dbgapi_process_id_t process_id, size_t *wave_count,
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
  * initialized.  The library is left uninitialized and no wave is stopped.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
- * invalid.  No wave is stopped.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID \p wave_id is invalid.  No
  * wave is stopped.
  *
@@ -3328,8 +3280,7 @@ amd_dbgapi_wave_list (amd_dbgapi_process_id_t process_id, size_t *wave_count,
  * previous stop request continues to stop the wave.
  */
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_wave_stop (amd_dbgapi_process_id_t process_id,
-                      amd_dbgapi_wave_id_t wave_id) AMD_DBGAPI_VERSION_0_24;
+amd_dbgapi_wave_stop (amd_dbgapi_wave_id_t wave_id) AMD_DBGAPI_VERSION_0_37;
 
 /**
  * The mode in which to resuming the execution of a wave.
@@ -3418,8 +3369,6 @@ typedef enum
  * Sending a resume request to a wave that includes a stop reason that cannot
  * be resumed will report an error.  See ::amd_dbgapi_wave_stop_reason_t.
  *
- * \param[in] process_id The process to which the wave belongs.
- *
  * \param[in] wave_id The wave being requested to resume.
  *
  * \param[in] resume_mode If ::AMD_DBGAPI_RESUME_MODE_NORMAL, then resume
@@ -3436,9 +3385,6 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
  * initialized.  The library is left uninitialized and no wave is resumed.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
- * invalid.  No wave is resumed.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID \p wave_id is invalid.  No
  * wave is resumed.
  *
@@ -3452,8 +3398,8 @@ typedef enum
  * with a reason that includes one that cannot be resumed.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_resume (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
-    amd_dbgapi_resume_mode_t resume_mode) AMD_DBGAPI_VERSION_0_24;
+    amd_dbgapi_wave_id_t wave_id,
+    amd_dbgapi_resume_mode_t resume_mode) AMD_DBGAPI_VERSION_0_37;
 
 /** @} */
 
@@ -3590,8 +3536,6 @@ typedef struct
  * be resumed or must retry the displaced stepping later.  See
  * ::amd_dbgapi_wave_stop.
  *
- * \param[in] process_id The process to which the wave belongs.
- *
  * \param[in] wave_id The wave to create a displaced stepping buffer.
  *
  * \param[in] saved_instruction_bytes The original instruction bytes that the
@@ -3614,10 +3558,6 @@ typedef struct
  * initialized.  The library is left uninitialized, no displaced stepping
  * buffer is allocated, and \p displaced_stepping is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
- * invalid.  No displaced stepping buffer is allocated and \p
- * displaced_stepping is unaltered.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID \p wave_id is invalid.  No
  * displaced stepping buffer is allocated and \p displaced_stepping is
  * unaltered.
@@ -3636,10 +3576,9 @@ typedef struct
  * allocated and \p displaced_stepping is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_start (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
-    const void *saved_instruction_bytes,
+    amd_dbgapi_wave_id_t wave_id, const void *saved_instruction_bytes,
     amd_dbgapi_displaced_stepping_id_t *displaced_stepping)
-    AMD_DBGAPI_VERSION_0_24;
+    AMD_DBGAPI_VERSION_0_37;
 
 /**
  * Complete a displaced stepping buffer for a wave.
@@ -3660,8 +3599,6 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_start (
  * If the wave is the last one using the displaced stepping buffer, the buffer
  * is freed and the handle invalidated.
  *
- * \param[in] process_id The process to which the wave belongs.
- *
  * \param[in] wave_id The wave using the displaced stepping buffer.
  *
  * \param[in] displaced_stepping The displaced stepping buffer to complete.
@@ -3677,9 +3614,6 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_start (
  * initialized.  The library is left uninitialized, no displaced stepping
  * buffer completed.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
- * invalid.  No displaced stepping buffer is completed.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID \p wave_id is invalid.  No
  * displaced stepping buffer is completed.
  *
@@ -3691,9 +3625,9 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_start (
  * stopped.  No displaced stepping buffer is completed.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_complete (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
+    amd_dbgapi_wave_id_t wave_id,
     amd_dbgapi_displaced_stepping_id_t displaced_stepping)
-    AMD_DBGAPI_VERSION_0_24;
+    AMD_DBGAPI_VERSION_0_37;
 
 /** @} */
 
@@ -3884,7 +3818,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_watchpoint (
     amd_dbgapi_size_t size, amd_dbgapi_watchpoint_kind_t kind,
     amd_dbgapi_watchpoint_id_t *watchpoint_id,
     amd_dbgapi_global_address_t *watchpoint_address,
-    amd_dbgapi_size_t *watchpoint_size) AMD_DBGAPI_VERSION_0_36;
+    amd_dbgapi_size_t *watchpoint_size) AMD_DBGAPI_VERSION_0_37;
 
 /**
  * Remove a hardware data watchpoint previously set by
@@ -3969,9 +3903,6 @@ typedef enum
  * ::amd_dbgapi_register_class_info_t specifies the queries supported and the
  * type returned using the \p value argument.
  *
- * \param[in] architecture_id The architecture to which the register class
- * belongs.
- *
  * \param[in] register_class_id The handle of the register class being queried.
  *
  * \param[in] query The query being requested.
@@ -3990,9 +3921,6 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
  * initialized.  The library is left uninitialized and \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID \p
- * architecture_id is invalid.  \p value is unaltered.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_CLASS_ID \p
  * register_class_id is invalid.  \p value is unaltered.
  *
@@ -4008,10 +3936,9 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_architecture_register_class_get_info (
-    amd_dbgapi_architecture_id_t architecture_id,
     amd_dbgapi_register_class_id_t register_class_id,
     amd_dbgapi_register_class_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_24;
+    void *value) AMD_DBGAPI_VERSION_0_37;
 
 /**
  * Report the list of register classes supported by the architecture.
@@ -4181,8 +4108,6 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_register_get_info (
  * ::amd_dbgapi_register_info_t specifies the queries supported and the
  * type returned using the \p value argument.
  *
- * \param[in] process_id The process to which the wave belongs.
- *
  * \param[in] wave_id The wave to which the register belongs.
  *
  * \param[in] register_id The handle of the register being queried.
@@ -4203,9 +4128,6 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_register_get_info (
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
  * initialized.  The library is left uninitialized and \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
- * invalid.  \p value is unaltered.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID \p wave_id is invalid.
  * \p value is unaltered.
  *
@@ -4223,9 +4145,9 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_register_get_info (
  * allocate \p value returns NULL.  \p value is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_register_get_info (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
-    amd_dbgapi_register_id_t register_id, amd_dbgapi_register_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_24;
+    amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
+    amd_dbgapi_register_info_t query, size_t value_size,
+    void *value) AMD_DBGAPI_VERSION_0_37;
 
 /**
  * Report the list of registers supported by the architecture.
@@ -4288,8 +4210,6 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_register_list (
  * It is equal to, or a subset of, those returned by
  * ::amd_dbgapi_architecture_register_list and in the same order.
  *
- * \param[in] process_id The process to which the wave belongs.
- *
  * \param[in] wave_id The wave being queried.
  *
  * \param[out] register_count The number of wave registers.
@@ -4309,9 +4229,8 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_register_list (
  * initialized.  The library is left uninitialized; and \p register_count and
  * \p registers are unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID \p
- * architecture_id is invalid.  \p register_count and \p registers are
- * unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID \p wave_id is invalid.  \p
+ * register_count and \p registers are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p register_count or
  * \p registers are NULL.  \p register_count and \p registers are unaltered.
@@ -4322,9 +4241,8 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_register_list (
  * unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_register_list (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
-    size_t *register_count,
-    amd_dbgapi_register_id_t **registers) AMD_DBGAPI_VERSION_0_24;
+    amd_dbgapi_wave_id_t wave_id, size_t *register_count,
+    amd_dbgapi_register_id_t **registers) AMD_DBGAPI_VERSION_0_37;
 
 /**
  * Return a register handle from an AMD GPU DWARF register number.
@@ -4380,12 +4298,9 @@ typedef enum
  *
  * The register and register class must both belong to the same architecture.
  *
- * \param[in] architecture_id The architecture of the register class and
- * register.
+ * \param[in] register_class_id The handle of the register class being queried.
  *
  * \param[in] register_id The handle of the register being queried.
- *
- * \param[in] register_class_id The handle of the register class being queried.
  *
  * \param[out] register_class_state
  * ::AMD_DBGAPI_REGISTER_CLASS_STATE_NOT_MEMBER if the register is not in the
@@ -4403,25 +4318,20 @@ typedef enum
  * initialized.  The library is left uninitialized and \p register_class_state
  * is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID \p architecture_id
- * is invalid.  \p register_class_state is unaltered.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID \p register_id is
- * invalid for \p architecture_id.  \p register_class_state is unaltered.
+ * invalid.  \p register_class_state is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_CLASS_ID \p
- * register_class_id is invalid for \p architecture_id.  \p
- * register_class_state is unaltered.
+ * register_class_id is invalid .  \p register_class_state is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p register_class_state
  * is NULL.  \p register_class_state is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_is_in_register_class (
-    amd_dbgapi_architecture_id_t architecture_id,
-    amd_dbgapi_register_id_t register_id,
     amd_dbgapi_register_class_id_t register_class_id,
+    amd_dbgapi_register_id_t register_id,
     amd_dbgapi_register_class_state_t *register_class_state)
-    AMD_DBGAPI_VERSION_0_24;
+    AMD_DBGAPI_VERSION_0_37;
 
 /**
  * Read a register.
@@ -4437,8 +4347,6 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_is_in_register_class (
  * The size of the register can vary depending on the wave.  The register size
  * can be obtained using ::amd_dbgapi_wave_register_get_info with the
  * ::AMD_DBGAPI_REGISTER_INFO_SIZE query.
- *
- * \param[in] process_id The process to which the wave belongs.
  *
  * \param[in] wave_id The wave to being queried for the register.
  *
@@ -4464,9 +4372,6 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_is_in_register_class (
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
  * initialized.  The library is left uninitialized and \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
- * invalid.  \p value are unaltered.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID \p wave_id is invalid.  \p
  * value is unaltered.
  *
@@ -4485,9 +4390,9 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_is_in_register_class (
  * unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
-    amd_dbgapi_register_id_t register_id, amd_dbgapi_size_t offset,
-    amd_dbgapi_size_t value_size, void *value) AMD_DBGAPI_VERSION_0_24;
+    amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
+    amd_dbgapi_size_t offset, amd_dbgapi_size_t value_size,
+    void *value) AMD_DBGAPI_VERSION_0_37;
 
 /**
  * Write a register.
@@ -4502,8 +4407,6 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
  * The size of the register can vary depending on the wave.  The register size
  * can be obtained using ::amd_dbgapi_wave_register_get_info with the
  * ::AMD_DBGAPI_REGISTER_INFO_SIZE query.
- *
- * \param[in] process_id The process to which the wave belongs.
  *
  * \param[in] wave_id The wave to being queried for the register.
  *
@@ -4529,9 +4432,6 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
  * initialized.  The library is left uninitialized.  The register is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
- * invalid.  The register is unaltered.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID \p wave_id is invalid.
  * The register is unaltered.
  *
@@ -4550,9 +4450,9 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
  * unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_register (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
-    amd_dbgapi_register_id_t register_id, amd_dbgapi_size_t offset,
-    amd_dbgapi_size_t value_size, const void *value) AMD_DBGAPI_VERSION_0_24;
+    amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
+    amd_dbgapi_size_t offset, amd_dbgapi_size_t value_size,
+    const void *value) AMD_DBGAPI_VERSION_0_37;
 
 /**
  * Prefetch register values.
@@ -4576,8 +4476,6 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_register (
  * The register handle must be valid for the architecture, and the wave must
  * have allocated that register.
  *
- * \param[in] process_id The process to which the wave belongs.
- *
  * \param[in] wave_id The wave being queried for the register.
  *
  * \param[in] register_id The first register being requested.
@@ -4593,9 +4491,6 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_register (
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
  * initialized.  The library is left uninitialized.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
- * invalid.  No registers are prefetched.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID \p wave_id is invalid.  No
  * registers are prefetched.
  *
@@ -4607,9 +4502,8 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_register (
  * stopped.  No registers are prefetched.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_prefetch_register (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
-    amd_dbgapi_register_id_t register_id,
-    amd_dbgapi_size_t register_count) AMD_DBGAPI_VERSION_0_24;
+    amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
+    amd_dbgapi_size_t register_count) AMD_DBGAPI_VERSION_0_37;
 
 /** @} */
 
@@ -4713,9 +4607,6 @@ typedef enum
  * ::amd_dbgapi_address_class_info_t specifies the queries supported and the
  * type returned using the \p value argument.
  *
- * \param[in] architecture_id The architecture to which the source language
- * address class belongs.
- *
  * \param[in] address_class_id The handle of the source language address class
  * being queried.
  *
@@ -4735,12 +4626,8 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
  * initialized.  The library is left uninitialized and \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID \p architecture_id
- * is invalid.  \p value is unaltered.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_CLASS_ID \p
- * address_class_id is invalid for the architecture of \p architecture_id.  \p
- * value is unaltered.
+ * address_class_id is invalid.  \p value is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or \p
  * query is invalid.  \p value is unaltered.
@@ -4753,10 +4640,9 @@ typedef enum
  * value returns NULL.  \p value is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_address_class_get_info (
-    amd_dbgapi_architecture_id_t architecture_id,
     amd_dbgapi_address_class_id_t address_class_id,
     amd_dbgapi_address_class_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_24;
+    void *value) AMD_DBGAPI_VERSION_0_37;
 
 /**
  * Report the list of source language address classes supported by the
@@ -4930,8 +4816,6 @@ typedef enum
  * ::amd_dbgapi_address_space_info_t specifies the queries supported and the
  * type returned using the \p value argument.
  *
- * \param[in] architecture_id The architecture of the address space.
- *
  * \param[in] address_space_id The address space.
  *
  * \param[in] query The query being requested.
@@ -4950,11 +4834,8 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
  * initialized.  The library is left uninitialized and \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID \p architecture_id
- * is invalid.  \p value is unaltered.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID \p
- * address_space_id is invalid for \p architecture_id.  \p value is unaltered.
+ * address_space_id is invalid.  \p value is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p query is invalid or \p
  * value is NULL.  \p value is unaltered.
@@ -4967,10 +4848,9 @@ typedef enum
  * value returns NULL.  \p value is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_space_get_info (
-    amd_dbgapi_architecture_id_t architecture_id,
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_address_space_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_30;
+    void *value) AMD_DBGAPI_VERSION_0_37;
 
 /**
  * Report the list of address spaces supported by the architecture.
@@ -5076,9 +4956,6 @@ typedef enum
  *
  * The address spaces must match the architecture.
  *
- * \param[in] architecture_id The architecture to which the address spaces
- * belong.
- *
  * \param[in] address_space_id1 An address space.
  *
  * \param[in] address_space_id2 An address space.
@@ -5097,22 +4974,19 @@ typedef enum
  * initialized.  The library is left uninitialized and \p address_space_alias
  * is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID \p architecture_id
- * is invalid.  \p address_space_alias is unaltered.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID \p
- * address_space_id1 or \p address_space_id2 are invalid for \p
- * architecture_id.  \p address_space_alias is unaltered.
+ * address_space_id1 or \p address_space_id2 are invalid, or the architecture
+ * of both are not the same ::amd_dbgapi_architecture_id_t.  \p
+ * address_space_alias is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p address_space_alias is
  * NULL.  \p address_space_alias is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_spaces_may_alias (
-    amd_dbgapi_architecture_id_t architecture_id,
     amd_dbgapi_address_space_id_t address_space_id1,
     amd_dbgapi_address_space_id_t address_space_id2,
     amd_dbgapi_address_space_alias_t *address_space_alias)
-    AMD_DBGAPI_VERSION_0_24;
+    AMD_DBGAPI_VERSION_0_37;
 
 /**
  * Each address space has its own linear address to access it termed a segment
@@ -5149,8 +5023,6 @@ typedef uint64_t amd_dbgapi_segment_address_t;
  * depend on the active lane, both depend on the same lane, or both not depend
  * on the lane.
  *
- * \param[in] process_id The process to which the \p wave_id belongs.
- *
  * \param[in] wave_id The wave that is using the address.
  *
  * \param[in] lane_id The lane of the \p wave_id that is using the address.
@@ -5184,9 +5056,6 @@ typedef uint64_t amd_dbgapi_segment_address_t;
  * initialized.  The library is left uninitialized and \p
  * destination_segment_address is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
- * invalid.  \p destination_segment_address is unaltered.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID \p wave_id is invalid.  \p
  * destination_segment_address is unaltered.
  *
@@ -5208,13 +5077,12 @@ typedef uint64_t amd_dbgapi_segment_address_t;
  * unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_convert_address_space (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
-    amd_dbgapi_lane_id_t lane_id,
+    amd_dbgapi_wave_id_t wave_id, amd_dbgapi_lane_id_t lane_id,
     amd_dbgapi_address_space_id_t source_address_space_id,
     amd_dbgapi_segment_address_t source_segment_address,
     amd_dbgapi_address_space_id_t destination_address_space_id,
     amd_dbgapi_segment_address_t *destination_segment_address)
-    AMD_DBGAPI_VERSION_0_24;
+    AMD_DBGAPI_VERSION_0_37;
 
 /**
  * Indication of whether a segment address in an address space is a member of
@@ -5243,8 +5111,6 @@ typedef enum
  *
  * The address space, source language address class, and wave must all belong
  * to the same architecture.
- *
- * \param[in] process_id The process to which the \p wave_id belongs.
  *
  * \param[in] wave_id The wave that is using the address.
  *
@@ -5277,9 +5143,6 @@ typedef enum
  * initialized.  The library is left uninitialized and \p address_class_state
  * is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
- * invalid.  \p address_class_state is unaltered.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID \p wave_id is invalid.  \p
  * address_class_state is unaltered.
  *
@@ -5298,13 +5161,12 @@ typedef enum
  * NULL.  \p address_class_state is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_is_in_address_class (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
-    amd_dbgapi_lane_id_t lane_id,
+    amd_dbgapi_wave_id_t wave_id, amd_dbgapi_lane_id_t lane_id,
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_segment_address_t segment_address,
     amd_dbgapi_address_class_id_t address_class_id,
     amd_dbgapi_address_class_state_t *address_class_state)
-    AMD_DBGAPI_VERSION_0_24;
+    AMD_DBGAPI_VERSION_0_37;
 
 /**
  * Read memory.
@@ -5318,8 +5180,6 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_is_in_address_class (
  *
  * The library performs all necessary hardware cache management so that the
  * memory values read are coherent with the \p wave_id.
- *
- * \param[in] process_id The process to which the \p wave_id belongs.
  *
  * \param[in] wave_id The wave that is accessing the memory.  If the \p
  * address_space is ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL then \p wave_id is
@@ -5800,8 +5660,6 @@ typedef enum
  * ::amd_dbgapi_event_info_t specifies the queries supported and the
  * type returned using the \p value argument.
  *
- * \param[in] process_id The process to which \p event_id belongs.
- *
  * \param[in] event_id The event being queried.
  *
  * \param[in] query The query being requested.
@@ -5820,9 +5678,6 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
  * initialized.  The library is left uninitialized and \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID The \p process_id is
- * invalid.  \p value is unaltered.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID \p event_id is invalid
  * or the NULL event.  \p value is unaltered.
  *
@@ -5838,17 +5693,14 @@ typedef enum
  * allocate \p value returns NULL.  \p value is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_event_get_info (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_event_id_t event_id,
-    amd_dbgapi_event_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_30;
+    amd_dbgapi_event_id_t event_id, amd_dbgapi_event_info_t query,
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_37;
 
 /**
  * Report that an event has been processed.
  *
  * Every event returned by ::amd_dbgapi_next_pending_event must be reported
  * as processed exactly once.
- *
- * \param[in] process_id The process to which \p event_id belongs.
  *
  * \param[in] event_id The event that has been processed.
  *
@@ -5862,9 +5714,6 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_event_get_info (
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
  * initialized.  The library is left uninitialized.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID The \p process_id is
- * invalid.  No event is marked as processed.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID The \p event_id is
  * invalid or the NULL event.  No event is marked as processed.
  *
@@ -5872,8 +5721,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_event_get_info (
  * are NULL.  No event is marked as processed.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_event_processed (
-    amd_dbgapi_process_id_t process_id,
-    amd_dbgapi_event_id_t event_id) AMD_DBGAPI_VERSION_0_24;
+    amd_dbgapi_event_id_t event_id) AMD_DBGAPI_VERSION_0_37;
 
 /** @} */
 
@@ -6004,8 +5852,6 @@ typedef enum
  * breakpoints on library load or unload respectively.  The breakpoints must be
  * inserted before any code can execute in the shared library.
  *
- * \param[in] process_id The process to which the \p shared_library_id belongs.
- *
  * \param[in] shared_library_id The shared library that has been loaded or
  * unloaded.
  *
@@ -6020,9 +5866,6 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The amd-dbgapi library is
  * not initialized.  The amd-dbgapi library is left uninitialized.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID The \p process_id is
- * invalid.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_SHARED_LIBRARY_ID The \p
  * shared_library_id is invalid.
  *
@@ -6034,10 +5877,9 @@ typedef enum
  * loaded when previously also reported as loaded.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_report_shared_library (
-    amd_dbgapi_process_id_t process_id,
     amd_dbgapi_shared_library_id_t shared_library_id,
     amd_dbgapi_shared_library_state_t shared_library_state)
-    AMD_DBGAPI_VERSION_0_24;
+    AMD_DBGAPI_VERSION_0_37;
 
 /**
  * Opaque breakpoint handle.
@@ -6099,9 +5941,6 @@ typedef struct amd_dbgapi_client_thread_s *amd_dbgapi_client_thread_id_t;
  * ::AMD_DBGAPI_EVENT_KIND_BREAKPOINT_RESUME event to be added which specifies
  * that the thread should now be resumed.
  *
- * \param[in] process_id The process to which the \p client_thread_id hitting
- * the breakpoint belongs.
- *
  * \param[in] breakpoint_id The breakpoint that has been hit.
  *
  * \param[in] client_thread_id The client identification of the thread that
@@ -6121,9 +5960,6 @@ typedef struct amd_dbgapi_client_thread_s *amd_dbgapi_client_thread_id_t;
  * initialized.  The library is left uninitialized and \p breakpoint_action is
  * unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID The \p process_id is
- * invalid.  \p breakpoint_action is unaltered.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_BREAKPOINT_ID The
  * \p breakpoint_id is invalid.  \p breakpoint_action is unaltered.
  *
@@ -6131,10 +5967,9 @@ typedef struct amd_dbgapi_client_thread_s *amd_dbgapi_client_thread_id_t;
  * NULL.  \p breakpoint_action is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_report_breakpoint_hit (
-    amd_dbgapi_process_id_t process_id,
     amd_dbgapi_breakpoint_id_t breakpoint_id,
     amd_dbgapi_client_thread_id_t client_thread_id,
-    amd_dbgapi_breakpoint_action_t *breakpoint_action) AMD_DBGAPI_VERSION_0_24;
+    amd_dbgapi_breakpoint_action_t *breakpoint_action) AMD_DBGAPI_VERSION_0_37;
 
 /**
  * Callbacks that the client of the library must provide.

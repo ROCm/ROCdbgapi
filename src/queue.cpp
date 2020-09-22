@@ -962,21 +962,15 @@ scoped_queue_suspend_t::~scoped_queue_suspend_t ()
 using namespace amd::dbgapi;
 
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_queue_get_info (amd_dbgapi_process_id_t process_id,
-                           amd_dbgapi_queue_id_t queue_id,
+amd_dbgapi_queue_get_info (amd_dbgapi_queue_id_t queue_id,
                            amd_dbgapi_queue_info_t query, size_t value_size,
                            void *value)
 {
   TRY;
-  TRACE (process_id, queue_id, query, value_size, value);
+  TRACE (queue_id, query, value_size, value);
 
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
-
-  process_t *process = process_t::find (process_id);
-
-  if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
   queue_t *queue = find (queue_id);
 
@@ -1005,24 +999,19 @@ amd_dbgapi_queue_list (amd_dbgapi_process_id_t process_id, size_t *queue_count,
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_queue_packet_list (
-    amd_dbgapi_process_id_t process_id, amd_dbgapi_queue_id_t queue_id,
+    amd_dbgapi_queue_id_t queue_id,
     amd_dbgapi_os_queue_packet_id_t *read_packet_id_p,
     amd_dbgapi_os_queue_packet_id_t *write_packet_id_p,
     amd_dbgapi_size_t *packets_byte_size_p, void **packets_bytes_p)
 {
   TRY;
-  TRACE (process_id, queue_id);
+  TRACE (queue_id);
 
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   if (!read_packet_id_p || !write_packet_id_p || !packets_byte_size_p)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
-
-  process_t *process = process_t::find (process_id);
-
-  if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
   queue_t *queue = find (queue_id);
 
