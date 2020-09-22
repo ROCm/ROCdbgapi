@@ -423,7 +423,9 @@ template <typename Handle, typename Tuple>
 struct object_type_from_handle<Handle, Tuple, 0>
 {
   using element_0_type = typename std::tuple_element_t<0, Tuple>;
-  using type = typename element_0_type::object_type;
+  using type = std::conditional_t<
+      std::is_same_v<Handle, typename element_0_type::handle_type>,
+      typename element_0_type::object_type, void>;
 };
 
 template <typename Handle, typename Tuple, size_t I>
@@ -438,10 +440,9 @@ struct object_type_from_handle
 
 } /* namespace detail */
 
-template <typename Handle, typename Tuple,
-          size_t I = std::tuple_size_v<Tuple> - 1>
-using object_type_from_handle_t =
-    typename detail::object_type_from_handle<Handle, Tuple, I>::type;
+template <typename Handle, typename Tuple>
+using object_type_from_handle_t = typename detail::object_type_from_handle<
+    Handle, Tuple, std::tuple_size_v<Tuple> - 1>::type;
 
 } /* namespace amd::dbgapi */
 

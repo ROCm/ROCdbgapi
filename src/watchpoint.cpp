@@ -94,7 +94,7 @@ amd_dbgapi_remove_watchpoint (amd_dbgapi_process_id_t process_id,
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-  watchpoint_t *watchpoint = process->find (watchpoint_id);
+  watchpoint_t *watchpoint = find (watchpoint_id);
 
   if (!watchpoint)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID;

@@ -688,7 +688,7 @@ amd_dbgapi_wave_stop (amd_dbgapi_process_id_t process_id,
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-  wave_t *wave = process->find (wave_id);
+  wave_t *wave = find (wave_id);
 
   if (!wave)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
@@ -702,7 +702,7 @@ amd_dbgapi_wave_stop (amd_dbgapi_process_id_t process_id,
     scoped_queue_suspend_t suspend (wave->queue ());
 
     /* Look for the wave_id again, the wave may have exited.  */
-    if (!(wave = process->find (wave_id)))
+    if (!(wave = find (wave_id)))
       return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
 
     return wave->set_state (AMD_DBGAPI_WAVE_STATE_STOP);
@@ -726,7 +726,7 @@ amd_dbgapi_wave_resume (amd_dbgapi_process_id_t process_id,
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-  wave_t *wave = process->find (wave_id);
+  wave_t *wave = find (wave_id);
 
   if (!wave)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
@@ -742,7 +742,7 @@ amd_dbgapi_wave_resume (amd_dbgapi_process_id_t process_id,
     scoped_queue_suspend_t suspend (wave->queue ());
 
     /* Look for the wave_id again, the wave may have exited.  */
-    if (!(wave = process->find (wave_id)))
+    if (!(wave = find (wave_id)))
       return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
 
     return wave->set_state (resume_mode == AMD_DBGAPI_RESUME_MODE_SINGLE_STEP
@@ -769,7 +769,7 @@ amd_dbgapi_wave_get_info (amd_dbgapi_process_id_t process_id,
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-  wave_t *wave = process->find (wave_id);
+  wave_t *wave = find (wave_id);
 
   if (!wave)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;

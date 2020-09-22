@@ -64,7 +64,7 @@ amd_dbgapi_code_object_get_info (amd_dbgapi_process_id_t process_id,
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-  code_object_t *code_object = process->find (code_object_id);
+  code_object_t *code_object = find (code_object_id);
 
   if (!code_object)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_CODE_OBJECT_ID;

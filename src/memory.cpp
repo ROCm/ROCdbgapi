@@ -335,7 +335,7 @@ amd_dbgapi_convert_address_space (
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-  wave_t *wave = process->find (wave_id);
+  wave_t *wave = find (wave_id);
 
   if (!wave)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
@@ -380,7 +380,7 @@ amd_dbgapi_address_is_in_address_class (
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-  wave_t *wave = process->find (wave_id);
+  wave_t *wave = find (wave_id);
 
   if (!wave)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
@@ -435,7 +435,7 @@ amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
     return process->read_global_memory_partial (segment_address, value,
                                                 value_size);
 
-  wave_t *wave = process->find (wave_id);
+  wave_t *wave = find (wave_id);
 
   if (!wave)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
@@ -459,7 +459,7 @@ amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
       suspend.emplace (wave->queue ());
 
       /* Look for the wave_id again, the wave may have exited.  */
-      if (!(wave = process->find (wave_id)))
+      if (!(wave = find (wave_id)))
         return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
     }
 
@@ -496,7 +496,7 @@ amd_dbgapi_write_memory (amd_dbgapi_process_id_t process_id,
     return process->write_global_memory_partial (segment_address, value,
                                                  value_size);
 
-  wave_t *wave = process->find (wave_id);
+  wave_t *wave = find (wave_id);
 
   if (!wave)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
@@ -521,7 +521,7 @@ amd_dbgapi_write_memory (amd_dbgapi_process_id_t process_id,
       suspend.emplace (wave->queue ());
 
       /* Look for the wave_id again, the wave may have exited.  */
-      if (!(wave = process->find (wave_id)))
+      if (!(wave = find (wave_id)))
         return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
     }
 

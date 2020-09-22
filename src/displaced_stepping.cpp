@@ -138,7 +138,7 @@ amd_dbgapi_displaced_stepping_start (
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-  wave_t *wave = process->find (wave_id);
+  wave_t *wave = find (wave_id);
 
   if (!wave)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
@@ -157,7 +157,7 @@ amd_dbgapi_displaced_stepping_start (
      it isn't currently used.  */
   amd_dbgapi_displaced_stepping_id_t id{ buffer };
 
-  displaced_stepping_t *displaced_stepping = process->find (id);
+  displaced_stepping_t *displaced_stepping = find (id);
   if (displaced_stepping)
     {
       /* FIXME: gdb's infrun may have canceled the displaced stepping to handle
@@ -178,7 +178,7 @@ amd_dbgapi_displaced_stepping_start (
 
     /* Find the wave again, after suspending the queue, to determine if the
        wave has terminated.  */
-    if (!(wave = process->find (wave_id)))
+    if (!(wave = find (wave_id)))
       return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
 
     amd_dbgapi_status_t status
@@ -217,7 +217,7 @@ amd_dbgapi_displaced_stepping_complete (
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-  wave_t *wave = process->find (wave_id);
+  wave_t *wave = find (wave_id);
 
   if (!wave)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
@@ -225,8 +225,7 @@ amd_dbgapi_displaced_stepping_complete (
   if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
     return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED;
 
-  displaced_stepping_t *displaced_stepping
-      = process->find (displaced_stepping_id);
+  displaced_stepping_t *displaced_stepping = find (displaced_stepping_id);
 
   if (!displaced_stepping)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_DISPLACED_STEPPING_ID;
@@ -238,7 +237,7 @@ amd_dbgapi_displaced_stepping_complete (
 
     /* Find the wave again, after suspending the queue, to determine if the
        wave has terminated.  */
-    if (!(wave = process->find (wave_id)))
+    if (!(wave = find (wave_id)))
       return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
 
     amd_dbgapi_status_t status = displaced_stepping->complete (*wave);

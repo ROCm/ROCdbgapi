@@ -119,7 +119,7 @@ amd_dbgapi_report_shared_library (
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-  shared_library_t *shared_library = process->find (shared_library_id);
+  shared_library_t *shared_library = find (shared_library_id);
 
   if (!shared_library)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_SHARED_LIBRARY_ID;
@@ -151,7 +151,7 @@ amd_dbgapi_report_breakpoint_hit (
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-  breakpoint_t *breakpoint = process->find (breakpoint_id);
+  breakpoint_t *breakpoint = find (breakpoint_id);
 
   if (!breakpoint)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_BREAKPOINT_ID;

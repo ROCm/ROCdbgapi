@@ -978,7 +978,7 @@ amd_dbgapi_queue_get_info (amd_dbgapi_process_id_t process_id,
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-  queue_t *queue = process->find (queue_id);
+  queue_t *queue = find (queue_id);
 
   if (!queue)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_QUEUE_ID;
@@ -1024,7 +1024,7 @@ amd_dbgapi_queue_packet_list (
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-  queue_t *queue = process->find (queue_id);
+  queue_t *queue = find (queue_id);
 
   if (!queue)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_QUEUE_ID;

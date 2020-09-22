@@ -337,7 +337,7 @@ amd_dbgapi_agent_get_info (amd_dbgapi_process_id_t process_id,
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-  agent_t *agent = process->find (agent_id);
+  agent_t *agent = find (agent_id);
 
   if (!agent)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_AGENT_ID;

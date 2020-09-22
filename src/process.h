@@ -68,6 +68,14 @@ class process_t
   using notify_shared_library_callback_t = std::function<void (
       amd_dbgapi_shared_library_id_t, amd_dbgapi_shared_library_state_t)>;
 
+  std::tuple<
+      handle_object_set_t<agent_t>, handle_object_set_t<breakpoint_t>,
+      handle_object_set_t<code_object_t>, handle_object_set_t<dispatch_t>,
+      handle_object_set_t<displaced_stepping_t>, handle_object_set_t<event_t>,
+      handle_object_set_t<queue_t>, handle_object_set_t<shared_library_t>,
+      handle_object_set_t<watchpoint_t>, handle_object_set_t<wave_t>>
+      m_handle_object_sets;
+
 public:
   enum class flag_t : uint32_t
   {
@@ -286,7 +294,11 @@ public:
   }
 
   /* Find an object with the given handle.  */
-  template <typename Handle> auto *find (Handle id)
+  template <typename Handle,
+            std::enable_if_t<!std::is_void_v<object_type_from_handle_t<
+                                 Handle, decltype (m_handle_object_sets)>>,
+                             int> = 0>
+  auto *find (Handle id)
   {
     using object_type
         = object_type_from_handle_t<Handle, decltype (m_handle_object_sets)>;
@@ -337,15 +349,30 @@ private:
      sweeping, any code object found with a mark less than the current mark
      will be deleted, as these code objects are not longer loaded.  */
   monotonic_counter_t<epoch_t> m_next_code_object_mark{ 1 };
-
-  std::tuple<
-      handle_object_set_t<agent_t>, handle_object_set_t<breakpoint_t>,
-      handle_object_set_t<code_object_t>, handle_object_set_t<dispatch_t>,
-      handle_object_set_t<displaced_stepping_t>, handle_object_set_t<event_t>,
-      handle_object_set_t<queue_t>, handle_object_set_t<shared_library_t>,
-      handle_object_set_t<watchpoint_t>, handle_object_set_t<wave_t>>
-      m_handle_object_sets;
 };
+
+namespace detail
+{
+template <typename Handle>
+using process_find_t
+    = decltype (std::declval<process_t> ().find (std::declval<Handle> ()));
+}
+
+/* Find an object with the given handle.  */
+template <typename Handle,
+          std::enable_if_t<
+              utils::is_detected_v<detail::process_find_t, Handle>, int> = 0>
+auto *
+find (Handle id)
+{
+  using return_type = decltype (std::declval<process_t> ().find (id));
+
+  for (auto &&process : process_list)
+    if (return_type value = process->find (id); value)
+      return value;
+
+  return return_type{};
+}
 
 template <> struct is_flag<process_t::flag_t> : std::true_type
 {

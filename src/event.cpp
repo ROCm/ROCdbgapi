@@ -373,7 +373,7 @@ amd_dbgapi_event_get_info (amd_dbgapi_process_id_t process_id,
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-  event_t *event = process->find (event_id);
+  event_t *event = find (event_id);
 
   if (!event)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID;
@@ -397,7 +397,7 @@ amd_dbgapi_event_processed (amd_dbgapi_process_id_t process_id,
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-  event_t *event = process->find (event_id);
+  event_t *event = find (event_id);
 
   if (!event)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID;

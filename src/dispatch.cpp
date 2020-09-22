@@ -192,7 +192,7 @@ amd_dbgapi_dispatch_get_info (amd_dbgapi_process_id_t process_id,
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-  dispatch_t *dispatch = process->find (dispatch_id);
+  dispatch_t *dispatch = find (dispatch_id);
 
   if (!dispatch)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_DISPATCH_ID;

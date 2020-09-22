@@ -58,6 +58,11 @@ private:
   static_assert (is_handle_type_v<amd_dbgapi_architecture_id_t>,
                  "amd_dbgapi_architecture_id_t is not a handle type");
 
+  std::tuple<handle_object_set_t<address_space_t>,
+             handle_object_set_t<address_class_t>,
+             handle_object_set_t<register_class_t>>
+      m_handle_object_sets;
+
   amd_comgr_disassembly_info_t disassembly_info () const;
 
 protected:
@@ -65,6 +70,9 @@ protected:
   virtual void initialize () = 0;
 
 public:
+  /* Return the map of all instantiated architectures  */
+  static const auto &all () { return s_architecture_map; }
+
   struct cwsr_descriptor_t
   {
     /* cwsr_descriptor_t is a polymorphic base class.  */
@@ -249,7 +257,11 @@ public:
   }
 
   /* Find an object with the given handle.  */
-  template <typename Handle> const auto *find (Handle id) const
+  template <typename Handle,
+            std::enable_if_t<!std::is_void_v<object_type_from_handle_t<
+                                 Handle, decltype (m_handle_object_sets)>>,
+                             int> = 0>
+  const auto *find (Handle id) const
   {
     using object_type
         = object_type_from_handle_t<Handle, decltype (m_handle_object_sets)>;
@@ -274,11 +286,6 @@ private:
   elf_amdgpu_machine_t const m_e_machine;
   std::string const m_target_triple;
 
-  std::tuple<handle_object_set_t<address_space_t>,
-             handle_object_set_t<address_class_t>,
-             handle_object_set_t<register_class_t>>
-      m_handle_object_sets;
-
 private:
   static monotonic_counter_t<decltype (amd_dbgapi_architecture_id_t::handle)>
       s_next_architecture_id;
@@ -288,6 +295,30 @@ private:
                             hash<amd_dbgapi_architecture_id_t>>
       s_architecture_map;
 };
+
+namespace detail
+{
+template <typename Handle>
+using architecture_find_t = decltype (
+    std::declval<architecture_t> ().find (std::declval<Handle> ()));
+}
+
+/* Find an object with the given handle.  */
+template <
+    typename Handle,
+    std::enable_if_t<utils::is_detected_v<detail::architecture_find_t, Handle>,
+                     int> = 0>
+auto *
+find (Handle id)
+{
+  using return_type = decltype (std::declval<architecture_t> ().find (id));
+
+  for (auto &&architecture : architecture_t::all ())
+    if (return_type value = architecture.second->find (id); value)
+      return value;
+
+  return return_type{};
+}
 
 } /* namespace amd::dbgapi */
 
