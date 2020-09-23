@@ -57,6 +57,19 @@ shared_library_t::~shared_library_t ()
     m_process.disable_notify_shared_library (id ());
 }
 
+amd_dbgapi_status_t
+shared_library_t::get_info (amd_dbgapi_shared_library_info_t query,
+                            size_t value_size, void *value) const
+{
+  switch (query)
+    {
+    case AMD_DBGAPI_SHARED_LIBRARY_INFO_PROCESS:
+      return utils::get_info (value_size, value, process ().id ());
+    }
+
+  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+}
+
 void
 shared_library_t::set_state (amd_dbgapi_shared_library_state_t state)
 {
@@ -94,6 +107,22 @@ breakpoint_t::~breakpoint_t ()
     }
 }
 
+amd_dbgapi_status_t
+breakpoint_t::get_info (amd_dbgapi_breakpoint_info_t query, size_t value_size,
+                        void *value) const
+{
+  switch (query)
+    {
+    case AMD_DBGAPI_BREAKPOINT_INFO_SHARED_LIBRARY:
+      return utils::get_info (value_size, value, shared_library ().id ());
+
+    case AMD_DBGAPI_BREAKPOINT_INFO_PROCESS:
+      return utils::get_info (value_size, value, process ().id ());
+    }
+
+  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+}
+
 } /* namespace amd::dbgapi */
 
 using namespace amd::dbgapi;
@@ -125,6 +154,26 @@ amd_dbgapi_report_shared_library (
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
+amd_dbgapi_code_shared_library_get_info (
+    amd_dbgapi_shared_library_id_t shared_library_id,
+    amd_dbgapi_shared_library_info_t query, size_t value_size, void *value)
+{
+  TRY;
+  TRACE (shared_library_id, query, value_size, value);
+
+  if (!amd::dbgapi::is_initialized)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+
+  shared_library_t *shared_library = find (shared_library_id);
+
+  if (!shared_library)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_SHARED_LIBRARY_ID;
+
+  return shared_library->get_info (query, value_size, value);
+  CATCH;
+}
+
+amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_report_breakpoint_hit (
     amd_dbgapi_breakpoint_id_t breakpoint_id,
     amd_dbgapi_client_thread_id_t client_thread_id,
@@ -146,5 +195,25 @@ amd_dbgapi_report_breakpoint_hit (
 
   return breakpoint->action () (*breakpoint, client_thread_id,
                                 breakpoint_action);
+  CATCH;
+}
+
+amd_dbgapi_status_t AMD_DBGAPI
+amd_dbgapi_breakpoint_get_info (amd_dbgapi_breakpoint_id_t breakpoint_id,
+                                amd_dbgapi_breakpoint_info_t query,
+                                size_t value_size, void *value)
+{
+  TRY;
+  TRACE (breakpoint_id, query, value_size, value);
+
+  if (!amd::dbgapi::is_initialized)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+
+  breakpoint_t *breakpoint = find (breakpoint_id);
+
+  if (!breakpoint)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_BREAKPOINT_ID;
+
+  return breakpoint->get_info (query, value_size, value);
   CATCH;
 }

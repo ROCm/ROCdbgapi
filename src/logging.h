@@ -105,59 +105,63 @@ to_string (detail::hex<T> v)
 }
 
 #define AMD_DBGAPI_TYPES_DO(F)                                                \
-  F (amd_dbgapi_architecture_id_t)                                            \
-  F (amd_dbgapi_process_id_t)                                                 \
-  F (amd_dbgapi_code_object_id_t)                                             \
-  F (amd_dbgapi_agent_id_t)                                                   \
-  F (amd_dbgapi_queue_id_t)                                                   \
-  F (amd_dbgapi_dispatch_id_t)                                                \
-  F (amd_dbgapi_wave_id_t)                                                    \
-  F (amd_dbgapi_displaced_stepping_id_t)                                      \
-  F (amd_dbgapi_watchpoint_id_t)                                              \
-  F (amd_dbgapi_watchpoint_share_kind_t)                                      \
-  F (amd_dbgapi_watchpoint_kind_t)                                            \
-  F (amd_dbgapi_register_class_id_t)                                          \
-  F (amd_dbgapi_register_id_t)                                                \
   F (amd_dbgapi_address_class_id_t)                                           \
+  F (amd_dbgapi_address_class_info_t)                                         \
+  F (amd_dbgapi_address_class_state_t)                                        \
+  F (amd_dbgapi_address_space_access_t)                                       \
+  F (amd_dbgapi_address_space_alias_t)                                        \
   F (amd_dbgapi_address_space_id_t)                                           \
-  F (amd_dbgapi_event_id_t)                                                   \
-  F (amd_dbgapi_shared_library_id_t)                                          \
-  F (amd_dbgapi_breakpoint_id_t)                                              \
-  F (amd_dbgapi_changed_t)                                                    \
-  F (amd_dbgapi_status_t)                                                     \
-  F (amd_dbgapi_architecture_info_t)                                          \
-  F (amd_dbgapi_instruction_kind_t)                                           \
-  F (amd_dbgapi_process_info_t)                                               \
-  F (amd_dbgapi_progress_t)                                                   \
-  F (amd_dbgapi_wave_creation_t)                                              \
-  F (amd_dbgapi_code_object_info_t)                                           \
+  F (amd_dbgapi_address_space_info_t)                                         \
+  F (amd_dbgapi_agent_id_t)                                                   \
   F (amd_dbgapi_agent_info_t)                                                 \
-  F (amd_dbgapi_queue_info_t)                                                 \
-  F (amd_dbgapi_os_queue_type_t)                                              \
-  F (amd_dbgapi_queue_state_t)                                                \
-  F (amd_dbgapi_queue_error_reason_t)                                         \
-  F (amd_dbgapi_dispatch_info_t)                                              \
+  F (amd_dbgapi_architecture_id_t)                                            \
+  F (amd_dbgapi_architecture_info_t)                                          \
+  F (amd_dbgapi_breakpoint_action_t)                                          \
+  F (amd_dbgapi_breakpoint_id_t)                                              \
+  F (amd_dbgapi_breakpoint_info_t)                                            \
+  F (amd_dbgapi_changed_t)                                                    \
+  F (amd_dbgapi_code_object_id_t)                                             \
+  F (amd_dbgapi_code_object_info_t)                                           \
   F (amd_dbgapi_dispatch_barrier_t)                                           \
   F (amd_dbgapi_dispatch_fence_scope_t)                                       \
+  F (amd_dbgapi_dispatch_id_t)                                                \
+  F (amd_dbgapi_dispatch_info_t)                                              \
+  F (amd_dbgapi_displaced_stepping_id_t)                                      \
+  F (amd_dbgapi_displaced_stepping_info_t)                                    \
+  F (amd_dbgapi_event_id_t)                                                   \
+  F (amd_dbgapi_event_info_t)                                                 \
+  F (amd_dbgapi_event_kind_t)                                                 \
+  F (amd_dbgapi_instruction_kind_t)                                           \
+  F (amd_dbgapi_log_level_t)                                                  \
+  F (amd_dbgapi_memory_precision_t)                                           \
+  F (amd_dbgapi_os_queue_type_t)                                              \
+  F (amd_dbgapi_process_id_t)                                                 \
+  F (amd_dbgapi_process_info_t)                                               \
+  F (amd_dbgapi_progress_t)                                                   \
+  F (amd_dbgapi_queue_error_reason_t)                                         \
+  F (amd_dbgapi_queue_id_t)                                                   \
+  F (amd_dbgapi_queue_info_t)                                                 \
+  F (amd_dbgapi_queue_state_t)                                                \
+  F (amd_dbgapi_register_class_id_t)                                          \
+  F (amd_dbgapi_register_class_info_t)                                        \
+  F (amd_dbgapi_register_class_state_t)                                       \
+  F (amd_dbgapi_register_id_t)                                                \
+  F (amd_dbgapi_register_info_t)                                              \
+  F (amd_dbgapi_resume_mode_t)                                                \
+  F (amd_dbgapi_runtime_state_t)                                              \
+  F (amd_dbgapi_shared_library_id_t)                                          \
+  F (amd_dbgapi_shared_library_info_t)                                        \
+  F (amd_dbgapi_shared_library_state_t)                                       \
+  F (amd_dbgapi_status_t)                                                     \
+  F (amd_dbgapi_wave_creation_t)                                              \
+  F (amd_dbgapi_wave_id_t)                                                    \
   F (amd_dbgapi_wave_info_t)                                                  \
   F (amd_dbgapi_wave_state_t)                                                 \
   F (amd_dbgapi_wave_stop_reason_t)                                           \
-  F (amd_dbgapi_resume_mode_t)                                                \
-  F (amd_dbgapi_register_class_info_t)                                        \
-  F (amd_dbgapi_register_info_t)                                              \
-  F (amd_dbgapi_register_class_state_t)                                       \
-  F (amd_dbgapi_address_class_info_t)                                         \
-  F (amd_dbgapi_address_space_access_t)                                       \
-  F (amd_dbgapi_address_space_info_t)                                         \
-  F (amd_dbgapi_address_space_alias_t)                                        \
-  F (amd_dbgapi_address_class_state_t)                                        \
-  F (amd_dbgapi_memory_precision_t)                                           \
-  F (amd_dbgapi_event_kind_t)                                                 \
-  F (amd_dbgapi_runtime_state_t)                                              \
-  F (amd_dbgapi_event_info_t)                                                 \
-  F (amd_dbgapi_log_level_t)                                                  \
-  F (amd_dbgapi_shared_library_state_t)                                       \
-  F (amd_dbgapi_breakpoint_action_t)
+  F (amd_dbgapi_watchpoint_id_t)                                              \
+  F (amd_dbgapi_watchpoint_info_t)                                            \
+  F (amd_dbgapi_watchpoint_kind_t)                                            \
+  F (amd_dbgapi_watchpoint_share_kind_t)
 
 #define EXPLICIT_SPECIALIZATION(T) template <> std::string to_string (T);
 AMD_DBGAPI_TYPES_DO (EXPLICIT_SPECIALIZATION);

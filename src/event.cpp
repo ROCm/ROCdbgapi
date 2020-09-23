@@ -164,6 +164,9 @@ event_t::get_info (amd_dbgapi_event_info_t query, size_t value_size,
 {
   switch (query)
     {
+    case AMD_DBGAPI_EVENT_INFO_PROCESS:
+      return utils::get_info (value_size, value, process ().id ());
+
     case AMD_DBGAPI_EVENT_INFO_KIND:
       return utils::get_info (value_size, value, m_event_kind);
 

@@ -51,6 +51,9 @@ public:
   amd_dbgapi_size_t requested_size () const { return m_requested_size; }
   amd_dbgapi_watchpoint_kind_t kind () const { return m_kind; }
 
+  amd_dbgapi_status_t get_info (amd_dbgapi_watchpoint_info_t query,
+                                size_t value_size, void *value) const;
+
   process_t &process () const { return m_process; }
 
 private:

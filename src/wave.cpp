@@ -615,6 +615,9 @@ wave_t::get_info (amd_dbgapi_wave_info_t query, size_t value_size,
     case AMD_DBGAPI_WAVE_INFO_AGENT:
       return utils::get_info (value_size, value, agent ().id ());
 
+    case AMD_DBGAPI_WAVE_INFO_PROCESS:
+      return utils::get_info (value_size, value, process ().id ());
+
     case AMD_DBGAPI_WAVE_INFO_ARCHITECTURE:
       return utils::get_info (value_size, value, architecture ().id ());
 

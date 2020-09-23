@@ -34,6 +34,9 @@ code_object_t::get_info (amd_dbgapi_code_object_info_t query,
 {
   switch (query)
     {
+    case AMD_DBGAPI_CODE_OBJECT_INFO_PROCESS:
+      return utils::get_info (value_size, value, process ().id ());
+
     case AMD_DBGAPI_CODE_OBJECT_INFO_URI_NAME:
       return utils::get_info (value_size, value, m_uri);
 

@@ -322,10 +322,22 @@ to_string (amd_dbgapi_wave_creation_t wave_creation)
 
 template <>
 std::string
+to_string (amd_dbgapi_watchpoint_info_t watchpoint_info)
+{
+  switch (watchpoint_info)
+    {
+      CASE (WATCHPOINT_INFO_PROCESS);
+    }
+  return to_string (make_hex (watchpoint_info));
+}
+
+template <>
+std::string
 to_string (amd_dbgapi_code_object_info_t code_object_info)
 {
   switch (code_object_info)
     {
+      CASE (CODE_OBJECT_INFO_PROCESS);
       CASE (CODE_OBJECT_INFO_URI_NAME);
       CASE (CODE_OBJECT_INFO_LOAD_ADDRESS);
     }
@@ -334,10 +346,45 @@ to_string (amd_dbgapi_code_object_info_t code_object_info)
 
 template <>
 std::string
+to_string (amd_dbgapi_breakpoint_info_t breakpoint_info)
+{
+  switch (breakpoint_info)
+    {
+      CASE (BREAKPOINT_INFO_SHARED_LIBRARY);
+      CASE (BREAKPOINT_INFO_PROCESS);
+    }
+  return to_string (make_hex (breakpoint_info));
+}
+
+template <>
+std::string
+to_string (amd_dbgapi_shared_library_info_t shared_library_info)
+{
+  switch (shared_library_info)
+    {
+      CASE (SHARED_LIBRARY_INFO_PROCESS);
+    }
+  return to_string (make_hex (shared_library_info));
+}
+
+template <>
+std::string
+to_string (amd_dbgapi_displaced_stepping_info_t displaced_stepping_info)
+{
+  switch (displaced_stepping_info)
+    {
+      CASE (DISPLACED_STEPPING_INFO_PROCESS);
+    }
+  return to_string (make_hex (displaced_stepping_info));
+}
+
+template <>
+std::string
 to_string (amd_dbgapi_agent_info_t agent_info)
 {
   switch (agent_info)
     {
+      CASE (AGENT_INFO_PROCESS);
       CASE (AGENT_INFO_NAME);
       CASE (AGENT_INFO_ARCHITECTURE);
       CASE (AGENT_INFO_PCI_SLOT);
@@ -357,6 +404,7 @@ to_string (amd_dbgapi_queue_info_t queue_info)
   switch (queue_info)
     {
       CASE (QUEUE_INFO_AGENT);
+      CASE (QUEUE_INFO_PROCESS);
       CASE (QUEUE_INFO_ARCHITECTURE);
       CASE (QUEUE_INFO_TYPE);
       CASE (QUEUE_INFO_STATE);
@@ -451,6 +499,7 @@ to_string (amd_dbgapi_dispatch_info_t dispatch_info)
     {
       CASE (DISPATCH_INFO_QUEUE);
       CASE (DISPATCH_INFO_AGENT);
+      CASE (DISPATCH_INFO_PROCESS);
       CASE (DISPATCH_INFO_ARCHITECTURE);
       CASE (DISPATCH_INFO_OS_QUEUE_PACKET_ID);
       CASE (DISPATCH_INFO_BARRIER);
@@ -506,6 +555,7 @@ to_string (amd_dbgapi_wave_info_t wave_info)
       CASE (WAVE_INFO_DISPATCH);
       CASE (WAVE_INFO_QUEUE);
       CASE (WAVE_INFO_AGENT);
+      CASE (WAVE_INFO_PROCESS);
       CASE (WAVE_INFO_ARCHITECTURE);
       CASE (WAVE_INFO_PC);
       CASE (WAVE_INFO_EXEC_MASK);
@@ -640,6 +690,7 @@ to_string (amd_dbgapi_register_class_info_t register_class_info)
 {
   switch (register_class_info)
     {
+      CASE (REGISTER_CLASS_INFO_ARCHITECTURE);
       CASE (REGISTER_CLASS_INFO_NAME);
     }
   return to_string (make_hex (register_class_info));
@@ -676,6 +727,7 @@ to_string (amd_dbgapi_address_class_info_t address_class_info)
 {
   switch (address_class_info)
     {
+      CASE (ADDRESS_CLASS_INFO_ARCHITECTURE);
       CASE (ADDRESS_CLASS_INFO_NAME);
       CASE (ADDRESS_CLASS_INFO_ADDRESS_SPACE);
     }
@@ -701,6 +753,7 @@ to_string (amd_dbgapi_address_space_info_t address_space_info)
 {
   switch (address_space_info)
     {
+      CASE (ADDRESS_SPACE_INFO_ARCHITECTURE);
       CASE (ADDRESS_SPACE_INFO_NAME);
       CASE (ADDRESS_SPACE_INFO_ADDRESS_SIZE);
       CASE (ADDRESS_SPACE_INFO_NULL_ADDRESS);
@@ -781,6 +834,7 @@ to_string (amd_dbgapi_event_info_t event_info)
 {
   switch (event_info)
     {
+      CASE (EVENT_INFO_PROCESS);
       CASE (EVENT_INFO_KIND);
       CASE (EVENT_INFO_WAVE);
       CASE (EVENT_INFO_BREAKPOINT);

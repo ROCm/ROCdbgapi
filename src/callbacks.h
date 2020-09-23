@@ -49,6 +49,9 @@ public:
   void set_state (amd_dbgapi_shared_library_state_t state);
   amd_dbgapi_shared_library_state_t state () const { return m_state; }
 
+  amd_dbgapi_status_t get_info (amd_dbgapi_shared_library_info_t query,
+                                size_t value_size, void *value) const;
+
   process_t &process () const { return m_process; }
 
 private:
@@ -78,6 +81,9 @@ public:
 
   amd_dbgapi_global_address_t address () const { return m_address; }
   action_callback_t action () const { return m_action; }
+
+  amd_dbgapi_status_t get_info (amd_dbgapi_breakpoint_info_t query,
+                                size_t value_size, void *value) const;
 
   const shared_library_t &shared_library () const { return m_shared_library; }
   process_t &process () const { return shared_library ().process (); }

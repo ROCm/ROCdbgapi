@@ -26,6 +26,24 @@
 #include "process.h"
 #include "utils.h"
 
+namespace amd::dbgapi
+{
+
+amd_dbgapi_status_t
+watchpoint_t::get_info (amd_dbgapi_watchpoint_info_t query, size_t value_size,
+                        void *value) const
+{
+  switch (query)
+    {
+    case AMD_DBGAPI_WATCHPOINT_INFO_PROCESS:
+      return utils::get_info (value_size, value, process ().id ());
+    }
+
+  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+}
+
+} /* namespace amd::dbgapi */
+
 using namespace amd::dbgapi;
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -103,5 +121,25 @@ amd_dbgapi_remove_watchpoint (amd_dbgapi_process_id_t process_id,
   process->destroy (watchpoint);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+  CATCH;
+}
+
+amd_dbgapi_status_t AMD_DBGAPI
+amd_dbgapi_watchpoint_get_info (amd_dbgapi_watchpoint_id_t watchpoint_id,
+                                amd_dbgapi_watchpoint_info_t query,
+                                size_t value_size, void *value)
+{
+  TRY;
+  TRACE (watchpoint_id, query, value_size, value);
+
+  if (!amd::dbgapi::is_initialized)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+
+  watchpoint_t *watchpoint = find (watchpoint_id);
+
+  if (!watchpoint)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID;
+
+  return watchpoint->get_info (query, value_size, value);
   CATCH;
 }

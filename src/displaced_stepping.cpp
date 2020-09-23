@@ -79,6 +79,19 @@ displaced_stepping_t::displaced_stepping_t (
 }
 
 amd_dbgapi_status_t
+displaced_stepping_t::get_info (amd_dbgapi_displaced_stepping_info_t query,
+                                size_t value_size, void *value) const
+{
+  switch (query)
+    {
+    case AMD_DBGAPI_DISPLACED_STEPPING_INFO_PROCESS:
+      return utils::get_info (value_size, value, process ().id ());
+    }
+
+  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+}
+
+amd_dbgapi_status_t
 displaced_stepping_t::start (wave_t &wave)
 {
   amd_dbgapi_status_t status;
@@ -238,5 +251,25 @@ amd_dbgapi_displaced_stepping_complete (
 
     return status;
   }
+  CATCH;
+}
+
+amd_dbgapi_status_t AMD_DBGAPI
+amd_dbgapi_code_displaced_stepping_get_info (
+    amd_dbgapi_displaced_stepping_id_t displaced_stepping_id,
+    amd_dbgapi_displaced_stepping_info_t query, size_t value_size, void *value)
+{
+  TRY;
+  TRACE (displaced_stepping_id, query, value_size, value);
+
+  if (!amd::dbgapi::is_initialized)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+
+  displaced_stepping_t *displaced_stepping = find (displaced_stepping_id);
+
+  if (!displaced_stepping)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_DISPLACED_STEPPING_ID;
+
+  return displaced_stepping->get_info (query, value_size, value);
   CATCH;
 }

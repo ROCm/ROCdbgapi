@@ -70,6 +70,9 @@ register_class_t::get_info (amd_dbgapi_register_class_info_t query,
 {
   switch (query)
     {
+    case AMD_DBGAPI_REGISTER_CLASS_INFO_ARCHITECTURE:
+      return utils::get_info (value_size, value, architecture ().id ());
+
     case AMD_DBGAPI_REGISTER_CLASS_INFO_NAME:
       return utils::get_info (value_size, value, name ());
     }

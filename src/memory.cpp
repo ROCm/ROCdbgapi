@@ -39,6 +39,9 @@ address_class_t::get_info (amd_dbgapi_address_class_info_t query,
 {
   switch (query)
     {
+    case AMD_DBGAPI_ADDRESS_CLASS_INFO_ARCHITECTURE:
+      return utils::get_info (value_size, value, architecture ().id ());
+
     case AMD_DBGAPI_ADDRESS_CLASS_INFO_NAME:
       return utils::get_info (value_size, value, name ());
 
@@ -54,6 +57,9 @@ address_space_t::get_info (amd_dbgapi_address_space_info_t query,
 {
   switch (query)
     {
+    case AMD_DBGAPI_ADDRESS_SPACE_INFO_ARCHITECTURE:
+      return utils::get_info (value_size, value, architecture ().id ());
+
     case AMD_DBGAPI_ADDRESS_SPACE_INFO_NAME:
       return utils::get_info (value_size, value, name ());
 

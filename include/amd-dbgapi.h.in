@@ -460,10 +460,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_30
 
 /**
- * The function was introduced in version 0.37 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.37"``.
+ * The function was introduced in version 0.38 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.38"``.
  */
-#define AMD_DBGAPI_VERSION_0_37
+#define AMD_DBGAPI_VERSION_0_38
 
 /** @} */
 
@@ -1609,7 +1609,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_process_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_37;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_38;
 
 /**
  * Attach to a process in order to provide debug control of the AMD GPUs it
@@ -1900,6 +1900,11 @@ typedef struct
 typedef enum
 {
   /**
+   * Return the process to which this code object belongs.  The type of this
+   * attribute is ::amd_dbgapi_process_id_t.
+   */
+  AMD_DBGAPI_CODE_OBJECT_INFO_PROCESS = 1,
+  /**
    * The URI name of the ELF shared object from which the code object was
    * loaded.  Note that the code object is the in memory loaded relocated form
    * of the ELF shared object.  Multiple code objects may be loaded at
@@ -1947,13 +1952,13 @@ typedef enum
    *     file:///dir3/dir4/file2#offset=0x2000&size=3000
    *     memory://1234#offset=0x20000&size=3000
    */
-  AMD_DBGAPI_CODE_OBJECT_INFO_URI_NAME = 1,
+  AMD_DBGAPI_CODE_OBJECT_INFO_URI_NAME = 2,
   /**
    * The difference between the address in the ELF shared object and the
    * address the code object is loaded in memory.  The type of this attributes
    * is \p ptrdiff_t.
    */
-  AMD_DBGAPI_CODE_OBJECT_INFO_LOAD_ADDRESS = 2
+  AMD_DBGAPI_CODE_OBJECT_INFO_LOAD_ADDRESS = 3
 } amd_dbgapi_code_object_info_t;
 
 /**
@@ -1996,7 +2001,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_code_object_get_info (
     amd_dbgapi_code_object_id_t code_object_id,
     amd_dbgapi_code_object_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_37;
+    void *value) AMD_DBGAPI_VERSION_0_38;
 
 /**
  * Return the list of loaded code objects for a process.
@@ -2086,45 +2091,50 @@ typedef struct
 typedef enum
 {
   /**
+   * Return the process to which this agent belongs.  The type of this
+   * attribute is ::amd_dbgapi_process_id_t.
+   */
+  AMD_DBGAPI_AGENT_INFO_PROCESS = 1,
+  /**
    * Agent name.  The type of this attribute is a poiter to a NUL terminated
    * \p char*.  It is allocated by amd_dbgapi_callbacks_s::allocate_memory and
    * is owned by the client.
    */
-  AMD_DBGAPI_AGENT_INFO_NAME = 1,
+  AMD_DBGAPI_AGENT_INFO_NAME = 2,
   /**
    * Return the architecture of this agent.  The type of this attribute is
    * ::amd_dbgapi_architecture_id_t.
    */
-  AMD_DBGAPI_AGENT_INFO_ARCHITECTURE = 2,
+  AMD_DBGAPI_AGENT_INFO_ARCHITECTURE = 3,
   /**
    * PCI slot of the agent in BDF format (see [Bus:Device.Function (BDF)
    * Notation][bfd].
    * The type of this attribute is \p uint16_t.
    */
-  AMD_DBGAPI_AGENT_INFO_PCI_SLOT = 3,
+  AMD_DBGAPI_AGENT_INFO_PCI_SLOT = 4,
   /**
    * PCI vendor ID of the agent.  The type of this attribute is \p uint32_t.
    */
-  AMD_DBGAPI_AGENT_INFO_PCI_VENDOR_ID = 4,
+  AMD_DBGAPI_AGENT_INFO_PCI_VENDOR_ID = 5,
   /**
    * PCI device ID of the agent.  The type of this attribute is \p uint32_t.
    */
-  AMD_DBGAPI_AGENT_INFO_PCI_DEVICE_ID = 5,
+  AMD_DBGAPI_AGENT_INFO_PCI_DEVICE_ID = 6,
   /**
    * Total number of Execution Units (EUs) available in the agent.  The type of
    * this attribute is \p size_t.
    */
-  AMD_DBGAPI_AGENT_INFO_EXECUTION_UNIT_COUNT = 6,
+  AMD_DBGAPI_AGENT_INFO_EXECUTION_UNIT_COUNT = 7,
   /**
    * Maximum number of waves supported by an execution unit.  The type of this
    * attribute is \p size_t.
    */
-  AMD_DBGAPI_AGENT_INFO_MAX_WAVES_PER_EXECUTION_UNIT = 7,
+  AMD_DBGAPI_AGENT_INFO_MAX_WAVES_PER_EXECUTION_UNIT = 8,
   /**
    * Native operating system agent ID.  The type of this attribute is
    * ::amd_dbgapi_os_agent_id_t.
    */
-  AMD_DBGAPI_AGENT_INFO_OS_ID = 8
+  AMD_DBGAPI_AGENT_INFO_OS_ID = 9
 } amd_dbgapi_agent_info_t;
 
 /**
@@ -2166,7 +2176,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_agent_get_info (
     amd_dbgapi_agent_id_t agent_id, amd_dbgapi_agent_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_37;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_38;
 
 /**
  * Return the list of agents for a process.
@@ -2260,42 +2270,47 @@ typedef enum
    */
   AMD_DBGAPI_QUEUE_INFO_AGENT = 1,
   /**
+   * Return the process to which this queue belongs.  The type of this
+   * attribute is ::amd_dbgapi_process_id_t.
+   */
+  AMD_DBGAPI_QUEUE_INFO_PROCESS = 2,
+  /**
    * Return the architecture of this queue.  The type of this attribute is
    * ::amd_dbgapi_architecture_id_t.
    */
-  AMD_DBGAPI_QUEUE_INFO_ARCHITECTURE = 2,
+  AMD_DBGAPI_QUEUE_INFO_ARCHITECTURE = 3,
   /**
    * Return the queue type.  The type of this attribute is \p uint32_t with
    * values from ::amd_dbgapi_os_queue_type_t.
    */
-  AMD_DBGAPI_QUEUE_INFO_TYPE = 3,
+  AMD_DBGAPI_QUEUE_INFO_TYPE = 4,
   /**
    * Return the queue state.  The type of this attribute is \p uint32_t with
    * values from ::amd_dbgapi_queue_state_t.
    */
-  AMD_DBGAPI_QUEUE_INFO_STATE = 4,
+  AMD_DBGAPI_QUEUE_INFO_STATE = 5,
   /**
    * Return the reason the queue is in error as a bit set. If the queue is not
    * in the error state then ::AMD_DBGAPI_QUEUE_ERROR_REASON_NONE is returned.
    * The type of this attribute is \p uint64_t with values defined by
    * ::amd_dbgapi_queue_error_reason_t.
    */
-  AMD_DBGAPI_QUEUE_INFO_ERROR_REASON = 5,
+  AMD_DBGAPI_QUEUE_INFO_ERROR_REASON = 6,
   /**
    * Return the base address of the memory holding the queue packets.  The type
    * of this attribute is ::amd_dbgapi_global_address_t.
    */
-  AMD_DBGAPI_QUEUE_INFO_ADDRESS = 6,
+  AMD_DBGAPI_QUEUE_INFO_ADDRESS = 7,
   /**
    * Return the size in bytes of the memory holding the queue packets.  The
    * type of this attribute is ::amd_dbgapi_size_t.
    */
-  AMD_DBGAPI_QUEUE_INFO_SIZE = 7,
+  AMD_DBGAPI_QUEUE_INFO_SIZE = 8,
   /**
    * Native operating system queue ID.  The type of this attribute is
    * ::amd_dbgapi_os_queue_id_t.
    */
-  AMD_DBGAPI_QUEUE_INFO_OS_ID = 8
+  AMD_DBGAPI_QUEUE_INFO_OS_ID = 9
 } amd_dbgapi_queue_info_t;
 
 /**
@@ -2337,7 +2352,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_get_info (
     amd_dbgapi_queue_id_t queue_id, amd_dbgapi_queue_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_37;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_38;
 
 /**
  * Queue state.
@@ -2508,7 +2523,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_packet_list (
     amd_dbgapi_queue_id_t queue_id,
     amd_dbgapi_os_queue_packet_id_t *read_packet_id,
     amd_dbgapi_os_queue_packet_id_t *write_packet_id,
-    size_t *packets_byte_size, void **packets_bytes) AMD_DBGAPI_VERSION_0_37;
+    size_t *packets_byte_size, void **packets_bytes) AMD_DBGAPI_VERSION_0_38;
 
 /** @} */
 
@@ -2552,77 +2567,81 @@ typedef enum
    */
   AMD_DBGAPI_DISPATCH_INFO_QUEUE = 1,
   /**
-   * Return the agent to which this queue belongs.  The type of this attribute
-   * is
-   * ::amd_dbgapi_agent_id_t.
+   * Return the agent to which this dispatch belongs.  The type of this
+   * attribute is ::amd_dbgapi_agent_id_t.
    */
   AMD_DBGAPI_DISPATCH_INFO_AGENT = 2,
+  /**
+   * Return the process to which this dispatch belongs.  The type of this
+   * attribute is ::amd_dbgapi_process_id_t.
+   */
+  AMD_DBGAPI_DISPATCH_INFO_PROCESS = 3,
   /**
    * Return the architecture of this dispatch.  The type of this attribute is
    * ::amd_dbgapi_architecture_id_t.
    */
-  AMD_DBGAPI_DISPATCH_INFO_ARCHITECTURE = 3,
+  AMD_DBGAPI_DISPATCH_INFO_ARCHITECTURE = 4,
   /**
    * Return the queue packet ID of the dispatch packet that initiated the
    * dispatch.  The type of this attribute is \p
    * amd_dbgapi_os_queue_packet_id_t.
    */
-  AMD_DBGAPI_DISPATCH_INFO_OS_QUEUE_PACKET_ID = 4,
+  AMD_DBGAPI_DISPATCH_INFO_OS_QUEUE_PACKET_ID = 5,
   /**
    * Return the dispatch barrier setting.  The type of this attribute is
    * \p uint32_t with values defined by ::amd_dbgapi_dispatch_barrier_t.
    */
-  AMD_DBGAPI_DISPATCH_INFO_BARRIER = 5,
+  AMD_DBGAPI_DISPATCH_INFO_BARRIER = 6,
   /**
    * Return the dispatch acquire fence.  The type of this attribute is
    * \p uint32_t with values defined by ::amd_dbgapi_dispatch_fence_scope_t.
    */
-  AMD_DBGAPI_DISPATCH_INFO_ACQUIRE_FENCE = 6,
+  AMD_DBGAPI_DISPATCH_INFO_ACQUIRE_FENCE = 7,
   /**
    * Return the dispatch release fence.  The type of this attribute is
    * \p uint32_t with values defined by ::amd_dbgapi_dispatch_fence_scope_t.
    */
-  AMD_DBGAPI_DISPATCH_INFO_RELEASE_FENCE = 7,
+  AMD_DBGAPI_DISPATCH_INFO_RELEASE_FENCE = 8,
   /**
    * Return the dispatch grid dimensionality.  The type of this attribute is
    * \p uint32 with a value of 1, 2, or 3.
    */
-  AMD_DBGAPI_DISPATCH_INFO_GRID_DIMENSIONS = 8,
+  AMD_DBGAPI_DISPATCH_INFO_GRID_DIMENSIONS = 9,
   /**
    * Return the dispatch workgroup size (work-items) in the X, Y, and Z
    * dimensions.  The type of this attribute is \p uint16_t[3].
    */
-  AMD_DBGAPI_DISPATCH_INFO_WORK_GROUP_SIZES = 9,
+  AMD_DBGAPI_DISPATCH_INFO_WORK_GROUP_SIZES = 10,
   /**
    * Return the dispatch grid size (work-items) in the X, Y, and Z dimensions.
    * The type of this attribute is \p uint32_t[3].
    */
-  AMD_DBGAPI_DISPATCH_INFO_GRID_SIZES = 10,
+  AMD_DBGAPI_DISPATCH_INFO_GRID_SIZES = 11,
   /**
    * Return the dispatch private segment size in bytes.  The type of this
    * attribute is ::amd_dbgapi_size_t.
    */
-  AMD_DBGAPI_DISPATCH_INFO_PRIVATE_SEGMENT_SIZE = 11,
+  AMD_DBGAPI_DISPATCH_INFO_PRIVATE_SEGMENT_SIZE = 12,
   /**
    * Return the dispatch group segment size in bytes.  The type of this
    * attribute is ::amd_dbgapi_size_t.
    */
-  AMD_DBGAPI_DISPATCH_INFO_GROUP_SEGMENT_SIZE = 12,
+  AMD_DBGAPI_DISPATCH_INFO_GROUP_SEGMENT_SIZE = 13,
   /**
    * Return the dispatch kernel argument segment address.  The type of this
    * attribute is ::amd_dbgapi_global_address_t.
    */
-  AMD_DBGAPI_DISPATCH_INFO_KERNEL_ARGUMENT_SEGMENT_ADDRESS = 13,
+  AMD_DBGAPI_DISPATCH_INFO_KERNEL_ARGUMENT_SEGMENT_ADDRESS = 14,
   /**
    * Return the dispatch kernel descriptor address.  The type of this attribute
    * is ::amd_dbgapi_global_address_t.
    */
-  AMD_DBGAPI_DISPATCH_INFO_KERNEL_DESCRIPTOR_ADDRESS = 14,
+  AMD_DBGAPI_DISPATCH_INFO_KERNEL_DESCRIPTOR_ADDRESS = 15,
   /**
    * Return the dispatch kernel code entry address.  The type of this attribute
    * is ::amd_dbgapi_global_address_t.
    */
-  AMD_DBGAPI_DISPATCH_INFO_KERNEL_CODE_ENTRY_ADDRESS = 15,
+  AMD_DBGAPI_DISPATCH_INFO_KERNEL_CODE_ENTRY_ADDRESS = 16,
   /**
    * Return the dispatch completion event address.  The type of this attribute
    * is ::amd_dbgapi_global_address_t.  The ABI of the completion event varies
@@ -2632,7 +2651,7 @@ typedef enum
    * event, then ::amd_dbgapi_dispatch_get_info will return
    * ::AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED.
    */
-  AMD_DBGAPI_DISPATCH_INFO_KERNEL_COMPLETION_ADDRESS = 16
+  AMD_DBGAPI_DISPATCH_INFO_KERNEL_COMPLETION_ADDRESS = 17
 } amd_dbgapi_dispatch_info_t;
 
 /**
@@ -2677,7 +2696,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_dispatch_get_info (
     amd_dbgapi_dispatch_id_t dispatch_id, amd_dbgapi_dispatch_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_37;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_38;
 
 /**
  * Dispatch barrier.
@@ -2848,16 +2867,21 @@ typedef enum
    */
   AMD_DBGAPI_WAVE_INFO_AGENT = 6,
   /**
+   * Return the process to which this wave belongs.  The type of this
+   * attribute is ::amd_dbgapi_process_id_t.
+   */
+  AMD_DBGAPI_WAVE_INFO_PROCESS = 7,
+  /**
    * Return the architecture of this wave.  The type of this attribute is
    * ::amd_dbgapi_architecture_id_t.
    */
-  AMD_DBGAPI_WAVE_INFO_ARCHITECTURE = 7,
+  AMD_DBGAPI_WAVE_INFO_ARCHITECTURE = 8,
   /**
    * Return the current program counter value of the wave.  The type of this
    * attribute is ::amd_dbgapi_global_address_t.  The wave must be stopped to
    * make this query.
    */
-  AMD_DBGAPI_WAVE_INFO_PC = 8,
+  AMD_DBGAPI_WAVE_INFO_PC = 9,
   /**
    * Return the current execution mask of the wave.  Each bit of the mask maps
    * to a lane with the least significant bit corresponding to the lane with a
@@ -2865,25 +2889,25 @@ typedef enum
    * lane is active, otherwise the lane is not active.  The type of this
    * attribute is \p uint64_t.  The wave must be stopped to make this query.
    */
-  AMD_DBGAPI_WAVE_INFO_EXEC_MASK = 9,
+  AMD_DBGAPI_WAVE_INFO_EXEC_MASK = 10,
   /**
    * The wave workgroup coordinate in the dispatch grid dimensions.  The type
    * of this attribute is \p uint32_t[3] with elements 1, 2, and 3
    * corresponding to the X, Y, and Z coordinates respectively.
    */
-  AMD_DBGAPI_WAVE_INFO_WORK_GROUP_COORD = 10,
+  AMD_DBGAPI_WAVE_INFO_WORK_GROUP_COORD = 11,
   /**
    * The wave's number in the workgroup.  The type of this attribute is
    * \p uint32_t.  The work-items of a workgroup are mapped to the lanes of the
    * waves of the workgroup in flattened work-item ID order, with the first
    * work-item corresponding to lane 0 of wave 0, and so forth.
    */
-  AMD_DBGAPI_WAVE_INFO_WAVE_NUMBER_IN_WORK_GROUP = 11,
+  AMD_DBGAPI_WAVE_INFO_WAVE_NUMBER_IN_WORK_GROUP = 12,
   /**
    * The number of lanes supported by the wave.  The type of this attribute is
    * \p size_t.
    */
-  AMD_DBGAPI_WAVE_INFO_LANE_COUNT = 12
+  AMD_DBGAPI_WAVE_INFO_LANE_COUNT = 13
 } amd_dbgapi_wave_info_t;
 
 /**
@@ -2929,7 +2953,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_get_info (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_wave_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_37;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_38;
 
 /**
  * The execution state of a wave.
@@ -3280,7 +3304,7 @@ amd_dbgapi_wave_list (amd_dbgapi_process_id_t process_id, size_t *wave_count,
  * previous stop request continues to stop the wave.
  */
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_wave_stop (amd_dbgapi_wave_id_t wave_id) AMD_DBGAPI_VERSION_0_37;
+amd_dbgapi_wave_stop (amd_dbgapi_wave_id_t wave_id) AMD_DBGAPI_VERSION_0_38;
 
 /**
  * The mode in which to resuming the execution of a wave.
@@ -3399,7 +3423,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_resume (
     amd_dbgapi_wave_id_t wave_id,
-    amd_dbgapi_resume_mode_t resume_mode) AMD_DBGAPI_VERSION_0_37;
+    amd_dbgapi_resume_mode_t resume_mode) AMD_DBGAPI_VERSION_0_38;
 
 /** @} */
 
@@ -3506,6 +3530,65 @@ typedef struct
   (amd_dbgapi_displaced_stepping_id_t{ 0 })
 
 /**
+ * Displaced stepping queries that are supported by
+ * ::amd_dbgapi_displaced_stepping_id_t.
+ *
+ * Each query specifies the type of data returned in the \p value argument to
+ * ::amd_dbgapi_displaced_stepping_id_t.
+ */
+typedef enum
+{
+  /**
+   * Return the process to which this displaced stepping belongs.  The type of
+   * this attribute is ::amd_dbgapi_process_id_t.
+   */
+  AMD_DBGAPI_DISPLACED_STEPPING_INFO_PROCESS = 1
+} amd_dbgapi_displaced_stepping_info_t;
+
+/**
+ * Query information about a displaced stepping.
+ *
+ * ::amd_dbgapi_displaced_stepping_t specifies the queries supported and the
+ * type returned using the \p value argument.
+ *
+ * \param[in] displaced_stepping_id The handle of the displaced stepping being
+ * queried.
+ *
+ * \param[in] query The query being requested.
+ *
+ * \param[in] value_size Size of the memory pointed to by \p value.  Must be
+ * equal to the byte size of the query result.
+ *
+ * \param[out] value Pointer to memory where the query result is stored.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
+ * successfully and the result is stored in \p value.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
+ * left uninitialized and \p value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
+ * initialized.  The library is left uninitialized and \p value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_DISPLACED_STEPPING_ID \p
+ * displaced_stepping_id is invalid.  \p value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or
+ * \p query is invalid.  \p value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE \p value_size does
+ * not match the size of the result.  \p value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
+ * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
+ * allocate \p value returns NULL.  \p value is unaltered.
+ */
+amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_get_info (
+    amd_dbgapi_displaced_stepping_id_t displaced_stepping_id,
+    amd_dbgapi_displaced_stepping_info_t query, size_t value_size,
+    void *value) AMD_DBGAPI_VERSION_0_38;
+
+/**
  * Create a displaced stepping buffer.
  *
  * The wave must be stopped.
@@ -3578,7 +3661,7 @@ typedef struct
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_start (
     amd_dbgapi_wave_id_t wave_id, const void *saved_instruction_bytes,
     amd_dbgapi_displaced_stepping_id_t *displaced_stepping)
-    AMD_DBGAPI_VERSION_0_37;
+    AMD_DBGAPI_VERSION_0_38;
 
 /**
  * Complete a displaced stepping buffer for a wave.
@@ -3627,7 +3710,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_start (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_complete (
     amd_dbgapi_wave_id_t wave_id,
     amd_dbgapi_displaced_stepping_id_t displaced_stepping)
-    AMD_DBGAPI_VERSION_0_37;
+    AMD_DBGAPI_VERSION_0_38;
 
 /** @} */
 
@@ -3671,6 +3754,63 @@ typedef struct
  * The NULL hardware data watchpoint handle.
  */
 #define AMD_DBGAPI_WATCHPOINT_NONE (amd_dbgapi_watchpoint_id_t{ 0 })
+
+/**
+ * Watchpoint queries that are supported by ::amd_dbgapi_watchpoint_get_info.
+ *
+ * Each query specifies the type of data returned in the \p value argument to
+ * ::amd_dbgapi_watchpoint_get_info.
+ */
+typedef enum
+{
+  /**
+   * Return the process to which this watchpoint belongs.  The type of this
+   * attribute is ::amd_dbgapi_process_id_t.
+   */
+  AMD_DBGAPI_WATCHPOINT_INFO_PROCESS = 1
+} amd_dbgapi_watchpoint_info_t;
+
+/**
+ * Query information about a watchpoint.
+ *
+ * ::amd_dbgapi_watchpoint_info_t specifies the queries supported and the
+ * type returned using the \p value argument.
+ *
+ * \param[in] watchpoint_id The handle of the watchpoint being queried.
+ *
+ * \param[in] query The query being requested.
+ *
+ * \param[in] value_size Size of the memory pointed to by \p value.  Must be
+ * equal to the byte size of the query result.
+ *
+ * \param[out] value Pointer to memory where the query result is stored.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
+ * successfully and the result is stored in \p value.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
+ * left uninitialized and \p value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
+ * initialized.  The library is left uninitialized and \p value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID \p watchpoint_id
+ * is invalid.  \p value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or
+ * \p query is invalid.  \p value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE \p value_size does
+ * not match the size of the result.  \p value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
+ * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
+ * allocate \p value returns NULL.  \p value is unaltered.
+ */
+amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_watchpoint_get_info (
+    amd_dbgapi_watchpoint_id_t watchpoint_id,
+    amd_dbgapi_watchpoint_info_t query, size_t value_size,
+    void *value) AMD_DBGAPI_VERSION_0_38;
 
 /**
  * The way watchpoints are shared between processes.
@@ -3818,7 +3958,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_watchpoint (
     amd_dbgapi_size_t size, amd_dbgapi_watchpoint_kind_t kind,
     amd_dbgapi_watchpoint_id_t *watchpoint_id,
     amd_dbgapi_global_address_t *watchpoint_address,
-    amd_dbgapi_size_t *watchpoint_size) AMD_DBGAPI_VERSION_0_37;
+    amd_dbgapi_size_t *watchpoint_size) AMD_DBGAPI_VERSION_0_38;
 
 /**
  * Remove a hardware data watchpoint previously set by
@@ -3889,12 +4029,17 @@ typedef struct
 typedef enum
 {
   /**
+   * Return the architecture to which this register class belongs.  The type of
+   * this attribute is ::amd_dbgapi_architecture_id_t.
+   */
+  AMD_DBGAPI_REGISTER_CLASS_INFO_ARCHITECTURE = 1,
+  /**
    * Return the register class name.  The type of this attribute is a pointer
    * to a NUL terminated \p char.  It is allocated by the
    * amd_dbgapi_callbacks_s::allocate_memory callback and is owned by the
    * client.
    */
-  AMD_DBGAPI_REGISTER_CLASS_INFO_NAME = 1
+  AMD_DBGAPI_REGISTER_CLASS_INFO_NAME = 2
 } amd_dbgapi_register_class_info_t;
 
 /**
@@ -3938,7 +4083,7 @@ amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_architecture_register_class_get_info (
     amd_dbgapi_register_class_id_t register_class_id,
     amd_dbgapi_register_class_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_37;
+    void *value) AMD_DBGAPI_VERSION_0_38;
 
 /**
  * Report the list of register classes supported by the architecture.
@@ -4147,7 +4292,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_register_get_info (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_register_get_info (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
     amd_dbgapi_register_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_37;
+    void *value) AMD_DBGAPI_VERSION_0_38;
 
 /**
  * Report the list of registers supported by the architecture.
@@ -4242,7 +4387,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_register_list (
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_register_list (
     amd_dbgapi_wave_id_t wave_id, size_t *register_count,
-    amd_dbgapi_register_id_t **registers) AMD_DBGAPI_VERSION_0_37;
+    amd_dbgapi_register_id_t **registers) AMD_DBGAPI_VERSION_0_38;
 
 /**
  * Return a register handle from an AMD GPU DWARF register number.
@@ -4331,7 +4476,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_is_in_register_class (
     amd_dbgapi_register_class_id_t register_class_id,
     amd_dbgapi_register_id_t register_id,
     amd_dbgapi_register_class_state_t *register_class_state)
-    AMD_DBGAPI_VERSION_0_37;
+    AMD_DBGAPI_VERSION_0_38;
 
 /**
  * Read a register.
@@ -4392,7 +4537,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_is_in_register_class (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
     amd_dbgapi_size_t offset, amd_dbgapi_size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_37;
+    void *value) AMD_DBGAPI_VERSION_0_38;
 
 /**
  * Write a register.
@@ -4452,7 +4597,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
     amd_dbgapi_size_t offset, amd_dbgapi_size_t value_size,
-    const void *value) AMD_DBGAPI_VERSION_0_37;
+    const void *value) AMD_DBGAPI_VERSION_0_38;
 
 /**
  * Prefetch register values.
@@ -4503,7 +4648,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_register (
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_prefetch_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
-    amd_dbgapi_size_t register_count) AMD_DBGAPI_VERSION_0_37;
+    amd_dbgapi_size_t register_count) AMD_DBGAPI_VERSION_0_38;
 
 /** @} */
 
@@ -4584,12 +4729,17 @@ typedef struct
 typedef enum
 {
   /**
+   * Return the architecture to which this address class belongs.  The type of
+   * this attribute is ::amd_dbgapi_architecture_id_t.
+   */
+  AMD_DBGAPI_ADDRESS_CLASS_INFO_ARCHITECTURE = 1,
+  /**
    * Return the source language address class name.  The type of this attribute
    * is a pointer to a NUL terminated \p char.  It is allocated by the
    * amd_dbgapi_callbacks_s::allocate_memory callback and is owned by the
    * client.
    */
-  AMD_DBGAPI_ADDRESS_CLASS_INFO_NAME = 1,
+  AMD_DBGAPI_ADDRESS_CLASS_INFO_NAME = 2,
   /**
    * Return the architecture specific address space that is used to implement a
    * pointer or reference to the source language address class.  The type of
@@ -4598,7 +4748,7 @@ typedef enum
    * See [User Guide for AMDGPU Backend - Code Object - DWARF - Address Class
    * Mapping] (https://llvm.org/docs/AMDGPUUsage.html#address-class-mapping).
    */
-  AMD_DBGAPI_ADDRESS_CLASS_INFO_ADDRESS_SPACE = 2
+  AMD_DBGAPI_ADDRESS_CLASS_INFO_ADDRESS_SPACE = 3
 } amd_dbgapi_address_class_info_t;
 
 /**
@@ -4642,7 +4792,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_address_class_get_info (
     amd_dbgapi_address_class_id_t address_class_id,
     amd_dbgapi_address_class_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_37;
+    void *value) AMD_DBGAPI_VERSION_0_38;
 
 /**
  * Report the list of source language address classes supported by the
@@ -4787,27 +4937,32 @@ typedef enum
 typedef enum
 {
   /**
+   * Return the architecture to which this address space belongs.  The type of
+   * this attribute is ::amd_dbgapi_architecture_id_t.
+   */
+  AMD_DBGAPI_ADDRESS_SPACE_INFO_ARCHITECTURE = 1,
+  /**
    * Return the address space name.  The type of this attribute is a pointer to
    * a NUL terminated \p char*.  It is allocated by the
    * amd_dbgapi_callbacks_s::allocate_memory callback and is owned by the
    * client.
    */
-  AMD_DBGAPI_ADDRESS_SPACE_INFO_NAME = 1,
+  AMD_DBGAPI_ADDRESS_SPACE_INFO_NAME = 2,
   /**
    * Return the byte size of an address in the address space.  The type of this
    * attribute is ::amd_dbgapi_size_t.
    */
-  AMD_DBGAPI_ADDRESS_SPACE_INFO_ADDRESS_SIZE = 2,
+  AMD_DBGAPI_ADDRESS_SPACE_INFO_ADDRESS_SIZE = 3,
   /**
    * Return the NULL segment address value in the address space.  The type of
    * this attribute is \p amd_dbgapi_segment_address_t.
    */
-  AMD_DBGAPI_ADDRESS_SPACE_INFO_NULL_ADDRESS = 3,
+  AMD_DBGAPI_ADDRESS_SPACE_INFO_NULL_ADDRESS = 4,
   /**
    * Return the address space access.  The type of this attribute is \p
    * uint32_t with values defined by ::amd_dbgapi_address_space_access_t.
    */
-  AMD_DBGAPI_ADDRESS_SPACE_INFO_ACCESS = 4
+  AMD_DBGAPI_ADDRESS_SPACE_INFO_ACCESS = 5
 } amd_dbgapi_address_space_info_t;
 
 /**
@@ -4850,7 +5005,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_space_get_info (
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_address_space_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_37;
+    void *value) AMD_DBGAPI_VERSION_0_38;
 
 /**
  * Report the list of address spaces supported by the architecture.
@@ -4986,7 +5141,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_spaces_may_alias (
     amd_dbgapi_address_space_id_t address_space_id1,
     amd_dbgapi_address_space_id_t address_space_id2,
     amd_dbgapi_address_space_alias_t *address_space_alias)
-    AMD_DBGAPI_VERSION_0_37;
+    AMD_DBGAPI_VERSION_0_38;
 
 /**
  * Each address space has its own linear address to access it termed a segment
@@ -5082,7 +5237,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_convert_address_space (
     amd_dbgapi_segment_address_t source_segment_address,
     amd_dbgapi_address_space_id_t destination_address_space_id,
     amd_dbgapi_segment_address_t *destination_segment_address)
-    AMD_DBGAPI_VERSION_0_37;
+    AMD_DBGAPI_VERSION_0_38;
 
 /**
  * Indication of whether a segment address in an address space is a member of
@@ -5166,7 +5321,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_is_in_address_class (
     amd_dbgapi_segment_address_t segment_address,
     amd_dbgapi_address_class_id_t address_class_id,
     amd_dbgapi_address_class_state_t *address_class_state)
-    AMD_DBGAPI_VERSION_0_37;
+    AMD_DBGAPI_VERSION_0_38;
 
 /**
  * Read memory.
@@ -5625,33 +5780,38 @@ typedef enum
 typedef enum
 {
   /**
+   * Return the process to which this event belongs.  The type of this
+   * attribute is ::amd_dbgapi_process_id_t.
+   */
+  AMD_DBGAPI_EVENT_INFO_PROCESS = 1,
+  /**
    * Return the event kind.  The type of this attribute is
    * ::amd_dbgapi_event_kind_t.
    */
-  AMD_DBGAPI_EVENT_INFO_KIND = 1,
+  AMD_DBGAPI_EVENT_INFO_KIND = 2,
   /**
    * Return the wave of a ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP or
    * ::AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED event.  The type of this
    * attribute is a ::amd_dbgapi_wave_id_t.
    */
-  AMD_DBGAPI_EVENT_INFO_WAVE = 2,
+  AMD_DBGAPI_EVENT_INFO_WAVE = 3,
   /**
    * Return the breakpoint of a ::AMD_DBGAPI_EVENT_KIND_BREAKPOINT_RESUME
    * event.  The type of this attribute is a ::amd_dbgapi_breakpoint_id_t.
    */
-  AMD_DBGAPI_EVENT_INFO_BREAKPOINT = 3,
+  AMD_DBGAPI_EVENT_INFO_BREAKPOINT = 4,
   /**
    * Return the client thread of a ::AMD_DBGAPI_EVENT_KIND_BREAKPOINT_RESUME
    * event.  The type of this attribute is a ::amd_dbgapi_client_thread_id_t.
    */
-  AMD_DBGAPI_EVENT_INFO_CLIENT_THREAD = 4,
+  AMD_DBGAPI_EVENT_INFO_CLIENT_THREAD = 5,
   /**
    * Return if the runtime loaded in the inferior is supported by the library
    * for a ::AMD_DBGAPI_EVENT_KIND_RUNTIME event.  The type of this
    * attribute is \p uint32_t with a value defined by
    * ::amd_dbgapi_runtime_state_t.
    */
-  AMD_DBGAPI_EVENT_INFO_RUNTIME_STATE = 5
+  AMD_DBGAPI_EVENT_INFO_RUNTIME_STATE = 6
 } amd_dbgapi_event_info_t;
 
 /**
@@ -5694,7 +5854,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_event_get_info (
     amd_dbgapi_event_id_t event_id, amd_dbgapi_event_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_37;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_38;
 
 /**
  * Report that an event has been processed.
@@ -5721,7 +5881,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_event_get_info (
  * are NULL.  No event is marked as processed.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_event_processed (
-    amd_dbgapi_event_id_t event_id) AMD_DBGAPI_VERSION_0_37;
+    amd_dbgapi_event_id_t event_id) AMD_DBGAPI_VERSION_0_38;
 
 /** @} */
 
@@ -5840,6 +6000,64 @@ typedef enum
 #define AMD_DBGAPI_SHARED_LIBRARY_NONE (amd_dbgapi_shared_library_id_t{ 0 })
 
 /**
+ * Shared library queries that are supported by
+ * ::amd_dbgapi_shared_library_get_info.
+ *
+ * Each query specifies the type of data returned in the \p value argument to
+ * ::amd_dbgapi_shared_library_get_info.
+ */
+typedef enum
+{
+  /**
+   * Return the process to which this shared library belongs.  The type of this
+   * attribute is ::amd_dbgapi_process_id_t.
+   */
+  AMD_DBGAPI_SHARED_LIBRARY_INFO_PROCESS = 1
+} amd_dbgapi_shared_library_info_t;
+
+/**
+ * Query information about a shared library.
+ *
+ * ::amd_dbgapi_shared_library_info_t specifies the queries supported and the
+ * type returned using the \p value argument.
+ *
+ * \param[in] shared_library_id The handle of the shared_library being queried.
+ *
+ * \param[in] query The query being requested.
+ *
+ * \param[in] value_size Size of the memory pointed to by \p value.  Must be
+ * equal to the byte size of the query result.
+ *
+ * \param[out] value Pointer to memory where the query result is stored.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
+ * successfully and the result is stored in \p value.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
+ * left uninitialized and \p value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
+ * initialized.  The library is left uninitialized and \p value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_SHARED_LIBRARY_ID \p
+ * shared_library_id is invalid.  \p value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or
+ * \p query is invalid.  \p value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE \p value_size does
+ * not match the size of the result.  \p value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
+ * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
+ * allocate \p value returns NULL.  \p value is unaltered.
+ */
+amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_shared_library_get_info (
+    amd_dbgapi_shared_library_id_t shared_library_id,
+    amd_dbgapi_shared_library_info_t query, size_t value_size,
+    void *value) AMD_DBGAPI_VERSION_0_38;
+
+/**
  * Report that a shared library enabled by the
  * amd_dbgapi_callbacks_s::enable_notify_shared_library callback has been
  * loaded or unloaded.
@@ -5879,7 +6097,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_report_shared_library (
     amd_dbgapi_shared_library_id_t shared_library_id,
     amd_dbgapi_shared_library_state_t shared_library_state)
-    AMD_DBGAPI_VERSION_0_37;
+    AMD_DBGAPI_VERSION_0_38;
 
 /**
  * Opaque breakpoint handle.
@@ -5902,6 +6120,68 @@ typedef struct
  * The NULL breakpoint handle.
  */
 #define AMD_DBGAPI_BREAKPOINT_NONE ((amd_dbgapi_breakpoint_id_t) (0))
+
+/**
+ * Breakpoint queries that are supported by ::amd_dbgapi_breakpoint_get_info.
+ *
+ * Each query specifies the type of data returned in the \p value argument to
+ * ::amd_dbgapi_breakpoint_get_info.
+ */
+typedef enum
+{
+  /**
+   * Return the shared library to which this breakpoint belongs.  The type of
+   * this attribute is ::amd_dbgapi_shared_library_id_t.
+   */
+  AMD_DBGAPI_BREAKPOINT_INFO_SHARED_LIBRARY = 1,
+  /**
+   * Return the process to which this breakpoint belongs.  The type of this
+   * attribute is ::amd_dbgapi_process_id_t.
+   */
+  AMD_DBGAPI_BREAKPOINT_INFO_PROCESS = 2
+} amd_dbgapi_breakpoint_info_t;
+
+/**
+ * Query information about a breakpoint.
+ *
+ * ::amd_dbgapi_breakpoint_info_t specifies the queries supported and the
+ * type returned using the \p value argument.
+ *
+ * \param[in] breakpoint_id The handle of the breakpoint being queried.
+ *
+ * \param[in] query The query being requested.
+ *
+ * \param[in] value_size Size of the memory pointed to by \p value.  Must be
+ * equal to the byte size of the query result.
+ *
+ * \param[out] value Pointer to memory where the query result is stored.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
+ * successfully and the result is stored in \p value.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
+ * left uninitialized and \p value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
+ * initialized.  The library is left uninitialized and \p value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_BREAKPOINT_ID \p breakpoint_id
+ * is invalid.  \p value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or
+ * \p query is invalid.  \p value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE \p value_size does
+ * not match the size of the result.  \p value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
+ * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
+ * allocate \p value returns NULL.  \p value is unaltered.
+ */
+amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_breakpoint_get_info (
+    amd_dbgapi_breakpoint_id_t breakpoint_id,
+    amd_dbgapi_breakpoint_info_t query, size_t value_size,
+    void *value) AMD_DBGAPI_VERSION_0_38;
 
 /**
  * The action to perform after reporting a breakpoint has been hit.
@@ -5969,7 +6249,7 @@ typedef struct amd_dbgapi_client_thread_s *amd_dbgapi_client_thread_id_t;
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_report_breakpoint_hit (
     amd_dbgapi_breakpoint_id_t breakpoint_id,
     amd_dbgapi_client_thread_id_t client_thread_id,
-    amd_dbgapi_breakpoint_action_t *breakpoint_action) AMD_DBGAPI_VERSION_0_37;
+    amd_dbgapi_breakpoint_action_t *breakpoint_action) AMD_DBGAPI_VERSION_0_38;
 
 /**
  * Callbacks that the client of the library must provide.
