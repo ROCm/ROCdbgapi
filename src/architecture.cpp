@@ -50,8 +50,7 @@
 namespace amd::dbgapi
 {
 
-monotonic_counter_t<decltype (amd_dbgapi_architecture_id_t::handle)>
-    architecture_t::s_next_architecture_id{ 1 };
+monotonic_counter_t<uint32_t> architecture_t::s_next_architecture_id{ 1 };
 
 /* Base class for all AMDGCN architectures.  */
 
@@ -2926,7 +2925,8 @@ architecture_t::get_info (amd_dbgapi_architecture_info_t query,
                               breakpoint_instruction_pc_adjust ());
 
     case AMD_DBGAPI_ARCHITECTURE_INFO_PC_REGISTER:
-      return utils::get_info (value_size, value, amdgpu_regnum_t::PC);
+      return utils::get_info (value_size, value,
+                              regnum_to_register_id (amdgpu_regnum_t::PC));
     }
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }

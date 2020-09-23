@@ -424,13 +424,15 @@ class monotonic_counter_t
                  "Type is not an unsigned integral type");
 
 public:
+  using value_type = Type;
+
   /* Construct a new monotonic counter.  */
-  monotonic_counter_t (Type value) : m_value (value) {}
+  monotonic_counter_t (value_type value) : m_value (value) {}
 
   /* Prefix and postfix increment operators.  */
   monotonic_counter_t &operator++ ()
   {
-    Type old_value = m_value++;
+    value_type old_value = m_value++;
     if (WrapAroundCheck () (old_value, m_value))
       error ("monotonic counter wrapped around");
 
@@ -444,10 +446,10 @@ public:
   }
 
   /* Default cast operator.  */
-  operator Type () const { return m_value; }
+  operator value_type () const { return m_value; }
 
 private:
-  Type m_value{ 0 };
+  value_type m_value{ 0 };
 };
 
 class pipe_t

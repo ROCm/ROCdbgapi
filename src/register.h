@@ -37,7 +37,7 @@ class architecture_t;
 
 /* Registers  */
 
-enum class amdgpu_regnum_t : decltype (amd_dbgapi_register_id_t::handle)
+enum class amdgpu_regnum_t : uint32_t
 {
   FIRST_VGPR_32 = 0,
 
@@ -127,27 +127,29 @@ enum class amdgpu_regnum_t : decltype (amd_dbgapi_register_id_t::handle)
   LDS_0, /* First dword of the LDS backing store.  */
 
   NULL_, /* Special register: read returns 0, write is ignored.  */
+
+  LAST_REGNUM = NULL_
 };
 
 constexpr size_t
 operator- (amdgpu_regnum_t lhs, amdgpu_regnum_t rhs)
 {
-  return static_cast<decltype (amd_dbgapi_register_id_t::handle)> (lhs)
-         - static_cast<decltype (amd_dbgapi_register_id_t::handle)> (rhs);
+  return static_cast<std::underlying_type_t<decltype (lhs)>> (lhs)
+         - static_cast<std::underlying_type_t<decltype (rhs)>> (rhs);
 }
 
 constexpr amdgpu_regnum_t
 operator+ (amdgpu_regnum_t lhs, int rhs)
 {
   return static_cast<amdgpu_regnum_t> (
-      static_cast<decltype (amd_dbgapi_register_id_t::handle)> (lhs) + rhs);
+      static_cast<std::underlying_type_t<decltype (lhs)>> (lhs) + rhs);
 }
 
 constexpr amdgpu_regnum_t
 operator- (amdgpu_regnum_t lhs, int rhs)
 {
   return static_cast<amdgpu_regnum_t> (
-      static_cast<decltype (amd_dbgapi_register_id_t::handle)> (lhs) - rhs);
+      static_cast<std::underlying_type_t<decltype (lhs)>> (lhs) - rhs);
 }
 
 constexpr amdgpu_regnum_t

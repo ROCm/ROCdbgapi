@@ -214,6 +214,37 @@ public:
   find (amd_dbgapi_architecture_id_t architecture_id, int ignore = 0);
   static const architecture_t *find (elf_amdgpu_machine_t elf_amdgpu_machine);
 
+  amd_dbgapi_register_id_t regnum_to_register_id (amdgpu_regnum_t regnum) const
+  {
+    using integral_type = decltype (amd_dbgapi_register_id_t::handle);
+
+    static_assert (
+        sizeof (typename decltype (s_next_architecture_id)::value_type) <= 4
+        && sizeof (amdgpu_regnum_t) <= 4 && sizeof (integral_type) >= 8);
+
+    auto register_id = (static_cast<integral_type> (id ().handle) << 32)
+                       | static_cast<integral_type> (regnum);
+
+    return amd_dbgapi_register_id_t{ register_id };
+  }
+  static std::optional<amdgpu_regnum_t>
+  register_id_to_regnum (amd_dbgapi_register_id_t register_id)
+  {
+    amdgpu_regnum_t regnum = static_cast<amdgpu_regnum_t> (
+        utils::bit_extract (register_id.handle, 0, 31));
+
+    if (regnum > amdgpu_regnum_t::LAST_REGNUM)
+      return {};
+
+    return regnum;
+  }
+  static const architecture_t *
+  register_id_to_architecture (amd_dbgapi_register_id_t register_id)
+  {
+    return find (amd_dbgapi_architecture_id_t{
+        utils::bit_extract (register_id.handle, 32, 63) });
+  }
+
   std::set<amdgpu_regnum_t> register_set () const;
   std::optional<std::string> register_name (amdgpu_regnum_t regnum) const;
   std::optional<std::string> register_type (amdgpu_regnum_t regnum) const;
@@ -287,8 +318,7 @@ private:
   std::string const m_target_triple;
 
 private:
-  static monotonic_counter_t<decltype (amd_dbgapi_architecture_id_t::handle)>
-      s_next_architecture_id;
+  static monotonic_counter_t<uint32_t> s_next_architecture_id;
 
   static std::unordered_map<amd_dbgapi_architecture_id_t,
                             std::unique_ptr<const architecture_t>,

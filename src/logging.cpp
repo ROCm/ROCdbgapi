@@ -711,6 +711,18 @@ to_string (amd_dbgapi_register_info_t register_info)
 
 template <>
 std::string
+to_string (amd_dbgapi_register_exists_t register_exists)
+{
+  switch (register_exists)
+    {
+      CASE (REGISTER_ABSENT);
+      CASE (REGISTER_PRESENT);
+    }
+  return to_string (make_hex (register_exists));
+}
+
+template <>
+std::string
 to_string (amd_dbgapi_register_class_state_t register_class_state)
 {
   switch (register_class_state)

@@ -304,33 +304,6 @@ wave_t::is_register_available (amdgpu_regnum_t regnum) const
   return register_address (regnum).has_value ();
 }
 
-std::optional<std::string>
-wave_t::register_name (amdgpu_regnum_t regnum) const
-{
-  if (is_register_available (regnum))
-    return architecture ().register_name (regnum);
-
-  return {};
-}
-
-std::optional<std::string>
-wave_t::register_type (amdgpu_regnum_t regnum) const
-{
-  if (is_register_available (regnum))
-    return architecture ().register_type (regnum);
-
-  return {};
-}
-
-std::optional<amd_dbgapi_size_t>
-wave_t::register_size (amdgpu_regnum_t regnum) const
-{
-  if (is_register_available (regnum))
-    return architecture ().register_size (regnum);
-
-  return {};
-}
-
 amd_dbgapi_status_t
 wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
                        size_t value_size, void *value) const

@@ -142,21 +142,23 @@ amd_dbgapi_architecture_register_class_list (
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_architecture_register_get_info (
-    amd_dbgapi_architecture_id_t architecture_id,
-    amd_dbgapi_register_id_t register_id, amd_dbgapi_register_info_t query,
-    size_t value_size, void *value)
+amd_dbgapi_register_get_info (amd_dbgapi_register_id_t register_id,
+                              amd_dbgapi_register_info_t query,
+                              size_t value_size, void *value)
 {
   TRY;
-  TRACE (architecture_id, register_id, query, value_size);
+  TRACE (register_id, query, value_size);
 
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
-  const architecture_t *architecture = architecture_t::find (architecture_id);
+  const architecture_t *architecture
+      = architecture_t::register_id_to_architecture (register_id);
 
-  if (!architecture)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID;
+  auto regnum = architecture_t::register_id_to_regnum (register_id);
+
+  if (!architecture || !regnum)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
   if (!value)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
@@ -165,8 +167,7 @@ amd_dbgapi_architecture_register_get_info (
     {
     case AMD_DBGAPI_REGISTER_INFO_NAME:
       {
-        auto name = architecture->register_name (
-            static_cast<amdgpu_regnum_t> (register_id.handle));
+        auto name = architecture->register_name (*regnum);
         if (!name)
           return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
@@ -175,8 +176,7 @@ amd_dbgapi_architecture_register_get_info (
 
     case AMD_DBGAPI_REGISTER_INFO_TYPE:
       {
-        auto type = architecture->register_type (
-            static_cast<amdgpu_regnum_t> (register_id.handle));
+        auto type = architecture->register_type (*regnum);
         if (!type)
           return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
@@ -185,8 +185,7 @@ amd_dbgapi_architecture_register_get_info (
 
     case AMD_DBGAPI_REGISTER_INFO_SIZE:
       {
-        auto size = architecture->register_size (
-            static_cast<amdgpu_regnum_t> (register_id.handle));
+        auto size = architecture->register_size (*regnum);
         if (!size)
           return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
@@ -228,9 +227,7 @@ amd_dbgapi_architecture_register_list (
 
   size_t count = 0;
   for (auto it = arch_registers.begin (); it != arch_registers.end (); ++it)
-    retval[count++] = amd_dbgapi_register_id_t{
-      static_cast<decltype (amd_dbgapi_register_id_t::handle)> (*it)
-    };
+    retval[count++] = architecture->regnum_to_register_id (*it);
 
   *register_count = count;
   *registers = retval;
@@ -259,11 +256,18 @@ amd_dbgapi_register_is_in_register_class (
   if (!register_class)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_CLASS_ID;
 
-  *register_class_state
-      = register_class->contains (
-            static_cast<amdgpu_regnum_t> (register_id.handle))
-            ? AMD_DBGAPI_REGISTER_CLASS_STATE_MEMBER
-            : AMD_DBGAPI_REGISTER_CLASS_STATE_NOT_MEMBER;
+  const architecture_t *architecture
+      = architecture_t::register_id_to_architecture (register_id);
+
+  auto regnum = architecture_t::register_id_to_regnum (register_id);
+
+  if (!architecture || !regnum
+      || architecture != &register_class->architecture ())
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
+
+  *register_class_state = register_class->contains (*regnum)
+                              ? AMD_DBGAPI_REGISTER_CLASS_STATE_MEMBER
+                              : AMD_DBGAPI_REGISTER_CLASS_STATE_NOT_MEMBER;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
@@ -340,9 +344,7 @@ amd_dbgapi_dwarf_register_to_register (
   else
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
-  *register_id = amd_dbgapi_register_id_t{
-    static_cast<std::underlying_type_t<decltype (regnum)>> (regnum)
-  };
+  *register_id = architecture->regnum_to_register_id (regnum);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
@@ -371,11 +373,17 @@ amd_dbgapi_read_register (amd_dbgapi_wave_id_t wave_id,
   if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
     return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED;
 
-  amdgpu_regnum_t regnum = static_cast<amdgpu_regnum_t> (register_id.handle);
+  const architecture_t *architecture
+      = architecture_t::register_id_to_architecture (register_id);
+
+  auto regnum = architecture_t::register_id_to_regnum (register_id);
+
+  if (!architecture || !regnum || architecture != &wave->architecture ())
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
   std::optional<scoped_queue_suspend_t> suspend;
 
-  if (!wave->is_register_cached (regnum))
+  if (!wave->is_register_cached (*regnum))
     {
       suspend.emplace (wave->queue ());
 
@@ -384,7 +392,7 @@ amd_dbgapi_read_register (amd_dbgapi_wave_id_t wave_id,
         return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
     }
 
-  return wave->read_register (regnum, offset, value_size, value);
+  return wave->read_register (*regnum, offset, value_size, value);
   CATCH;
 }
 
@@ -411,7 +419,13 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
   if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
     return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED;
 
-  amdgpu_regnum_t regnum = static_cast<amdgpu_regnum_t> (register_id.handle);
+  const architecture_t *architecture
+      = architecture_t::register_id_to_architecture (register_id);
+
+  auto regnum = architecture_t::register_id_to_regnum (register_id);
+
+  if (!architecture || !regnum || architecture != &wave->architecture ())
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
   scoped_queue_suspend_t suspend (wave->queue ());
 
@@ -419,18 +433,17 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
   if (!(wave = find (wave_id)))
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
 
-  return wave->write_register (regnum, offset, value_size, value);
+  return wave->write_register (*regnum, offset, value_size, value);
   CATCH;
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_wave_register_get_info (amd_dbgapi_wave_id_t wave_id,
-                                   amd_dbgapi_register_id_t register_id,
-                                   amd_dbgapi_register_info_t query,
-                                   size_t value_size, void *value)
+amd_dbgapi_wave_register_exists (amd_dbgapi_wave_id_t wave_id,
+                                 amd_dbgapi_register_id_t register_id,
+                                 amd_dbgapi_register_exists_t *exists)
 {
   TRY;
-  TRACE (wave_id, register_id, query, value_size);
+  TRACE (wave_id, register_id);
 
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -440,43 +453,21 @@ amd_dbgapi_wave_register_get_info (amd_dbgapi_wave_id_t wave_id,
   if (!wave)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
 
-  if (!value)
+  if (!exists)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
-  amdgpu_regnum_t regnum = static_cast<amdgpu_regnum_t> (register_id.handle);
+  const architecture_t *architecture
+      = architecture_t::register_id_to_architecture (register_id);
 
-  switch (query)
-    {
-    case AMD_DBGAPI_REGISTER_INFO_NAME:
-      {
-        auto name = wave->register_name (regnum);
-        if (!name)
-          return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
+  auto regnum = architecture_t::register_id_to_regnum (register_id);
 
-        return utils::get_info (value_size, value, *name);
-      }
+  if (!architecture || !regnum || architecture != &wave->architecture ())
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
-    case AMD_DBGAPI_REGISTER_INFO_TYPE:
-      {
-        auto type = wave->register_type (regnum);
-        if (!type)
-          return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
+  *exists = wave->is_register_available (*regnum) ? AMD_DBGAPI_REGISTER_PRESENT
+                                                  : AMD_DBGAPI_REGISTER_ABSENT;
 
-        return utils::get_info (value_size, value, *type);
-      }
-
-    case AMD_DBGAPI_REGISTER_INFO_SIZE:
-      {
-        auto size = wave->register_size (regnum);
-        if (!size)
-          return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
-
-        return utils::get_info (value_size, value, *size);
-      }
-
-    default:
-      return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
-    }
+  return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
 }
 
@@ -507,11 +498,9 @@ amd_dbgapi_wave_register_list (amd_dbgapi_wave_id_t wave_id,
     return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
 
   size_t count = 0;
-  for (auto &&_register : architecture_registers)
-    if (wave->is_register_available (_register))
-      retval[count++] = amd_dbgapi_register_id_t{
-        static_cast<decltype (amd_dbgapi_register_id_t::handle)> (_register)
-      };
+  for (auto &&regnum : architecture_registers)
+    if (wave->is_register_available (regnum))
+      retval[count++] = wave->architecture ().regnum_to_register_id (regnum);
 
   *register_count = count;
   *registers = retval;

@@ -139,11 +139,6 @@ public:
     return m_stop_reason;
   }
 
-  std::optional<std::string> register_name (amdgpu_regnum_t regnum) const;
-  std::optional<std::string> register_type (amdgpu_regnum_t regnum) const;
-  std::optional<amd_dbgapi_size_t>
-  register_size (amdgpu_regnum_t regnum) const;
-
   bool is_register_cached (amdgpu_regnum_t regnum) const;
   bool is_register_available (amdgpu_regnum_t regnum) const;
 

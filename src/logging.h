@@ -145,6 +145,7 @@ to_string (detail::hex<T> v)
   F (amd_dbgapi_register_class_id_t)                                          \
   F (amd_dbgapi_register_class_info_t)                                        \
   F (amd_dbgapi_register_class_state_t)                                       \
+  F (amd_dbgapi_register_exists_t)                                            \
   F (amd_dbgapi_register_id_t)                                                \
   F (amd_dbgapi_register_info_t)                                              \
   F (amd_dbgapi_resume_mode_t)                                                \
