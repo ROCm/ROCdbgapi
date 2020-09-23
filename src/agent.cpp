@@ -344,9 +344,10 @@ amd_dbgapi_agent_get_info (amd_dbgapi_agent_id_t agent_id,
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_agent_list (amd_dbgapi_process_id_t process_id, size_t *agent_count,
-                       amd_dbgapi_agent_id_t **agents,
-                       amd_dbgapi_changed_t *changed)
+amd_dbgapi_process_agent_list (amd_dbgapi_process_id_t process_id,
+                               size_t *agent_count,
+                               amd_dbgapi_agent_id_t **agents,
+                               amd_dbgapi_changed_t *changed)
 {
   TRY;
   TRACE (process_id);
@@ -354,7 +355,33 @@ amd_dbgapi_agent_list (amd_dbgapi_process_id_t process_id, size_t *agent_count,
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
-  return utils::get_handle_list<agent_t> (process_id, agent_count, agents,
+  std::vector<process_t *> processes;
+  if (process_id != AMD_DBGAPI_PROCESS_NONE)
+    {
+      process_t *process = process_t::find (process_id);
+
+      if (!process)
+        return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
+
+      if (amd_dbgapi_status_t status = process->update_agents ();
+          status != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("process_t::update_agents failed (rc=%d)", status);
+
+      processes.emplace_back (process);
+    }
+  else
+    {
+      for (auto &&process : process_list)
+        {
+          if (amd_dbgapi_status_t status = process->update_agents ();
+              status != AMD_DBGAPI_STATUS_SUCCESS)
+            error ("process_t::update_agents failed (rc=%d)", status);
+
+          processes.emplace_back (process);
+        }
+    }
+
+  return utils::get_handle_list<agent_t> (processes, agent_count, agents,
                                           changed);
   CATCH;
 }

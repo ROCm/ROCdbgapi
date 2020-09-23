@@ -234,8 +234,8 @@ amd_dbgapi_next_pending_event (amd_dbgapi_process_id_t process_id,
      the waves that have reported events.  */
   if (!event)
     {
-      std::vector<queue_t *> suspended_queues;
-      suspended_queues.reserve (process->count<queue_t> ());
+      std::vector<queue_t *> queues_needing_resume;
+      queues_needing_resume.reserve (process->count<queue_t> ());
 
       /* We get our event notifications from the process event thread, so
          make sure it is still running, an exception may have caused it to
@@ -331,17 +331,16 @@ amd_dbgapi_next_pending_event (amd_dbgapi_process_id_t process_id,
           if (queues.empty ())
             break;
 
-          /* Append queues into suspended_queues.  */
-          suspended_queues.insert (suspended_queues.end (), queues.begin (),
-                                   queues.end ());
+          /* If forward progress is needed, append queues into the list of
+             queues needing resume.  */
+          if (process->forward_progress_needed ())
+            queues_needing_resume.insert (queues_needing_resume.end (),
+                                          queues.begin (), queues.end ());
         }
 
       event = process->dequeue_event ();
 
-      /* If forward progress is needed, resume the queues we've just
-         suspended.  */
-      if (process->forward_progress_needed ())
-        process->resume_queues (suspended_queues);
+      process->resume_queues (queues_needing_resume);
     }
 
   if (event)

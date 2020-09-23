@@ -141,8 +141,8 @@ template amd_dbgapi_status_t get_info (size_t value_size, void *ret,
 
 template <typename Object>
 amd_dbgapi_status_t
-get_handle_list (amd_dbgapi_process_id_t process_id, size_t *object_count,
-                 typename Object::handle_type **objects,
+get_handle_list (const std::vector<process_t *> &processes,
+                 size_t *object_count, typename Object::handle_type **objects,
                  amd_dbgapi_changed_t *changed)
 {
   using Handle = typename Object::handle_type;
@@ -150,23 +150,29 @@ get_handle_list (amd_dbgapi_process_id_t process_id, size_t *object_count,
   if (!objects || !object_count)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
-  process_t *process = process_t::find (process_id);
-
-  if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
-
   /* Check whether the Objects have changed since the last time get_handle_list
      was called. The flag is set whenever objects are created, or destroyed, or
      invalidated, and cleared when get_handle_list is called.  */
-  if (changed && !process->set_changed<Object> (false))
+  if (changed)
     {
-      *objects = nullptr;
-      *object_count = 0;
-      *changed = AMD_DBGAPI_CHANGED_NO;
-      return AMD_DBGAPI_STATUS_SUCCESS;
+      bool one_changed{ false };
+
+      for (auto &&process : processes)
+        one_changed |= process->set_changed<Object> (false);
+
+      if (!one_changed)
+        {
+          *objects = nullptr;
+          *object_count = 0;
+          *changed = AMD_DBGAPI_CHANGED_NO;
+          return AMD_DBGAPI_STATUS_SUCCESS;
+        }
     }
 
-  size_t count = process->count<Object> ();
+  size_t count{ 0 };
+  for (auto &&process : processes)
+    count += process->count<Object> ();
+
   Handle *retval;
 
   /* The size allocated includes space for all objects, so it is larger than
@@ -176,13 +182,16 @@ get_handle_list (amd_dbgapi_process_id_t process_id, size_t *object_count,
   if (count && !retval)
     return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
 
-  count = 0;
-  for (auto &&object : process->range<Object> ())
-    {
-      if (!is_valid (object))
-        continue;
-      retval[count++] = object.id ();
-    }
+  size_t pos{ 0 };
+  for (auto &&process : processes)
+    for (auto &&object : process->range<Object> ())
+      {
+        if (!is_valid (object))
+          continue;
+
+        dbgapi_assert (pos < count);
+        retval[pos++] = object.id ();
+      }
 
   *objects = retval;
   *object_count = count;
@@ -194,23 +203,23 @@ get_handle_list (amd_dbgapi_process_id_t process_id, size_t *object_count,
 }
 
 template amd_dbgapi_status_t get_handle_list<code_object_t> (
-    amd_dbgapi_process_id_t process_id, size_t *object_count,
+    const std::vector<process_t *> &processes, size_t *object_count,
     amd_dbgapi_code_object_id_t **objects, amd_dbgapi_changed_t *changed);
 
 template amd_dbgapi_status_t get_handle_list<agent_t> (
-    amd_dbgapi_process_id_t process_id, size_t *object_count,
+    const std::vector<process_t *> &processes, size_t *object_count,
     amd_dbgapi_agent_id_t **objects, amd_dbgapi_changed_t *changed);
 
 template amd_dbgapi_status_t get_handle_list<queue_t> (
-    amd_dbgapi_process_id_t process_id, size_t *object_count,
+    const std::vector<process_t *> &processes, size_t *object_count,
     amd_dbgapi_queue_id_t **objects, amd_dbgapi_changed_t *changed);
 
 template amd_dbgapi_status_t get_handle_list<dispatch_t> (
-    amd_dbgapi_process_id_t process_id, size_t *object_count,
+    const std::vector<process_t *> &processes, size_t *object_count,
     amd_dbgapi_dispatch_id_t **objects, amd_dbgapi_changed_t *changed);
 
 template amd_dbgapi_status_t
-get_handle_list<wave_t> (amd_dbgapi_process_id_t process_id,
+get_handle_list<wave_t> (const std::vector<process_t *> &processes,
                          size_t *object_count, amd_dbgapi_wave_id_t **objects,
                          amd_dbgapi_changed_t *changed);
 

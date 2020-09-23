@@ -776,9 +776,9 @@ amd_dbgapi_wave_get_info (amd_dbgapi_wave_id_t wave_id,
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_wave_list (amd_dbgapi_process_id_t process_id, size_t *wave_count,
-                      amd_dbgapi_wave_id_t **waves,
-                      amd_dbgapi_changed_t *changed)
+amd_dbgapi_process_wave_list (amd_dbgapi_process_id_t process_id,
+                              size_t *wave_count, amd_dbgapi_wave_id_t **waves,
+                              amd_dbgapi_changed_t *changed)
 {
   TRY;
   TRACE (process_id);
@@ -786,27 +786,53 @@ amd_dbgapi_wave_list (amd_dbgapi_process_id_t process_id, size_t *wave_count,
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
-  process_t *process = process_t::find (process_id);
+  std::vector<process_t *> processes;
+  if (process_id != AMD_DBGAPI_PROCESS_NONE)
+    {
+      process_t *process = process_t::find (process_id);
 
-  if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
+      if (!process)
+        return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-  amd_dbgapi_status_t status = process->update_queues ();
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("process_t::update_queues failed (rc=%d)", status);
+      if (amd_dbgapi_status_t status = process->update_queues ();
+          status != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("process_t::update_agents failed (rc=%d)", status);
 
-  /* Ensure all queues are suspended so that the wave list is updated.  */
-  std::vector<queue_t *> queues;
-  for (auto &&queue : process->range<queue_t> ())
-    if (!queue.is_suspended ())
-      queues.emplace_back (&queue);
+      processes.emplace_back (process);
+    }
+  else
+    {
+      for (auto &&process : process_list)
+        {
+          if (amd_dbgapi_status_t status = process->update_queues ();
+              status != AMD_DBGAPI_STATUS_SUCCESS)
+            error ("process_t::update_agents failed (rc=%d)", status);
 
-  process->suspend_queues (queues);
+          processes.emplace_back (process);
+        }
+    }
 
-  status = utils::get_handle_list<wave_t> (process_id, wave_count, waves,
-                                           changed);
+  std::vector<std::pair<process_t *, std::vector<queue_t *>>>
+      queues_needing_resume;
 
-  if (process->forward_progress_needed ())
+  for (auto &&process : processes)
+    {
+      std::vector<queue_t *> queues;
+
+      for (auto &&queue : process->range<queue_t> ())
+        if (!queue.is_suspended ())
+          queues.emplace_back (&queue);
+
+      process->suspend_queues (queues);
+
+      if (process->forward_progress_needed ())
+        queues_needing_resume.emplace_back (process, std::move (queues));
+    }
+
+  amd_dbgapi_status_t status
+      = utils::get_handle_list<wave_t> (processes, wave_count, waves, changed);
+
+  for (auto &&[process, queues] : queues_needing_resume)
     process->resume_queues (queues);
 
   return status;

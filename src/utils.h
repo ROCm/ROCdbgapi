@@ -85,6 +85,8 @@
 namespace amd::dbgapi
 {
 
+class process_t;
+
 using epoch_t = uint64_t;
 using file_desc_t = int;
 
@@ -282,7 +284,7 @@ amd_dbgapi_status_t get_info (size_t value_size, void *ret,
                               const std::vector<T> &value);
 
 template <typename Object>
-amd_dbgapi_status_t get_handle_list (amd_dbgapi_process_id_t process_id,
+amd_dbgapi_status_t get_handle_list (const std::vector<process_t *> &processes,
                                      size_t *count,
                                      typename Object::handle_type **objects,
                                      amd_dbgapi_changed_t *changed);

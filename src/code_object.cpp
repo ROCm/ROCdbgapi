@@ -71,10 +71,9 @@ amd_dbgapi_code_object_get_info (amd_dbgapi_code_object_id_t code_object_id,
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_code_object_list (amd_dbgapi_process_id_t process_id,
-                             size_t *code_object_count,
-                             amd_dbgapi_code_object_id_t **code_objects,
-                             amd_dbgapi_changed_t *changed)
+amd_dbgapi_process_code_object_list (
+    amd_dbgapi_process_id_t process_id, size_t *code_object_count,
+    amd_dbgapi_code_object_id_t **code_objects, amd_dbgapi_changed_t *changed)
 {
   TRY;
   TRACE (process_id);
@@ -82,7 +81,23 @@ amd_dbgapi_code_object_list (amd_dbgapi_process_id_t process_id,
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
-  return utils::get_handle_list<code_object_t> (process_id, code_object_count,
+  std::vector<process_t *> processes;
+  if (process_id != AMD_DBGAPI_PROCESS_NONE)
+    {
+      process_t *process = process_t::find (process_id);
+
+      if (!process)
+        return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
+
+      processes.emplace_back (process);
+    }
+  else
+    {
+      for (auto &&process : process_list)
+        processes.emplace_back (process);
+    }
+
+  return utils::get_handle_list<code_object_t> (processes, code_object_count,
                                                 code_objects, changed);
   CATCH;
 }
