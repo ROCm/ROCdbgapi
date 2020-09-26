@@ -55,11 +55,11 @@ displaced_stepping_t::displaced_stepping_t (
   size_t offset = breakpoint_instruction.size ();
   size_t remaining_size = m_original_instruction.size () - offset;
 
-  if (process ().read_global_memory_partial (
+  if (auto status = process ().read_global_memory_partial (
           from + offset, m_original_instruction.data () + offset,
-          &remaining_size)
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    return;
+          &remaining_size);
+      status != AMD_DBGAPI_STATUS_SUCCESS)
+    throw exception_t (status);
 
   /* Trim unread bytes.  */
   m_original_instruction.resize (offset + remaining_size);
@@ -67,8 +67,15 @@ displaced_stepping_t::displaced_stepping_t (
   /* Trim to size of instruction.  */
   size_t instruction_size
       = architecture.instruction_size (m_original_instruction);
+
   if (!instruction_size)
-    return;
+    {
+      /* If instruction_size is 0, the disassembler did not recognize the
+         instruction.  This instruction may be non-sequencial, and we won't be
+         able to tell if the jump is relative or absolute.  */
+      throw exception_t (AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION);
+    }
+
   m_original_instruction.resize (instruction_size);
 
   /* Copy a single instruction to the displaced stepping buffer.  */
@@ -188,22 +195,37 @@ amd_dbgapi_displaced_stepping_start (
     if (!(wave = find (wave_id)))
       return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
 
-    amd_dbgapi_status_t status
-        = wave->process ()
-              .create<displaced_stepping_t> (std::make_optional (id),
-                                             wave->queue (), wave->pc (),
-                                             saved_instruction_bytes)
-              .start (*wave);
+    /* Creating a displaced stepping may throw an exception_t, and in the case
+       of a memory error, we simply want to return the error code.  */
+    try
+      {
+        amd_dbgapi_status_t status
+            = wave->process ()
+                  .create<displaced_stepping_t> (std::make_optional (id),
+                                                 wave->queue (), wave->pc (),
+                                                 saved_instruction_bytes)
+                  .start (*wave);
 
-    if (status != AMD_DBGAPI_STATUS_SUCCESS)
-      warning ("displaced_stepping_t::start failed (rc=%d)", status);
+        if (status != AMD_DBGAPI_STATUS_SUCCESS)
+          warning ("displaced_stepping_t::start failed (rc=%d)", status);
 
-    /* TODO: We could handle trivial step-overs (e.g. branches) and return
-       AMD_DBGAPI_DISPLACED_STEPPING_NONE.  In that case, the wave does not
-       need to be single-stepped to step over the breakpoint.  */
-    *displaced_stepping_id = id;
+        /* TODO: We could handle trivial step-overs (e.g. branches) and return
+           AMD_DBGAPI_DISPLACED_STEPPING_NONE.  In that case, the wave does not
+           need to be single-stepped to step over the breakpoint.  */
+        *displaced_stepping_id = id;
 
-    return status;
+        return status;
+      }
+    catch (const exception_t &ex)
+      {
+        if (amd_dbgapi_status_t status = ex.error_code ();
+            status == AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION
+            || status == AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS)
+          return status;
+
+        /* For all other errors, rethrow the exception  */
+        throw;
+      }
   }
   CATCH;
 }

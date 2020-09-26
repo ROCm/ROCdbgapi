@@ -48,8 +48,8 @@ namespace amd::dbgapi
 class exception_t : public std::runtime_error
 {
 public:
-  exception_t (amd_dbgapi_status_t error_code, const std::string &message)
-      : std::runtime_error (message), m_error_code (error_code)
+  exception_t (amd_dbgapi_status_t error_code, std::string message = {})
+      : std::runtime_error (std::move (message)), m_error_code (error_code)
   {
   }
 

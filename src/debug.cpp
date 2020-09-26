@@ -105,10 +105,11 @@ full_callback (void *data, uintptr_t pc, const char *filename, int lineno,
 void
 exception_t::print_message () const noexcept
 {
-  dbgapi_log (error_code () == AMD_DBGAPI_STATUS_FATAL
-                  ? AMD_DBGAPI_LOG_LEVEL_FATAL_ERROR
-                  : AMD_DBGAPI_LOG_LEVEL_WARNING,
-              "%s", what ());
+  if (const char *message = what (); message && *message)
+    dbgapi_log (error_code () == AMD_DBGAPI_STATUS_FATAL
+                    ? AMD_DBGAPI_LOG_LEVEL_FATAL_ERROR
+                    : AMD_DBGAPI_LOG_LEVEL_WARNING,
+                "%s", message);
 }
 
 void
