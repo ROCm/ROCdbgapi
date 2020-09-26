@@ -215,6 +215,10 @@ protected:
   static uint8_t encoding_op7 (const std::vector<uint8_t> &bytes);
   static int encoding_simm16 (const std::vector<uint8_t> &bytes);
 
+  static bool is_sopk_instruction (const std::vector<uint8_t> &bytes, int op5);
+  static bool is_sop1_instruction (const std::vector<uint8_t> &bytes, int op7);
+  static bool is_sopp_instruction (const std::vector<uint8_t> &bytes, int op7);
+
   /* Return the regnum for a scalar register operand.  */
   virtual amdgpu_regnum_t scalar_operand_to_regnum (int operand) const = 0;
   /* Return the number of aliased scalar registers (e.g. vcc, flat_scratch)  */
@@ -233,7 +237,7 @@ protected:
   virtual bool is_cbranch_i_fork (const std::vector<uint8_t> &bytes) const;
   virtual bool is_endpgm (const std::vector<uint8_t> &bytes) const override;
   virtual bool is_trap (const std::vector<uint8_t> &bytes,
-                        uint16_t *trap_id = nullptr) const override;
+                        uint8_t *trap_id = nullptr) const override;
 
   virtual amd_dbgapi_global_address_t
   branch_target (wave_t &wave, amd_dbgapi_global_address_t pc,
@@ -1280,7 +1284,7 @@ amdgcn_architecture_t::get_wave_state (
         }
       else if (trap_raised)
         {
-          uint16_t trap_id = 0;
+          uint8_t trap_id = 0;
 
           if (instruction && !is_trap (*instruction, &trap_id))
             {
@@ -1513,31 +1517,61 @@ amdgcn_architecture_t::encoding_simm16 (const std::vector<uint8_t> &bytes)
 }
 
 bool
-amdgcn_architecture_t::is_endpgm (const std::vector<uint8_t> &bytes) const
+amdgcn_architecture_t::is_sopk_instruction (const std::vector<uint8_t> &bytes,
+                                            int op5)
 {
   if (bytes.size () < sizeof (uint32_t))
     return false;
 
   uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
 
-  /* s_endpgm: SOPP Opcode 1 [10111111 10000001 SIMM16] */
-  return (encoding & 0xFFFF0000) == 0xBF810000;
+  /* SOPK [1011 OP5 SDST7 SIMM16] */
+  return (encoding & 0xFF800000) == (0xB0000000 | (op5 & 0x1F) << 23);
+}
+
+bool
+amdgcn_architecture_t::is_sop1_instruction (const std::vector<uint8_t> &bytes,
+                                            int op8)
+{
+  if (bytes.size () < sizeof (uint32_t))
+    return false;
+
+  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
+
+  /* SOP1 [10111110 1 SDST7 OP7 SSRC08] */
+  return (encoding & 0xFF80FF00) == (0xBE800000 | (op8 & 0xFF) << 8);
+}
+
+bool
+amdgcn_architecture_t::is_sopp_instruction (const std::vector<uint8_t> &bytes,
+                                            int op7)
+{
+  if (bytes.size () < sizeof (uint32_t))
+    return false;
+
+  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
+
+  /* SOPP [101111111 OP7 SIMM16]  */
+  return (encoding & 0xFFFF0000) == (0xBF800000 | (op7 & 0x7F) << 16);
+}
+
+bool
+amdgcn_architecture_t::is_endpgm (const std::vector<uint8_t> &bytes) const
+{
+  /* s_endpgm: SOPP Opcode 1  */
+  return is_sopp_instruction (bytes, 1);
 }
 
 bool
 amdgcn_architecture_t::is_trap (const std::vector<uint8_t> &bytes,
-                                uint16_t *trap_id) const
+                                uint8_t *trap_id) const
 {
-  if (bytes.size () < sizeof (uint32_t))
-    return false;
-
-  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
-
-  /* s_trap: SOPP Opcode 18 [10111111 10010010 SIMM16] */
-  if ((encoding & 0xFFFF0000) == 0xBF920000)
+  /* s_trap: SOPP Opcode 18  */
+  if (is_sopp_instruction (bytes, 18))
     {
       if (trap_id)
-        *trap_id = encoding & 0xFFFF;
+        *trap_id = utils::bit_extract (encoding_simm16 (bytes), 0, 7);
+
       return true;
     }
   return false;
@@ -1546,37 +1580,22 @@ amdgcn_architecture_t::is_trap (const std::vector<uint8_t> &bytes,
 bool
 amdgcn_architecture_t::is_sethalt (const std::vector<uint8_t> &bytes) const
 {
-  if (bytes.size () < sizeof (uint32_t))
-    return false;
-
-  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
-
-  /* s_sethalt: SOPP Opcode 13 [10111111 10001101 SIMM16] */
-  return (encoding & 0xFFFF0000) == 0xBF8D0000;
+  /* s_sethalt: SOPP Opcode 13  */
+  return is_sopp_instruction (bytes, 13);
 }
 
 bool
 amdgcn_architecture_t::is_barrier (const std::vector<uint8_t> &bytes) const
 {
-  if (bytes.size () < sizeof (uint32_t))
-    return false;
-
-  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
-
-  /* s_barrier: SOPP Opcode 10 [10111111 10001010 SIMM16] */
-  return (encoding & 0xFFFF0000) == 0xBF8A0000;
+  /* s_barrier: SOPP Opcode 10  */
+  return is_sopp_instruction (bytes, 10);
 }
 
 bool
 amdgcn_architecture_t::is_sleep (const std::vector<uint8_t> &bytes) const
 {
-  if (bytes.size () < sizeof (uint32_t))
-    return false;
-
-  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
-
-  /* s_sleep: SOPP Opcode 14 [10111111 10001110 SIMM16] */
-  return (encoding & 0xFFFF0000) == 0xBF8E0000;
+  /* s_sleep: SOPP Opcode 14  */
+  return is_sopp_instruction (bytes, 14);
 }
 
 bool
@@ -1588,61 +1607,36 @@ amdgcn_architecture_t::is_code_end (const std::vector<uint8_t> &bytes) const
 bool
 amdgcn_architecture_t::is_call (const std::vector<uint8_t> &bytes) const
 {
-  if (bytes.size () < sizeof (uint32_t))
-    return false;
-
-  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
-
-  /* s_call: SOPK Opcode 21 [10111010 1 SDST7 SIMM16] */
-  return (encoding & 0xFF800000) == 0xBA800000;
+  /* s_call: SOPK Opcode 21  */
+  return is_sopk_instruction (bytes, 21);
 }
 
 bool
 amdgcn_architecture_t::is_getpc (const std::vector<uint8_t> &bytes) const
 {
-  if (bytes.size () < sizeof (uint32_t))
-    return false;
-
-  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
-
-  /* s_getpc: SOP1 Opcode 28 [10111110 1 SDST7 00011100 SSRC08] */
-  return (encoding & 0xFF80FF00) == 0xBE801C00;
+  /* s_getpc: SOP1 Opcode 28  */
+  return is_sop1_instruction (bytes, 28);
 }
 
 bool
 amdgcn_architecture_t::is_setpc (const std::vector<uint8_t> &bytes) const
 {
-  if (bytes.size () < sizeof (uint32_t))
-    return false;
-
-  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
-
-  /* s_setpc: SOP1 Opcode 29 [10111110 1 SDST7 00011101 SSRC08] */
-  return (encoding & 0xFF80FF00) == 0xBE801D00;
+  /* s_setpc: SOP1 Opcode 29  */
+  return is_sop1_instruction (bytes, 29);
 }
 
 bool
 amdgcn_architecture_t::is_swappc (const std::vector<uint8_t> &bytes) const
 {
-  if (bytes.size () < sizeof (uint32_t))
-    return false;
-
-  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
-
-  /* s_swappc: SOP1 Opcode 30 [10111110 1 SDST7 00011110 SSRC08] */
-  return (encoding & 0xFF80FF00) == 0xBE801E00;
+  /* s_swappc: SOP1 Opcode 30  */
+  return is_sop1_instruction (bytes, 30);
 }
 
 bool
 amdgcn_architecture_t::is_branch (const std::vector<uint8_t> &bytes) const
 {
-  if (bytes.size () < sizeof (uint32_t))
-    return false;
-
-  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
-
-  /* s_branch: SOPP Opcode 2 [10111111 10000010 SIMM16] */
-  return (encoding & 0xFFFF0000) == 0xBF820000;
+  /* s_sleep: SOPP Opcode 2  */
+  return is_sopp_instruction (bytes, 2);
 }
 
 bool
@@ -1674,13 +1668,8 @@ bool
 amdgcn_architecture_t::is_cbranch_i_fork (
     const std::vector<uint8_t> &bytes) const
 {
-  if (bytes.size () < sizeof (uint32_t))
-    return false;
-
-  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
-
-  /* s_cbranch_i_fork: SOPK Opcode 16 [10111000 0 SDST7 SIMM16] */
-  return (encoding & 0xFF800000) == 0xB8000000;
+  /* s_cbranch_i_fork: SOPK Opcode 16  */
+  return is_sopk_instruction (bytes, 16);
 }
 
 std::optional<os_watch_mode_t>
@@ -2195,6 +2184,10 @@ public:
   bool has_acc_vgprs () const override { return false; }
 
   bool is_code_end (const std::vector<uint8_t> &bytes) const override;
+  bool is_call (const std::vector<uint8_t> &bytes) const override;
+  bool is_getpc (const std::vector<uint8_t> &bytes) const override;
+  bool is_setpc (const std::vector<uint8_t> &bytes) const override;
+  bool is_swappc (const std::vector<uint8_t> &bytes) const override;
 
   std::optional<amd_dbgapi_global_address_t>
   register_address (const cwsr_descriptor_t &descriptor,
@@ -2288,13 +2281,36 @@ gfx10_base_t::register_address (const cwsr_descriptor_t &descriptor,
 bool
 gfx10_base_t::is_code_end (const std::vector<uint8_t> &bytes) const
 {
-  if (bytes.size () < sizeof (uint32_t))
-    return false;
+  /* s_code_end: SOPP Opcode 31  */
+  return is_sopp_instruction (bytes, 31);
+}
 
-  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
+bool
+gfx10_base_t::is_call (const std::vector<uint8_t> &bytes) const
+{
+  /* s_call: SOPK Opcode 22  */
+  return is_sopk_instruction (bytes, 22);
+}
 
-  /* s_code_end: SOPP Opcode 31 [10111111 10011111 SIMM16] */
-  return (encoding & 0xFFFF0000) == 0xBF9F0000;
+bool
+gfx10_base_t::is_getpc (const std::vector<uint8_t> &bytes) const
+{
+  /* s_getpc: SOP1 Opcode 31  */
+  return is_sop1_instruction (bytes, 31);
+}
+
+bool
+gfx10_base_t::is_setpc (const std::vector<uint8_t> &bytes) const
+{
+  /* s_setpc: SOP1 Opcode 32  */
+  return is_sop1_instruction (bytes, 32);
+}
+
+bool
+gfx10_base_t::is_swappc (const std::vector<uint8_t> &bytes) const
+{
+  /* s_swappc: SOP1 Opcode 33  */
+  return is_sop1_instruction (bytes, 33);
 }
 
 uint64_t

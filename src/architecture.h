@@ -117,7 +117,7 @@ public:
   virtual bool can_halt_at_endpgm () const = 0;
   virtual bool is_endpgm (const std::vector<uint8_t> &bytes) const = 0;
   virtual bool is_trap (const std::vector<uint8_t> &bytes,
-                        uint16_t *trap_id = nullptr) const = 0;
+                        uint8_t *trap_id = nullptr) const = 0;
 
   virtual amd_dbgapi_status_t
   convert_address_space (const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
