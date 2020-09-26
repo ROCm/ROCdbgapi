@@ -3661,6 +3661,11 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_get_info (
  * \retval ::AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS The memory at the wave's
  * program counter could not be successfully read.  No displaced stepping buffer
  * is allocated and \p displaced_stepping is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION The instruction at the
+ * wave's program counter is not a legal instruction for the architecture.  No
+ * displaced stepping buffer is allocated and \p displaced_stepping is
+ * unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_start (
     amd_dbgapi_wave_id_t wave_id, const void *saved_instruction_bytes,
