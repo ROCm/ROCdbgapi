@@ -383,7 +383,7 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
       if (dir->d_name == "."s || dir->d_name == ".."s)
         continue;
 
-      os_agent_snapshot_entry_t agent_info;
+      os_agent_snapshot_entry_t agent_info{};
       std::string node_path (sysfs_nodes_path + dir->d_name);
 
       /* Retrieve the GPU ID.  */
@@ -394,8 +394,8 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
 
       gpu_id_ifs >> agent_info.os_agent_id;
 
-      if (!agent_info.os_agent_id)
-        /* Skip CPU nodes.  */
+      if (gpu_id_ifs.fail () || !agent_info.os_agent_id)
+        /* Skip inaccessible nodes and CPU nodes.  */
         continue;
 
       if (!processed_os_agent_ids.emplace (agent_info.os_agent_id).second)
