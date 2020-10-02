@@ -1591,7 +1591,7 @@ process_t::get_info (amd_dbgapi_process_info_t query, size_t value_size,
 }
 
 void
-process_t::enqueue_event (event_t &event)
+process_t::enqueue_event (const event_t &event)
 {
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "reporting %s, %s",
               to_string (event.id ()).c_str (),
@@ -1603,19 +1603,131 @@ process_t::enqueue_event (event_t &event)
   client_notifier_pipe ().mark ();
 }
 
-event_t *
-process_t::dequeue_event ()
+const event_t *
+process_t::next_pending_event ()
 {
-  /* TODO: If supporting multi-threaded next_pending_event, we should
-     synchronize here.  */
-
+  /* If we don't have any events left, we have to suspend the queues with
+     pending events and process their context save area to add events for
+     the waves that have reported events.  */
   if (m_pending_events.empty ())
-    return nullptr;
+    {
+      std::vector<queue_t *> queues_needing_resume;
+      queues_needing_resume.reserve (count<queue_t> ());
 
-  event_t *next_event = m_pending_events.front ();
-  m_pending_events.pop ();
+      /* We get our event notifications from the process event thread, so
+         make sure it is still running, an exception may have caused it to
+         exit.  */
+      check_event_thread ();
 
-  return next_event;
+      /* It is possible for new events to be generated between the time we
+         query the agents for pending queue events and the time we actually
+         suspend the queues.  To make sure all events associated with the
+         suspended queues are consumed, we loop until no new queue events are
+         reported.
+         This is guaranteed to terminate as once a queue is suspended it cannot
+         create any new events. A queue will require at most 2 iterations; and
+         if any new events occur on additional queues those queues will be
+         suspended by additional iterations, and since there are a finite
+         number of queues N, this can at most result in 2*N iterations.  */
+      while (true)
+        {
+          std::vector<queue_t *> queues;
+
+          for (auto &&agent : range<agent_t> ())
+            {
+              if (!agent.has_pending_events ())
+                continue;
+
+              while (true)
+                {
+                  amd_dbgapi_queue_id_t queue_id;
+                  os_queue_status_t queue_status;
+
+                  amd_dbgapi_status_t status
+                      = agent.next_os_event (&queue_id, &queue_status);
+                  if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+                    return nullptr;
+                  else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+                    error ("agent_t::next_os_event failed (rc=%d)", status);
+
+                  if (queue_id == AMD_DBGAPI_QUEUE_NONE)
+                    break;
+
+                  queue_t *queue = find (queue_id);
+
+                  if (!queue)
+                    {
+                      /* Events that are reported for a queue that is deleted
+                         before the events are retrieved are ignored.  This
+                         includes events that are retrieved for a new queue
+                         that is deleted before information about the queue can
+                         be retrieved.  */
+                      continue;
+                    }
+
+                  /* Check that the queue suspend status returned by KFD
+                     matches the status we are keeping for the queue_t.  */
+                  dbgapi_assert (
+                      queue->is_suspended ()
+                          == !!(queue_status & os_queue_status_t::SUSPENDED)
+                      && "inconsistent suspend status");
+
+                  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+                              "%s on %s has pending events (%s)",
+                              to_string (queue_id).c_str (),
+                              to_string (queue->agent ().id ()).c_str (),
+                              to_string (queue_status).c_str ());
+
+                  /* The queue may already be suspended. This can happen if an
+                     event occurs after requesting the queue to be suspended
+                     and before that request has completed, or if the act of
+                     suspending a wave generates a new event (such as for the
+                     single step work-around in the CWSR handler).  */
+                  if (!queue->is_suspended ())
+                    {
+                      /* Don't add a queue more than once.  */
+                      if (std::find (queues.begin (), queues.end (), queue)
+                          == queues.end ())
+                        queues.emplace_back (queue);
+                    }
+                }
+            }
+
+          /* Suspend the queues that have pending events which will cause all
+             events to be created for any waves that have pending events.  */
+          if (suspend_queues (queues) != queues.size ())
+            {
+              /* Some queues may have become invalid since we retrieved the
+                 event, failed to suspend, and marked by suspend_queues () as
+                 invalid. Remove such queues from our list, they will be
+                 destroyed next time we update the queues.  */
+              for (auto it = queues.begin (); it != queues.end ();)
+                it = (*it)->is_valid () ? std::next (it) : queues.erase (it);
+            }
+
+          /* Exit the loop if we did not add any new queues to suspend in
+             this iteration.  */
+          if (queues.empty ())
+            break;
+
+          /* If forward progress is needed, append queues into the list of
+             queues needing resume.  */
+          if (forward_progress_needed ())
+            queues_needing_resume.insert (queues_needing_resume.end (),
+                                          queues.begin (), queues.end ());
+        }
+
+      resume_queues (queues_needing_resume);
+    }
+
+  if (!m_pending_events.empty ())
+    {
+      const event_t *event = m_pending_events.front ();
+      m_pending_events.pop ();
+      return event;
+    }
+
+  return nullptr;
 }
 
 } /* namespace amd::dbgapi */

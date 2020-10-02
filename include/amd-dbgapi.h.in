@@ -295,9 +295,9 @@
  *     supported. The default memory precision is
  *     AMD_DBGAPI_MEMORY_PRECISION_NONE.
  *
- * 5.  amd_dbgapi_next_pending_event returns AMD_DBGAPI_EVENT_KIND_WAVE_STOP
- *     events only for AQL queues.  PM4 queues that launch wavefronts are not
- *     supported.
+ * 5.  amd_dbgapi_process_next_pending_event returns
+ *     AMD_DBGAPI_EVENT_KIND_WAVE_STOP events only for AQL queues.  PM4 queues
+ *     that launch wavefronts are not supported.
  *
  * 6.  amd_dbgapi_queue_packet_list returns packets only for AQL queues.
  *
@@ -460,10 +460,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_30
 
 /**
- * The function was introduced in version 0.40 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.40"``.
+ * The function was introduced in version 0.41 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.41"``.
  */
-#define AMD_DBGAPI_VERSION_0_40
+#define AMD_DBGAPI_VERSION_0_41
 
 /** @} */
 
@@ -539,8 +539,8 @@ typedef pid_t amd_dbgapi_os_process_id_t;
  * A notifier is created when ::amd_dbgapi_process_attach is used to
  * successfully attach to a process.  It is obtained using the
  * ::AMD_DBGAPI_PROCESS_INFO_NOTIFIER query.  If the notifier indicates there
- * may be pending events, then ::amd_dbgapi_next_pending_event can be used to
- * retrieve them.
+ * may be pending events, then ::amd_dbgapi_process_next_pending_event can be
+ * used to retrieve them.
  *
  * For Linux<sup>&reg;</sup> this is a file descriptor number that can be used
  * with the \p poll call to wait on events from multiple sources.  The file
@@ -1379,15 +1379,15 @@ typedef enum
   /**
    * The instruction enters the trap handler.  The trap handler may return to
    * resume execution, may halt the wave and create an event for
-   * ::amd_dbgapi_next_pending_event to report, or may terminate the wave.  The
-   * library cannot report execution in the trap handler.  If single stepping
-   * the trap instruction reports the ::AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP
-   * reason, then the program counter will be at the instruction following the
-   * trap instruction, it will not be at the first instruction of the trap
-   * handler. It is undefined to set a breakpoint in the trap handler, and will
-   * likely cause the inferior to report errors and stop executing correctly.
-   * The instruction properties is of type \p uint64_t with the value of the
-   * trap code.
+   * ::amd_dbgapi_process_next_pending_event to report, or may terminate the
+   * wave.  The library cannot report execution in the trap handler.  If single
+   * stepping the trap instruction reports the
+   * ::AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP reason, then the program counter
+   * will be at the instruction following the trap instruction, it will not be
+   * at the first instruction of the trap handler. It is undefined to set a
+   * breakpoint in the trap handler, and will likely cause the inferior to
+   * report errors and stop executing correctly. The instruction properties is
+   * of type \p uint64_t with the value of the trap code.
    */
   AMD_DBGAPI_INSTRUCTION_KIND_TRAP = 8,
   /**
@@ -1609,7 +1609,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_process_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_40;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Attach to a process in order to provide debug control of the AMD GPUs it
@@ -2001,7 +2001,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_code_object_get_info (
     amd_dbgapi_code_object_id_t code_object_id,
     amd_dbgapi_code_object_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_40;
+    void *value) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Return the list of loaded code objects for a process.
@@ -2054,7 +2054,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_code_object_get_info (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_code_object_list (
     amd_dbgapi_process_id_t process_id, size_t *code_object_count,
     amd_dbgapi_code_object_id_t **code_objects,
-    amd_dbgapi_changed_t *changed) AMD_DBGAPI_VERSION_0_40;
+    amd_dbgapi_changed_t *changed) AMD_DBGAPI_VERSION_0_41;
 
 /** @} */
 
@@ -2176,7 +2176,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_agent_get_info (
     amd_dbgapi_agent_id_t agent_id, amd_dbgapi_agent_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_40;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Return the list of agents for a process.
@@ -2226,7 +2226,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_agent_get_info (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_agent_list (
     amd_dbgapi_process_id_t process_id, size_t *agent_count,
     amd_dbgapi_agent_id_t **agents,
-    amd_dbgapi_changed_t *changed) AMD_DBGAPI_VERSION_0_40;
+    amd_dbgapi_changed_t *changed) AMD_DBGAPI_VERSION_0_41;
 
 /** @} */
 
@@ -2352,7 +2352,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_get_info (
     amd_dbgapi_queue_id_t queue_id, amd_dbgapi_queue_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_40;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Queue state.
@@ -2455,7 +2455,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_queue_list (
     amd_dbgapi_process_id_t process_id, size_t *queue_count,
     amd_dbgapi_queue_id_t **queues,
-    amd_dbgapi_changed_t *changed) AMD_DBGAPI_VERSION_0_40;
+    amd_dbgapi_changed_t *changed) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Return the packets for a queue of a process.
@@ -2523,7 +2523,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_packet_list (
     amd_dbgapi_queue_id_t queue_id,
     amd_dbgapi_os_queue_packet_id_t *read_packet_id,
     amd_dbgapi_os_queue_packet_id_t *write_packet_id,
-    size_t *packets_byte_size, void **packets_bytes) AMD_DBGAPI_VERSION_0_40;
+    size_t *packets_byte_size, void **packets_bytes) AMD_DBGAPI_VERSION_0_41;
 
 /** @} */
 
@@ -2696,7 +2696,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_dispatch_get_info (
     amd_dbgapi_dispatch_id_t dispatch_id, amd_dbgapi_dispatch_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_40;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Dispatch barrier.
@@ -2782,7 +2782,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_dispatch_list (
     amd_dbgapi_process_id_t process_id, size_t *dispatch_count,
     amd_dbgapi_dispatch_id_t **dispatches,
-    amd_dbgapi_changed_t *changed) AMD_DBGAPI_VERSION_0_40;
+    amd_dbgapi_changed_t *changed) AMD_DBGAPI_VERSION_0_41;
 
 /** @} */
 
@@ -2953,7 +2953,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_get_info (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_wave_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_40;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * The execution state of a wave.
@@ -2975,10 +2975,11 @@ typedef enum
    * Note that a wave may stop at any time due to the instructions it executes
    * or because the queue it is executing on enters the error state.  This will
    * cause a ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP event to be created.  However,
-   * until ::amd_dbgapi_next_pending_event returns the event, the wave will
-   * continue to be reported as in the ::AMD_DBGAPI_WAVE_STATE_RUN state.  Only
-   * when the ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP event is returned by
-   * ::amd_dbgapi_next_pending_event will the wave will be reported in the
+   * until ::amd_dbgapi_process_next_pending_event returns the event, the wave
+   * will continue to be reported as in the ::AMD_DBGAPI_WAVE_STATE_RUN state.
+   * Only when the ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP event is returned by
+   * ::amd_dbgapi_process_next_pending_event will the wave will be reported in
+   * the
    * ::AMD_DBGAPI_WAVE_STATE_STOP state.
    */
   AMD_DBGAPI_WAVE_STATE_STOP = 3
@@ -3223,7 +3224,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_wave_list (
     amd_dbgapi_process_id_t process_id, size_t *wave_count,
     amd_dbgapi_wave_id_t **waves,
-    amd_dbgapi_changed_t *changed) AMD_DBGAPI_VERSION_0_40;
+    amd_dbgapi_changed_t *changed) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Request a wave to stop executing.
@@ -3256,7 +3257,8 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_wave_list (
  *
  * Sending a stop request to a wave that has already stopped, but whose
  * ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP event has not yet been returned by
- * ::amd_dbgapi_next_pending_event, is allowed since the wave is still in the
+ * ::amd_dbgapi_process_next_pending_event, is allowed since the wave is still
+ * in the
  * ::AMD_DBGAPI_WAVE_STATE_RUN state.  In this case the wave is not affected
  * and the already existing ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP will notify the
  * client that the stop request has completed.  The client must be prepared
@@ -3304,7 +3306,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_wave_list (
  * previous stop request continues to stop the wave.
  */
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_wave_stop (amd_dbgapi_wave_id_t wave_id) AMD_DBGAPI_VERSION_0_40;
+amd_dbgapi_wave_stop (amd_dbgapi_wave_id_t wave_id) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * The mode in which to resuming the execution of a wave.
@@ -3380,7 +3382,7 @@ typedef enum
  *
  * It also means it is an error to resume a wave that has already stopped, but
  * whose ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP event has not yet been returned by
- * ::amd_dbgapi_next_pending_event, since the wave is still in the
+ * ::amd_dbgapi_process_next_pending_event, since the wave is still in the
  * ::AMD_DBGAPI_WAVE_STATE_RUN state.  The ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP
  * must be processed first.
  *
@@ -3423,7 +3425,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_resume (
     amd_dbgapi_wave_id_t wave_id,
-    amd_dbgapi_resume_mode_t resume_mode) AMD_DBGAPI_VERSION_0_40;
+    amd_dbgapi_resume_mode_t resume_mode) AMD_DBGAPI_VERSION_0_41;
 
 /** @} */
 
@@ -3508,7 +3510,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_resume (
  * single step using a displaced stepping buffer.
  *
  * \sa ::amd_dbgapi_wave_resume, ::amd_dbgapi_wave_stop,
- * ::amd_dbgapi_process_set_progress, ::amd_dbgapi_next_pending_event
+ * ::amd_dbgapi_process_set_progress, ::amd_dbgapi_process_next_pending_event
  *
  * @{
  */
@@ -3586,7 +3588,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_get_info (
     amd_dbgapi_displaced_stepping_id_t displaced_stepping_id,
     amd_dbgapi_displaced_stepping_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_40;
+    void *value) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Create a displaced stepping buffer.
@@ -3659,8 +3661,8 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_get_info (
  * allocated and \p displaced_stepping is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS The memory at the wave's
- * program counter could not be successfully read.  No displaced stepping buffer
- * is allocated and \p displaced_stepping is unaltered.
+ * program counter could not be successfully read.  No displaced stepping
+ * buffer is allocated and \p displaced_stepping is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION The instruction at the
  * wave's program counter is not a legal instruction for the architecture.  No
@@ -3670,7 +3672,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_get_info (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_start (
     amd_dbgapi_wave_id_t wave_id, const void *saved_instruction_bytes,
     amd_dbgapi_displaced_stepping_id_t *displaced_stepping)
-    AMD_DBGAPI_VERSION_0_40;
+    AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Complete a displaced stepping buffer for a wave.
@@ -3719,7 +3721,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_start (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_complete (
     amd_dbgapi_wave_id_t wave_id,
     amd_dbgapi_displaced_stepping_id_t displaced_stepping)
-    AMD_DBGAPI_VERSION_0_40;
+    AMD_DBGAPI_VERSION_0_41;
 
 /** @} */
 
@@ -3819,7 +3821,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_watchpoint_get_info (
     amd_dbgapi_watchpoint_id_t watchpoint_id,
     amd_dbgapi_watchpoint_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_40;
+    void *value) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * The way watchpoints are shared between processes.
@@ -3967,7 +3969,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_watchpoint (
     amd_dbgapi_size_t size, amd_dbgapi_watchpoint_kind_t kind,
     amd_dbgapi_watchpoint_id_t *watchpoint_id,
     amd_dbgapi_global_address_t *watchpoint_address,
-    amd_dbgapi_size_t *watchpoint_size) AMD_DBGAPI_VERSION_0_40;
+    amd_dbgapi_size_t *watchpoint_size) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Remove a hardware data watchpoint previously set by
@@ -4092,7 +4094,7 @@ amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_architecture_register_class_get_info (
     amd_dbgapi_register_class_id_t register_class_id,
     amd_dbgapi_register_class_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_40;
+    void *value) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Report the list of register classes supported by the architecture.
@@ -4240,7 +4242,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_get_info (
     amd_dbgapi_register_id_t register_id, amd_dbgapi_register_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_40;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Indication of if a wave has a register.
@@ -4287,7 +4289,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_register_exists (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
-    amd_dbgapi_register_exists_t *exists) AMD_DBGAPI_VERSION_0_40;
+    amd_dbgapi_register_exists_t *exists) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Report the list of registers supported by the architecture.
@@ -4382,7 +4384,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_register_list (
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_register_list (
     amd_dbgapi_wave_id_t wave_id, size_t *register_count,
-    amd_dbgapi_register_id_t **registers) AMD_DBGAPI_VERSION_0_40;
+    amd_dbgapi_register_id_t **registers) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Return a register handle from an AMD GPU DWARF register number.
@@ -4471,7 +4473,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_is_in_register_class (
     amd_dbgapi_register_class_id_t register_class_id,
     amd_dbgapi_register_id_t register_id,
     amd_dbgapi_register_class_state_t *register_class_state)
-    AMD_DBGAPI_VERSION_0_40;
+    AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Read a register.
@@ -4532,7 +4534,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_is_in_register_class (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
     amd_dbgapi_size_t offset, amd_dbgapi_size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_40;
+    void *value) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Write a register.
@@ -4592,7 +4594,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
     amd_dbgapi_size_t offset, amd_dbgapi_size_t value_size,
-    const void *value) AMD_DBGAPI_VERSION_0_40;
+    const void *value) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Prefetch register values.
@@ -4643,7 +4645,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_register (
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_prefetch_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
-    amd_dbgapi_size_t register_count) AMD_DBGAPI_VERSION_0_40;
+    amd_dbgapi_size_t register_count) AMD_DBGAPI_VERSION_0_41;
 
 /** @} */
 
@@ -4787,7 +4789,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_address_class_get_info (
     amd_dbgapi_address_class_id_t address_class_id,
     amd_dbgapi_address_class_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_40;
+    void *value) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Report the list of source language address classes supported by the
@@ -5000,7 +5002,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_space_get_info (
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_address_space_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_40;
+    void *value) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Report the list of address spaces supported by the architecture.
@@ -5136,7 +5138,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_spaces_may_alias (
     amd_dbgapi_address_space_id_t address_space_id1,
     amd_dbgapi_address_space_id_t address_space_id2,
     amd_dbgapi_address_space_alias_t *address_space_alias)
-    AMD_DBGAPI_VERSION_0_40;
+    AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Each address space has its own linear address to access it termed a segment
@@ -5232,7 +5234,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_convert_address_space (
     amd_dbgapi_segment_address_t source_segment_address,
     amd_dbgapi_address_space_id_t destination_address_space_id,
     amd_dbgapi_segment_address_t *destination_segment_address)
-    AMD_DBGAPI_VERSION_0_40;
+    AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Indication of whether a segment address in an address space is a member of
@@ -5316,7 +5318,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_is_in_address_class (
     amd_dbgapi_segment_address_t segment_address,
     amd_dbgapi_address_class_id_t address_class_id,
     amd_dbgapi_address_class_state_t *address_class_state)
-    AMD_DBGAPI_VERSION_0_40;
+    AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Read memory.
@@ -5579,8 +5581,9 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_memory_precision (
  * When ::amd_dbgapi_process_attach successfully attaches to a process a
  * ::amd_dbgapi_notifier_t notifier is created that is available using the
  * ::AMD_DBGAPI_PROCESS_INFO_NOTIFIER query.  When this indicates there
- * may be pending events for the process, ::amd_dbgapi_next_pending_event can
- * be used to retrieve the pending events.
+ * may be pending events for the process,
+ * ::amd_dbgapi_process_next_pending_event can be used to retrieve the pending
+ * events.
  *
  * The notifier must be reset before retrieving pending events so that the
  * notifier will always conservatively indicate there may be pending events.
@@ -5741,9 +5744,9 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p event_id or \p kind
  * are NULL.  No event is retrieved and \p event_id and \p kind are unaltered.
  */
-amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_next_pending_event (
+amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_next_pending_event (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_event_id_t *event_id,
-    amd_dbgapi_event_kind_t *kind) AMD_DBGAPI_VERSION_0_24;
+    amd_dbgapi_event_kind_t *kind) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Inferior runtime state.
@@ -5849,13 +5852,13 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_event_get_info (
     amd_dbgapi_event_id_t event_id, amd_dbgapi_event_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_40;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Report that an event has been processed.
  *
- * Every event returned by ::amd_dbgapi_next_pending_event must be reported
- * as processed exactly once.
+ * Every event returned by ::amd_dbgapi_process_next_pending_event must be
+ * reported as processed exactly once.
  *
  * \param[in] event_id The event that has been processed.
  *
@@ -5876,7 +5879,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_event_get_info (
  * are NULL.  No event is marked as processed.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_event_processed (
-    amd_dbgapi_event_id_t event_id) AMD_DBGAPI_VERSION_0_40;
+    amd_dbgapi_event_id_t event_id) AMD_DBGAPI_VERSION_0_41;
 
 /** @} */
 
@@ -6050,7 +6053,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_shared_library_get_info (
     amd_dbgapi_shared_library_id_t shared_library_id,
     amd_dbgapi_shared_library_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_40;
+    void *value) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Report that a shared library enabled by the
@@ -6092,7 +6095,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_shared_library_get_info (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_report_shared_library (
     amd_dbgapi_shared_library_id_t shared_library_id,
     amd_dbgapi_shared_library_state_t shared_library_state)
-    AMD_DBGAPI_VERSION_0_40;
+    AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Opaque breakpoint handle.
@@ -6176,7 +6179,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_breakpoint_get_info (
     amd_dbgapi_breakpoint_id_t breakpoint_id,
     amd_dbgapi_breakpoint_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_40;
+    void *value) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * The action to perform after reporting a breakpoint has been hit.
@@ -6244,7 +6247,7 @@ typedef struct amd_dbgapi_client_thread_s *amd_dbgapi_client_thread_id_t;
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_report_breakpoint_hit (
     amd_dbgapi_breakpoint_id_t breakpoint_id,
     amd_dbgapi_client_thread_id_t client_thread_id,
-    amd_dbgapi_breakpoint_action_t *breakpoint_action) AMD_DBGAPI_VERSION_0_40;
+    amd_dbgapi_breakpoint_action_t *breakpoint_action) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Callbacks that the client of the library must provide.
