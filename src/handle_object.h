@@ -70,10 +70,10 @@ protected:
 public:
   handle_type id () const { return m_id; }
 
-  /* Since handle_object ids are unique, two handle_objects are identical if
-     they have the same id.  */
-  bool operator== (const handle_object &rhs) const { return m_id == rhs.m_id; }
-  bool operator!= (const handle_object &rhs) const { return m_id != rhs.m_id; }
+  /* Since handle_object disallows copying & moving, two handle_objects are
+     identical if they have the same address.  */
+  bool operator== (const handle_object &other) const { return this == &other; }
+  bool operator!= (const handle_object &other) const { return this != &other; }
 
 private:
   handle_type const m_id;

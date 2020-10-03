@@ -78,6 +78,31 @@ class process_t
       m_handle_object_sets;
 
 public:
+  process_t (amd_dbgapi_client_process_id_t client_process_id,
+             amd_dbgapi_process_id_t process_id);
+  ~process_t () {}
+
+  /* Disallow copying & moving process instances.  */
+  process_t (const process_t &) = delete;
+  process_t (process_t &&) = delete;
+  process_t &operator= (const process_t &) = delete;
+  process_t &operator= (process_t &&) = delete;
+
+  /* Since process objects disallow copying & moving, two process objects are
+     identical if they have the same address.  */
+  bool operator== (const process_t &other) const { return this == &other; }
+  bool operator!= (const process_t &other) const { return this != &other; }
+
+  bool is_valid () const;
+
+  amd_dbgapi_process_id_t id () const { return m_process_id; }
+  amd_dbgapi_client_process_id_t client_id () const
+  {
+    return m_client_process_id;
+  }
+
+  const os_driver_t &os_driver () const { return *m_os_driver; }
+
   enum class flag_t : uint32_t
   {
     /* Enable the device debug mode when updating the agents.  */
@@ -92,19 +117,6 @@ public:
        debugger attached to the process may have corrupted wave_ids.  */
     ASSIGN_NEW_IDS_TO_ALL_WAVES = 1 << 2,
   };
-
-  process_t (amd_dbgapi_client_process_id_t client_process_id,
-             amd_dbgapi_process_id_t process_id);
-  ~process_t () {}
-  bool is_valid () const;
-
-  amd_dbgapi_process_id_t id () const { return m_process_id; }
-  amd_dbgapi_client_process_id_t client_id () const
-  {
-    return m_client_process_id;
-  }
-
-  const os_driver_t &os_driver () const { return *m_os_driver; }
 
   inline void set_flag (flag_t flags);
   inline void clear_flag (flag_t flags);
@@ -374,6 +386,12 @@ find (Handle id)
       return value;
 
   return return_type{};
+}
+
+template<typename Handle, std::enable_if_t<is_handle_type_v<Handle>, int> = 0>
+bool is_valid_handle (Handle handle)
+{
+  return !!find (handle);
 }
 
 template <> struct is_flag<process_t::flag_t> : std::true_type

@@ -618,7 +618,8 @@ typedef enum
    * (http://www.hsafoundation.com/html_spec111/HSA_Library.htm#SysArch/Topics/02_Details/req_architected_queuing_language_AQL.htm).
    *
    * For this queue type the AQL dispatch ID is used for
-   * ::amd_dbgapi_os_queue_packet_id_t.
+   * ::amd_dbgapi_os_queue_packet_id_t.  It is only unique within a single
+   * queue of a single process.
    */
   AMD_DBGAPI_OS_QUEUE_TYPE_HSA_KERNEL_DISPATCH_MULTIPLE_PRODUCER = 1,
   /**
@@ -721,9 +722,9 @@ typedef enum
    */
   AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT = -5,
   /**
-   * An invalid size was given to the function.
+   * An invalid combination of arguments was given to the function.
    */
-  AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE = -6,
+  AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY = -6,
   /**
    * The library is already initialized.
    */
@@ -1162,8 +1163,9 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or
  * \p query is invalid.  \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE \p value_size does
- * not match the size of the result.  \p value is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * value_size does not match the size of the \p query result.  \p value is
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
  * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
@@ -1386,7 +1388,7 @@ typedef enum
    * will be at the instruction following the trap instruction, it will not be
    * at the first instruction of the trap handler. It is undefined to set a
    * breakpoint in the trap handler, and will likely cause the inferior to
-   * report errors and stop executing correctly. The instruction properties is
+   * report errors and stop executing correctly.  The instruction properties is
    * of type \p uint64_t with the value of the trap code.
    */
   AMD_DBGAPI_INSTRUCTION_KIND_TRAP = 8,
@@ -1565,7 +1567,8 @@ typedef enum
   AMD_DBGAPI_PROCESS_INFO_PRECISE_MEMORY_SUPPORTED = 4,
   /**
    * Native operating system process ID.  The type of this attribute is
-   * ::amd_dbgapi_os_process_id_t.
+   * ::amd_dbgapi_os_process_id_t. AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED is
+   * returned if the native operating system process was exited when attaching.
    */
   AMD_DBGAPI_PROCESS_INFO_OS_ID = 5
 } amd_dbgapi_process_info_t;
@@ -1600,8 +1603,13 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or
  * \p query is invalid.  \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE \p value_size does
- * not match the size of the result.  \p value is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * value_size does not match the size of the \p query result.  \p value is
+ * unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED \p query is
+ * ::AMD_DBGAPI_PROCESS_INFO_OS_ID and the native operating system process was
+ * exited when attaching.  \p value is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
  * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
@@ -1768,7 +1776,7 @@ typedef enum
    *
    * This can result in a series of commands completing far faster than in
    * ::AMD_DBGAPI_PROGRESS_NORMAL mode.  Also, any queries for lists such as
-   * ::amd_dbgapi_wave_list may return \p unchanged as true more often,
+   * ::amd_dbgapi_process_wave_list may return \p unchanged as true more often,
    * reducing the work needed to parse the lists to determine what has changed.
    * With large lists this can be significant.  If the client needs a wave to
    * complete a single step resume, then it must leave
@@ -1991,8 +1999,9 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or
  * \p query is invalid.  \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE \p value_size does
- * not match the size of the result.  \p value is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * value_size does not match the size of the \p query result.  \p value is
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
  * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
@@ -2004,27 +2013,28 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_code_object_get_info (
     void *value) AMD_DBGAPI_VERSION_0_41;
 
 /**
- * Return the list of loaded code objects for a process.
+ * Return the list of loaded code objects.
  *
  * The order of the code object handles in the list is unspecified and can vary
  * between calls.
  *
- * \param[in] process_id The process for which the code object list is
- * requested.
+ * \param[in] process_id If ::AMD_DBGAPI_PROCESS_NONE then the code object list
+ * for all processes is requested.  Otherwise, the code object list for process
+ * \p process_id is requested.
  *
  * \param[out] code_object_count The number of code objects currently loaded.
  *
  * \param[out] code_objects If \p changed is not NULL and the code object list
- * has not changed since the last call to ::amd_dbgapi_code_object_list then
- * return NULL.  Otherwise, return a pointer to an array of
- * ::amd_dbgapi_code_object_id_t with \p code_object_count elements.  It is
- * allocated by the amd_dbgapi_callbacks_s::allocate_memory callback and is
- * owned by the client.
+ * of all of the processes requested have not changed since the last call(s) to
+ * ::amd_dbgapi_process_code_object_list for each of them, then return NULL.
+ * Otherwise, return a pointer to an array of ::amd_dbgapi_code_object_id_t
+ * with \p code_object_count elements.  It is allocated by the
+ * amd_dbgapi_callbacks_s::allocate_memory callback and is owned by the client.
  *
  * \param[in,out] changed If NULL then left unaltered.  If non-NULL, set to
- * ::AMD_DBGAPI_CHANGED_NO if the list of code objects is the same as when
- * ::amd_dbgapi_code_object_list was last called, otherwise set to
- * ::AMD_DBGAPI_CHANGED_YES.
+ * ::AMD_DBGAPI_CHANGED_NO if the list of code objects for each requested
+ * process is the same as when ::amd_dbgapi_process_code_object_list was last
+ * called for them.  Otherwise, set to ::AMD_DBGAPI_CHANGED_YES.
  *
  * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
  * successfully and the result is stored in \p changed, \p code_object_count,
@@ -2167,8 +2177,9 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or
  * \p query is invalid.  \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE \p value_size does
- * not match the size of the result.  \p value is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * value_size does not match the size of the \p query result.  \p value is
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
  * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
@@ -2179,25 +2190,28 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_agent_get_info (
     size_t value_size, void *value) AMD_DBGAPI_VERSION_0_41;
 
 /**
- * Return the list of agents for a process.
+ * Return the list of agents.
  *
  * The order of the agent handles in the list is unspecified and can vary
  * between calls.
  *
- * \param[in] process_id The process for which the agent list is requested.
+ * \param[in] process_id If ::AMD_DBGAPI_PROCESS_NONE then the agent list for
+ * all processes is requested.  Otherwise, the agent list of process \p
+ * process_id is requested.
  *
  * \param[out] agent_count The number of agents accessed by the process.
  *
- * \param[out] agents If \p changed is not NULL and the agent list has not
- * changed since the last call to ::amd_dbgapi_agent_list then return NULL.
+ * \param[out] agents If \p changed is not NULL and the agent list of all of
+ * the processes requested have not changed since the last call(s) to
+ * ::amd_dbgapi_process_agent_list for each of them, then return NULL.
  * Otherwise, return a pointer to an array of ::amd_dbgapi_agent_id_t with \p
  * agent_count elements.  It is allocated by the
  * amd_dbgapi_callbacks_s::allocate_memory callback and is owned by the client.
  *
  * \param[in,out] changed If NULL then left unaltered.  If non-NULL, set to
- * ::AMD_DBGAPI_CHANGED_NO if the list of agents is the same as when
- * ::amd_dbgapi_agent_list was last called, otherwise set to
- * ::AMD_DBGAPI_CHANGED_YES.
+ * ::AMD_DBGAPI_CHANGED_NO if the list of agents for each requested process is
+ * the same as when ::amd_dbgapi_process_agent_list was last called for them.
+ * Otherwise, set to ::AMD_DBGAPI_CHANGED_YES.
  *
  * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
  * successfully and the result is stored in \p changed, \p agent_count, and \p
@@ -2343,8 +2357,9 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or
  * \p query is invalid.  \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE \p value_size does
- * not match the size of the result.  \p value is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * value_size does not match the size of the \p query result.  \p value is
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
  * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
@@ -2408,25 +2423,28 @@ typedef enum
 } amd_dbgapi_queue_error_reason_t;
 
 /**
- * Return the list of queues for a process.
+ * Return the list of queues.
  *
  * The order of the queue handles in the list is unspecified and can vary
  * between calls.
  *
- * \param[in] process_id The process for which the queue list is requested.
+ * \param[in] process_id If ::AMD_DBGAPI_PROCESS_NONE then the queue list for
+ * all processes is requested.  Otherwise, the queue list of process \p
+ * process_id is requested.
  *
  * \param[out] queue_count The number of queues accessed by the process.
  *
- * \param[out] queues If \p changed is not NULL and the queue list has not
- * changed since the last call to ::amd_dbgapi_queue_list then return NULL.
+ * \param[out] queues If \p changed is not NULL and the queues list of all of
+ * the processes requested have not changed since the last call(s) to
+ * ::amd_dbgapi_process_queue_list for each of them, then return NULL.
  * Otherwise, return a pointer to an array of ::amd_dbgapi_queue_id_t with \p
  * queue_count elements.  It is allocated by the
  * amd_dbgapi_callbacks_s::allocate_memory callback and is owned by the client.
  *
  * \param[in,out] changed If NULL then left unaltered.  If non-NULL, set to
- * ::AMD_DBGAPI_CHANGED_NO if the list of queues is the same as when
- * ::amd_dbgapi_queue_list was last called, otherwise set to
- * ::AMD_DBGAPI_CHANGED_YES.
+ * ::AMD_DBGAPI_CHANGED_NO if the list of queues for each requested process is
+ * the same as when ::amd_dbgapi_process_queue_list was last called for them.
+ * Otherwise set to ::AMD_DBGAPI_CHANGED_YES.
  *
  * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
  * successfully and the result is stored in \p changed, \p queue_count, and \p
@@ -2458,7 +2476,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_queue_list (
     amd_dbgapi_changed_t *changed) AMD_DBGAPI_VERSION_0_41;
 
 /**
- * Return the packets for a queue of a process.
+ * Return the packets for a queue.
  *
  * Since the AMD GPU is asynchronously reading the packets this is only a
  * snapshot of the packets present in the queue, and only includes the packets
@@ -2687,8 +2705,9 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or
  * \p query is invalid.  \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE \p value_size does
- * not match the size of the result.  \p value is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * value_size does not match the size of the \p query result.  \p value is
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
  * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
@@ -2740,25 +2759,28 @@ typedef enum
 } amd_dbgapi_dispatch_fence_scope_t;
 
 /**
- * Return the list of dispatches for a process.
+ * Return the list of dispatches.
  *
  * The order of the dispatch handles in the list is unspecified and can vary
  * between calls.
  *
- * \param[in] process_id The process for which the dispatch list is requested.
+ * \param[in] process_id If ::AMD_DBGAPI_PROCESS_NONE then the dispatch list
+ * for all processes is requested.  Otherwise, the dispatch list of process \p
+ * process_id is requested.
  *
  * \param[out] dispatch_count The number of dispatches active for a process.
  *
- * \param[out] dispatches If \p changed is not NULL and the dispatch list has
- * not changed since the last call to ::amd_dbgapi_dispatch_list then return
- * NULL.  Otherwise, return a pointer to an array of ::amd_dbgapi_dispatch_id_t
- * with \p dispatch_count elements.  It is allocated by the
+ * \param[out] dispatches If \p changed is not NULL and the dispatch list of
+ * all of the processes requested have not changed since the last call(s) to
+ * ::amd_dbgapi_process_dispatch_list for each of them, then return NULL.
+ * Otherwise, return a pointer to an array of ::amd_dbgapi_dispatch_id_t with
+ * \p dispatch_count elements.  It is allocated by the
  * amd_dbgapi_callbacks_s::allocate_memory callback and is owned by the client.
  *
  * \param[in,out] changed If NULL then left unaltered.  If non-NULL, set to
- * ::AMD_DBGAPI_CHANGED_NO if the list of agents is the same as when
- * ::amd_dbgapi_agent_list was last called, otherwise set to
- * ::AMD_DBGAPI_CHANGED_YES.
+ * ::AMD_DBGAPI_CHANGED_NO if the list of dispatches for each requested process
+ * is the same as when ::amd_dbgapi_process_dispatch_list was last called for
+ * them.  Otherwise, set to ::AMD_DBGAPI_CHANGED_YES.
  *
  * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
  * successfully and the result is stored in \p changed, \p dispatch_count, and
@@ -2940,8 +2962,9 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or \p
  * query is invalid.  \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE \p value_size does
- * not match the size of the result.  \p value is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * value_size does not match the size of the \p query result.  \p value is
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED \p query has a value of
  * ::amd_dbgapi_wave_info_t that requires the wave to be stopped, but the wave
@@ -2978,8 +3001,7 @@ typedef enum
    * until ::amd_dbgapi_process_next_pending_event returns the event, the wave
    * will continue to be reported as in the ::AMD_DBGAPI_WAVE_STATE_RUN state.
    * Only when the ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP event is returned by
-   * ::amd_dbgapi_process_next_pending_event will the wave will be reported in
-   * the
+   * ::amd_dbgapi_process_next_pending_event will the wave be reported in the
    * ::AMD_DBGAPI_WAVE_STATE_STOP state.
    */
   AMD_DBGAPI_WAVE_STATE_STOP = 3
@@ -3178,25 +3200,28 @@ typedef enum
 } amd_dbgapi_wave_stop_reason_t;
 
 /**
- * Return the list of existing waves for a process.
+ * Return the list of existing waves.
  *
  * The order of the wave handles in the list is unspecified and can vary
  * between calls.
  *
- * \param[in] process_id The process for which the wave list is requested.
+ * \param[in] process_id If ::AMD_DBGAPI_PROCESS_NONE then the wave list for
+ * all processes is requested.  Otherwise, the wave list of process \p
+ * process_id is requested.
  *
  * \param[out] wave_count The number of waves executing in the process.
  *
- * \param[out] waves If \p changed is not NULL and the wave list has not
- * changed since the last call to ::amd_dbgapi_wave_list then return NULL.
+ * \param[out] waves If \p changed is not NULL and the wave list of all of the
+ * processes requested have not changed since the last call(s) to
+ * ::amd_dbgapi_process_wave_list for each of them, then return NULL.
  * Otherwise, return a pointer to an array of ::amd_dbgapi_wave_id_t with \p
  * wave_count elements.  It is allocated by the
  * amd_dbgapi_callbacks_s::allocate_memory callback and is owned by the client.
  *
  * \param[in,out] changed If NULL then left unaltered.  If non-NULL, set to
- * ::AMD_DBGAPI_CHANGED_NO if the list of waves is the same as when
- * ::amd_dbgapi_wave_list was last called, otherwise set to
- * ::AMD_DBGAPI_CHANGED_YES.
+ * ::AMD_DBGAPI_CHANGED_NO if the list of waves for each requested process is
+ * the same as when ::amd_dbgapi_process_wave_list was last called for them.
+ * Otherwise, set to ::AMD_DBGAPI_CHANGED_YES.
  *
  * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
  * successfully and the result is stored in \p changed, \p wave_count, and \p
@@ -3246,7 +3271,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_wave_list (
  *
  * It is an error to request a wave to stop that has terminated.  The wave
  * handle will be reported as invalid.  It is up to the client to use
- * ::amd_dbgapi_wave_list to determine what waves have been created and
+ * ::amd_dbgapi_process_wave_list to determine what waves have been created and
  * terminated.  No event is reported when a wave is created or terminates.
  *
  * It is an error to request a wave to stop that is already in the
@@ -3258,13 +3283,13 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_wave_list (
  * Sending a stop request to a wave that has already stopped, but whose
  * ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP event has not yet been returned by
  * ::amd_dbgapi_process_next_pending_event, is allowed since the wave is still
- * in the
- * ::AMD_DBGAPI_WAVE_STATE_RUN state.  In this case the wave is not affected
- * and the already existing ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP will notify the
- * client that the stop request has completed.  The client must be prepared
- * that a wave may stop for other reasons in response to a stop request.  It
- * can use the ::AMD_DBGAPI_WAVE_INFO_STOP_REASON query to determine if there
- * are other reason(s).  See ::AMD_DBGAPI_WAVE_STATE_STOP for more information.
+ * in the ::AMD_DBGAPI_WAVE_STATE_RUN state.  In this case the wave is not
+ * affected and the already existing ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP will
+ * notify the client that the stop request has completed.  The client must be
+ * prepared that a wave may stop for other reasons in response to a stop
+ * request.  It can use the ::AMD_DBGAPI_WAVE_INFO_STOP_REASON query to
+ * determine if there are other reason(s).  See ::AMD_DBGAPI_WAVE_STATE_STOP
+ * for more information.
  *
  * Sending a stop request to a wave that is in the
  * ::AMD_DBGAPI_WAVE_STATE_SINGLE_STEP state will attempt to stop the wave and
@@ -3298,8 +3323,8 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_wave_list (
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID \p wave_id is invalid.  No
  * wave is stopped.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_WAVE_STOPPED The wave is already stopped.
- * The wave remains stopped.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_WAVE_STOPPED \p wave_id is already
+ * stopped.  The wave remains stopped.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_WAVE_OUTSTANDING_STOP The wave already
  * has an outstanding stop request.  This stop request is ignored and the
@@ -3369,7 +3394,7 @@ typedef enum
  *
  * It is an error to resume a wave that has terminated.  The wave handle will
  * be reported as invalid.  It is up to the client to use
- * ::amd_dbgapi_wave_list to determine what waves have been created and
+ * ::amd_dbgapi_process_wave_list to determine what waves have been created and
  * terminated.  No event is reported when a wave is created or terminates.
  *
  * It is an error to request a wave to resume that is not in the
@@ -3548,13 +3573,13 @@ typedef enum
 } amd_dbgapi_displaced_stepping_info_t;
 
 /**
- * Query information about a displaced stepping.
+ * Query information about a displaced stepping buffer.
  *
  * ::amd_dbgapi_displaced_stepping_t specifies the queries supported and the
  * type returned using the \p value argument.
  *
- * \param[in] displaced_stepping_id The handle of the displaced stepping being
- * queried.
+ * \param[in] displaced_stepping_id The handle of the displaced stepping buffer
+ * being queried.
  *
  * \param[in] query The query being requested.
  *
@@ -3578,8 +3603,9 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or
  * \p query is invalid.  \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE \p value_size does
- * not match the size of the result.  \p value is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * value_size does not match the size of the \p query result.  \p value is
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
  * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
@@ -3811,8 +3837,9 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or
  * \p query is invalid.  \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE \p value_size does
- * not match the size of the result.  \p value is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * value_size does not match the size of the \p query result.  \p value is
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
  * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
@@ -4083,8 +4110,9 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or
  * \p query is invalid.  \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE \p value_size does
- * not match the size of the result.  \p value is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * value_size does not match the size of the \p query result.  \p value is
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
  * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
@@ -4167,17 +4195,22 @@ typedef struct
 typedef enum
 {
   /**
+   * Return the architecture to which this register belongs.  The type of this
+   * attribute is ::amd_dbgapi_architecture_id_t.
+   */
+  AMD_DBGAPI_REGISTER_INFO_ARCHITECTURE = 1,
+  /**
    * Return the register name.  The type of this attribute is a pointer to a
    * NUL terminated \p char.  It is allocated by the
    * amd_dbgapi_callbacks_s::allocate_memory callback and is owned by the
    * client.
    */
-  AMD_DBGAPI_REGISTER_INFO_NAME = 1,
+  AMD_DBGAPI_REGISTER_INFO_NAME = 2,
   /**
    * Return the size of the register in bytes.  The type of this attribute
    * is ::amd_dbgapi_size_t.
    */
-  AMD_DBGAPI_REGISTER_INFO_SIZE = 2,
+  AMD_DBGAPI_REGISTER_INFO_SIZE = 3,
   /**
    * Return the register type as a C style type string.  This can be used as
    * the default type to use when displaying values of the register.  The type
@@ -4199,7 +4232,7 @@ typedef enum
    * is allocated by the amd_dbgapi_callbacks_s::allocate_memory callback and
    * is owned by the client.
    */
-  AMD_DBGAPI_REGISTER_INFO_TYPE = 3
+  AMD_DBGAPI_REGISTER_INFO_TYPE = 4
 } amd_dbgapi_register_info_t;
 
 /**
@@ -4233,8 +4266,9 @@ typedef enum
  * query is invalid or not supported for an architecture.  \p value is
  * unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE \p value_size does
- * not match the size of the result.  \p value is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * value_size does not match the size of the \p query result.  \p value is
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be reported if
  * the amd_dbgapi_callbacks_s::allocate_memory callback used to allocate \p
@@ -4262,6 +4296,8 @@ typedef enum
 /**
  * Query if a register exists for a wave.
  *
+ * The register and wave must both belong to the same architecture.
+ *
  * \param[in] wave_id The wave being queried.
  *
  * \param[in] register_id The register being queried.
@@ -4283,7 +4319,10 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID \p register_id is
  * invalid.  \p exists is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p exists is NULL or the
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p exists is NULL.  \p
+ * exists is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY The
  * architectures of \p wave_id and \p register_id are not the same.  \p exists
  * is unaltered.
  */
@@ -4387,7 +4426,10 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_register_list (
     amd_dbgapi_register_id_t **registers) AMD_DBGAPI_VERSION_0_41;
 
 /**
- * Return a register handle from an AMD GPU DWARF register number.
+ * Return a register handle from an AMD GPU DWARF register number for an
+ * architecture.
+ *
+ * The AMD GPU DWARF register number must be valid for the architecture.
  *
  * See [User Guide for AMDGPU Backend - Code Object - DWARF - Register Mapping]
  * (https://llvm.org/docs/AMDGPUUsage.html#register-mapping).
@@ -4412,13 +4454,16 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_register_list (
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID \p
  * architecture_id is invalid.  \p register_id is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p dwarf_register_id is
- * not valid for the architecture or \p register_id is NULL.  \p register_id is
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p register_id is NULL.
+ * \p register_id is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * dwarf_register is not valid for the \p architecture_id.  \p register_id is
  * unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_dwarf_register_to_register (
     amd_dbgapi_architecture_id_t architecture_id, uint64_t dwarf_register,
-    amd_dbgapi_register_id_t *register_id) AMD_DBGAPI_VERSION_0_24;
+    amd_dbgapi_register_id_t *register_id) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Indication of whether a register is a member of a register class.
@@ -4446,9 +4491,8 @@ typedef enum
  *
  * \param[out] register_class_state
  * ::AMD_DBGAPI_REGISTER_CLASS_STATE_NOT_MEMBER if the register is not in the
- * register class.
- * ::AMD_DBGAPI_REGISTER_CLASS_STATE_MEMBER if the register is in the register
- * class.
+ * register class.  ::AMD_DBGAPI_REGISTER_CLASS_STATE_MEMBER if the register is
+ * in the register class.
  *
  * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
  * successfully and the result is stored in \p register_class_state.
@@ -4464,10 +4508,14 @@ typedef enum
  * invalid.  \p register_class_state is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_CLASS_ID \p
- * register_class_id is invalid .  \p register_class_state is unaltered.
+ * register_class_id is invalid.  \p register_class_state is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p register_class_state
  * is NULL.  \p register_class_state is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY The
+ * architectures of \p register_class_id and \p register_id are not the same.
+ * \p register_class_state is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_is_in_register_class (
     amd_dbgapi_register_class_id_t register_class_id,
@@ -4481,14 +4529,11 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_is_in_register_class (
  * \p value_size bytes are read from the register starting at \p offset into \p
  * value.
  *
- * The wave must be stopped.
+ * The wave must be stopped.  The register and wave must both belong to the
+ * same architecture, and the wave must have allocated that register.
  *
- * The register handle must be valid for the architecture, and the wave must
- * have allocated that register.
- *
- * The size of the register can vary depending on the wave.  The register size
- * can be obtained using ::amd_dbgapi_wave_register_get_info with the
- * ::AMD_DBGAPI_REGISTER_INFO_SIZE query.
+ * The register size can be obtained using ::amd_dbgapi_register_get_info with
+ * the ::AMD_DBGAPI_REGISTER_INFO_SIZE query.
  *
  * \param[in] wave_id The wave to being queried for the register.
  *
@@ -4518,18 +4563,18 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_is_in_register_class (
  * value is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID \p register_id is
- * invalid for the architecture of \p wave_id, or not allocated for \p
- * wave_id.  \p value is unaltered.
+ * invalid.  \p value is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED \p wave_id is not
  * stopped.  \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL.  \p
- * value is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or \p
+ * value_size is 0.  \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE \p value_size is 0
- * or greater than the size of the register minus \p offset.  \p value is
- * unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * value_size is greater than the size of the \p register_id minus \p offset,
+ * the architectures of \p wave_id and \p register_id are not the same, or \p
+ * register_id is not allocated for \p wave_id.  \p value is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
@@ -4541,14 +4586,11 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
  *
  * \p value_size bytes are written into the register starting at \p offset.
  *
- * The wave must be stopped.
+ * The wave must be stopped.  The register and wave must both belong to the
+ * same architecture, and the wave must have allocated that register.
  *
- * The register handle must be valid for the architecture, and the wave must
- * have allocated that register.
- *
- * The size of the register can vary depending on the wave.  The register size
- * can be obtained using ::amd_dbgapi_wave_register_get_info with the
- * ::AMD_DBGAPI_REGISTER_INFO_SIZE query.
+ * The register size can be obtained using ::amd_dbgapi_register_get_info with
+ * the ::AMD_DBGAPI_REGISTER_INFO_SIZE query.
  *
  * \param[in] wave_id The wave to being queried for the register.
  *
@@ -4578,18 +4620,18 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
  * The register is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID \p register_id is
- * invalid for the architecture of \p wave_id, or not allocated for \p
- * wave_id.  \p value is unaltered.
+ * invalid.  \p value is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED \p wave_id is not
  * stopped.  The register is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL.  The
- * register is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or \p
+ * value_size is 0.  \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE \p value_size is 0
- * or greater than the size of the register minus \p offset.  The register is
- * unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * value_size is greater than the size of the \p register_id minus \p offset,
+ * the architectures of \p wave_id and \p register_id are not the same, or \p
+ * register_id is not allocated for \p wave_id.  \p value is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
@@ -4604,19 +4646,19 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_register (
  * of reading registers as the library may be able to batch the prefetch
  * requests into one request.
  *
- * The wave must be stopped.  If the wave is resumed, then any prefetch
- * requests for registers that were not subsequently read may be discarded and
- * so provide no performance benefit.  Prefetch requests for registers that are
- * never subsequently read may in fact reduce performance.
+ * The wave must be stopped.  The register and wave must both belong to the
+ * same architecture, and the wave must have allocated that register.
+ *
+ * If the wave is resumed, then any prefetch requests for registers that were
+ * not subsequently read may be discarded and so provide no performance
+ * benefit.  Prefetch requests for registers that are never subsequently read
+ * may in fact reduce performance.
  *
  * The registers to prefetch are specified as the first register and the number
  * of registers.  The first register can be any register supported by the wave.
  * The number of registers is in terms of the wave register order returned by
  * ::amd_dbgapi_wave_register_list.  If the number exceeds the number of wave
  * registers, then only up to the last wave register is prefetched.
- *
- * The register handle must be valid for the architecture, and the wave must
- * have allocated that register.
  *
  * \param[in] wave_id The wave being queried for the register.
  *
@@ -4637,11 +4679,15 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_register (
  * registers are prefetched.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID \p register_id is
- * invalid for the architecture of \p wave_id, or not allocated for \p wave_id.
- * \p value is unaltered.
+ * invalid.  No registers are prefetched.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED \p wave_id is not
  * stopped.  No registers are prefetched.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY The
+ * architectures of \p wave_id and \p register_id are not the same, or \p
+ * register_id is not allocated for \p wave_id.  No registers are
+ * prefetched.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_prefetch_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
@@ -4779,14 +4825,15 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or \p
  * query is invalid.  \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE \p value_size does
- * not match the size of the result.  \p value is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * value_size does not match the size of the \p query result.  \p value is
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be reported if
  * the amd_dbgapi_callbacks_s::allocate_memory callback used to allocate \p
  * value returns NULL.  \p value is unaltered.
  */
-amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_address_class_get_info (
+amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_class_get_info (
     amd_dbgapi_address_class_id_t address_class_id,
     amd_dbgapi_address_class_info_t query, size_t value_size,
     void *value) AMD_DBGAPI_VERSION_0_41;
@@ -4838,7 +4885,9 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_address_class_list (
 
 /**
  * Return the architecture source language address class from a DWARF address
- * class number.
+ * class number for an architecture.
+ *
+ * The AMD GPU DWARF address class number must be valid for the architecture.
  *
  * See [User Guide for AMDGPU Backend - Code Object - DWARF - Address Class
  * Mapping] (https://llvm.org/docs/AMDGPUUsage.html#address-class-mapping).
@@ -4864,14 +4913,17 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_address_class_list (
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID \p architecture_id
  * is invalid.  \p address_class_id is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p dwarf_address_class is
- * not valid for \p architecture_id or \p address_class_id is NULL.  \p
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p address_class_id is
+ * NULL.  \p address_class_id is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * dwarf_address_class is not valid for the \p architecture_id.  \p
  * address_class_id is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_dwarf_address_class_to_address_class (
     amd_dbgapi_architecture_id_t architecture_id, uint64_t dwarf_address_class,
-    amd_dbgapi_address_class_id_t *address_class_id) AMD_DBGAPI_VERSION_0_24;
+    amd_dbgapi_address_class_id_t *address_class_id) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Opaque address space handle.
@@ -4992,8 +5044,9 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p query is invalid or \p
  * value is NULL.  \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE \p value_size does
- * not match the size of the result.  \p value is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * value_size does not match the size of the \p query result.  \p value is
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be reported if
  * the amd_dbgapi_callbacks_s::allocate_memory callback used to allocate \p
@@ -5047,12 +5100,15 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_address_space_list (
     amd_dbgapi_address_space_id_t **address_spaces) AMD_DBGAPI_VERSION_0_24;
 
 /**
- * Return the address space from an AMD GPU DWARF address space number.
+ * Return the address space from an AMD GPU DWARF address space number for an
+ * architecture.
  *
  * A DWARF address space describes the architecture specific address spaces.
  * If is used in DWARF location expressions that calculate addresses.  See
  * [User Guide for AMDGPU Backend - Code Object - DWARF - Address Space
  * Mapping] (https://llvm.org/docs/AMDGPUUsage.html#address-space-mapping).
+ *
+ * The AMD GPU DWARF address space number must be valid for the architecture.
  *
  * \param[in] architecture_id The architecture of the address space.
  *
@@ -5074,14 +5130,17 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_address_space_list (
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID \p architecture_id
  * is invalid.  \p address_space_id is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p dwarf_address_space is
- * not valid for \p architecture_id, or \p address_space_id is NULL.  \p
- * address_space_id is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p address_space_id is
+ * NULL.  \p address_space_id is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * dwarf_address_space is not valid for \p architecture_id.  \p
+ * address_class_id is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_dwarf_address_space_to_address_space (
     amd_dbgapi_architecture_id_t architecture_id, uint64_t dwarf_address_space,
-    amd_dbgapi_address_space_id_t *address_space_id) AMD_DBGAPI_VERSION_0_24;
+    amd_dbgapi_address_space_id_t *address_space_id) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Indication of whether addresses in two address spaces may alias.
@@ -5106,7 +5165,7 @@ typedef enum
  * memory locations are updated using an address in one, then any cached
  * information about values in the other needs to be invalidated.
  *
- * The address spaces must match the architecture.
+ * The address spaces must belong to the same the architecture.
  *
  * \param[in] address_space_id1 An address space.
  *
@@ -5127,12 +5186,15 @@ typedef enum
  * is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID \p
- * address_space_id1 or \p address_space_id2 are invalid, or the architecture
- * of both are not the same ::amd_dbgapi_architecture_id_t.  \p
+ * address_space_id1 or \p address_space_id2 are invalid.  \p
  * address_space_alias is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p address_space_alias is
  * NULL.  \p address_space_alias is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY The
+ * architectures of \p address_space_id1 and \p address_space_id2 are not the
+ * same.  \p address_space_alias is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_spaces_may_alias (
     amd_dbgapi_address_space_id_t address_space_id1,
@@ -5161,6 +5223,8 @@ typedef uint64_t amd_dbgapi_segment_address_t;
 /**
  * Convert a source segment address in the source address space into a
  * destination segment address in the destination address space.
+ *
+ * The address spaces must belong to the same the architecture.
  *
  * If the source segment address is the NULL value in the source address space
  * then it is converted to the NULL value in the destination address space.
@@ -5216,8 +5280,8 @@ typedef uint64_t amd_dbgapi_segment_address_t;
  * the active lane.  \p destination_segment_address is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID \p
- * source_address_space_id or \p destination_address_space_id are invalid for
- * the architecture of \p wave_id.  \p value is unaltered.
+ * source_address_space_id or \p destination_address_space_id are invalid.  \p
+ * value is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION The \p
  * source_segment_address in the \p source_address_space_id is not an address
@@ -5227,6 +5291,11 @@ typedef uint64_t amd_dbgapi_segment_address_t;
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p
  * destination_segment_address is NULL.  \p destination_segment_address is
  * unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY The
+ * architectures of \p wave_id, \p source_address_space_id, and \p
+ * destination_address_space_id are not the same.  \p
+ * destination_segment_address is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_convert_address_space (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_lane_id_t lane_id,
@@ -5302,15 +5371,17 @@ typedef enum
  * address_class_state is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID \p
- * address_space_id is invalid for the architecture of \p wave_id.  \p
- * address_class_state is unaltered.
+ * address_space_id is invalid.  \p address_class_state is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_CLASS_ID \p
- * address_class_id is invalid for the architecture of \p wave_id.  \p
- * address_class_state is unaltered.
+ * address_class_id is invalid.  \p address_class_state is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p address_class_state is
  * NULL.  \p address_class_state is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY The
+ * architectures of \p wave_id, \p address_space_id, and \p address_class_id
+ * are not the same.  \p address_class_state is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_is_in_address_class (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_lane_id_t lane_id,
@@ -5323,20 +5394,26 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_is_in_address_class (
 /**
  * Read memory.
  *
- * The memory bytes in \p address_space are read starting at \p segment_address
- * sequentially into \p value until \p value_size bytes have been read or an
- * invalid memory address is reached.  \p value_size is set to the number of
- * bytes read successfully.
+ * The memory bytes in \p address_space are read for \p lane_id of \p wave_id
+ * starting at \p segment_address sequentially into \p value until \p
+ * value_size bytes have been read or an invalid memory address is reached.  \p
+ * value_size is set to the number of bytes read successfully.
  *
- * The wave must be stopped.
+ * If \p wave_id is not ::AMD_DBGAPI_WAVE_NONE then it must be stopped,  must
+ * belong to \p process_id, and its architecture must be the same as that of
+ * the address space.
  *
  * The library performs all necessary hardware cache management so that the
  * memory values read are coherent with the \p wave_id.
  *
+ * \param[in] process_id The process to read memory from if \p wave_id is
+ * ::AMD_DBGAPI_WAVE_NONE the \p address_space is
+ * ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL.
+ *
  * \param[in] wave_id The wave that is accessing the memory.  If the \p
- * address_space is ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL then \p wave_id is
- * ignored and may be ::AMD_DBGAPI_WAVE_NONE as the address space does not
- * depend on the active wave.
+ * address_space is ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL then \p wave_id may be
+ * ::AMD_DBGAPI_WAVE_NONE, as the address space does not depend on the active
+ * wave, in which case \p process_id is used.
  *
  * \param[in] lane_id The lane of \p wave_id that is accessing the memory.  If
  * the \p address_space does not depend on the active lane then this is ignored
@@ -5386,14 +5463,18 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_is_in_address_class (
  * active lane.  \p value_size and \p value are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID \p
- * address_space_id is invalid for the architecture of \p wave_id.  \p value is
- * unaltered.
+ * address_space_id is invalid.  \p value is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED \p wave_id is not
  * stopped.  \p value_size and \p value are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value or \p value_size
  * are NULL.  \p value_size and \p value are unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p wave_id
+ * in not ::AMD_DBGAPI_WAVE_NONE and does not belong to \p process_id or have
+ * the same the architecture as \p address_space_id.  \p value_size and \p
+ * value are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS The input \p value_size was
  * greater than 0 and no bytes were successfully read.  The output \p
@@ -5404,27 +5485,31 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_memory (
     amd_dbgapi_lane_id_t lane_id,
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_segment_address_t segment_address,
-    amd_dbgapi_size_t *value_size, void *value) AMD_DBGAPI_VERSION_0_30;
+    amd_dbgapi_size_t *value_size, void *value) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Write memory.
  *
- * The memory bytes in \p address_space are written starting at \p
- * segment_address sequentially from \p value until \p value_size bytes have
- * been written or an invalid memory address is reached.  \p value_size is set
- * to the number of bytes written successfully.
+ * The memory bytes in \p address_space are written for \p lane_id of \p
+ * wave_id starting at \p segment_address sequentially from \p value until \p
+ * value_size bytes have been written or an invalid memory address is reached.
+ * \p value_size is set to the number of bytes written successfully.
  *
- * The wave must be stopped.
+ * If \p wave_id is not ::AMD_DBGAPI_WAVE_NONE then it must be stopped,  must
+ * belong to \p process_id, and its architecture must be the same as that of
+ * the address space.
  *
  * The library performs all necessary hardware cache management so that the
  * memory values written are coherent with the \p wave_id.
  *
- * \param[in] process_id The process to which the \p wave_id belongs.
+ * \param[in] process_id The process to write memory to if \p wave_id is
+ * ::AMD_DBGAPI_WAVE_NONE the \p address_space is
+ * ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL.
  *
  * \param[in] wave_id The wave that is accessing the memory.  If the \p
- * address_space is ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL then \p wave_id is
- * ignored and may be ::AMD_DBGAPI_WAVE_NONE as the address space does not
- * depend on the active wave.
+ * address_space is ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL then \p wave_id may be
+ * ::AMD_DBGAPI_WAVE_NONE, as the address space does not depend on the active
+ * wave, in which case \p process_id is used.
  *
  * \param[in] lane_id The lane of \p wave_id that is accessing the memory.  If
  * the \p address_space does not depend on the active lane then this is ignored
@@ -5474,14 +5559,18 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_memory (
  * active lane.  The memory and \p value_size are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID \p
- * address_space_id is invalid for the architecture of \p wave_id.  The memory
- * and \p value_size are unaltered.
+ * address_space_id is invalid.  The memory and \p value_size are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED \p wave_id is not
  * stopped.  The memory and \p value_size are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value or \p value_size
  * are NULL.  The memory and \p value_size are unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p wave_id
+ * in not ::AMD_DBGAPI_WAVE_NONE and does not belong to \p process_id or have
+ * the same the architecture as \p address_space_id.  The memory and \p
+ * value_size are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS The input \p value_size was
  * greater than 0 and no bytes were successfully written.  The output \p
@@ -5492,7 +5581,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_memory (
     amd_dbgapi_lane_id_t lane_id,
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_segment_address_t segment_address,
-    amd_dbgapi_size_t *value_size, const void *value) AMD_DBGAPI_VERSION_0_30;
+    amd_dbgapi_size_t *value_size, const void *value) AMD_DBGAPI_VERSION_0_41;
 
 /**
  * Memory access precision.
@@ -5580,10 +5669,9 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_memory_precision (
  *
  * When ::amd_dbgapi_process_attach successfully attaches to a process a
  * ::amd_dbgapi_notifier_t notifier is created that is available using the
- * ::AMD_DBGAPI_PROCESS_INFO_NOTIFIER query.  When this indicates there
- * may be pending events for the process,
- * ::amd_dbgapi_process_next_pending_event can be used to retrieve the pending
- * events.
+ * ::AMD_DBGAPI_PROCESS_INFO_NOTIFIER query.  When this indicates there may be
+ * pending events for the process, ::amd_dbgapi_process_next_pending_event can
+ * be used to retrieve the pending events.
  *
  * The notifier must be reset before retrieving pending events so that the
  * notifier will always conservatively indicate there may be pending events.
@@ -5716,9 +5804,15 @@ typedef enum
 } amd_dbgapi_event_kind_t;
 
 /**
- * Obtain the next pending event for a process.
+ * Obtain the next pending event.
  *
- * \param[in] process_id The process from which to retrieve pending events.
+ * The order events are returned is unspecified.  If the client requires
+ * fairness then it can retrieve all pending events and randomize the order of
+ * processing.
+ *
+ * \param[in] process_id If ::AMD_DBGAPI_PROCESS_NONE then retrieve a pending
+ * event from any processes.  Otherwise, retrieve a pending event from process
+ * \p process_id.
  *
  * \param[out] event_id The event handle of the next pending event.  Each event
  * is only returned once.  If there are no pending events the
@@ -5843,8 +5937,9 @@ typedef enum
  * \p query is for an attribute not present for the kind of the event.
  * \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE \p value_size does
- * not match the size of the result.  \p value is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * value_size does not match the size of the \p query result.  \p value is
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
  * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
@@ -5858,7 +5953,8 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_event_get_info (
  * Report that an event has been processed.
  *
  * Every event returned by ::amd_dbgapi_process_next_pending_event must be
- * reported as processed exactly once.
+ * reported as processed exactly once.  Events do not have to be reported
+ * completed in the same order they are retrieved.
  *
  * \param[in] event_id The event that has been processed.
  *
@@ -6043,8 +6139,9 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or
  * \p query is invalid.  \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE \p value_size does
- * not match the size of the result.  \p value is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * value_size does not match the size of the \p query result.  \p value is
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
  * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
@@ -6169,8 +6266,9 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or
  * \p query is invalid.  \p value is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE \p value_size does
- * not match the size of the result.  \p value is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * value_size does not match the size of the \p query result.  \p value is
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
  * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to

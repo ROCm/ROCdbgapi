@@ -269,7 +269,7 @@ get_info (size_t value_size, void *ret, const T &value)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   if (value_size != sizeof (T))
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE;
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
 
   memcpy (ret, &value, sizeof (T));
   return AMD_DBGAPI_STATUS_SUCCESS;

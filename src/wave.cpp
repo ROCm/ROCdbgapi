@@ -316,7 +316,7 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
   if (!value_size
       || (offset + value_size)
              > architecture ().register_size (regnum).value ())
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE;
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
 
   if (regnum == amdgpu_regnum_t::NULL_)
     {
@@ -364,7 +364,7 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
   if (!value_size
       || (offset + value_size)
              > architecture ().register_size (regnum).value ())
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE;
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
 
   if (regnum == amdgpu_regnum_t::NULL_)
     return AMD_DBGAPI_STATUS_SUCCESS;

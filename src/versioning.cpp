@@ -70,8 +70,8 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
     case AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT:
       string = "An invalid argument was given to the function";
       break;
-    case AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_SIZE:
-      string = "An invalid size was given to the function";
+    case AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY:
+      string = "An invalid combination of arguments was given to the function";
       break;
     case AMD_DBGAPI_STATUS_ERROR_ALREADY_INITIALIZED:
       string = "The library is already initialized";

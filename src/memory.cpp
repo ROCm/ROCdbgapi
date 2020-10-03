@@ -80,7 +80,7 @@ address_space_t::get_info (amd_dbgapi_address_space_info_t query,
 using namespace amd::dbgapi;
 
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_architecture_address_class_get_info (
+amd_dbgapi_address_class_get_info (
     amd_dbgapi_address_class_id_t address_class_id,
     amd_dbgapi_address_class_info_t query, size_t value_size, void *value)
 {
@@ -151,13 +151,13 @@ amd_dbgapi_dwarf_address_class_to_address_class (
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
-  if (!address_class_id)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
-
   const architecture_t *architecture = architecture_t::find (architecture_id);
 
   if (!architecture)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID;
+
+  if (!address_class_id)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   const address_class_t *address_class
       = architecture->find_if ([=] (const address_class_t &address_class) {
@@ -165,7 +165,7 @@ amd_dbgapi_dwarf_address_class_to_address_class (
         });
 
   if (!address_class)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
 
   *address_class_id = address_class->id ();
 
@@ -245,13 +245,13 @@ amd_dbgapi_dwarf_address_space_to_address_space (
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
-  if (!address_space_id)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
-
   const architecture_t *architecture = architecture_t::find (architecture_id);
 
   if (!architecture)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID;
+
+  if (!address_space_id)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   const address_space_t *address_space
       = architecture->find_if ([=] (const address_space_t &address_space) {
@@ -259,7 +259,7 @@ amd_dbgapi_dwarf_address_space_to_address_space (
         });
 
   if (!address_space)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
 
   *address_space_id = address_space->id ();
 
@@ -279,16 +279,17 @@ amd_dbgapi_address_spaces_may_alias (
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
-  if (!address_space_alias)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
-
   const address_space_t *address_space1 = find (address_space_id1);
   const address_space_t *address_space2 = find (address_space_id2);
 
-  if (!address_space1 || !address_space2
-      || address_space1->architecture ().id ()
-             != address_space2->architecture ().id ())
+  if (!address_space1 || !address_space2)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID;
+
+  if (address_space1->architecture () != address_space2->architecture ())
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
+
+  if (!address_space_alias)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   *address_space_alias
       = address_space1->architecture ().address_spaces_may_alias (
@@ -315,9 +316,6 @@ amd_dbgapi_convert_address_space (
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
-  if (!destination_segment_address)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
-
   wave_t *wave = find (wave_id);
 
   if (!wave)
@@ -325,13 +323,23 @@ amd_dbgapi_convert_address_space (
 
   const architecture_t &architecture = wave->architecture ();
 
-  const address_space_t *source_address_space
-      = architecture.find (source_address_space_id);
+  const address_space_t *source_address_space = architecture.find (source_address_space_id);
+
+  if (!source_address_space)
+    return is_valid_handle (source_address_space_id)
+               ? AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY
+               : AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID;
+
   const address_space_t *destination_address_space
       = architecture.find (destination_address_space_id);
 
-  if (!source_address_space || !destination_address_space)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID;
+  if (!destination_address_space)
+    return is_valid_handle (destination_address_space_id)
+               ? AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY
+               : AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID;
+
+  if (!destination_segment_address)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   return architecture.convert_address_space (
       *wave, lane_id, *source_address_space, *destination_address_space,
@@ -354,9 +362,6 @@ amd_dbgapi_address_is_in_address_class (
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
-  if (!address_class_state)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
-
   wave_t *wave = find (wave_id);
 
   if (!wave)
@@ -367,12 +372,19 @@ amd_dbgapi_address_is_in_address_class (
   const address_space_t *address_space = architecture.find (address_space_id);
 
   if (!address_space)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID;
+    return is_valid_handle (address_space_id)
+               ? AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY
+               : AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID;
 
   const address_class_t *address_class = architecture.find (address_class_id);
 
   if (!address_space)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_CLASS_ID;
+    return is_valid_handle (address_class_id)
+               ? AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY
+               : AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_CLASS_ID;
+
+  if (!address_class_state)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   *address_class_state
       = architecture.address_is_in_address_class (
@@ -383,7 +395,6 @@ amd_dbgapi_address_is_in_address_class (
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
 }
-
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
                         amd_dbgapi_wave_id_t wave_id,
@@ -399,23 +410,25 @@ amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
-  if (!value || !value_size)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
-
   process_t *process = process_t::find (process_id);
 
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
+
+  if (!value || !value_size)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   if (wave_id == AMD_DBGAPI_WAVE_NONE
       && address_space_id == AMD_DBGAPI_ADDRESS_SPACE_GLOBAL)
     return process->read_global_memory_partial (segment_address, value,
                                                 value_size);
 
-  wave_t *wave = find (wave_id);
+  wave_t *wave = process->find (wave_id);
 
   if (!wave)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
+    return is_valid_handle (wave_id)
+               ? AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY
+               : AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
 
   if (lane_id >= wave->lane_count () && lane_id != AMD_DBGAPI_LANE_NONE)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID;
@@ -424,7 +437,9 @@ amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
       = wave->architecture ().find (address_space_id);
 
   if (!address_space)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID;
+    return is_valid_handle (address_space_id)
+               ? AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY
+               : AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID;
 
   wave->architecture ().lower_address_space (*wave, &lane_id, *address_space,
                                              &address_space, segment_address,
@@ -436,7 +451,7 @@ amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
       suspend.emplace (wave->queue ());
 
       /* Look for the wave_id again, the wave may have exited.  */
-      if (!(wave = find (wave_id)))
+      if (!(wave = process->find (wave_id)))
         return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
     }
 
@@ -460,23 +475,25 @@ amd_dbgapi_write_memory (amd_dbgapi_process_id_t process_id,
   if (!amd::dbgapi::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
-  if (!value || !value_size)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
-
   process_t *process = process_t::find (process_id);
 
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
+
+  if (!value || !value_size)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   if (wave_id == AMD_DBGAPI_WAVE_NONE
       && address_space_id == AMD_DBGAPI_ADDRESS_SPACE_GLOBAL)
     return process->write_global_memory_partial (segment_address, value,
                                                  value_size);
 
-  wave_t *wave = find (wave_id);
+  wave_t *wave = process->find (wave_id);
 
   if (!wave)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
+    return is_valid_handle (wave_id)
+               ? AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY
+               : AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
 
   if (lane_id >= wave->lane_count () && lane_id != AMD_DBGAPI_LANE_NONE)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID;
@@ -485,7 +502,9 @@ amd_dbgapi_write_memory (amd_dbgapi_process_id_t process_id,
       = wave->architecture ().find (address_space_id);
 
   if (!address_space)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID;
+    return is_valid_handle (address_space_id)
+               ? AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY
+               : AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID;
 
   wave->architecture ().lower_address_space (*wave, &lane_id, *address_space,
                                              &address_space, segment_address,
@@ -498,7 +517,7 @@ amd_dbgapi_write_memory (amd_dbgapi_process_id_t process_id,
       suspend.emplace (wave->queue ());
 
       /* Look for the wave_id again, the wave may have exited.  */
-      if (!(wave = find (wave_id)))
+      if (!(wave = process->find (wave_id)))
         return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
     }
 

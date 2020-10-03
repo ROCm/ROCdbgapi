@@ -87,6 +87,11 @@ public:
   architecture_t &operator= (const architecture_t &) = delete;
   architecture_t &operator= (architecture_t &&) = delete;
 
+  /* Since architecture objects disallow copying & moving, two architecture
+     objects are identical if they have the same address.  */
+  bool operator== (const architecture_t &other) const { return this == &other; }
+  bool operator!= (const architecture_t &other) const { return this != &other; }
+
   /* FIXME: add SQ prefetch instruction bytes size.  */
 
   virtual bool has_wave32_vgprs () const = 0;
