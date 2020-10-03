@@ -65,7 +65,7 @@ std::list<process_t *> process_list;
 process_t::process_t (amd_dbgapi_client_process_id_t client_process_id,
                       amd_dbgapi_process_id_t process_id)
     : m_process_id (process_id), m_client_process_id (client_process_id),
-      m_os_driver (os_driver_t::create ([this] () {
+      m_os_process_id ([this] () {
         std::optional<amd_dbgapi_os_process_id_t> os_pid;
 
         amd_dbgapi_os_process_id_t value;
@@ -73,7 +73,8 @@ process_t::process_t (amd_dbgapi_client_process_id_t client_process_id,
           os_pid.emplace (value);
 
         return os_pid;
-      }()))
+      }()),
+      m_os_driver (os_driver_t::create (m_os_process_id))
 {
   /* Create the notifier pipe.  */
   m_client_notifier_pipe.open ();
@@ -1583,11 +1584,14 @@ process_t::get_info (amd_dbgapi_process_info_t query, size_t value_size,
       return utils::get_info (value_size, value,
                               AMD_DBGAPI_MEMORY_PRECISION_NONE);
 
-    default:
-      return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+    case AMD_DBGAPI_PROCESS_INFO_OS_ID:
+      if (!m_os_process_id.has_value ())
+        return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+
+      return utils::get_info (value_size, value, *m_os_process_id);
     }
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }
 
 void

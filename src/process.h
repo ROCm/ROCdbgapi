@@ -44,6 +44,7 @@
 #include <future>
 #include <list>
 #include <memory>
+#include <optional>
 #include <queue>
 #include <string>
 #include <thread>
@@ -321,6 +322,7 @@ public:
 private:
   amd_dbgapi_process_id_t const m_process_id;
   amd_dbgapi_client_process_id_t const m_client_process_id;
+  std::optional<amd_dbgapi_os_process_id_t> const m_os_process_id;
   amd_dbgapi_global_address_t m_r_debug_address{ 0 };
 
   std::unique_ptr<const os_driver_t> m_os_driver;
