@@ -146,7 +146,7 @@ amd_dbgapi_displaced_stepping_start (
   TRY;
   TRACE (wave_id);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   if (!saved_instruction_bytes || !displaced_stepping_id)
@@ -238,7 +238,7 @@ amd_dbgapi_displaced_stepping_complete (
   TRY;
   TRACE (wave_id, displaced_stepping_id);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   wave_t *wave = find (wave_id);
@@ -284,7 +284,7 @@ amd_dbgapi_code_displaced_stepping_get_info (
   TRY;
   TRACE (displaced_stepping_id, query, value_size, value);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   displaced_stepping_t *displaced_stepping = find (displaced_stepping_id);

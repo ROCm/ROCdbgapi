@@ -972,7 +972,7 @@ amd_dbgapi_queue_get_info (amd_dbgapi_queue_id_t queue_id,
   TRY;
   TRACE (queue_id, query, value_size, value);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   queue_t *queue = find (queue_id);
@@ -993,7 +993,7 @@ amd_dbgapi_process_queue_list (amd_dbgapi_process_id_t process_id,
   TRY;
   TRACE (process_id);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   std::vector<process_t *> processes;
@@ -1012,7 +1012,7 @@ amd_dbgapi_process_queue_list (amd_dbgapi_process_id_t process_id,
     }
   else
     {
-      for (auto &&process : process_list)
+      for (auto &&process : detail::process_list)
         {
           if (amd_dbgapi_status_t status = process->update_queues ();
               status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -1037,7 +1037,7 @@ amd_dbgapi_queue_packet_list (
   TRY;
   TRACE (queue_id);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   if (!read_packet_id_p || !write_packet_id_p || !packets_byte_size_p)

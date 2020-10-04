@@ -59,8 +59,22 @@
 namespace amd::dbgapi
 {
 
-extern std::list<class process_t *> process_list;
+class process_t;
+
+namespace detail
+{
+
+extern std::list<process_t *> process_list;
 extern amd_dbgapi_callbacks_s process_callbacks;
+
+/* The process that contained the last successful find result.  The next global
+   find will start searching here.
+
+   FIXME: If multi-process support is added this mechanism will need
+   re-implementing to be thread safe.  */
+extern process_t *last_found_process;
+
+} /* namespace detail */
 
 /* AMD Debugger API Process.  */
 
@@ -80,7 +94,11 @@ class process_t
 public:
   process_t (amd_dbgapi_client_process_id_t client_process_id,
              amd_dbgapi_process_id_t process_id);
-  ~process_t () {}
+  ~process_t ()
+  {
+    if (this == detail::last_found_process)
+      detail::last_found_process = nullptr;
+  }
 
   /* Disallow copying & moving process instances.  */
   process_t (const process_t &) = delete;
@@ -187,11 +205,9 @@ public:
                      amd_dbgapi_global_address_t *adjusted_size);
   void remove_watchpoint (const watchpoint_t &watchpoint);
 
-  static process_t *find (amd_dbgapi_process_id_t process_id,
-                          bool flush_cache = false);
+  static process_t *find (amd_dbgapi_process_id_t process_id);
 
-  static process_t *find (amd_dbgapi_client_process_id_t client_process_id,
-                          bool flush_cache = false);
+  static process_t *find (amd_dbgapi_client_process_id_t client_process_id);
 
   amd_dbgapi_status_t get_info (amd_dbgapi_process_info_t query,
                                 size_t value_size, void *value) const;
@@ -199,7 +215,7 @@ public:
   amd_dbgapi_status_t get_os_pid (amd_dbgapi_os_process_id_t *pid) const
   {
     TRACE_CALLBACK ();
-    return (*process_callbacks.get_os_pid) (m_client_process_id, pid);
+    return (*detail::process_callbacks.get_os_pid) (m_client_process_id, pid);
   }
 
   amd_dbgapi_status_t
@@ -208,7 +224,7 @@ public:
                       amd_dbgapi_global_address_t *address) const
   {
     TRACE_CALLBACK (library_id, symbol_name, address);
-    return (*process_callbacks.get_symbol_address) (
+    return (*detail::process_callbacks.get_symbol_address) (
         m_client_process_id, library_id, symbol_name, address);
   }
 
@@ -217,7 +233,7 @@ public:
       amd_dbgapi_shared_library_state_t *library_state)
   {
     TRACE_CALLBACK (library_name, library_id);
-    return (*process_callbacks.enable_notify_shared_library) (
+    return (*detail::process_callbacks.enable_notify_shared_library) (
         m_client_process_id, library_name, library_id, library_state);
   }
 
@@ -225,7 +241,7 @@ public:
   disable_notify_shared_library (amd_dbgapi_shared_library_id_t library_id)
   {
     TRACE_CALLBACK (library_id);
-    return (*process_callbacks.disable_notify_shared_library) (
+    return (*detail::process_callbacks.disable_notify_shared_library) (
         m_client_process_id, library_id);
   }
 
@@ -235,7 +251,7 @@ public:
                      amd_dbgapi_breakpoint_id_t breakpoint_id)
   {
     TRACE_CALLBACK (address, breakpoint_id);
-    return (*process_callbacks.insert_breakpoint) (
+    return (*detail::process_callbacks.insert_breakpoint) (
         m_client_process_id, shared_library_id, address, breakpoint_id);
   }
 
@@ -243,8 +259,8 @@ public:
   remove_breakpoint (amd_dbgapi_breakpoint_id_t breakpoint_id)
   {
     TRACE_CALLBACK (breakpoint_id);
-    return (*process_callbacks.remove_breakpoint) (m_client_process_id,
-                                                   breakpoint_id);
+    return (*detail::process_callbacks.remove_breakpoint) (m_client_process_id,
+                                                           breakpoint_id);
   }
 
   template <typename Object, typename... Args> auto &create (Args &&... args)
@@ -370,7 +386,7 @@ namespace detail
 template <typename Handle>
 using process_find_t
     = decltype (std::declval<process_t> ().find (std::declval<Handle> ()));
-}
+} /* namespace detail */
 
 /* Find an object with the given handle.  */
 template <typename Handle,
@@ -379,19 +395,23 @@ template <typename Handle,
 auto *
 find (Handle id)
 {
-  using return_type = decltype (std::declval<process_t> ().find (id));
-
-  for (auto &&process : process_list)
-    if (return_type value = process->find (id); value)
+  if (detail::last_found_process)
+    if (auto value = detail::last_found_process->find (id); value)
       return value;
 
-  return return_type{};
-}
+  for (auto &&process : detail::process_list)
+    {
+      if (process == detail::last_found_process)
+        continue;
+      auto value = process->find (id);
+      if (value)
+        {
+          detail::last_found_process = process;
+          return value;
+        }
+    }
 
-template<typename Handle, std::enable_if_t<is_handle_type_v<Handle>, int> = 0>
-bool is_valid_handle (Handle handle)
-{
-  return !!find (handle);
+  return detail::process_find_t<Handle>{};
 }
 
 template <> struct is_flag<process_t::flag_t> : std::true_type
@@ -423,20 +443,20 @@ inline void *
 allocate_memory (size_t byte_size)
 {
   TRACE_CALLBACK (byte_size);
-  return (*process_callbacks.allocate_memory) (byte_size);
+  return (*detail::process_callbacks.allocate_memory) (byte_size);
 }
 
 inline void
 deallocate_memory (void *data)
 {
   TRACE_CALLBACK (data);
-  (*process_callbacks.deallocate_memory) (data);
+  (*detail::process_callbacks.deallocate_memory) (data);
 }
 
 inline void
 log_message (amd_dbgapi_log_level_t level, const char *message)
 {
-  return (*process_callbacks.log_message) (level, message);
+  return (*detail::process_callbacks.log_message) (level, message);
 }
 
 #undef TRACE_CALLBACK

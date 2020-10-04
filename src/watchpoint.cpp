@@ -58,7 +58,7 @@ amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
   TRY;
   TRACE (process_id, address, size, kind);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   process_t *process = process_t::find (process_id);
@@ -104,7 +104,7 @@ amd_dbgapi_remove_watchpoint (amd_dbgapi_process_id_t process_id,
   TRY;
   TRACE (process_id, watchpoint_id);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   process_t *process = process_t::find (process_id);
@@ -132,7 +132,7 @@ amd_dbgapi_watchpoint_get_info (amd_dbgapi_watchpoint_id_t watchpoint_id,
   TRY;
   TRACE (watchpoint_id, query, value_size, value);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   watchpoint_t *watchpoint = find (watchpoint_id);

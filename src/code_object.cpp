@@ -58,7 +58,7 @@ amd_dbgapi_code_object_get_info (amd_dbgapi_code_object_id_t code_object_id,
   TRY;
   TRACE (code_object_id, query, value_size, value);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   code_object_t *code_object = find (code_object_id);
@@ -78,7 +78,7 @@ amd_dbgapi_process_code_object_list (
   TRY;
   TRACE (process_id);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   std::vector<process_t *> processes;
@@ -93,7 +93,7 @@ amd_dbgapi_process_code_object_list (
     }
   else
     {
-      for (auto &&process : process_list)
+      for (auto &&process : detail::process_list)
         processes.emplace_back (process);
     }
 

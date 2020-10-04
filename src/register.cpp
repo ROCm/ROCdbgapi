@@ -91,7 +91,7 @@ amd_dbgapi_architecture_register_class_get_info (
   TRY;
   TRACE (register_class_id, query, value_size);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   const register_class_t *register_class = find (register_class_id);
@@ -111,7 +111,7 @@ amd_dbgapi_architecture_register_class_list (
   TRY;
   TRACE (architecture_id);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   const architecture_t *architecture = architecture_t::find (architecture_id);
@@ -149,7 +149,7 @@ amd_dbgapi_register_get_info (amd_dbgapi_register_id_t register_id,
   TRY;
   TRACE (register_id, query, value_size);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   auto regnum = architecture_t::register_id_to_regnum (register_id);
@@ -209,7 +209,7 @@ amd_dbgapi_architecture_register_list (
   TRY;
   TRACE (architecture_id);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   const architecture_t *architecture = architecture_t::find (architecture_id);
@@ -248,7 +248,7 @@ amd_dbgapi_register_is_in_register_class (
   TRY;
   TRACE (register_class_id, register_id);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   const register_class_t *register_class = find (register_class_id);
@@ -286,7 +286,7 @@ amd_dbgapi_dwarf_register_to_register (
   TRY;
   TRACE (architecture_id, dwarf_register);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   const architecture_t *architecture = architecture_t::find (architecture_id);
@@ -364,7 +364,7 @@ amd_dbgapi_read_register (amd_dbgapi_wave_id_t wave_id,
   TRY;
   TRACE (wave_id, register_id, offset, value_size);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   wave_t *wave = find (wave_id);
@@ -413,7 +413,7 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
   TRY;
   TRACE (wave_id, register_id, offset, value_size);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   wave_t *wave = find (wave_id);
@@ -456,7 +456,7 @@ amd_dbgapi_wave_register_exists (amd_dbgapi_wave_id_t wave_id,
   TRY;
   TRACE (wave_id, register_id);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   wave_t *wave = find (wave_id);
@@ -493,7 +493,7 @@ amd_dbgapi_wave_register_list (amd_dbgapi_wave_id_t wave_id,
   TRY;
   TRACE (wave_id);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   wave_t *wave = find (wave_id);
@@ -531,7 +531,7 @@ amd_dbgapi_prefetch_register (amd_dbgapi_wave_id_t wave_id,
   TRY;
   TRACE (wave_id, register_id, register_count);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   wave_t *wave = find (wave_id);

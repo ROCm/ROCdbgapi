@@ -655,7 +655,7 @@ amd_dbgapi_wave_stop (amd_dbgapi_wave_id_t wave_id)
   TRY;
   TRACE (wave_id);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   wave_t *wave = find (wave_id);
@@ -687,7 +687,7 @@ amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
   TRY;
   TRACE (wave_id, resume_mode);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   wave_t *wave = find (wave_id);
@@ -724,7 +724,7 @@ amd_dbgapi_wave_get_info (amd_dbgapi_wave_id_t wave_id,
   TRY;
   TRACE (wave_id, query, value_size, value);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   wave_t *wave = find (wave_id);
@@ -756,7 +756,7 @@ amd_dbgapi_process_wave_list (amd_dbgapi_process_id_t process_id,
   TRY;
   TRACE (process_id);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   std::vector<process_t *> processes;
@@ -775,7 +775,7 @@ amd_dbgapi_process_wave_list (amd_dbgapi_process_id_t process_id,
     }
   else
     {
-      for (auto &&process : process_list)
+      for (auto &&process : detail::process_list)
         {
           if (amd_dbgapi_status_t status = process->update_queues ();
               status != AMD_DBGAPI_STATUS_SUCCESS)

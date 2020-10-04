@@ -27,13 +27,13 @@
 #include <cstddef>
 #include <list>
 
-namespace amd::dbgapi
+namespace amd::dbgapi::detail
 {
 
 amd_dbgapi_callbacks_s process_callbacks;
 bool is_initialized = false;
 
-} /* namespace amd::dbgapi */
+} /* namespace amd::dbgapi::detail */
 
 using namespace amd::dbgapi;
 
@@ -42,7 +42,7 @@ amd_dbgapi_initialize (struct amd_dbgapi_callbacks_s *callbacks)
 {
   TRY;
 
-  if (amd::dbgapi::is_initialized)
+  if (detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_ALREADY_INITIALIZED;
 
   /* check that all the callback functions are defined.  */
@@ -50,11 +50,11 @@ amd_dbgapi_initialize (struct amd_dbgapi_callbacks_s *callbacks)
     if (!callbacks || !reinterpret_cast<void (**) (void)> (callbacks)[i])
       return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
-  process_callbacks = *callbacks;
+  detail::process_callbacks = *callbacks;
 
   TRACE (callbacks);
 
-  amd::dbgapi::is_initialized = true;
+  detail::is_initialized = true;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
@@ -66,17 +66,17 @@ amd_dbgapi_finalize ()
   TRY;
   TRACE ();
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   /* Detach all remaining processes.  */
-  for (process_t *process : process_list)
+  for (process_t *process : detail::process_list)
     amd_dbgapi_process_detach (amd_dbgapi_process_id_t{ process->id () });
 
-  process_list.clear ();
+  detail::process_list.clear ();
 
-  process_callbacks = {};
-  amd::dbgapi::is_initialized = false;
+  detail::process_callbacks = {};
+  detail::is_initialized = false;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;

@@ -60,7 +60,11 @@ namespace amd::dbgapi
 
 class dispatch_t;
 
+namespace detail
+{
 std::list<process_t *> process_list;
+process_t *last_found_process = nullptr;
+} /* namespace detail */
 
 process_t::process_t (amd_dbgapi_client_process_id_t client_process_id,
                       amd_dbgapi_process_id_t process_id)
@@ -424,45 +428,34 @@ process_t::set_wave_launch_trap_override (os_wave_launch_trap_mask_t mask,
 }
 
 process_t *
-process_t::find (amd_dbgapi_process_id_t process_id, bool flush_cache)
+process_t::find (amd_dbgapi_process_id_t process_id)
 {
-  static std::pair<amd_dbgapi_process_id_t, process_t *> cache;
+  if (detail::last_found_process
+      && detail::last_found_process->id () == process_id)
+    return detail::last_found_process;
 
-  if (flush_cache)
-    cache = { { 0 }, nullptr };
-
-  if (cache.first == process_id)
-    return cache.second;
-
-  for (process_t *p : process_list)
-    if (p->m_process_id == process_id)
+  for (process_t *process : detail::process_list)
+    if (process->m_process_id == process_id)
       {
-        if (!flush_cache)
-          cache = { process_id, p };
-        return p;
+        detail::last_found_process = process;
+        return process;
       }
 
   return NULL;
 }
 
 process_t *
-process_t::find (amd_dbgapi_client_process_id_t client_process_id,
-                 bool flush_cache)
+process_t::find (amd_dbgapi_client_process_id_t client_process_id)
 {
-  static std::pair<amd_dbgapi_client_process_id_t, process_t *> cache;
+  if (detail::last_found_process
+      && detail::last_found_process->client_id () == client_process_id)
+    return detail::last_found_process;
 
-  if (flush_cache)
-    cache = { 0, 0 };
-
-  if (cache.first == client_process_id)
-    return cache.second;
-
-  for (process_t *p : process_list)
-    if (p->m_client_process_id == client_process_id)
+  for (process_t *process : detail::process_list)
+    if (process->m_client_process_id == client_process_id)
       {
-        if (!flush_cache)
-          cache = { client_process_id, p };
-        return p;
+        detail::last_found_process = process;
+        return process;
       }
 
   return NULL;
@@ -1745,7 +1738,7 @@ amd_dbgapi_process_set_progress (amd_dbgapi_process_id_t process_id,
   TRY;
   TRACE (process_id, progress);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   process_t *process = process_t::find (process_id);
@@ -1776,7 +1769,7 @@ amd_dbgapi_process_set_wave_creation (amd_dbgapi_process_id_t process_id,
   TRY;
   TRACE (process_id, creation);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   process_t *process = process_t::find (process_id);
@@ -1817,7 +1810,7 @@ amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
   static monotonic_counter_t<decltype (amd_dbgapi_process_id_t::handle)>
       next_process_id = { 1 };
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   if (!client_process_id || !process_id)
@@ -1850,7 +1843,7 @@ amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
   *process_id = amd_dbgapi_process_id_t{ process->id () };
 
   /* Append the new process to the process_list and return.  */
-  process_list.push_back (process.release ());
+  detail::process_list.push_back (process.release ());
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
@@ -1862,21 +1855,17 @@ amd_dbgapi_process_detach (amd_dbgapi_process_id_t process_id)
   TRY;
   TRACE (process_id);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
-  process_t *process
-      = process_t::find (process_id, true); /* Flush the cache.  */
+  process_t *process = process_t::find (process_id);
 
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-  /* Flush the cache in case the process is re-attached later on. */
-  process_t::find (process->client_id (), true);
-
   process->detach ();
 
-  process_list.remove (process);
+  detail::process_list.remove (process);
   delete process;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
@@ -1891,7 +1880,7 @@ amd_dbgapi_process_get_info (amd_dbgapi_process_id_t process_id,
   TRY;
   TRACE (process_id, query, value_size, value);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   process_t *process = process_t::find (process_id);

@@ -331,7 +331,7 @@ amd_dbgapi_agent_get_info (amd_dbgapi_agent_id_t agent_id,
   TRY;
   TRACE (agent_id, query, value_size, value);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   agent_t *agent = find (agent_id);
@@ -352,7 +352,7 @@ amd_dbgapi_process_agent_list (amd_dbgapi_process_id_t process_id,
   TRY;
   TRACE (process_id);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   std::vector<process_t *> processes;
@@ -371,7 +371,7 @@ amd_dbgapi_process_agent_list (amd_dbgapi_process_id_t process_id,
     }
   else
     {
-      for (auto &&process : process_list)
+      for (auto &&process : detail::process_list)
         {
           if (amd_dbgapi_status_t status = process->update_agents ();
               status != AMD_DBGAPI_STATUS_SUCCESS)

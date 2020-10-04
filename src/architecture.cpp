@@ -50,6 +50,11 @@
 namespace amd::dbgapi
 {
 
+namespace detail
+{
+const architecture_t *last_found_architecture = nullptr;
+} /* namespace detail */
+
 monotonic_counter_t<uint32_t> architecture_t::s_next_architecture_id{ 1 };
 
 /* Base class for all AMDGCN architectures.  */
@@ -2456,6 +2461,8 @@ architecture_t::architecture_t (elf_amdgpu_machine_t e_machine,
 
 architecture_t::~architecture_t ()
 {
+  if (this == detail::last_found_architecture)
+    detail::last_found_architecture = nullptr;
   if (*m_disassembly_info != amd_comgr_disassembly_info_t{ 0 })
     amd_comgr_destroy_disassembly_info (*m_disassembly_info);
 }
@@ -2463,20 +2470,42 @@ architecture_t::~architecture_t ()
 const architecture_t *
 architecture_t::find (amd_dbgapi_architecture_id_t architecture_id, int ignore)
 {
+  if (detail::last_found_architecture
+      && detail::last_found_architecture->id () == architecture_id)
+    return detail::last_found_architecture;
+
   auto it = s_architecture_map.find (architecture_id);
-  return it != s_architecture_map.end () ? it->second.get () : nullptr;
+  if (it != s_architecture_map.end ())
+    {
+      auto architecture = it->second.get ();
+      detail::last_found_architecture = architecture;
+      return architecture;
+    }
+
+  return nullptr;
 }
 
 const architecture_t *
 architecture_t::find (elf_amdgpu_machine_t elf_amdgpu_machine)
 {
+  if (detail::last_found_architecture
+      && detail::last_found_architecture->elf_amdgpu_machine ()
+             == elf_amdgpu_machine)
+    return detail::last_found_architecture;
+
   auto it = std::find_if (s_architecture_map.begin (),
                           s_architecture_map.end (), [&] (const auto &value) {
                             return value.second->elf_amdgpu_machine ()
                                    == elf_amdgpu_machine;
                           });
+  if (it != s_architecture_map.end ())
+    {
+      auto architecture = it->second.get ();
+      detail::last_found_architecture = architecture;
+      return architecture;
+    }
 
-  return it != s_architecture_map.end () ? it->second.get () : nullptr;
+  return nullptr;
 }
 
 bool
@@ -2986,7 +3015,7 @@ amd_dbgapi_get_architecture (uint32_t elf_amdgpu_machine,
   TRY;
   TRACE (elf_amdgpu_machine);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   if (!architecture_id)
@@ -3012,7 +3041,7 @@ amd_dbgapi_architecture_get_info (amd_dbgapi_architecture_id_t architecture_id,
   TRY;
   TRACE (architecture_id, query, value_size, value);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   const architecture_t *architecture = architecture_t::find (architecture_id);
@@ -3037,7 +3066,7 @@ amd_dbgapi_disassemble_instruction (
   TRY;
   TRACE (architecture_id, address, size);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   if (!memory || !size)
@@ -3113,7 +3142,7 @@ amd_dbgapi_classify_instruction (
   TRY;
   TRACE (architecture_id, address);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   if (!memory || !size_p || !*size_p || !instruction_kind_p)

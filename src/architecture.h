@@ -49,6 +49,19 @@ namespace amd::dbgapi
 
 class displaced_stepping_t;
 class wave_t;
+class architecture_t;
+
+namespace detail
+{
+
+/* The architecture that contained the last successful find result.  The next
+   global find will start searching here.
+
+   FIXME: If multi-process support is added this mechanism will need
+   re-implementing to be thread safe.  */
+extern const architecture_t *last_found_architecture;
+
+} /* namespace detail */
 
 /* Architecture.  */
 
@@ -334,9 +347,9 @@ private:
 namespace detail
 {
 template <typename Handle>
-using architecture_find_t = decltype (
-    std::declval<architecture_t> ().find (std::declval<Handle> ()));
-}
+using architecture_find_t = decltype (std::declval<architecture_t> ().find (
+    std::declval<Handle> ()));
+} /* namespace detail */
 
 /* Find an object with the given handle.  */
 template <
@@ -346,13 +359,22 @@ template <
 auto *
 find (Handle id)
 {
-  using return_type = decltype (std::declval<architecture_t> ().find (id));
-
-  for (auto &&architecture : architecture_t::all ())
-    if (return_type value = architecture.second->find (id); value)
+  if (detail::last_found_architecture)
+    if (auto value = detail::last_found_architecture->find (id); value)
       return value;
 
-  return return_type{};
+  for (auto &&architecture : architecture_t::all ())
+    {
+      if (architecture.second.get () == detail::last_found_architecture)
+        continue;
+      if (auto value = architecture.second->find (id); value)
+        {
+          detail::last_found_architecture = architecture.second.get ();
+          return value;
+        }
+    }
+
+  return detail::architecture_find_t<Handle>{};
 }
 
 } /* namespace amd::dbgapi */

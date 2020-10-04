@@ -135,7 +135,7 @@ amd_dbgapi_report_shared_library (
   TRY;
   TRACE (shared_library_id, shared_library_state);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   if (shared_library_state != AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED
@@ -161,7 +161,7 @@ amd_dbgapi_code_shared_library_get_info (
   TRY;
   TRACE (shared_library_id, query, value_size, value);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   shared_library_t *shared_library = find (shared_library_id);
@@ -182,7 +182,7 @@ amd_dbgapi_report_breakpoint_hit (
   TRY;
   TRACE (breakpoint_id, client_thread_id);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   if (!breakpoint_action)
@@ -206,7 +206,7 @@ amd_dbgapi_breakpoint_get_info (amd_dbgapi_breakpoint_id_t breakpoint_id,
   TRY;
   TRACE (breakpoint_id, query, value_size, value);
 
-  if (!amd::dbgapi::is_initialized)
+  if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   breakpoint_t *breakpoint = find (breakpoint_id);
