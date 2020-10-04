@@ -76,10 +76,11 @@
  * These should not be modified directly.  See the handle definitions for
  * information on the lifetime and scope of handles of that type.  If a handle
  * becomes invalidated it is undefined to use it with any library operations.
- * A handle value is globally unique for the lifetime of the loaded library.
- * This is true even if the handle becomes invalidated: handle values are not
- * reused within the lifetime of the loaded library.  Every handle with \p
- * handle of 0 is reserved to indicate the handle does not reference an entity.
+ * A handle value is globally unique between a call to ::amd_dbgapi_initialize
+ * and a matching call to ::amd_dbgapi_finalize.  This is true even if the
+ * handle becomes invalidated: handle values are not reused within a library
+ * instance.  Every handle with \p handle of 0 is reserved to indicate the
+ * handle does not reference an entity.
  *
  * When the library is first loaded it is in the uninitialized state with the
  * logging level set to ::AMD_DBGAPI_LOG_LEVEL_NONE.

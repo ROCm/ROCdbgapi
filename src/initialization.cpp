@@ -54,6 +54,7 @@ amd_dbgapi_initialize (struct amd_dbgapi_callbacks_s *callbacks)
 
   TRACE (callbacks);
 
+  process_t::reset_all_ids ();
   detail::is_initialized = true;
 
   return AMD_DBGAPI_STATUS_SUCCESS;

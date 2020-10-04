@@ -119,6 +119,10 @@ public:
     return m_client_process_id;
   }
 
+  /* Reset all the handle_object_sets IDs.  There should not be any attached
+     processes left in the process_list. */
+  static void reset_all_ids ();
+
   const os_driver_t &os_driver () const { return *m_os_driver; }
 
   enum class flag_t : uint32_t
@@ -373,12 +377,12 @@ private:
   /* Value used to mark queues that are reported by KFD. When sweeping, any
      queue found with a mark less than the current mark will be deleted, as
      these queues are no longer active.  */
-  monotonic_counter_t<epoch_t> m_next_queue_mark{ 1 };
+  monotonic_counter_t<epoch_t, 1> m_next_queue_mark;
 
   /* Value used to mark code objects that are reported by the ROCR. When
      sweeping, any code object found with a mark less than the current mark
      will be deleted, as these code objects are not longer loaded.  */
-  monotonic_counter_t<epoch_t> m_next_code_object_mark{ 1 };
+  monotonic_counter_t<epoch_t, 1> m_next_code_object_mark;
 };
 
 namespace detail

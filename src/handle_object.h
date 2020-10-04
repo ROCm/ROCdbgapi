@@ -155,6 +155,10 @@ struct monotonic_counter_start_t
 {
 };
 
+template <typename Type>
+constexpr decltype (Type::handle) monotonic_counter_start_v
+    = monotonic_counter_start_t<Type>::value;
+
 /* A set container type that holds objects that are referenced using handles.
    If the Object type supports the is_valid concept, then when creating objects
    an error is reported if the constructor creates an object that is not valid.
@@ -359,6 +363,8 @@ public:
       }
   }
 
+  static void reset_next_id () { next_id ().reset (); }
+
 private:
   /* Map holding the objects, keyed by object::id ()'s return type. */
   map_type m_map;
@@ -367,13 +373,14 @@ private:
      as 0 is the null object handle.  */
   using monotonic_counter_underlying_type_t = decltype (handle_type::handle);
 
-  static handle_type next_id ()
+  static auto &next_id ()
   {
     static monotonic_counter_t<
         monotonic_counter_underlying_type_t,
+        monotonic_counter_start_v<handle_type>,
         detail::handle_has_wrapped_around<monotonic_counter_underlying_type_t>>
-        next_id{ monotonic_counter_start_t<handle_type>::value };
-    return handle_type{ next_id++ };
+        counter;
+    return counter;
   }
 
   /* Flag to tell if the content of the map has changed.  */
@@ -390,7 +397,7 @@ handle_object_set_t<Object>::create_object (std::optional<handle_type> id,
      "re-create" objects that were place-holders (e.g. partially initialized
      queue object.  */
   if (!id)
-    id = next_id ();
+    id = handle_type{ next_id () () };
 
   auto [it, success] = m_map.emplace (
       std::piecewise_construct, std::forward_as_tuple (*id),

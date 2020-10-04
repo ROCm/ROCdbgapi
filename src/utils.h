@@ -417,7 +417,8 @@ template <> struct is_flag<amd_dbgapi_queue_error_reason_t> : std::true_type
 /* A monotonic counter with wrap-around detection. Type must be an integral
    unsigned type. The WrapAroundCheck functor returns true if the counter has
    wrapped around. The default functor is (new_value > old_value).  */
-template <typename Type, typename WrapAroundCheck = std::greater<Type>>
+template <typename Type, Type InitialValue = Type{},
+          typename WrapAroundCheck = std::greater<Type>>
 class monotonic_counter_t
 {
   static_assert (std::is_integral_v<Type> && std::is_unsigned_v<Type>,
@@ -427,26 +428,21 @@ public:
   using value_type = Type;
 
   /* Construct a new monotonic counter.  */
-  monotonic_counter_t (value_type value) : m_value (value) {}
+  monotonic_counter_t () { reset (); }
 
-  /* Prefix and postfix increment operators.  */
-  monotonic_counter_t &operator++ ()
+  /* Return the counter value. The counter is incremented each time it is
+     accessed, guaranteeing a globally unique value until it is reset.  */
+  value_type operator() ()
   {
     value_type old_value = m_value++;
-    if (WrapAroundCheck () (old_value, m_value))
+    if (WrapAroundCheck{}(old_value, m_value))
       error ("monotonic counter wrapped around");
 
-    return *this;
-  }
-  monotonic_counter_t operator++ (int)
-  {
-    monotonic_counter_t counter (m_value);
-    ++(*this);
-    return counter;
+    return old_value;
   }
 
-  /* Default cast operator.  */
-  operator value_type () const { return m_value; }
+  /* Reset the counter.  */
+  void reset () { m_value = InitialValue; }
 
 private:
   value_type m_value{ 0 };

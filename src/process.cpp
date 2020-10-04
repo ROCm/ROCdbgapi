@@ -87,6 +87,28 @@ process_t::process_t (amd_dbgapi_client_process_id_t client_process_id,
      the notifier pipe is handled.  */
 }
 
+namespace detail
+{
+
+template <typename Tuple, size_t I = std::tuple_size_v<Tuple> - 1>
+void
+reset_next_ids ()
+{
+  std::tuple_element_t<I, Tuple>::reset_next_id ();
+  if constexpr (I > 0)
+    reset_next_ids<Tuple, I - 1> ();
+}
+
+} /* namespace detail */
+
+void
+process_t::reset_all_ids ()
+{
+  dbgapi_assert (detail::process_list.empty ()
+                 && "some processes are still attached");
+  detail::reset_next_ids<decltype (m_handle_object_sets)> ();
+}
+
 bool
 process_t::is_valid () const
 {
@@ -970,7 +992,7 @@ process_t::update_queues ()
     {
       /* Until we see all the snapshots, increase the epoch so that we can
          sweep queues that may have been destroyed between iterations.  */
-      queue_mark = m_next_queue_mark++;
+      queue_mark = m_next_queue_mark ();
 
       /* We should allocate enough memory for the snapshots. Let's start with
          the current number of queues + 16.  */
@@ -1118,7 +1140,7 @@ process_t::update_queues ()
 amd_dbgapi_status_t
 process_t::update_code_objects ()
 {
-  epoch_t code_object_mark = m_next_code_object_mark++;
+  epoch_t code_object_mark = m_next_code_object_mark ();
   amd_dbgapi_status_t status;
 
   decltype (r_debug::r_state) state;
@@ -1807,8 +1829,10 @@ amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
   TRACE (client_process_id, process_id);
 
   /* Start the process_ids at 1, so that 0 is reserved for invalid id.  */
-  static monotonic_counter_t<decltype (amd_dbgapi_process_id_t::handle)>
-      next_process_id = { 1 };
+  static monotonic_counter_t<
+      decltype (amd_dbgapi_process_id_t::handle),
+      monotonic_counter_start_v<amd_dbgapi_process_id_t>>
+      next_process_id;
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -1821,18 +1845,8 @@ amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
   if (process_t::find (client_process_id))
     return AMD_DBGAPI_STATUS_ERROR_ALREADY_ATTACHED;
 
-  amd_dbgapi_process_id_t id;
-  try
-    {
-      id = amd_dbgapi_process_id_t{ next_process_id++ };
-    }
-  catch (const exception_t &ex)
-    {
-      next_process_id = { 1 };
-      throw;
-    }
-
-  auto process = std::make_unique<process_t> (client_process_id, id);
+  auto process = std::make_unique<process_t> (
+      client_process_id, amd_dbgapi_process_id_t{ next_process_id () });
   if (!process->is_valid ())
     return AMD_DBGAPI_STATUS_ERROR;
 

@@ -336,7 +336,9 @@ private:
   std::string const m_target_triple;
 
 private:
-  static monotonic_counter_t<uint32_t> s_next_architecture_id;
+  static monotonic_counter_t<
+      uint32_t, monotonic_counter_start_v<amd_dbgapi_architecture_id_t>>
+      s_next_architecture_id;
 
   static std::unordered_map<amd_dbgapi_architecture_id_t,
                             std::unique_ptr<const architecture_t>,

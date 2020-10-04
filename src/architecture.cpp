@@ -55,7 +55,8 @@ namespace detail
 const architecture_t *last_found_architecture = nullptr;
 } /* namespace detail */
 
-monotonic_counter_t<uint32_t> architecture_t::s_next_architecture_id{ 1 };
+decltype (architecture_t::s_next_architecture_id)
+    architecture_t::s_next_architecture_id;
 
 /* Base class for all AMDGCN architectures.  */
 
@@ -2453,7 +2454,7 @@ public:
 architecture_t::architecture_t (elf_amdgpu_machine_t e_machine,
                                 std::string target_triple)
     : m_architecture_id (
-        amd_dbgapi_architecture_id_t{ s_next_architecture_id++ }),
+        amd_dbgapi_architecture_id_t{ s_next_architecture_id () }),
       m_disassembly_info (new amd_comgr_disassembly_info_t{ 0 }),
       m_e_machine (e_machine), m_target_triple (std::move (target_triple))
 {

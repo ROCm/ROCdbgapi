@@ -176,7 +176,7 @@ private:
   /* Value used to mark waves that are found in the context save area. When
      sweeping, any wave found with a mark less than the current mark will be
      deleted, as these waves are no longer active.  */
-  monotonic_counter_t<epoch_t> m_next_wave_mark{ 1 };
+  monotonic_counter_t<epoch_t, 1> m_next_wave_mark;
 
   amd_dbgapi_global_address_t m_context_save_start_address;
   hsa_queue_t m_hsa_queue;
@@ -280,7 +280,7 @@ amd_dbgapi_status_t
 aql_queue_impl_t::update_waves ()
 {
   process_t &process = m_queue.process ();
-  const epoch_t wave_mark = m_next_wave_mark++;
+  const epoch_t wave_mark = m_next_wave_mark ();
   amd_dbgapi_status_t status;
 
   /* Read the queue's write_dispatch_id and read_dispatch_id.  */
