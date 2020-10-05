@@ -267,7 +267,7 @@ amd_dbgapi_register_is_in_register_class (
   if (!register_class_state)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
-  if (architecture != &register_class->architecture ())
+  if (*architecture != register_class->architecture ())
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
 
   *register_class_state = register_class->contains (*regnum)
@@ -435,7 +435,7 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
   if (!value)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
-  if (architecture != &wave->architecture ())
+  if (*architecture != wave->architecture ())
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
 
   scoped_queue_suspend_t suspend (wave->queue ());
@@ -550,7 +550,7 @@ amd_dbgapi_prefetch_register (amd_dbgapi_wave_id_t wave_id,
   if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
     return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED;
 
-  if (architecture != &wave->architecture ())
+  if (*architecture != wave->architecture ())
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
