@@ -251,10 +251,9 @@ public:
     amdgpu_regnum_t regnum = static_cast<amdgpu_regnum_t> (
         utils::bit_extract (register_id.handle, 0, 31));
 
-    if (regnum > amdgpu_regnum_t::LAST_REGNUM)
-      return {};
-
-    return regnum;
+    return (regnum <= amdgpu_regnum_t::LAST_REGNUM)
+               ? std::make_optional (regnum)
+               : std::nullopt;
   }
   static const architecture_t *
   register_id_to_architecture (amd_dbgapi_register_id_t register_id)
