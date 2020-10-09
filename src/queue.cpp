@@ -866,27 +866,15 @@ queue_t::set_state (state_t state)
   dbgapi_assert (m_state != state_t::INVALID
                  && "an invalid queue cannot change state");
 
-  switch (state)
+  if (state == state_t::INVALID)
     {
-    case state_t::INVALID:
       /* Destructing the queue impl for compute queues also destructs all
          dispatches and waves associated with it, and enqueues events for
          aborted requests.  */
       m_impl.reset (nullptr);
 
-      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "invalidated %s (os_queue_id=%d)",
-                  to_string (id ()).c_str (), os_queue_id ());
-      break;
-
-    case state_t::SUSPENDED:
-      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "suspended %s (os_queue_id=%d)",
-                  to_string (id ()).c_str (), os_queue_id ());
-      break;
-
-    case state_t::RUNNING:
-      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "resumed %s (os_queue_id=%d)",
-                  to_string (id ()).c_str (), os_queue_id ());
-      break;
+      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "invalidated %s",
+                  to_string (id ()).c_str ());
     }
 
   m_state = state;
@@ -933,13 +921,14 @@ queue_t::get_info (amd_dbgapi_queue_info_t query, size_t value_size,
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }
 
-scoped_queue_suspend_t::scoped_queue_suspend_t (queue_t &queue)
-    : m_queue (!queue.is_suspended () ? &queue : nullptr)
+scoped_queue_suspend_t::scoped_queue_suspend_t (queue_t &queue,
+                                                const char *reason)
+    : m_reason (reason), m_queue (!queue.is_suspended () ? &queue : nullptr)
 {
   if (!m_queue)
     return;
 
-  if (m_queue->process ().suspend_queues ({ m_queue }) != 1)
+  if (m_queue->process ().suspend_queues ({ m_queue }, m_reason) != 1)
     {
       if (m_queue->is_valid ())
         error ("process::suspend_queues failed");
@@ -955,7 +944,7 @@ scoped_queue_suspend_t::~scoped_queue_suspend_t ()
       || !m_queue->process ().forward_progress_needed ())
     return;
 
-  if (m_queue->process ().resume_queues ({ m_queue }) != 1
+  if (m_queue->process ().resume_queues ({ m_queue }, m_reason) != 1
       && m_queue->is_valid ())
     error ("process::resume_queues failed");
 }
@@ -1048,7 +1037,7 @@ amd_dbgapi_queue_packet_list (
   if (!queue)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_QUEUE_ID;
 
-  scoped_queue_suspend_t suspend (*queue);
+  scoped_queue_suspend_t suspend (*queue, "refresh packet list");
 
   amd_dbgapi_os_queue_packet_id_t read_packet_id, write_packet_id;
   size_t memory_size;

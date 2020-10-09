@@ -188,7 +188,8 @@ amd_dbgapi_displaced_stepping_start (
   {
     /* displaced_stepping_t::start writes registers, so we need the queue
        to be suspended.  */
-    scoped_queue_suspend_t suspend (wave->queue ());
+    scoped_queue_suspend_t suspend (wave->queue (),
+                                    "displaced stepping start");
 
     /* Find the wave again, after suspending the queue, to determine if the
        wave has terminated.  */
@@ -257,7 +258,8 @@ amd_dbgapi_displaced_stepping_complete (
   {
     /* displaced_stepping_t::start writes registers, so we need the queue
        to be suspended.  */
-    scoped_queue_suspend_t suspend (wave->queue ());
+    scoped_queue_suspend_t suspend (wave->queue (),
+                                    "displaced stepping complete");
 
     /* Find the wave again, after suspending the queue, to determine if the
        wave has terminated.  */

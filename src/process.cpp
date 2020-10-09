@@ -151,7 +151,7 @@ process_t::detach ()
         if (!queue.is_suspended ())
           queues.emplace_back (&queue);
 
-      suspend_queues (queues);
+      suspend_queues (queues, "detach from process");
 
       /* Remove the watchpoints that may still be inserted.  */
       for (auto &&watchpoint : range<watchpoint_t> ())
@@ -333,7 +333,7 @@ process_t::set_forward_progress_needed (bool forward_progress_needed)
         if (queue.is_suspended ())
           queues.emplace_back (&queue);
 
-      resume_queues (queues);
+      resume_queues (queues, "forward progress required");
     }
 }
 
@@ -378,7 +378,7 @@ process_t::set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode)
         if (!queue.is_suspended ())
           queues.emplace_back (&queue);
 
-      suspend_queues (queues);
+      suspend_queues (queues, "halt waves at launch");
 
       /* For all waves in this process, resume the wave if it is halted at
          launch.  */
@@ -395,7 +395,7 @@ process_t::set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode)
           }
 
       if (forward_progress_needed ())
-        resume_queues (queues);
+        resume_queues (queues, "halt waves at launch");
     }
 
   return AMD_DBGAPI_STATUS_SUCCESS;
@@ -686,7 +686,7 @@ process_t::insert_watchpoint (const watchpoint_t &watchpoint,
         if (!queue.is_suspended ())
           queues.emplace_back (&queue);
 
-      suspend_queues (queues);
+      suspend_queues (queues, "insert watchpoint");
 
       for (auto &&wave : range<wave_t> ())
         {
@@ -697,7 +697,7 @@ process_t::insert_watchpoint (const watchpoint_t &watchpoint,
         }
 
       if (forward_progress_needed ())
-        resume_queues (queues);
+        resume_queues (queues, "insert watchpoint");
     }
 
   dbgapi_assert (watchpoint.requested_size () && "requested size cannot be 0");
@@ -845,7 +845,7 @@ process_t::remove_watchpoint (const watchpoint_t &watchpoint)
         if (!queue.is_suspended ())
           queues.emplace_back (&queue);
 
-      suspend_queues (queues);
+      suspend_queues (queues, "remove watchpoint");
 
       for (auto &&wave : range<wave_t> ())
         {
@@ -856,15 +856,31 @@ process_t::remove_watchpoint (const watchpoint_t &watchpoint)
         }
 
       if (forward_progress_needed ())
-        resume_queues (queues);
+        resume_queues (queues, "remove watchpoint");
     }
 }
 
 size_t
-process_t::suspend_queues (const std::vector<queue_t *> &queues) const
+process_t::suspend_queues (const std::vector<queue_t *> &queues,
+                           const char *reason) const
 {
   if (queues.empty ())
     return 0;
+
+  dbgapi_log (
+      AMD_DBGAPI_LOG_LEVEL_INFO, "suspending %s (%s)",
+      [&] () {
+        std::string str;
+        for (auto *queue : queues)
+          {
+            if (!str.empty ())
+              str += ", ";
+            str += to_string (queue->id ());
+          }
+        return str;
+      }()
+          .c_str (),
+      reason);
 
   std::vector<os_queue_id_t> queue_ids;
   queue_ids.reserve (queues.size ());
@@ -920,10 +936,26 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues) const
 }
 
 size_t
-process_t::resume_queues (const std::vector<queue_t *> &queues) const
+process_t::resume_queues (const std::vector<queue_t *> &queues,
+                          const char *reason) const
 {
   if (queues.empty ())
     return 0;
+
+  dbgapi_log (
+      AMD_DBGAPI_LOG_LEVEL_INFO, "resuming %s (%s)",
+      [&] () {
+        std::string str;
+        for (auto *queue : queues)
+          {
+            if (!str.empty ())
+              str += ", ";
+            str += to_string (queue->id ());
+          }
+        return str;
+      }()
+          .c_str (),
+      reason);
 
   std::vector<os_queue_id_t> queue_ids;
   queue_ids.reserve (queues.size ());
@@ -1258,9 +1290,9 @@ process_t::attach ()
     /* Suspend the newly created queues to update the waves, then resume them.
        We could have attached to the process while wavefronts were executing.
      */
-    suspend_queues (queues);
+    suspend_queues (queues, "attach to process");
     clear_flag (flag_t::ASSIGN_NEW_IDS_TO_ALL_WAVES);
-    resume_queues (queues);
+    resume_queues (queues, "attach to process");
 
     status = start_event_thread ();
     if (status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -1714,7 +1746,7 @@ process_t::next_pending_event ()
 
           /* Suspend the queues that have pending events which will cause all
              events to be created for any waves that have pending events.  */
-          if (suspend_queues (queues) != queues.size ())
+          if (suspend_queues (queues, "next pending event") != queues.size ())
             {
               /* Some queues may have become invalid since we retrieved the
                  event, failed to suspend, and marked by suspend_queues () as
@@ -1736,7 +1768,7 @@ process_t::next_pending_event ()
                                           queues.begin (), queues.end ());
         }
 
-      resume_queues (queues_needing_resume);
+      resume_queues (queues_needing_resume, "next pending event");
     }
 
   if (!m_pending_events.empty ())

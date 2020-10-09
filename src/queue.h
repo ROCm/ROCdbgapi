@@ -123,7 +123,7 @@ private:
 class scoped_queue_suspend_t
 {
 public:
-  scoped_queue_suspend_t (queue_t &queue);
+  scoped_queue_suspend_t (queue_t &queue, const char *reason);
   ~scoped_queue_suspend_t ();
 
   /* Disable copies.  */
@@ -131,6 +131,7 @@ public:
   scoped_queue_suspend_t &operator= (const scoped_queue_suspend_t &) = delete;
 
 public:
+  const char *const m_reason;
   queue_t *m_queue;
 };
 

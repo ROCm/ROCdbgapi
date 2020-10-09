@@ -247,7 +247,7 @@ amd_dbgapi_process_dispatch_list (amd_dbgapi_process_id_t process_id,
         if (!queue.is_suspended ())
           queues.emplace_back (&queue);
 
-      process->suspend_queues (queues);
+      process->suspend_queues (queues, "refresh dispatch list");
 
       if (process->forward_progress_needed ())
         queues_needing_resume.emplace_back (process, std::move (queues));
@@ -257,7 +257,7 @@ amd_dbgapi_process_dispatch_list (amd_dbgapi_process_id_t process_id,
       processes, dispatch_count, dispatches, changed);
 
   for (auto &&[process, queues] : queues_needing_resume)
-    process->resume_queues (queues);
+    process->resume_queues (queues, "refresh dispatch list");
 
   return status;
   CATCH;

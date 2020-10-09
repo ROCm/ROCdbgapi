@@ -669,7 +669,7 @@ amd_dbgapi_wave_stop (amd_dbgapi_wave_id_t wave_id)
     return AMD_DBGAPI_STATUS_ERROR_WAVE_STOPPED; */
 
   {
-    scoped_queue_suspend_t suspend (wave->queue ());
+    scoped_queue_suspend_t suspend (wave->queue (), "stop wave");
 
     /* Look for the wave_id again, the wave may have exited.  */
     if (!(wave = find (wave_id)))
@@ -703,7 +703,7 @@ amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   {
-    scoped_queue_suspend_t suspend (wave->queue ());
+    scoped_queue_suspend_t suspend (wave->queue (), "resume wave");
 
     /* Look for the wave_id again, the wave may have exited.  */
     if (!(wave = find (wave_id)))
@@ -796,7 +796,7 @@ amd_dbgapi_process_wave_list (amd_dbgapi_process_id_t process_id,
         if (!queue.is_suspended ())
           queues.emplace_back (&queue);
 
-      process->suspend_queues (queues);
+      process->suspend_queues (queues, "refresh wave list");
 
       if (process->forward_progress_needed ())
         queues_needing_resume.emplace_back (process, std::move (queues));
@@ -806,7 +806,7 @@ amd_dbgapi_process_wave_list (amd_dbgapi_process_id_t process_id,
       = utils::get_handle_list<wave_t> (processes, wave_count, waves, changed);
 
   for (auto &&[process, queues] : queues_needing_resume)
-    process->resume_queues (queues);
+    process->resume_queues (queues, "refresh wave list");
 
   return status;
   CATCH;

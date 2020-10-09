@@ -179,8 +179,10 @@ public:
      destroy associated dispatches and waves.  Since waves/dispatches can be
      destroyed, the caller is responsible for refetching wave/dispatche
      instances from their id.  */
-  size_t suspend_queues (const std::vector<queue_t *> &queues) const;
-  size_t resume_queues (const std::vector<queue_t *> &queues) const;
+  size_t suspend_queues (const std::vector<queue_t *> &queues,
+                         const char *reason) const;
+  size_t resume_queues (const std::vector<queue_t *> &queues,
+                        const char *reason) const;
 
   /* update_* ensures that the only objects that exist are exactly those
      reported by the os_driver.  It creates new objects reported by os_driver,

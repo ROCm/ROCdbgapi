@@ -383,7 +383,7 @@ amd_dbgapi_read_register (amd_dbgapi_wave_id_t wave_id,
   if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
     return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED;
 
-  if (!value )
+  if (!value)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   if (*architecture != wave->architecture ())
@@ -393,7 +393,7 @@ amd_dbgapi_read_register (amd_dbgapi_wave_id_t wave_id,
 
   if (!wave->is_register_cached (*regnum))
     {
-      suspend.emplace (wave->queue ());
+      suspend.emplace (wave->queue (), "read uncached register");
 
       /* Look for the wave_id again, the wave may have exited.  */
       if (!(wave = find (wave_id)))
@@ -438,7 +438,7 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
   if (*architecture != wave->architecture ())
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
 
-  scoped_queue_suspend_t suspend (wave->queue ());
+  scoped_queue_suspend_t suspend (wave->queue (), "read uncached register");
 
   /* Look for the wave_id again, the wave may have exited.  */
   if (!(wave = find (wave_id)))
