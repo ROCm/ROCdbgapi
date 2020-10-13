@@ -67,9 +67,24 @@ extern const architecture_t *last_found_architecture;
 
 class architecture_t
 {
-private:
   static_assert (is_handle_type_v<amd_dbgapi_architecture_id_t>,
                  "amd_dbgapi_architecture_id_t is not a handle type");
+
+private:
+  static monotonic_counter_t<
+      uint32_t, monotonic_counter_start_v<amd_dbgapi_architecture_id_t>>
+      s_next_architecture_id;
+
+  static std::unordered_map<amd_dbgapi_architecture_id_t,
+                            std::unique_ptr<const architecture_t>,
+                            hash<amd_dbgapi_architecture_id_t>>
+      s_architecture_map;
+
+  amd_dbgapi_architecture_id_t const m_architecture_id;
+  std::unique_ptr<amd_comgr_disassembly_info_t> m_disassembly_info;
+
+  elf_amdgpu_machine_t const m_e_machine;
+  std::string const m_target_triple;
 
   std::tuple<handle_object_set_t<address_space_t>,
              handle_object_set_t<address_class_t>,
@@ -332,23 +347,6 @@ public:
     return std::get<handle_object_set_t<object_type>> (m_handle_object_sets)
         .find_if (predicate);
   }
-
-private:
-  amd_dbgapi_architecture_id_t const m_architecture_id;
-  std::unique_ptr<amd_comgr_disassembly_info_t> m_disassembly_info;
-
-  elf_amdgpu_machine_t const m_e_machine;
-  std::string const m_target_triple;
-
-private:
-  static monotonic_counter_t<
-      uint32_t, monotonic_counter_start_v<amd_dbgapi_architecture_id_t>>
-      s_next_architecture_id;
-
-  static std::unordered_map<amd_dbgapi_architecture_id_t,
-                            std::unique_ptr<const architecture_t>,
-                            hash<amd_dbgapi_architecture_id_t>>
-      s_architecture_map;
 };
 
 namespace detail

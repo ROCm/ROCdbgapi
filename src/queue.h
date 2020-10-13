@@ -54,6 +54,16 @@ public:
 
   };
 
+private:
+  state_t m_state{ state_t::running };
+  epoch_t m_mark{ 0 };
+
+  agent_t &m_agent;
+
+  /* Must be initialized last.  */
+  std::unique_ptr<queue_impl_t> m_impl;
+
+public:
   queue_t (amd_dbgapi_queue_id_t queue_id, agent_t &agent,
            const os_queue_snapshot_entry_t &os_queue_info);
 
@@ -102,15 +112,6 @@ public:
   {
     return agent ().architecture ();
   }
-
-private:
-  state_t m_state{ state_t::running };
-  epoch_t m_mark{ 0 };
-
-  agent_t &m_agent;
-
-  /* Must be initialized last.  */
-  std::unique_ptr<queue_impl_t> m_impl;
 };
 
 /* Wraps a queue and provides a RAII mechanism to suspend it if it wasn't

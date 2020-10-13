@@ -50,6 +50,9 @@ namespace
 
 class linux_driver_t : public os_driver_t
 {
+private:
+  std::optional<file_desc_t> m_proc_mem_fd;
+
 public:
   linux_driver_t (std::optional<amd_dbgapi_os_process_id_t> os_pid);
   virtual ~linux_driver_t ();
@@ -62,9 +65,6 @@ public:
   virtual amd_dbgapi_status_t
   xfer_global_memory_partial (amd_dbgapi_global_address_t address, void *read,
                               const void *write, size_t *size) const override;
-
-private:
-  std::optional<file_desc_t> m_proc_mem_fd;
 };
 
 linux_driver_t::linux_driver_t (
@@ -142,6 +142,9 @@ private:
           { "sienna_cichlid", EF_AMDGPU_MACH_AMDGCN_GFX1030, 0 },
           { "navy_flounder", EF_AMDGPU_MACH_AMDGCN_GFX1031, 0 } };
 
+  static size_t s_kfd_open_count;
+  static std::optional<file_desc_t> s_kfd_fd;
+
   static void open_kfd ();
   static void close_kfd ();
 
@@ -209,10 +212,6 @@ public:
       os_wave_launch_trap_mask_t requested_bits,
       os_wave_launch_trap_mask_t *previous_mask,
       os_wave_launch_trap_mask_t *supported_mask) const override;
-
-private:
-  static size_t s_kfd_open_count;
-  static std::optional<file_desc_t> s_kfd_fd;
 };
 
 size_t kfd_driver_t::s_kfd_open_count{ 0 };

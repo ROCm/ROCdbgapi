@@ -75,6 +75,26 @@ public:
   };
 
 private:
+  epoch_t m_mark{ 0 };
+  amd_dbgapi_wave_state_t m_state{ AMD_DBGAPI_WAVE_STATE_RUN };
+  visibility_t m_visibility{ visibility_t::visible };
+  amd_dbgapi_wave_stop_reason_t m_stop_reason{};
+
+  uint32_t m_hwregs_cache[amdgpu_regnum_t::last_hwreg
+                          - amdgpu_regnum_t::first_hwreg + 1];
+
+  std::unique_ptr<architecture_t::cwsr_descriptor_t> m_descriptor;
+
+  amd_dbgapi_size_t m_scratch_offset{ 0 };
+  amd_dbgapi_global_address_t m_saved_pc{ 0 };
+  bool m_parked{ false };
+
+  std::array<uint32_t, 3> m_group_ids;
+  uint32_t m_wave_in_group;
+
+  const wave_t *m_group_leader{ nullptr };
+  dispatch_t &m_dispatch;
+
   amd_dbgapi_status_t
   xfer_private_memory_swizzled (amd_dbgapi_segment_address_t segment_address,
                                 amd_dbgapi_lane_id_t lane_id, void *read,
@@ -182,27 +202,6 @@ public:
   {
     return agent ().architecture ();
   }
-
-private:
-  epoch_t m_mark{ 0 };
-  amd_dbgapi_wave_state_t m_state{ AMD_DBGAPI_WAVE_STATE_RUN };
-  visibility_t m_visibility{ visibility_t::visible };
-  amd_dbgapi_wave_stop_reason_t m_stop_reason{};
-
-  uint32_t m_hwregs_cache[amdgpu_regnum_t::last_hwreg
-                          - amdgpu_regnum_t::first_hwreg + 1];
-
-  std::unique_ptr<architecture_t::cwsr_descriptor_t> m_descriptor;
-
-  amd_dbgapi_size_t m_scratch_offset{ 0 };
-  amd_dbgapi_global_address_t m_saved_pc{ 0 };
-  bool m_parked{ false };
-
-  std::array<uint32_t, 3> m_group_ids;
-  uint32_t m_wave_in_group;
-
-  const wave_t *m_group_leader{ nullptr };
-  dispatch_t &m_dispatch;
 };
 
 } /* namespace amd::dbgapi */

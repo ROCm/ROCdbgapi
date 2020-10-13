@@ -164,6 +164,8 @@ enum class os_wave_launch_mode_t : uint32_t
 class os_driver_t
 {
 protected:
+  std::optional<amd_dbgapi_os_process_id_t> const m_os_pid;
+
   os_driver_t (std::optional<amd_dbgapi_os_process_id_t> os_pid);
 
 public:
@@ -222,9 +224,6 @@ public:
   virtual amd_dbgapi_status_t
   xfer_global_memory_partial (amd_dbgapi_global_address_t address, void *read,
                               const void *write, size_t *size) const = 0;
-
-protected:
-  std::optional<amd_dbgapi_os_process_id_t> const m_os_pid;
 };
 
 template <> std::string to_string (os_wave_launch_mode_t mode);

@@ -51,6 +51,9 @@ template <typename Handle> class handle_object
 public:
   using handle_type = Handle;
 
+private:
+  handle_type const m_id;
+
 protected:
   explicit handle_object (const handle_type &id) : m_id (id) {}
   ~handle_object () = default;
@@ -74,9 +77,6 @@ public:
      identical if they have the same address.  */
   bool operator== (const handle_object &other) const { return this == &other; }
   bool operator!= (const handle_object &other) const { return this != &other; }
-
-private:
-  handle_type const m_id;
 };
 
 /* Wrap-around check functor for handles. An error is thrown if the
@@ -173,8 +173,19 @@ public:
   using handle_type = utils::detected_t<detail::object_id_t, Object>;
   using map_type = std::unordered_map<handle_type, Object, hash<handle_type>>;
 
+private:
+  /* Flag to tell if the content of the map has changed.  */
+  bool m_changed{ false };
+
+  /* Map holding the objects, keyed by object::id ()'s return type. */
+  map_type m_map;
+
+public:
   class iterator
   {
+  private:
+    typename map_type::iterator m_it;
+
   public:
     using self_type = iterator;
     using value_type = Object;
@@ -199,13 +210,13 @@ public:
     pointer operator-> () { return &m_it->second; }
     bool operator== (const self_type &rhs) { return m_it == rhs.m_it; }
     bool operator!= (const self_type &rhs) { return m_it != rhs.m_it; }
-
-  private:
-    typename map_type::iterator m_it;
   };
 
   class const_iterator
   {
+  private:
+    typename map_type::const_iterator m_it;
+
   public:
     using self_type = const_iterator;
     using value_type = Object;
@@ -230,9 +241,6 @@ public:
     const_pointer operator-> () const { return &m_it->second; }
     bool operator== (const self_type &rhs) const { return m_it == rhs.m_it; }
     bool operator!= (const self_type &rhs) const { return m_it != rhs.m_it; }
-
-  private:
-    typename map_type::const_iterator m_it;
   };
 
   class range_t
@@ -365,16 +373,12 @@ public:
 
   static void reset_next_id () { next_id ().reset (); }
 
-private:
-  /* Map holding the objects, keyed by object::id ()'s return type. */
-  map_type m_map;
-
-  /* Counter to assign ids to new objects. We start all the counters at 1,
-     as 0 is the null object handle.  */
-  using monotonic_counter_underlying_type_t = decltype (handle_type::handle);
-
   static auto &next_id ()
   {
+    /* Counter to assign ids to new objects. We start all the counters at 1,
+       as 0 is the null object handle.  */
+    using monotonic_counter_underlying_type_t = decltype (handle_type::handle);
+
     static monotonic_counter_t<
         monotonic_counter_underlying_type_t,
         monotonic_counter_start_v<handle_type>,
@@ -382,9 +386,6 @@ private:
         counter;
     return counter;
   }
-
-  /* Flag to tell if the content of the map has changed.  */
-  bool m_changed = false;
 };
 
 template <typename Object>

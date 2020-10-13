@@ -35,38 +35,6 @@ class process_t;
 
 class event_t : public detail::handle_object<amd_dbgapi_event_id_t>
 {
-public:
-  /* Breakpoint resume event.  */
-  event_t (amd_dbgapi_event_id_t event_id, process_t &process,
-           amd_dbgapi_event_kind_t event_kind,
-           amd_dbgapi_breakpoint_id_t breakpoint_id,
-           amd_dbgapi_client_thread_id_t client_thread_id);
-
-  /* Code object list updated event.  */
-  event_t (amd_dbgapi_event_id_t event_id, process_t &process,
-           amd_dbgapi_event_kind_t event_kind,
-           amd_dbgapi_event_id_t breakpoint_resume_event_id);
-
-  /* Runtime event. */
-  event_t (amd_dbgapi_event_id_t event_id, process_t &process,
-           amd_dbgapi_event_kind_t event_kind,
-           amd_dbgapi_runtime_state_t runtime_state);
-
-  /* Wave stop / command terminated event.  */
-  event_t (amd_dbgapi_event_id_t event_id, process_t &process,
-           amd_dbgapi_event_kind_t event_kind, amd_dbgapi_wave_id_t wave_id);
-
-  amd_dbgapi_event_kind_t kind () const { return m_event_kind; }
-
-  void set_processed ();
-
-  amd_dbgapi_status_t get_info (amd_dbgapi_event_info_t query,
-                                size_t value_size, void *value) const;
-
-  std::string pretty_printer_string () const;
-
-  process_t &process () const { return m_process; }
-
 private:
   amd_dbgapi_event_kind_t const m_event_kind;
 
@@ -99,6 +67,38 @@ private:
                runtime_event_t, wave_event_t> const m_data;
 
   process_t &m_process;
+
+public:
+  /* Breakpoint resume event.  */
+  event_t (amd_dbgapi_event_id_t event_id, process_t &process,
+           amd_dbgapi_event_kind_t event_kind,
+           amd_dbgapi_breakpoint_id_t breakpoint_id,
+           amd_dbgapi_client_thread_id_t client_thread_id);
+
+  /* Code object list updated event.  */
+  event_t (amd_dbgapi_event_id_t event_id, process_t &process,
+           amd_dbgapi_event_kind_t event_kind,
+           amd_dbgapi_event_id_t breakpoint_resume_event_id);
+
+  /* Runtime event. */
+  event_t (amd_dbgapi_event_id_t event_id, process_t &process,
+           amd_dbgapi_event_kind_t event_kind,
+           amd_dbgapi_runtime_state_t runtime_state);
+
+  /* Wave stop / command terminated event.  */
+  event_t (amd_dbgapi_event_id_t event_id, process_t &process,
+           amd_dbgapi_event_kind_t event_kind, amd_dbgapi_wave_id_t wave_id);
+
+  amd_dbgapi_event_kind_t kind () const { return m_event_kind; }
+
+  void set_processed ();
+
+  amd_dbgapi_status_t get_info (amd_dbgapi_event_info_t query,
+                                size_t value_size, void *value) const;
+
+  std::string pretty_printer_string () const;
+
+  process_t &process () const { return m_process; }
 };
 
 } /* namespace amd::dbgapi */

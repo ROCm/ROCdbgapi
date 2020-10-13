@@ -33,6 +33,13 @@ class process_t;
 
 class watchpoint_t : public detail::handle_object<amd_dbgapi_watchpoint_id_t>
 {
+private:
+  const amd_dbgapi_global_address_t m_requested_address;
+  const amd_dbgapi_size_t m_requested_size;
+  const amd_dbgapi_watchpoint_kind_t m_kind;
+
+  process_t &m_process;
+
 public:
   watchpoint_t (amd_dbgapi_watchpoint_id_t watchpoint_id, process_t &process,
                 amd_dbgapi_global_address_t requested_address,
@@ -55,13 +62,6 @@ public:
                                 size_t value_size, void *value) const;
 
   process_t &process () const { return m_process; }
-
-private:
-  const amd_dbgapi_global_address_t m_requested_address;
-  const amd_dbgapi_size_t m_requested_size;
-  const amd_dbgapi_watchpoint_kind_t m_kind;
-
-  process_t &m_process;
 };
 
 } /* namespace amd::dbgapi */

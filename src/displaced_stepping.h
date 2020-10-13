@@ -41,6 +41,15 @@ class process_t;
 class displaced_stepping_t
     : public detail::handle_object<amd_dbgapi_displaced_stepping_id_t>
 {
+private:
+  bool m_is_valid{ false };
+  bool m_is_simulated{ false };
+
+  amd_dbgapi_global_address_t const m_from;
+  std::vector<uint8_t> m_original_instruction;
+
+  queue_t &m_queue;
+
 public:
   displaced_stepping_t (
       amd_dbgapi_displaced_stepping_id_t displaced_stepping_id, queue_t &queue,
@@ -72,15 +81,6 @@ public:
   {
     return agent ().architecture ();
   }
-
-private:
-  bool m_is_valid{ false };
-  bool m_is_simulated{ false };
-
-  amd_dbgapi_global_address_t const m_from;
-  std::vector<uint8_t> m_original_instruction;
-
-  queue_t &m_queue;
 };
 
 } /* namespace amd::dbgapi */

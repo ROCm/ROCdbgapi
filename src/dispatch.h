@@ -57,6 +57,13 @@ class dispatch_t : public detail::handle_object<amd_dbgapi_dispatch_id_t>
     uint8_t reserved2[6];
   };
 
+private:
+  amd_dbgapi_os_queue_packet_id_t const m_os_queue_packet_id;
+  hsa_kernel_dispatch_packet_t m_packet;
+
+  kernel_descriptor_t m_kernel_descriptor;
+  queue_t &m_queue;
+
 public:
   dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id, queue_t &queue,
               amd_dbgapi_os_queue_packet_id_t os_queue_packet_id,
@@ -79,13 +86,6 @@ public:
   {
     return agent ().architecture ();
   }
-
-private:
-  amd_dbgapi_os_queue_packet_id_t const m_os_queue_packet_id;
-  hsa_kernel_dispatch_packet_t m_packet;
-
-  kernel_descriptor_t m_kernel_descriptor;
-  queue_t &m_queue;
 };
 
 } /* namespace amd::dbgapi */

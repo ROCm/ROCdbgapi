@@ -63,6 +63,24 @@ decltype (architecture_t::s_next_architecture_id)
 class amdgcn_architecture_t : public architecture_t
 {
 protected:
+  /* Instruction decoding helpers.  */
+  enum class cbranch_cond_t
+  {
+    scc0,             /* Scalar condition code is 0.  */
+    scc1,             /* Scalar condition code is 1.  */
+    execz,            /* All EXEC mask bits are zero.  */
+    execnz,           /* Not all EXEC mask bits are zero.  */
+    vccz,             /* All Vector Condition Code bits are zero.  */
+    vccnz,            /* Not all Vector Condition Code bits are zero.  */
+    cdbgsys,          /* Conditional Debug for System is 1.  */
+    cdbguser,         /* Conditional Debug for User is 1.  */
+    cdbgsys_or_user,  /* Conditional Debug for System or User is 1.  */
+    cdbgsys_and_user, /* Conditional Debug for System and User is 1.  */
+  };
+
+  static const std::unordered_map<uint16_t, cbranch_cond_t>
+      cbranch_opcodes_map;
+
   static constexpr uint32_t sq_wave_status_scc_mask = (1 << 0);
   static constexpr uint32_t sq_wave_status_execz_mask = (1 << 9);
   static constexpr uint32_t sq_wave_status_vccz_mask = (1 << 10);
@@ -197,25 +215,6 @@ public:
   virtual size_t breakpoint_instruction_pc_adjust () const override;
 
 protected:
-  /* Instruction decoding helpers.  */
-
-  enum class cbranch_cond_t
-  {
-    scc0,             /* Scalar condition code is 0.  */
-    scc1,             /* Scalar condition code is 1.  */
-    execz,            /* All EXEC mask bits are zero.  */
-    execnz,           /* Not all EXEC mask bits are zero.  */
-    vccz,             /* All Vector Condition Code bits are zero.  */
-    vccnz,            /* Not all Vector Condition Code bits are zero.  */
-    cdbgsys,          /* Conditional Debug for System is 1.  */
-    cdbguser,         /* Conditional Debug for User is 1.  */
-    cdbgsys_or_user,  /* Conditional Debug for System or User is 1.  */
-    cdbgsys_and_user, /* Conditional Debug for System and User is 1.  */
-  };
-
-  static const std::unordered_map<uint16_t, cbranch_cond_t>
-      cbranch_opcodes_map;
-
   static uint8_t encoding_ssrc0 (const std::vector<uint8_t> &bytes);
   static uint8_t encoding_sdst (const std::vector<uint8_t> &bytes);
   static uint8_t encoding_op7 (const std::vector<uint8_t> &bytes);

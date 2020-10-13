@@ -35,7 +35,17 @@ class process_t;
 class shared_library_t
     : public detail::handle_object<amd_dbgapi_shared_library_id_t>
 {
+private:
   using notify_callback_t = std::function<void (const shared_library_t &)>;
+
+  bool m_is_valid{ false };
+
+  std::string const m_name;
+  notify_callback_t const m_on_load;
+  notify_callback_t const m_on_unload;
+  amd_dbgapi_shared_library_state_t m_state;
+
+  process_t &m_process;
 
 public:
   shared_library_t (amd_dbgapi_shared_library_id_t library_id,
@@ -53,22 +63,21 @@ public:
                                 size_t value_size, void *value) const;
 
   process_t &process () const { return m_process; }
-
-private:
-  bool m_is_valid = false;
-
-  std::string const m_name;
-  notify_callback_t const m_on_load;
-  notify_callback_t const m_on_unload;
-  amd_dbgapi_shared_library_state_t m_state;
-  process_t &m_process;
 };
 
 class breakpoint_t : public detail::handle_object<amd_dbgapi_breakpoint_id_t>
 {
+private:
   using action_callback_t = std::function<amd_dbgapi_status_t (
       breakpoint_t &, amd_dbgapi_client_thread_id_t,
       amd_dbgapi_breakpoint_action_t *)>;
+
+  bool m_inserted{ false };
+
+  amd_dbgapi_global_address_t const m_address;
+  action_callback_t const m_action;
+
+  const shared_library_t &m_shared_library;
 
 public:
   breakpoint_t (amd_dbgapi_breakpoint_id_t breakpoint_id,
@@ -87,14 +96,6 @@ public:
 
   const shared_library_t &shared_library () const { return m_shared_library; }
   process_t &process () const { return shared_library ().process (); }
-
-private:
-  bool m_inserted{ false };
-
-  amd_dbgapi_global_address_t const m_address;
-  action_callback_t const m_action;
-
-  const shared_library_t &m_shared_library;
 };
 
 } /* namespace amd::dbgapi */

@@ -43,6 +43,17 @@ class watchpoint_t;
 
 class agent_t : public detail::handle_object<amd_dbgapi_agent_id_t>
 {
+private:
+  os_agent_snapshot_entry_t const m_os_agent_info;
+  std::optional<file_desc_t> m_event_poll_fd;
+  std::atomic<bool> m_os_event_notifier{ false };
+
+  std::optional<os_wave_launch_trap_mask_t> m_supported_trap_mask;
+  std::unordered_map<os_watch_id_t, const watchpoint_t *> m_watchpoint_map;
+
+  const architecture_t &m_architecture;
+  process_t &m_process;
+
 public:
   agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
            const architecture_t &architecture,
@@ -96,17 +107,6 @@ public:
 
   const architecture_t &architecture () const { return m_architecture; }
   process_t &process () const { return m_process; }
-
-private:
-  os_agent_snapshot_entry_t const m_os_agent_info;
-  std::optional<file_desc_t> m_event_poll_fd;
-  std::atomic<bool> m_os_event_notifier{ false };
-
-  std::optional<os_wave_launch_trap_mask_t> m_supported_trap_mask;
-  std::unordered_map<os_watch_id_t, const watchpoint_t *> m_watchpoint_map;
-
-  const architecture_t &m_architecture;
-  process_t &m_process;
 };
 
 } /* namespace amd::dbgapi */

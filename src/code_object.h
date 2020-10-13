@@ -38,6 +38,14 @@ class process_t;
 
 class code_object_t : public detail::handle_object<amd_dbgapi_code_object_id_t>
 {
+private:
+  std::string const m_uri;
+  amd_dbgapi_global_address_t const m_load_address;
+
+  epoch_t m_mark{ 0 };
+
+  process_t &m_process;
+
 public:
   code_object_t (amd_dbgapi_code_object_id_t code_object_id,
                  process_t &process, std::string uri,
@@ -57,14 +65,6 @@ public:
                                 size_t value_size, void *value) const;
 
   process_t &process () const { return m_process; }
-
-private:
-  std::string const m_uri;
-  amd_dbgapi_global_address_t const m_load_address;
-
-  epoch_t m_mark{ 0 };
-
-  process_t &m_process;
 };
 
 } /* namespace amd::dbgapi */
