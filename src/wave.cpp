@@ -243,6 +243,16 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
             return status;
         }
 
+      if (register_cache_policy == register_cache_policy_t::write_back)
+        {
+          /* Write back the register cache in memory.  */
+          status = process ().write_global_memory (
+              register_address (amdgpu_regnum_t::first_hwreg).value (),
+              &m_hwregs_cache[0], sizeof (m_hwregs_cache));
+          if (status != AMD_DBGAPI_STATUS_SUCCESS)
+            return status;
+        }
+
       /* Clear the stop reason.  */
       m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
     }
@@ -376,6 +386,9 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
       memcpy (reinterpret_cast<char *> (&m_hwregs_cache[0]) + *reg_addr
                   - hwregs_addr + offset,
               static_cast<const char *> (value) + offset, value_size);
+
+      if (register_cache_policy == register_cache_policy_t::write_back)
+        return AMD_DBGAPI_STATUS_SUCCESS;
     }
 
   dbgapi_assert (queue ().is_suspended ());
@@ -658,15 +671,13 @@ amd_dbgapi_wave_stop (amd_dbgapi_wave_id_t wave_id)
   if (it->second.state () == AMD_DBGAPI_WAVE_STATE_STOP)
     return AMD_DBGAPI_STATUS_ERROR_WAVE_STOPPED; */
 
-  {
-    scoped_queue_suspend_t suspend (wave->queue (), "stop wave");
+  scoped_queue_suspend_t suspend (wave->queue (), "stop wave");
 
-    /* Look for the wave_id again, the wave may have exited.  */
-    if (!(wave = find (wave_id)))
-      return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
+  /* Look for the wave_id again, the wave may have exited.  */
+  if (!(wave = find (wave_id)))
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
 
-    return wave->set_state (AMD_DBGAPI_WAVE_STATE_STOP);
-  }
+  return wave->set_state (AMD_DBGAPI_WAVE_STATE_STOP);
   CATCH;
 }
 
@@ -692,17 +703,15 @@ amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
       && resume_mode != AMD_DBGAPI_RESUME_MODE_SINGLE_STEP)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
-  {
-    scoped_queue_suspend_t suspend (wave->queue (), "resume wave");
+  scoped_queue_suspend_t suspend (wave->queue (), "resume wave");
 
-    /* Look for the wave_id again, the wave may have exited.  */
-    if (!(wave = find (wave_id)))
-      return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
+  /* Look for the wave_id again, the wave may have exited.  */
+  if (!(wave = find (wave_id)))
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
 
-    return wave->set_state (resume_mode == AMD_DBGAPI_RESUME_MODE_SINGLE_STEP
-                                ? AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
-                                : AMD_DBGAPI_WAVE_STATE_RUN);
-  }
+  return wave->set_state (resume_mode == AMD_DBGAPI_RESUME_MODE_SINGLE_STEP
+                              ? AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
+                              : AMD_DBGAPI_WAVE_STATE_RUN);
   CATCH;
 }
 

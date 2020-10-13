@@ -74,6 +74,19 @@ public:
     hidden_at_endpgm
   };
 
+  enum class register_cache_policy_t
+  {
+    /* If write-through is used, the cached registers are written immediately
+       both in the cache and in memory.  */
+    write_through,
+    /* If write-back is used, the cached registers are immediately updated in
+       the cache, and later updated in memory when the wave is un-halted.  */
+    write_back
+  };
+
+  static constexpr register_cache_policy_t register_cache_policy
+      = register_cache_policy_t::write_back;
+
 private:
   epoch_t m_mark{ 0 };
   amd_dbgapi_wave_state_t m_state{ AMD_DBGAPI_WAVE_STATE_RUN };

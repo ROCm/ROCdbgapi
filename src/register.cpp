@@ -393,7 +393,7 @@ amd_dbgapi_read_register (amd_dbgapi_wave_id_t wave_id,
 
   if (!wave->is_register_cached (*regnum))
     {
-      suspend.emplace (wave->queue (), "read uncached register");
+      suspend.emplace (wave->queue (), "read register");
 
       /* Look for the wave_id again, the wave may have exited.  */
       if (!(wave = find (wave_id)))
@@ -438,11 +438,20 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
   if (*architecture != wave->architecture ())
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
 
-  scoped_queue_suspend_t suspend (wave->queue (), "read uncached register");
+  std::optional<scoped_queue_suspend_t> suspend;
 
-  /* Look for the wave_id again, the wave may have exited.  */
-  if (!(wave = find (wave_id)))
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
+  if (!wave->is_register_cached (*regnum)
+      /* Write-through needs to update the memory as well as the cache, so we
+         always need to suspend the queue.  */
+      || wave_t::register_cache_policy
+             == wave_t::register_cache_policy_t::write_through)
+    {
+      suspend.emplace (wave->queue (), "write register");
+
+      /* Look for the wave_id again, the wave may have exited.  */
+      if (!(wave = find (wave_id)))
+        return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
+    }
 
   return wave->write_register (*regnum, offset, value_size, value);
   CATCH;
