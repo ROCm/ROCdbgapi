@@ -107,7 +107,7 @@ displaced_stepping_t::start (wave_t &wave)
      displaced instruction, simulate it here and enqueue a WAVE_STOP event.  */
 
   amd_dbgapi_global_address_t displaced_pc = to ();
-  status = wave.write_register (amdgpu_regnum_t::PC, &displaced_pc);
+  status = wave.write_register (amdgpu_regnum_t::pc, &displaced_pc);
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
 

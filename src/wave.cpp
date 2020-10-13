@@ -62,7 +62,7 @@ wave_t::exec_mask () const
   if (lane_count () == 32)
     {
       uint32_t exec;
-      status = read_register (amdgpu_regnum_t::EXEC_32, &exec);
+      status = read_register (amdgpu_regnum_t::exec_32, &exec);
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not read the EXEC_32 register (rc=%d)", status);
       return exec;
@@ -70,7 +70,7 @@ wave_t::exec_mask () const
   else if (lane_count () == 64)
     {
       uint64_t exec;
-      status = read_register (amdgpu_regnum_t::EXEC_64, &exec);
+      status = read_register (amdgpu_regnum_t::exec_64, &exec);
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not read the EXEC_64 register (rc=%d)", status);
       return exec;
@@ -82,7 +82,7 @@ amd_dbgapi_global_address_t
 wave_t::pc () const
 {
   amd_dbgapi_global_address_t pc;
-  amd_dbgapi_status_t status = read_register (amdgpu_regnum_t::PC, &pc);
+  amd_dbgapi_status_t status = read_register (amdgpu_regnum_t::pc, &pc);
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     error ("Could not read the PC register (rc=%d)", status);
   return pc;
@@ -121,7 +121,7 @@ wave_t::park ()
       = queue ().parked_wave_buffer_address ();
 
   amd_dbgapi_status_t status
-      = write_register (amdgpu_regnum_t::PC, &parked_pc);
+      = write_register (amdgpu_regnum_t::pc, &parked_pc);
   m_parked = true;
 
   return status;
@@ -136,7 +136,7 @@ wave_t::unpark ()
   amd_dbgapi_global_address_t saved_pc = pc ();
 
   m_parked = false;
-  return write_register (amdgpu_regnum_t::PC, &saved_pc);
+  return write_register (amdgpu_regnum_t::pc, &saved_pc);
 }
 
 amd_dbgapi_status_t
@@ -155,7 +155,7 @@ wave_t::update (const wave_t &group_leader,
     {
       /* Write the wave_id register.  */
       amd_dbgapi_wave_id_t wave_id = id ();
-      status = write_register (amdgpu_regnum_t::WAVE_ID, &wave_id);
+      status = write_register (amdgpu_regnum_t::wave_id, &wave_id);
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
 
@@ -167,7 +167,7 @@ wave_t::update (const wave_t &group_leader,
       if (dispatch ().is_scratch_enabled ())
         {
           uint32_t scratch_offset;
-          status = read_register (amdgpu_regnum_t::SCRATCH_OFFSET,
+          status = read_register (amdgpu_regnum_t::scratch_offset,
                                   &scratch_offset);
           if (status != AMD_DBGAPI_STATUS_SUCCESS)
             return status;
@@ -185,7 +185,7 @@ wave_t::update (const wave_t &group_leader,
 
       /* Reload the HW registers cache.  */
       status = process.read_global_memory (
-          register_address (amdgpu_regnum_t::FIRST_HWREG).value (),
+          register_address (amdgpu_regnum_t::first_hwreg).value (),
           &m_hwregs_cache[0], sizeof (m_hwregs_cache));
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
@@ -210,7 +210,7 @@ wave_t::update (const wave_t &group_leader,
                 return status;
             }
 
-          if (visibility () == visibility_t::VISIBLE)
+          if (visibility () == visibility_t::visible)
             process.enqueue_event (process.create<event_t> (
                 process, AMD_DBGAPI_EVENT_KIND_WAVE_STOP, id ()));
         }
@@ -263,7 +263,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
 
       m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
 
-      dbgapi_assert (visibility () == visibility_t::VISIBLE
+      dbgapi_assert (visibility () == visibility_t::visible
                      && "cannot set the state of an hidden wave");
 
       process ().enqueue_event (process ().create<event_t> (
@@ -282,7 +282,7 @@ wave_t::is_register_cached (amdgpu_regnum_t regnum) const
     return false;
 
   amd_dbgapi_global_address_t hwregs_addr
-      = register_address (amdgpu_regnum_t::FIRST_HWREG).value ();
+      = register_address (amdgpu_regnum_t::first_hwreg).value ();
 
   return *reg_addr >= hwregs_addr
          && *reg_addr < (hwregs_addr + sizeof (m_hwregs_cache));
@@ -308,13 +308,13 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
              > architecture ().register_size (regnum).value ())
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
 
-  if (regnum == amdgpu_regnum_t::NULL_)
+  if (regnum == amdgpu_regnum_t::null)
     {
       memset (static_cast<char *> (value) + offset, '\0', value_size);
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
 
-  if (m_parked && regnum == amdgpu_regnum_t::PC)
+  if (m_parked && regnum == amdgpu_regnum_t::pc)
     {
       memcpy (static_cast<char *> (value) + offset,
               reinterpret_cast<const char *> (&m_saved_pc) + offset,
@@ -323,7 +323,7 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
     }
 
   amd_dbgapi_global_address_t hwregs_addr
-      = register_address (amdgpu_regnum_t::FIRST_HWREG).value ();
+      = register_address (amdgpu_regnum_t::first_hwreg).value ();
 
   /* hwregs are cached, so return the value from the cache.  */
   if (*reg_addr >= hwregs_addr
@@ -356,10 +356,10 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
              > architecture ().register_size (regnum).value ())
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
 
-  if (regnum == amdgpu_regnum_t::NULL_)
+  if (regnum == amdgpu_regnum_t::null)
     return AMD_DBGAPI_STATUS_SUCCESS;
 
-  if (m_parked && regnum == amdgpu_regnum_t::PC)
+  if (m_parked && regnum == amdgpu_regnum_t::pc)
     {
       memcpy (reinterpret_cast<char *> (&m_saved_pc) + offset,
               static_cast<const char *> (value) + offset, value_size);
@@ -367,7 +367,7 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
     }
 
   size_t hwregs_addr
-      = register_address (amdgpu_regnum_t::FIRST_HWREG).value ();
+      = register_address (amdgpu_regnum_t::first_hwreg).value ();
 
   /* Update the hwregs cache.  */
   if (*reg_addr >= hwregs_addr
@@ -501,7 +501,7 @@ wave_t::xfer_local_memory (amd_dbgapi_segment_address_t segment_address,
     }
 
   auto local_memory_base_address = architecture ().register_address (
-      *group_leader ().m_descriptor, amdgpu_regnum_t::LDS_0);
+      *group_leader ().m_descriptor, amdgpu_regnum_t::lds_0);
 
   if (!local_memory_base_address)
     error ("local memory is not accessible");
@@ -532,18 +532,18 @@ wave_t::xfer_segment_memory (const address_space_t &address_space,
 
   switch (address_space.kind ())
     {
-    case address_space_t::PRIVATE_SWIZZLED:
+    case address_space_t::private_swizzled:
       return xfer_private_memory_swizzled (segment_address, lane_id, read,
                                            write, size);
 
-    case address_space_t::PRIVATE_UNSWIZZLED:
+    case address_space_t::private_unswizzled:
       return xfer_private_memory_unswizzled (segment_address, read, write,
                                              size);
 
-    case address_space_t::LOCAL:
+    case address_space_t::local:
       return xfer_local_memory (segment_address, read, write, size);
 
-    case address_space_t::GLOBAL:
+    case address_space_t::global:
       if (read)
         return process ().read_global_memory_partial (segment_address, read,
                                                       size);

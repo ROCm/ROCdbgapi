@@ -39,96 +39,96 @@ class architecture_t;
 
 enum class amdgpu_regnum_t : uint32_t
 {
-  FIRST_VGPR_32 = 0,
+  first_vgpr_32 = 0,
 
   /* 32-bit Vector registers (vgprs) for wave32 wavefronts.  */
-  V0_32 = FIRST_VGPR_32,
-  V255_32 = V0_32 + 255,
+  v0_32 = first_vgpr_32,
+  v255_32 = v0_32 + 255,
 
-  LAST_VGPR_32 = V255_32,
-  FIRST_VGPR_64 = LAST_VGPR_32 + 1,
+  last_vgpr_32 = v255_32,
+  first_vgpr_64 = last_vgpr_32 + 1,
 
   /* 32-bit Vector registers (vgprs) for wave64 wavefronts.  */
-  V0_64 = FIRST_VGPR_64,
-  V255_64 = V0_64 + 255,
+  v0_64 = first_vgpr_64,
+  v255_64 = v0_64 + 255,
 
-  LAST_VGPR_64 = V255_64,
-  FIRST_ACCVGPR_32 = LAST_VGPR_64 + 1,
-
-  /* 32-bit Accumulation Vector registers (accvgprs) for wave64 wavefronts  */
-  ACC0_32 = FIRST_ACCVGPR_32,
-  ACC255_32 = ACC0_32 + 255,
-
-  LAST_ACCVGPR_32 = ACC255_32,
-  FIRST_ACCVGPR_64 = LAST_ACCVGPR_32 + 1,
+  last_vgpr_64 = v255_64,
+  first_accvgpr_32 = last_vgpr_64 + 1,
 
   /* 32-bit Accumulation Vector registers (accvgprs) for wave64 wavefronts  */
-  ACC0_64 = FIRST_ACCVGPR_64,
-  ACC255_64 = ACC0_64 + 255,
+  acc0_32 = first_accvgpr_32,
+  acc255_32 = acc0_32 + 255,
 
-  LAST_ACCVGPR_64 = ACC255_64,
-  FIRST_SGPR = LAST_ACCVGPR_64 + 1,
+  last_accvgpr_32 = acc255_32,
+  first_accvgpr_64 = last_accvgpr_32 + 1,
+
+  /* 32-bit Accumulation Vector registers (accvgprs) for wave64 wavefronts  */
+  acc0_64 = first_accvgpr_64,
+  acc255_64 = acc0_64 + 255,
+
+  last_accvgpr_64 = acc255_64,
+  first_sgpr = last_accvgpr_64 + 1,
 
   /* 32-bit Scalar registers (sgprs).  */
-  S0 = FIRST_SGPR,
-  S105 = S0 + 105,
+  s0 = first_sgpr,
+  s105 = s0 + 105,
 
-  LAST_SGPR = S105,
+  last_sgpr = s105,
 
   /* Hardware registers (hwregs).  */
-  FIRST_HWREG = LAST_SGPR + 1,
-  LAST_HWREG = FIRST_HWREG + 15,
+  first_hwreg = last_sgpr + 1,
+  last_hwreg = first_hwreg + 15,
 
-  FIRST_TTMP = LAST_HWREG + 1,
+  first_ttmp = last_hwreg + 1,
 
   /* Trap temporary registers (ttmps).  */
-  TTMP4 = FIRST_TTMP + 4,
-  TTMP5,
-  TTMP6,
-  TTMP7,
-  TTMP8,
-  TTMP9,
-  TTMP10,
-  TTMP11,
-  TTMP13 = TTMP11 + 2,
+  ttmp4 = first_ttmp + 4,
+  ttmp5,
+  ttmp6,
+  ttmp7,
+  ttmp8,
+  ttmp9,
+  ttmp10,
+  ttmp11,
+  ttmp13 = ttmp11 + 2,
 
-  LAST_TTMP = TTMP13 + 2,
+  last_ttmp = ttmp13 + 2,
 
   /* Register aliases.  */
-  M0 = LAST_TTMP + 1, /* Memory Descriptor.  */
-  PC,                 /* Program counter.  */
-  STATUS,             /* Status register.  */
-  MODE,               /* Mode register.  */
-  TRAPSTS,            /* Exception status registers.  */
-  EXEC_32,            /* Execution mask for wave32 wavefronts.  */
-  EXEC_64,            /* Execution mask for wave64 wavefronts.  */
-  VCC_32,             /* Vector Condition Code for wave32 wavefronts.  */
-  VCC_64,             /* Vector Condition Code for wave64 wavefronts.  */
-  XNACK_MASK_32,      /* XNACK mask for wave32 wavefronts.  */
-  XNACK_MASK_64,      /* XNACK mask for wave64 wavefronts.  */
-  FLAT_SCRATCH,       /* Flat scratch.  */
+  m0 = last_ttmp + 1, /* Memory Descriptor.  */
+  pc,                 /* Program counter.  */
+  status,             /* Status register.  */
+  mode,               /* Mode register.  */
+  trapsts,            /* Exception status registers.  */
+  exec_32,            /* Execution mask for wave32 wavefronts.  */
+  exec_64,            /* Execution mask for wave64 wavefronts.  */
+  vcc_32,             /* Vector Condition Code for wave32 wavefronts.  */
+  vcc_64,             /* Vector Condition Code for wave64 wavefronts.  */
+  xnack_mask_32,      /* XNACK mask for wave32 wavefronts.  */
+  xnack_mask_64,      /* XNACK mask for wave64 wavefronts.  */
+  flat_scratch,       /* Flat scratch.  */
 
-  FLAT_SCRATCH_LO, /* Flat scratch lower 32 bits.  */
-  FLAT_SCRATCH_HI, /* Flat scratch lower 32 bits.  */
-  EXEC_LO,         /* Execution mask lower 32bits.  */
-  EXEC_HI,         /* Execution mask lower 32bits.  */
-  VCC_LO,          /* Vector Condition Code lower 32 bits.  */
-  VCC_HI,          /* Vector Condition Code higher 32 bits.  */
-  XNACK_MASK_LO,   /* XNACK mask lower 32 bits.  */
-  XNACK_MASK_HI,   /* XNACK mask higher 32 bits.  */
+  flat_scratch_lo, /* Flat scratch lower 32 bits.  */
+  flat_scratch_hi, /* Flat scratch lower 32 bits.  */
+  exec_lo,         /* Execution mask lower 32bits.  */
+  exec_hi,         /* Execution mask lower 32bits.  */
+  vcc_lo,          /* Vector Condition Code lower 32 bits.  */
+  vcc_hi,          /* Vector Condition Code higher 32 bits.  */
+  xnack_mask_lo,   /* XNACK mask lower 32 bits.  */
+  xnack_mask_hi,   /* XNACK mask higher 32 bits.  */
 
-  WAVE_ID,         /* Debug[0:1].  */
-  DISPATCH_PTR,    /* Pointer to the dispatch packet.  */
-  DISPATCH_GRID_X, /* Dispatch grid X.  */
-  DISPATCH_GRID_Y, /* Dispatch grid Y.  */
-  DISPATCH_GRID_Z, /* Dispatch grid Z.  */
-  SCRATCH_OFFSET,  /* Scracth memory offset from the scratch base.  */
+  wave_id,         /* Debug[0:1].  */
+  dispatch_ptr,    /* Pointer to the dispatch packet.  */
+  dispatch_grid_x, /* Dispatch grid X.  */
+  dispatch_grid_y, /* Dispatch grid Y.  */
+  dispatch_grid_z, /* Dispatch grid Z.  */
+  scratch_offset,  /* Scracth memory offset from the scratch base.  */
 
-  LDS_0, /* First dword of the LDS backing store.  */
+  lds_0, /* First dword of the LDS backing store.  */
 
-  NULL_, /* Special register: read returns 0, write is ignored.  */
+  null, /* Special register: read returns 0, write is ignored.  */
 
-  LAST_REGNUM = NULL_
+  last_regnum = null
 };
 
 constexpr size_t
@@ -167,18 +167,18 @@ operator++ (amdgpu_regnum_t &regnum, int)
   return prev;
 }
 
-constexpr size_t AMDGPU_VGPRS_32_COUNT
-    = amdgpu_regnum_t::LAST_VGPR_32 - amdgpu_regnum_t::FIRST_VGPR_32 + 1;
-constexpr size_t AMDGPU_VGPRS_64_COUNT
-    = amdgpu_regnum_t::LAST_VGPR_64 - amdgpu_regnum_t::FIRST_VGPR_64 + 1;
-constexpr size_t AMDGPU_ACCVGPRS_64_COUNT
-    = amdgpu_regnum_t::LAST_ACCVGPR_64 - amdgpu_regnum_t::FIRST_ACCVGPR_64 + 1;
-constexpr size_t AMDGPU_SGPRS_COUNT
-    = amdgpu_regnum_t::LAST_SGPR - amdgpu_regnum_t::FIRST_SGPR + 1;
-constexpr size_t AMDGPU_HWREGS_COUNT
-    = amdgpu_regnum_t::LAST_HWREG - amdgpu_regnum_t::FIRST_HWREG + 1;
-constexpr size_t AMDGPU_TTMPS_COUNT
-    = amdgpu_regnum_t::LAST_TTMP - amdgpu_regnum_t::FIRST_TTMP + 1;
+constexpr size_t amdgpu_vgprs_32_count
+    = amdgpu_regnum_t::last_vgpr_32 - amdgpu_regnum_t::first_vgpr_32 + 1;
+constexpr size_t amdgpu_vgprs_64_count
+    = amdgpu_regnum_t::last_vgpr_64 - amdgpu_regnum_t::first_vgpr_64 + 1;
+constexpr size_t amdgpu_accvgprs_64_count
+    = amdgpu_regnum_t::last_accvgpr_64 - amdgpu_regnum_t::first_accvgpr_64 + 1;
+constexpr size_t amdgpu_sgprs_count
+    = amdgpu_regnum_t::last_sgpr - amdgpu_regnum_t::first_sgpr + 1;
+constexpr size_t amdgpu_hwregs_count
+    = amdgpu_regnum_t::last_hwreg - amdgpu_regnum_t::first_hwreg + 1;
+constexpr size_t amdgpu_ttmps_count
+    = amdgpu_regnum_t::last_ttmp - amdgpu_regnum_t::first_ttmp + 1;
 
 /* Register class.  */
 

@@ -87,18 +87,18 @@ using os_watch_id_t = uint32_t;
 
 enum class os_queue_type_t : uint32_t
 {
-  COMPUTE = KFD_IOC_QUEUE_TYPE_COMPUTE,
-  SDMA = KFD_IOC_QUEUE_TYPE_SDMA,
-  COMPUTE_AQL = KFD_IOC_QUEUE_TYPE_COMPUTE_AQL,
-  SDMA_XGMI = KFD_IOC_QUEUE_TYPE_SDMA_XGMI
+  compute = KFD_IOC_QUEUE_TYPE_COMPUTE,
+  sdma = KFD_IOC_QUEUE_TYPE_SDMA,
+  compute_aql = KFD_IOC_QUEUE_TYPE_COMPUTE_AQL,
+  sdma_xgmi = KFD_IOC_QUEUE_TYPE_SDMA_XGMI
 };
 
 enum class os_queue_status_t : uint32_t
 {
-  TRAP = KFD_DBG_EV_STATUS_TRAP,
-  VMFAULT = KFD_DBG_EV_STATUS_VMFAULT,
-  SUSPENDED = KFD_DBG_EV_STATUS_SUSPENDED,
-  NEW_QUEUE = KFD_DBG_EV_STATUS_NEW_QUEUE
+  trap = KFD_DBG_EV_STATUS_TRAP,
+  vmfault = KFD_DBG_EV_STATUS_VMFAULT,
+  suspended = KFD_DBG_EV_STATUS_SUSPENDED,
+  new_queue = KFD_DBG_EV_STATUS_NEW_QUEUE
 };
 template <> struct is_flag<os_queue_status_t> : std::true_type
 {
@@ -106,21 +106,21 @@ template <> struct is_flag<os_queue_status_t> : std::true_type
 
 enum class os_wave_launch_trap_override_t : uint32_t
 {
-  OR = KFD_DBG_TRAP_OVERRIDE_OR, /* OR mask with HSA_DBG_TRAP_MASK.  */
-  REPLACE = KFD_DBG_TRAP_OVERRIDE_REPLACE, /* Replace mask.  */
+  apply = KFD_DBG_TRAP_OVERRIDE_OR, /* OR mask with HSA_DBG_TRAP_MASK.  */
+  replace = KFD_DBG_TRAP_OVERRIDE_REPLACE, /* Replace mask.  */
 };
 
 enum class os_wave_launch_trap_mask_t : uint32_t
 {
-  NONE = 0,
-  FP_INVALID = KFD_DBG_TRAP_MASK_FP_INVALID,
-  FP_INPUT_DENORMAL = KFD_DBG_TRAP_MASK_FP_INPUT_DENORMAL,
-  FP_DIVIDE_BY_ZERO = KFD_DBG_TRAP_MASK_FP_DIVIDE_BY_ZERO,
-  FP_OVERFLOW = KFD_DBG_TRAP_MASK_FP_OVERFLOW,
-  FP_UNDERFLOW = KFD_DBG_TRAP_MASK_FP_UNDERFLOW,
-  FP_INEXACT = KFD_DBG_TRAP_MASK_FP_INEXACT,
-  INT_DIVIDE_BY_ZERO = KFD_DBG_TRAP_MASK_INT_DIVIDE_BY_ZERO,
-  ADDRESS_WATCH = KFD_DBG_TRAP_MASK_DBG_ADDRESS_WATCH,
+  none = 0,
+  fp_invalid = KFD_DBG_TRAP_MASK_FP_INVALID,
+  fp_input_denormal = KFD_DBG_TRAP_MASK_FP_INPUT_DENORMAL,
+  fp_divide_by_zero = KFD_DBG_TRAP_MASK_FP_DIVIDE_BY_ZERO,
+  fp_overflow = KFD_DBG_TRAP_MASK_FP_OVERFLOW,
+  fp_underflow = KFD_DBG_TRAP_MASK_FP_UNDERFLOW,
+  fp_inexact = KFD_DBG_TRAP_MASK_FP_INEXACT,
+  int_divide_by_zero = KFD_DBG_TRAP_MASK_INT_DIVIDE_BY_ZERO,
+  address_watch = KFD_DBG_TRAP_MASK_DBG_ADDRESS_WATCH,
 };
 template <> struct is_flag<os_wave_launch_trap_mask_t> : std::true_type
 {
@@ -128,10 +128,10 @@ template <> struct is_flag<os_wave_launch_trap_mask_t> : std::true_type
 
 enum class os_watch_mode_t : uint32_t
 {
-  READ = 0,    /* Read operations only.  */
-  NONREAD = 1, /* Write or atomic operations only.  */
-  ATOMIC = 2,  /* Atomic operations only.  */
-  ALL = 3,     /* Read, write or atomic operations.  */
+  read = 0,    /* Read operations only.  */
+  nonread = 1, /* Write or atomic operations only.  */
+  atomic = 2,  /* Atomic operations only.  */
+  all = 3,     /* Read, write or atomic operations.  */
 };
 
 using os_queue_snapshot_entry_t = kfd_queue_snapshot_entry;
@@ -148,17 +148,17 @@ os_queue_type (os_queue_snapshot_entry_t entry)
   return static_cast<os_queue_type_t> (entry.queue_type);
 }
 
-constexpr os_queue_id_t OS_INVALID_QUEUEID = KFD_INVALID_QUEUEID;
-constexpr os_queue_id_t OS_QUEUE_ERROR_MASK = KFD_DBG_QUEUE_ERROR_MASK;
-constexpr os_queue_id_t OS_QUEUE_INVALID_MASK = KFD_DBG_QUEUE_INVALID_MASK;
+constexpr os_queue_id_t os_invalid_queueid = KFD_INVALID_QUEUEID;
+constexpr os_queue_id_t os_queue_error_mask = KFD_DBG_QUEUE_ERROR_MASK;
+constexpr os_queue_id_t os_queue_invalid_mask = KFD_DBG_QUEUE_INVALID_MASK;
 
 enum class os_wave_launch_mode_t : uint32_t
 {
-  NORMAL = 0,      /* Waves launch normally.  */
-  HALT = 1,        /* Waves launch in halted mode.  */
-  KILL = 2,        /* Waves terminate before executing any instructions.  */
-  SINGLE_STEP = 3, /* Waves launch in single-step mode.  */
-  DISABLE = 4,     /* Disable launching any new waves.  */
+  normal = 0,      /* Waves launch normally.  */
+  halt = 1,        /* Waves launch in halted mode.  */
+  kill = 2,        /* Waves terminate before executing any instructions.  */
+  single_step = 3, /* Waves launch in single-step mode.  */
+  disable = 4,     /* Disable launching any new waves.  */
 };
 
 class os_driver_t

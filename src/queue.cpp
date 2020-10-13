@@ -44,8 +44,8 @@
 namespace amd::dbgapi
 {
 
-constexpr uint32_t SQ_WAVE_STATUS_HALT_MASK = utils::bit_mask (13, 13);
-constexpr uint32_t TTMP11_TRAP_HANDLER_EVENTS_MASK = utils::bit_mask (7, 8);
+constexpr uint32_t sq_wave_status_halt_mask = utils::bit_mask (13, 13);
+constexpr uint32_t ttmp11_trap_handler_events_mask = utils::bit_mask (7, 8);
 
 /* Base class for all queue implementations.  */
 
@@ -141,7 +141,7 @@ namespace detail
 class aql_queue_impl_t : public queue_t::queue_impl_t
 {
 private:
-  static constexpr uint64_t AQL_PACKET_SIZE = 64;
+  static constexpr uint64_t aql_packet_size = 64;
 
   struct context_save_area_header_s
   {
@@ -339,10 +339,10 @@ aql_queue_impl_t::update_waves ()
     process_t &process = m_queue.process ();
 
     amd_dbgapi_wave_id_t wave_id;
-    wave_t::visibility_t visibility{ wave_t::visibility_t::VISIBLE };
+    wave_t::visibility_t visibility{ wave_t::visibility_t::visible };
     amd_dbgapi_status_t status;
 
-    if (process.is_flag_set (process_t::flag_t::ASSIGN_NEW_IDS_TO_ALL_WAVES))
+    if (process.is_flag_set (process_t::flag_t::assign_new_ids_to_all_waves))
       {
         /* We will never have hidden waves when assigning new ids. All waves
            seen in the control stack get a new wave_t instance with a new wave
@@ -354,7 +354,7 @@ aql_queue_impl_t::update_waves ()
         /* The wave id is preserved in ttmp registers.  */
         const amd_dbgapi_global_address_t wave_id_address
             = architecture
-                  .register_address (*descriptor, amdgpu_regnum_t::WAVE_ID)
+                  .register_address (*descriptor, amdgpu_regnum_t::wave_id)
                   .value ();
 
         status = process.read_global_memory (wave_id_address, &wave_id,
@@ -372,7 +372,7 @@ aql_queue_impl_t::update_waves ()
             uint32_t status_reg;
             const amd_dbgapi_global_address_t status_reg_address
                 = architecture
-                      .register_address (*descriptor, amdgpu_regnum_t::STATUS)
+                      .register_address (*descriptor, amdgpu_regnum_t::status)
                       .value ();
 
             status = process.read_global_memory (
@@ -380,11 +380,11 @@ aql_queue_impl_t::update_waves ()
             if (status != AMD_DBGAPI_STATUS_SUCCESS)
               error ("read_global_memory failed at %lx", status_reg_address);
 
-            const bool halted = !!(status_reg & SQ_WAVE_STATUS_HALT_MASK);
+            const bool halted = !!(status_reg & sq_wave_status_halt_mask);
 
             const amd_dbgapi_global_address_t ttmp11_address
                 = architecture
-                      .register_address (*descriptor, amdgpu_regnum_t::TTMP11)
+                      .register_address (*descriptor, amdgpu_regnum_t::ttmp11)
                       .value ();
 
             uint32_t ttmp11;
@@ -396,11 +396,11 @@ aql_queue_impl_t::update_waves ()
             /* trap_handler_events is true if the trap handler was entered
                because of a trap instruction or an exception.  */
             const bool trap_handler_events
-                = !!(ttmp11 & TTMP11_TRAP_HANDLER_EVENTS_MASK);
+                = !!(ttmp11 & ttmp11_trap_handler_events_mask);
 
             /* Waves halted at launch do not have trap handler events).  */
             if (halted && !trap_handler_events)
-              visibility = wave_t::visibility_t::HIDDEN_HALTED_AT_LAUNCH;
+              visibility = wave_t::visibility_t::hidden_halted_at_launch;
           }
       }
 
@@ -421,7 +421,7 @@ aql_queue_impl_t::update_waves ()
         const amd_dbgapi_global_address_t dispatch_ptr_address
             = architecture
                   .register_address (*descriptor,
-                                     amdgpu_regnum_t::DISPATCH_PTR)
+                                     amdgpu_regnum_t::dispatch_ptr)
                   .value ();
 
         amd_dbgapi_global_address_t dispatch_ptr;
@@ -445,7 +445,7 @@ aql_queue_impl_t::update_waves ()
           dispatch_ptr
               = (dispatch_ptr & spi_mask) | (packets_address () & ~spi_mask);
 
-        if ((dispatch_ptr % AQL_PACKET_SIZE) != 0)
+        if ((dispatch_ptr % aql_packet_size) != 0)
           /* TODO: See comment above for corrupted wavefronts. This could be
              attached to a CORRUPT_DISPATCH instance.  */
           error ("dispatch_ptr is not aligned on the packet size");
@@ -454,10 +454,10 @@ aql_queue_impl_t::update_waves ()
            read_dispatch_id and write_dispatch_id.  */
 
         amd_dbgapi_os_queue_packet_id_t os_queue_packet_id
-            = (dispatch_ptr - packets_address ()) / AQL_PACKET_SIZE;
+            = (dispatch_ptr - packets_address ()) / aql_packet_size;
 
         /* Check that 0 <= os_queue_packet_id < queue_size.  */
-        if (os_queue_packet_id >= packets_size () / AQL_PACKET_SIZE)
+        if (os_queue_packet_id >= packets_size () / aql_packet_size)
           /* TODO: See comment above for corrupted wavefronts. This could be
              attached to a CORRUPT_DISPATCH instance.  */
           error ("invalid os_queue_packet_id (%#lx)", os_queue_packet_id);
@@ -468,7 +468,7 @@ aql_queue_impl_t::update_waves ()
 
         /* Need to mask by the number of packets in the ring (which is a power
            of 2 so -1 makes the correct mask).  */
-        const uint64_t id_mask = packets_size () / AQL_PACKET_SIZE - 1;
+        const uint64_t id_mask = packets_size () / aql_packet_size - 1;
 
         os_queue_packet_id
             |= os_queue_packet_id >= (read_dispatch_id & id_mask)
@@ -591,7 +591,7 @@ aql_queue_impl_t::active_packets_info (
 
   *read_packet_id_p = read_packet_id;
   *write_packet_id_p = write_packet_id;
-  *packets_byte_size_p = (write_packet_id - read_packet_id) * AQL_PACKET_SIZE;
+  *packets_byte_size_p = (write_packet_id - read_packet_id) * aql_packet_size;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
@@ -609,7 +609,7 @@ aql_queue_impl_t::active_packets_bytes (
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   amd_dbgapi_size_t packets_byte_size
-      = (write_packet_id - read_packet_id) * AQL_PACKET_SIZE;
+      = (write_packet_id - read_packet_id) * aql_packet_size;
 
   if (memory_size != packets_byte_size)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
@@ -618,12 +618,12 @@ aql_queue_impl_t::active_packets_bytes (
   if (!utils::is_power_of_two (packets_size ()))
     error ("size is not a power of 2");
 
-  const uint64_t id_mask = packets_size () / AQL_PACKET_SIZE - 1;
+  const uint64_t id_mask = packets_size () / aql_packet_size - 1;
 
   amd_dbgapi_global_address_t read_packet_ptr
-      = packets_address () + (read_packet_id & id_mask) * AQL_PACKET_SIZE;
+      = packets_address () + (read_packet_id & id_mask) * aql_packet_size;
   amd_dbgapi_global_address_t write_packet_ptr
-      = packets_address () + (write_packet_id & id_mask) * AQL_PACKET_SIZE;
+      = packets_address () + (write_packet_id & id_mask) * aql_packet_size;
 
   if (read_packet_ptr < write_packet_ptr)
     {
@@ -674,7 +674,7 @@ aql_queue_impl_t::type () const
 void
 aql_queue_impl_t::state_changed (queue_t::state_t state)
 {
-  if (state == queue_t::state_t::SUSPENDED)
+  if (state == queue_t::state_t::suspended)
     {
       process_t &process = m_queue.process ();
       amd_dbgapi_status_t status;
@@ -733,16 +733,16 @@ public:
   {
     switch (os_queue_type (m_os_queue_info))
       {
-      case os_queue_type_t::COMPUTE:
+      case os_queue_type_t::compute:
         return AMD_DBGAPI_OS_QUEUE_TYPE_AMD_PM4;
 
-      case os_queue_type_t::SDMA:
+      case os_queue_type_t::sdma:
         return AMD_DBGAPI_OS_QUEUE_TYPE_AMD_SDMA;
 
-      case os_queue_type_t::SDMA_XGMI:
+      case os_queue_type_t::sdma_xgmi:
         return AMD_DBGAPI_OS_QUEUE_TYPE_AMD_SDMA_XGMI;
 
-      case os_queue_type_t::COMPUTE_AQL:
+      case os_queue_type_t::compute_aql:
         error ("should not reach here");
 
       default:
@@ -775,7 +775,7 @@ queue_t::queue_impl_t::create (queue_t &queue,
 {
   switch (os_queue_type (os_queue_info))
     {
-    case os_queue_type_t::COMPUTE_AQL:
+    case os_queue_type_t::compute_aql:
       return new detail::aql_queue_impl_t (queue, os_queue_info);
 
     default:
@@ -824,7 +824,7 @@ queue_t::active_packets_bytes (amd_dbgapi_os_queue_packet_id_t read_packet_id,
 os_queue_id_t
 queue_t::os_queue_id () const
 {
-  return is_valid () ? m_impl->os_queue_id () : OS_INVALID_QUEUEID;
+  return is_valid () ? m_impl->os_queue_id () : os_invalid_queueid;
 }
 
 amd_dbgapi_global_address_t
@@ -863,10 +863,10 @@ queue_t::set_state (state_t state)
   if (m_state == state)
     return; /* State is unchanged.  */
 
-  dbgapi_assert (m_state != state_t::INVALID
+  dbgapi_assert (m_state != state_t::invalid
                  && "an invalid queue cannot change state");
 
-  if (state == state_t::INVALID)
+  if (state == state_t::invalid)
     {
       /* Destructing the queue impl for compute queues also destructs all
          dispatches and waves associated with it, and enqueues events for

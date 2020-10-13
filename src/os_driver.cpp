@@ -555,7 +555,7 @@ kfd_driver_t::query_debug_event (os_agent_id_t os_agent_id,
   else if (err == -EAGAIN)
     {
       /* There are no more events.  */
-      *os_queue_id = OS_INVALID_QUEUEID;
+      *os_queue_id = os_invalid_queueid;
       *os_queue_status = {};
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
@@ -889,15 +889,15 @@ to_string (os_wave_launch_mode_t mode)
 {
   switch (mode)
     {
-    case os_wave_launch_mode_t::NORMAL:
+    case os_wave_launch_mode_t::normal:
       return "WAVE_LAUNCH_MODE_NORMAL";
-    case os_wave_launch_mode_t::HALT:
+    case os_wave_launch_mode_t::halt:
       return "WAVE_LAUNCH_MODE_HALT";
-    case os_wave_launch_mode_t::KILL:
+    case os_wave_launch_mode_t::kill:
       return "WAVE_LAUNCH_MODE_KILL";
-    case os_wave_launch_mode_t::SINGLE_STEP:
+    case os_wave_launch_mode_t::single_step:
       return "WAVE_LAUNCH_MODE_SINGLE_STEP";
-    case os_wave_launch_mode_t::DISABLE:
+    case os_wave_launch_mode_t::disable:
       return "WAVE_LAUNCH_MODE_DISABLE";
     }
   return to_string (
@@ -909,15 +909,15 @@ std::string
 to_string (os_queue_status_t queue_status)
 {
   std::string str
-      = (queue_status & os_queue_status_t::TRAP) != 0
-            ? "TRAP"
-            : (!!(queue_status & os_queue_status_t::VMFAULT) ? "VMFAULT"
-                                                             : "UNKNOWN");
+      = (queue_status & os_queue_status_t::trap) != 0
+            ? "trap"
+            : (!!(queue_status & os_queue_status_t::vmfault) ? "vmfault"
+                                                             : "unknown");
 
-  if ((queue_status & os_queue_status_t::NEW_QUEUE) != 0)
-    str += "|NEW_QUEUE";
-  if ((queue_status & os_queue_status_t::SUSPENDED) != 0)
-    str += "|SUSPENDED";
+  if ((queue_status & os_queue_status_t::new_queue) != 0)
+    str += "|new_queue";
+  if ((queue_status & os_queue_status_t::suspended) != 0)
+    str += "|suspended";
 
   return str;
 }

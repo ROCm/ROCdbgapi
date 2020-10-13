@@ -60,18 +60,18 @@ public:
 
   enum class visibility_t
   {
-    VISIBLE,
-    /* Waves with HIDDEN_HALTED_AT_LAUNCH visibility are waves that are halted
+    visible,
+    /* Waves with hidden_halted_at_launch visibility are waves that are halted
        at launch because the launch mode was set to
        os_wave_launch_mode_t::HALT when they were created. These waves should
        not be reported to the client until the launch mode is changed to
        os_wave_launch_mode_t::NORMAL.  */
-    HIDDEN_HALTED_AT_LAUNCH,
-    /* Waves with HIDDEN_AT_ENDPGM visibility are waves that are terminating
+    hidden_halted_at_launch,
+    /* Waves with hidden_at_endpgm visibility are waves that are terminating
        (about to execute a s_endpgm instruction). These waves should never be
        reported to the client and will be destroyed in the next mark and sweep
        when they finally terminate.  */
-    HIDDEN_AT_ENDPGM
+    hidden_at_endpgm
   };
 
 private:
@@ -97,7 +97,7 @@ public:
   visibility_t visibility () const { return m_visibility; }
   void set_visibility (visibility_t visibility);
 
-  bool is_valid () const { return visibility () == visibility_t::VISIBLE; }
+  bool is_valid () const { return visibility () == visibility_t::visible; }
 
   const wave_t &group_leader () const
   {
@@ -186,11 +186,11 @@ public:
 private:
   epoch_t m_mark{ 0 };
   amd_dbgapi_wave_state_t m_state{ AMD_DBGAPI_WAVE_STATE_RUN };
-  visibility_t m_visibility{ visibility_t::VISIBLE };
+  visibility_t m_visibility{ visibility_t::visible };
   amd_dbgapi_wave_stop_reason_t m_stop_reason{};
 
-  uint32_t m_hwregs_cache[amdgpu_regnum_t::LAST_HWREG
-                          - amdgpu_regnum_t::FIRST_HWREG + 1];
+  uint32_t m_hwregs_cache[amdgpu_regnum_t::last_hwreg
+                          - amdgpu_regnum_t::first_hwreg + 1];
 
   std::unique_ptr<architecture_t::cwsr_descriptor_t> m_descriptor;
 

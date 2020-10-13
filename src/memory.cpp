@@ -439,7 +439,7 @@ amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
                                              &segment_address);
 
   std::optional<scoped_queue_suspend_t> suspend;
-  if (address_space->kind () == address_space_t::LOCAL)
+  if (address_space->kind () == address_space_t::local)
     {
       suspend.emplace (wave->queue (), "read local memory");
 
@@ -503,7 +503,7 @@ amd_dbgapi_write_memory (amd_dbgapi_process_id_t process_id,
                                              &segment_address);
 
   std::optional<scoped_queue_suspend_t> suspend;
-  if (address_space->kind () == address_space_t::LOCAL)
+  if (address_space->kind () == address_space_t::local)
     {
       /* FIXME: How can we optimize this?  */
       suspend.emplace (wave->queue (), "write local memory");

@@ -302,49 +302,49 @@ amd_dbgapi_dwarf_register_to_register (
   /* See https://llvm.org/docs/AMDGPUUsage.html#register-mapping.  */
   if (dwarf_register == 1)
     {
-      regnum = amdgpu_regnum_t::EXEC_32;
+      regnum = amdgpu_regnum_t::exec_32;
     }
   else if (dwarf_register == 17)
     {
-      regnum = amdgpu_regnum_t::EXEC_64;
+      regnum = amdgpu_regnum_t::exec_64;
     }
   else if (dwarf_register == 16)
     {
-      regnum = amdgpu_regnum_t::PC;
+      regnum = amdgpu_regnum_t::pc;
     }
   else if (dwarf_register >= 32 && dwarf_register <= 95)
     {
       /* Scalar registers 0-63.  */
-      regnum = amdgpu_regnum_t::FIRST_SGPR + (dwarf_register - 32);
+      regnum = amdgpu_regnum_t::first_sgpr + (dwarf_register - 32);
     }
   else if (dwarf_register == 128)
     {
-      regnum = amdgpu_regnum_t::STATUS;
+      regnum = amdgpu_regnum_t::status;
     }
   else if (dwarf_register >= 1088 && dwarf_register <= 1129)
     {
       /* Scalar registers 64-105.  */
-      regnum = amdgpu_regnum_t::FIRST_SGPR + (dwarf_register - 1024);
+      regnum = amdgpu_regnum_t::first_sgpr + (dwarf_register - 1024);
     }
   else if (dwarf_register >= 1536 && dwarf_register <= 1791)
     {
       /* Vector registers 0-255 (wave32).  */
-      regnum = amdgpu_regnum_t::FIRST_VGPR_32 + (dwarf_register - 1536);
+      regnum = amdgpu_regnum_t::first_vgpr_32 + (dwarf_register - 1536);
     }
   else if (dwarf_register >= 2048 && dwarf_register <= 2303)
     {
       /* Accumulation Vector registers 0-255 (wave32).  */
-      regnum = amdgpu_regnum_t::FIRST_ACCVGPR_32 + (dwarf_register - 2048);
+      regnum = amdgpu_regnum_t::first_accvgpr_32 + (dwarf_register - 2048);
     }
   else if (dwarf_register >= 2560 && dwarf_register <= 2815)
     {
       /* Vector registers 0-255 (wave64).  */
-      regnum = amdgpu_regnum_t::FIRST_VGPR_64 + (dwarf_register - 2560);
+      regnum = amdgpu_regnum_t::first_vgpr_64 + (dwarf_register - 2560);
     }
   else if (dwarf_register >= 3072 && dwarf_register <= 3327)
     {
       /* Accumulation Vector registers 0-255 (wave64).  */
-      regnum = amdgpu_regnum_t::FIRST_ACCVGPR_64 + (dwarf_register - 3072);
+      regnum = amdgpu_regnum_t::first_accvgpr_64 + (dwarf_register - 3072);
     }
   else
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;

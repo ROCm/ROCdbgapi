@@ -102,8 +102,14 @@ public:
 
   /* Since architecture objects disallow copying & moving, two architecture
      objects are identical if they have the same address.  */
-  bool operator== (const architecture_t &other) const { return this == &other; }
-  bool operator!= (const architecture_t &other) const { return this != &other; }
+  bool operator== (const architecture_t &other) const
+  {
+    return this == &other;
+  }
+  bool operator!= (const architecture_t &other) const
+  {
+    return this != &other;
+  }
 
   /* FIXME: add SQ prefetch instruction bytes size.  */
 
@@ -251,7 +257,7 @@ public:
     amdgpu_regnum_t regnum = static_cast<amdgpu_regnum_t> (
         utils::bit_extract (register_id.handle, 0, 31));
 
-    return (regnum <= amdgpu_regnum_t::LAST_REGNUM)
+    return (regnum <= amdgpu_regnum_t::last_regnum)
                ? std::make_optional (regnum)
                : std::nullopt;
   }
@@ -348,8 +354,8 @@ private:
 namespace detail
 {
 template <typename Handle>
-using architecture_find_t = decltype (std::declval<architecture_t> ().find (
-    std::declval<Handle> ()));
+using architecture_find_t = decltype (
+    std::declval<architecture_t> ().find (std::declval<Handle> ()));
 } /* namespace detail */
 
 /* Find an object with the given handle.  */

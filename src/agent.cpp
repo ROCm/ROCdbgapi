@@ -129,7 +129,7 @@ agent_t::next_os_event (amd_dbgapi_queue_id_t *queue_id,
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
 
-      if (os_queue_id == OS_INVALID_QUEUEID)
+      if (os_queue_id == os_invalid_queueid)
         {
           /* There are no more events.  */
           *queue_id = AMD_DBGAPI_QUEUE_NONE;
@@ -145,7 +145,7 @@ agent_t::next_os_event (amd_dbgapi_queue_id_t *queue_id,
 
       /* If this is a new queue, update the queues to make sure we don't
          return a stale queue with the same os_queue_id.  */
-      if ((*os_queue_status & os_queue_status_t::NEW_QUEUE) != 0)
+      if ((*os_queue_status & os_queue_status_t::new_queue) != 0)
         {
           /* If there is a stale queue with the same os_queue_id, destroy it.
            */
@@ -165,7 +165,7 @@ agent_t::next_os_event (amd_dbgapi_queue_id_t *queue_id,
              update_queues with fill in the missing information
              (os_queue_snapshot_entry_t).  */
           *queue_id = process.create<queue_t> (*this, os_queue_id).id ();
-          *os_queue_status &= ~os_queue_status_t::NEW_QUEUE;
+          *os_queue_status &= ~os_queue_status_t::new_queue;
           process.update_queues ();
 
           /* Check that the queue still exists, update_queues () may have
@@ -184,7 +184,7 @@ agent_t::next_os_event (amd_dbgapi_queue_id_t *queue_id,
         }
       else
         {
-          error ("os_queue_id %d should have been reported as a NEW_QUEUE "
+          error ("os_queue_id %d should have been reported as a new_queue "
                  "before",
                  os_queue_id);
         }
@@ -200,9 +200,9 @@ agent_t::supported_trap_mask ()
     {
       os_wave_launch_trap_mask_t trap_mask, ignored;
       if (process ().os_driver ().set_wave_launch_trap_override (
-              os_agent_id (), os_wave_launch_trap_override_t::OR,
-              os_wave_launch_trap_mask_t::NONE,
-              os_wave_launch_trap_mask_t::NONE, &ignored, &trap_mask)
+              os_agent_id (), os_wave_launch_trap_override_t::apply,
+              os_wave_launch_trap_mask_t::none,
+              os_wave_launch_trap_mask_t::none, &ignored, &trap_mask)
           != AMD_DBGAPI_STATUS_SUCCESS)
         return {};
 

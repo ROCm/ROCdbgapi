@@ -45,12 +45,12 @@ public:
 
   enum class state_t
   {
-    INVALID,   /* The queue is invalid. Calls to os_queue_id () will return the
-                  OS_INVALID_QUEUEID.  Calls to process_t::find and
+    invalid,   /* The queue is invalid. Calls to os_queue_id () will return the
+                  os_invalid_queueid.  Calls to process_t::find and
                   process_t::find_if will not return this queue.  Once a queue
                   becomes invalid, its state can no longer be changed.  */
-    SUSPENDED, /* The queue is suspended, its state can be inspected.  */
-    RUNNING    /* The queue is running.  */
+    suspended, /* The queue is suspended, its state can be inspected.  */
+    running    /* The queue is running.  */
 
   };
 
@@ -67,9 +67,9 @@ public:
   state_t state () const { return m_state; }
   void set_state (state_t state);
 
-  bool is_valid () const { return m_state != state_t::INVALID; }
-  bool is_suspended () const { return m_state == state_t::SUSPENDED; }
-  bool is_running () const { return m_state == state_t::RUNNING; }
+  bool is_valid () const { return m_state != state_t::invalid; }
+  bool is_suspended () const { return m_state == state_t::suspended; }
+  bool is_running () const { return m_state == state_t::running; }
 
   os_queue_id_t os_queue_id () const;
 
@@ -104,7 +104,7 @@ public:
   }
 
 private:
-  state_t m_state{ state_t::RUNNING };
+  state_t m_state{ state_t::running };
   epoch_t m_mark{ 0 };
 
   agent_t &m_agent;

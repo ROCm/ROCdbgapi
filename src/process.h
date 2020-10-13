@@ -128,16 +128,16 @@ public:
   enum class flag_t : uint32_t
   {
     /* Enable the device debug mode when updating the agents.  */
-    ENABLE_AGENT_DEBUG_MODE = 1 << 0,
+    enable_agent_debug_mode = 1 << 0,
     /* Require the NEW_QUEUE bit to be set when a queue_id is reported for the
        first time by kfd to this process. When attaching to an already running
        process, a missing NEW_BIT may be ignored as it could have been cleared
        by another debugger session.  */
-    REQUIRE_NEW_QUEUE_BIT = 1 << 1,
+    require_new_queue_bit = 1 << 1,
     /* Assign new ids to all waves regardless of the content of their wave_id
        register.  This is needed during attach as waves created before the
        debugger attached to the process may have corrupted wave_ids.  */
-    ASSIGN_NEW_IDS_TO_ALL_WAVES = 1 << 2,
+    assign_new_ids_to_all_waves = 1 << 2,
   };
 
   inline void set_flag (flag_t flags);
@@ -362,9 +362,9 @@ private:
   std::unique_ptr<const os_driver_t> m_os_driver;
   flag_t m_flags{};
 
-  os_wave_launch_mode_t m_wave_launch_mode{ os_wave_launch_mode_t::NORMAL };
+  os_wave_launch_mode_t m_wave_launch_mode{ os_wave_launch_mode_t::normal };
   os_wave_launch_trap_mask_t m_wave_trap_mask{
-    os_wave_launch_trap_mask_t::NONE
+    os_wave_launch_trap_mask_t::none
   };
   bool m_forward_progress_needed{ true };
 

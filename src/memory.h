@@ -63,13 +63,13 @@ class address_space_t
 public:
   enum address_space_kind_t
   {
-    GENERIC = 1,
-    LOCAL,
-    GLOBAL,
-    PRIVATE_SWIZZLED,
-    PRIVATE_SWIZZLED_N,
-    PRIVATE_UNSWIZZLED,
-    REGION
+    generic = 1,
+    local,
+    global,
+    private_swizzled,
+    private_swizzled_n,
+    private_unswizzled,
+    region
   };
 
   address_space_t (amd_dbgapi_address_space_id_t address_space_id,
