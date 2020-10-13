@@ -1274,18 +1274,13 @@ amdgcn_architecture_t::get_wave_state (
       if (ignore_single_step_event)
         {
           /* Place the wave back into single-stepping state.  */
-          *state = AMD_DBGAPI_WAVE_STATE_SINGLE_STEP;
-          status_reg &= ~SQ_WAVE_STATUS_HALT_MASK;
-
-          status = wave.write_register (amdgpu_regnum_t::STATUS, &status_reg);
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
-            return status;
+          wave.set_state (AMD_DBGAPI_WAVE_STATE_SINGLE_STEP);
 
           dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
                       "%s (pc=%#lx) ignore spurious single-step",
                       to_string (wave.id ()).c_str (), pc);
 
-          /* Don't report the event.  */
+          *state = wave.state ();
           reason_mask = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
         }
       else if (trap_raised)

@@ -175,33 +175,27 @@ wave_t::update (const wave_t &group_leader,
         }
     }
 
-  /* Reload the HW registers cache, and update the wave's state, if this is a
-     new wave, or if the wave wasn't stopped (mode.halt == 1) the last time the
-     queue it belongs to was resumed.  */
-  if (m_reload_hwregs_cache)
+  /* Update the wave's state if this is a new wave, or if the wave was running
+     the last time the queue it belongs to was resumed.  */
+  if (m_state != AMD_DBGAPI_WAVE_STATE_STOP)
     {
       /* Save the previous pc before updating the hwregs cache.  */
       if (!first_update)
         m_saved_pc = pc ();
 
+      /* Reload the HW registers cache.  */
       status = process.read_global_memory (
           register_address (amdgpu_regnum_t::FIRST_HWREG).value (),
           &m_hwregs_cache[0], sizeof (m_hwregs_cache));
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
 
-      amd_dbgapi_wave_state_t saved_state = m_state;
       status
           = architecture ().get_wave_state (*this, &m_state, &m_stop_reason);
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
 
-      /* If the wave is not stopped, we'll need to reload the hwregs cache
-         during the next update.  */
-      m_reload_hwregs_cache = (m_state != AMD_DBGAPI_WAVE_STATE_STOP);
-
-      if (m_stop_reason && m_state == AMD_DBGAPI_WAVE_STATE_STOP
-          && saved_state != AMD_DBGAPI_WAVE_STATE_STOP)
+      if (m_stop_reason && m_state == AMD_DBGAPI_WAVE_STATE_STOP)
         {
           if (!!(m_stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT)
               && !architecture ().can_halt_at (
@@ -248,10 +242,6 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
           if (status != AMD_DBGAPI_STATUS_SUCCESS)
             return status;
         }
-
-      /* If we are resuming this wave, we'll need to reload the hwregs cache
-        during the next update.  */
-      m_reload_hwregs_cache = true;
 
       /* Clear the stop reason.  */
       m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;

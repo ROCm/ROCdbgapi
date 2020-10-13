@@ -189,7 +189,6 @@ private:
   visibility_t m_visibility{ visibility_t::VISIBLE };
   amd_dbgapi_wave_stop_reason_t m_stop_reason{};
 
-  bool m_reload_hwregs_cache{ true };
   uint32_t m_hwregs_cache[amdgpu_regnum_t::LAST_HWREG
                           - amdgpu_regnum_t::FIRST_HWREG + 1];
 
