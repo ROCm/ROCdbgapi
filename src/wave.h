@@ -44,6 +44,7 @@ namespace amd::dbgapi
 
 class architecture_t;
 class address_space_t;
+class displaced_stepping_t;
 class process_t;
 
 /* AMD Debugger API Wave.  */
@@ -108,11 +109,12 @@ private:
 
   amd_dbgapi_size_t m_scratch_offset{ 0 };
   amd_dbgapi_global_address_t m_saved_pc{ 0 };
-  bool m_parked{ false };
+  bool m_is_parked{ false };
 
   std::array<uint32_t, 3> m_group_ids;
   uint32_t m_wave_in_group;
 
+  displaced_stepping_t *m_displaced_stepping{ nullptr };
   const wave_t *m_group_leader{ nullptr };
   const callbacks_t &m_callbacks;
   dispatch_t &m_dispatch;
@@ -165,6 +167,14 @@ public:
 
   amd_dbgapi_status_t park ();
   amd_dbgapi_status_t unpark ();
+
+  amd_dbgapi_status_t
+  displaced_stepping_start (displaced_stepping_t &displaced_stepping);
+  amd_dbgapi_status_t displaced_stepping_complete ();
+  const displaced_stepping_t *displaced_stepping () const
+  {
+    return m_displaced_stepping;
+  }
 
   amd_dbgapi_status_t
   update (const wave_t &group_leader,

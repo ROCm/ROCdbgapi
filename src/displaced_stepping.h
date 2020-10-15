@@ -68,9 +68,6 @@ public:
     return m_original_instruction;
   }
 
-  amd_dbgapi_status_t start (wave_t &wave);
-  amd_dbgapi_status_t complete (wave_t &wave);
-
   amd_dbgapi_status_t get_info (amd_dbgapi_displaced_stepping_info_t query,
                                 size_t value_size, void *value) const;
 

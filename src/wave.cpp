@@ -108,7 +108,7 @@ wave_t::instruction_at_pc () const
 amd_dbgapi_status_t
 wave_t::park ()
 {
-  if (m_parked)
+  if (m_is_parked)
     return AMD_DBGAPI_STATUS_SUCCESS;
 
   /* When a wave hits a breakpoint, we change its pc to point to an immutable
@@ -122,7 +122,7 @@ wave_t::park ()
 
   amd_dbgapi_status_t status
       = write_register (amdgpu_regnum_t::pc, &parked_pc);
-  m_parked = true;
+  m_is_parked = true;
 
   return status;
 }
@@ -130,13 +130,67 @@ wave_t::park ()
 amd_dbgapi_status_t
 wave_t::unpark ()
 {
-  dbgapi_assert (m_parked && "not parked");
+  dbgapi_assert (m_is_parked && "not parked");
 
   /* Restore the original pc if the wave was parked.  */
   amd_dbgapi_global_address_t saved_pc = pc ();
 
-  m_parked = false;
+  m_is_parked = false;
   return write_register (amdgpu_regnum_t::pc, &saved_pc);
+}
+
+amd_dbgapi_status_t
+wave_t::displaced_stepping_start (displaced_stepping_t &displaced_stepping)
+{
+  dbgapi_assert (!m_displaced_stepping && "already displaced stepping");
+  amd_dbgapi_status_t status;
+
+  /* FIXME: When it becomes possible to skip the resuming of the wave at the
+     displaced instruction, simulate it here and enqueue a WAVE_STOP event.  */
+
+  /* Restore the original pc if the wave was parked.  */
+  if (m_is_parked)
+    {
+      status = unpark ();
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        return status;
+    }
+
+  amd_dbgapi_global_address_t displaced_pc = displaced_stepping.to ();
+  status = write_register (amdgpu_regnum_t::pc, &displaced_pc);
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    return status;
+
+  m_displaced_stepping = &displaced_stepping;
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
+amd_dbgapi_status_t
+wave_t::displaced_stepping_complete ()
+{
+  dbgapi_assert (!!m_displaced_stepping && "not displaced stepping");
+
+  /* FIXME: Detect if the single-step has happened, and return if not.
+     Watch out for cbranch to self instruction.  */
+
+  bool success;
+  if (m_displaced_stepping->is_simulated ())
+    {
+      success = architecture ().displaced_stepping_simulate (
+          *this, *m_displaced_stepping);
+    }
+  else
+    {
+      success = architecture ().displaced_stepping_fixup (
+          *this, *m_displaced_stepping);
+    }
+
+  m_displaced_stepping = nullptr;
+
+  if (!architecture ().can_halt_at (instruction_at_pc ()))
+    park ();
+
+  return success ? AMD_DBGAPI_STATUS_SUCCESS : AMD_DBGAPI_STATUS_ERROR;
 }
 
 amd_dbgapi_status_t
@@ -236,7 +290,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
   if (state != AMD_DBGAPI_WAVE_STATE_STOP)
     {
       /* Restore the original pc if the wave was parked.  */
-      if (m_parked)
+      if (m_is_parked)
         {
           status = unpark ();
           if (status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -268,7 +322,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
       && prev_state != AMD_DBGAPI_WAVE_STATE_STOP)
     {
       /* We have to park the wave if we cannot halt at the current pc.  */
-      if (!m_parked && !architecture ().can_halt_at (instruction_at_pc ()))
+      if (!m_is_parked && !architecture ().can_halt_at (instruction_at_pc ()))
         park ();
 
       m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
@@ -324,7 +378,7 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
 
-  if (m_parked && regnum == amdgpu_regnum_t::pc)
+  if (m_is_parked && regnum == amdgpu_regnum_t::pc)
     {
       memcpy (static_cast<char *> (value) + offset,
               reinterpret_cast<const char *> (&m_saved_pc) + offset,
@@ -369,7 +423,7 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
   if (regnum == amdgpu_regnum_t::null)
     return AMD_DBGAPI_STATUS_SUCCESS;
 
-  if (m_parked && regnum == amdgpu_regnum_t::pc)
+  if (m_is_parked && regnum == amdgpu_regnum_t::pc)
     {
       memcpy (reinterpret_cast<char *> (&m_saved_pc) + offset,
               static_cast<const char *> (value) + offset, value_size);
