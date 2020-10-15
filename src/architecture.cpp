@@ -240,9 +240,23 @@ protected:
   virtual bool is_branch (const std::vector<uint8_t> &bytes) const;
   virtual bool is_cbranch (const std::vector<uint8_t> &bytes) const;
   virtual bool is_cbranch_i_fork (const std::vector<uint8_t> &bytes) const;
+  virtual bool is_nop (const std::vector<uint8_t> &bytes) const;
   virtual bool is_endpgm (const std::vector<uint8_t> &bytes) const override;
   virtual bool is_trap (const std::vector<uint8_t> &bytes,
                         uint8_t *trap_id = nullptr) const override;
+
+  bool can_execute_displaced (const std::vector<uint8_t> &bytes) const
+  {
+    /* Displace stepping over a cbranch_i_fork is not supported.  */
+    return !is_cbranch_i_fork (bytes);
+  }
+
+  bool can_simulate (const std::vector<uint8_t> &bytes) const
+  {
+    return is_branch (bytes) || is_cbranch (bytes) || is_call (bytes)
+           || is_getpc (bytes) || is_setpc (bytes) || is_swappc (bytes)
+           || is_endpgm (bytes) || is_nop (bytes);
+  }
 
   virtual amd_dbgapi_global_address_t
   branch_target (wave_t &wave, amd_dbgapi_global_address_t pc,
@@ -902,7 +916,11 @@ amdgcn_architecture_t::simulate_instruction (
       wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
       && "We can only simulate instructions when the wave is not running.");
 
-  if (is_endpgm (instruction))
+  if (is_nop (instruction))
+    {
+      new_pc = pc + nop_instruction ().size ();
+    }
+  else if (is_endpgm (instruction))
     {
       /* Mark the wave as invalid and un-halt it at an s_endpgm instruction.
          This allows the hardware to terminate the wave, while ensuring that
@@ -1018,20 +1036,14 @@ amdgcn_architecture_t::displaced_stepping_copy (
   const std::vector<uint8_t> &original_instruction
       = displaced_stepping.original_instruction ();
 
-  if (is_cbranch_i_fork (original_instruction))
-    {
-      /* Displace stepping over a cbranch_i_fork is not supported.  */
-      return false;
-    }
+  if (!can_execute_displaced (original_instruction))
+    return false;
 
   /* Copy a single instruction into the displaced stepping buffer.  */
 
   amd_dbgapi_global_address_t buffer = displaced_stepping.to ();
 
-  if (is_branch (original_instruction) || is_cbranch (original_instruction)
-      || is_call (original_instruction) || is_getpc (original_instruction)
-      || is_setpc (original_instruction) || is_swappc (original_instruction)
-      || is_endpgm (original_instruction))
+  if (can_simulate (original_instruction))
     {
       /* We simulate PC relative branch instructions to avoid reading
          uninitialized memory at the branch target.  */
@@ -1088,11 +1100,9 @@ amdgcn_architecture_t::displaced_stepping_fixup (
   [[maybe_unused]] const std::vector<uint8_t> &original_instruction
       = displaced_stepping.original_instruction ();
 
-  dbgapi_assert (
-      !is_call (original_instruction) && !is_getpc (original_instruction)
-      && !is_setpc (original_instruction) && !is_swappc (original_instruction)
-      && !is_endpgm (original_instruction)
-      && "Should be simulated: these instructions require special handling");
+  dbgapi_assert (!can_simulate (original_instruction)
+                 && "This instruction should be simulated as it requires "
+                    "special handling");
 
   amd_dbgapi_global_address_t restored_pc
       = wave.pc () + displaced_stepping.from () - displaced_stepping.to ();
@@ -1553,6 +1563,13 @@ amdgcn_architecture_t::is_sopp_instruction (const std::vector<uint8_t> &bytes,
 
   /* SOPP [101111111 OP7 SIMM16]  */
   return (encoding & 0xFFFF0000) == (0xBF800000 | (op7 & 0x7F) << 16);
+}
+
+bool
+amdgcn_architecture_t::is_nop (const std::vector<uint8_t> &bytes) const
+{
+  /* s_nop: SOPP Opcode 0  */
+  return is_sopp_instruction (bytes, 0);
 }
 
 bool
