@@ -129,6 +129,7 @@ class aql_queue_impl_t : public queue_t::queue_impl_t
 {
 private:
   static constexpr uint64_t aql_packet_size = 64;
+  static constexpr amd_dbgapi_size_t debugger_memory_chunk_size = 32;
 
   struct context_save_area_header_s
   {
@@ -136,15 +137,27 @@ private:
     uint32_t ctrl_stack_size;
     uint32_t wave_state_offset;
     uint32_t wave_state_size;
+    uint32_t debugger_memory_offset;
+    uint32_t debugger_memory_size;
   };
+
+  amd_dbgapi_global_address_t m_scratch_backing_memory_address{ 0 };
+  amd_dbgapi_size_t m_scratch_backing_memory_size{ 0 };
+
+  /* The memory reserved by the thunk library for the debugger is used to store
+     instruction buffers.  Instruction buffers are lazily allocated from the
+     reserved memory, and when freed, their index is returned to a free list.
+     Each wave is guaranteed its own unique instruction buffer.  */
+  amd_dbgapi_global_address_t m_debugger_memory_base;
+
+  uint16_t m_debugger_memory_chunk_count;
+  uint16_t m_debugger_memory_next_chunk{ 0 };
+  std::vector<uint16_t> m_debugger_memory_free_chunks;
 
   /* Value used to mark waves that are found in the context save area. When
      sweeping, any wave found with a mark less than the current mark will be
      deleted, as these waves are no longer active.  */
   monotonic_counter_t<epoch_t, 1> m_next_wave_mark;
-
-  amd_dbgapi_global_address_t m_scratch_backing_memory_address{ 0 };
-  amd_dbgapi_size_t m_scratch_backing_memory_size{ 0 };
 
   amd_dbgapi_global_address_t m_context_save_start_address;
   wave_t::callbacks_t m_callbacks;
@@ -179,6 +192,33 @@ aql_queue_impl_t::aql_queue_impl_t (
   const architecture_t &architecture = m_queue.architecture ();
   process_t &process = m_queue.process ();
   amd_dbgapi_status_t status;
+
+  struct context_save_area_header_s header;
+  if (process.read_global_memory (m_os_queue_info.ctx_save_restore_address,
+                                  &header, sizeof (header))
+      != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not read the context save area header");
+
+  if (!header.debugger_memory_offset || !header.debugger_memory_size)
+    error ("Per-queue memory reserved for the debugger is missing");
+
+  m_debugger_memory_base = utils::align_up (
+      m_os_queue_info.ctx_save_restore_address + header.debugger_memory_offset,
+      debugger_memory_chunk_size);
+
+  auto chunk_count
+      = (m_os_queue_info.ctx_save_restore_address + header.debugger_memory_size
+         + header.debugger_memory_offset - m_debugger_memory_base)
+        / debugger_memory_chunk_size;
+
+  /* Ensure that the number of chunks does not overflow the 16 bit index.  */
+  if (chunk_count
+      > std::numeric_limits<decltype (m_debugger_memory_chunk_count)>::max ())
+    error ("Increase the width of m_debugger_memory_chunk_count");
+
+  m_debugger_memory_chunk_count = chunk_count;
+
+  m_debugger_memory_free_chunks.reserve (m_debugger_memory_chunk_count);
 
   m_context_save_start_address = m_os_queue_info.ctx_save_restore_address
                                  + sizeof (context_save_area_header_s);
@@ -250,6 +290,53 @@ aql_queue_impl_t::aql_queue_impl_t (
     [&] () { return m_scratch_backing_memory_address; },
     /* Return the current scratch backing memory size.  */
     [&] () { return m_scratch_backing_memory_size; },
+    /* Return a new instruction buffer instance in this queue.  */
+    [&] () {
+      auto &breakpoint_instruction = architecture.breakpoint_instruction ();
+      amd_dbgapi_global_address_t instruction_buffer_address;
+
+      if (!m_debugger_memory_free_chunks.empty ())
+        {
+          auto index = m_debugger_memory_free_chunks.back ();
+          m_debugger_memory_free_chunks.pop_back ();
+          instruction_buffer_address
+              = m_debugger_memory_base + index * debugger_memory_chunk_size;
+        }
+      else if (m_debugger_memory_next_chunk < m_debugger_memory_chunk_count)
+        {
+          instruction_buffer_address
+              = m_debugger_memory_base
+                + m_debugger_memory_next_chunk++ * debugger_memory_chunk_size;
+
+          /* An instruction buffer is always terminated by a valid instruction
+             so that it can be used to "park" a wave by setting its pc at the
+             end of the buffer.  We use a trap instruction to prevent runaway
+             waves from executing from unmapped memory. Copy the instruction
+             now before handing the buffer to the instruction_buffer_ref_t. */
+          if (process.write_global_memory (
+                  instruction_buffer_address + debugger_memory_chunk_size
+                      - breakpoint_instruction.size (),
+                  breakpoint_instruction.data (),
+                  breakpoint_instruction.size ())
+              != AMD_DBGAPI_STATUS_SUCCESS)
+            error ("Could not write to the debugger memory");
+        }
+      else
+        error ("could not allocate debugger memory");
+
+      auto deleter = [this] (amd_dbgapi_global_address_t ptr) {
+        size_t index
+            = (ptr - m_debugger_memory_base) / debugger_memory_chunk_size;
+
+        dbgapi_assert (index < m_debugger_memory_chunk_count);
+        m_debugger_memory_free_chunks.emplace_back (index);
+      };
+
+      return wave_t::instruction_buffer_ref_t (
+          instruction_buffer_address,
+          debugger_memory_chunk_size - breakpoint_instruction.size (),
+          deleter);
+    },
   };
 }
 

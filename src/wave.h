@@ -88,12 +88,65 @@ public:
   static constexpr register_cache_policy_t register_cache_policy
       = register_cache_policy_t::write_back;
 
+  /* An instruction_buffer_ref holds a reference to an instruction buffer.
+     It behaves like a std::unique_ptr but is optimized to contain the
+     instruction buffer instance data to avoid the cost associated with
+     allocate/free.  An instruction buffer can hold one or more instructions,
+     and is always terminated by a 'guard' instruction (s_trap).  */
+  class instruction_buffer_ref_t
+  {
+  private:
+    using deleter_type = std::function<void (amd_dbgapi_global_address_t)>;
+
+    struct
+    {
+      amd_dbgapi_global_address_t m_buffer_address;
+      uint32_t m_size; /* size of the instruction stored in this buffer.  */
+      uint32_t m_capacity; /* the buffer's capacity in bytes. */
+
+      size_t size () const { return m_size; }
+      void resize (size_t size)
+      {
+        if (size > m_capacity)
+          error ("size exceeds capacity");
+        m_size = size;
+      }
+
+      amd_dbgapi_global_address_t begin () const { return m_buffer_address; }
+      amd_dbgapi_global_address_t end () const { return begin () + size (); }
+
+      bool empty () const { return !size (); }
+      void clear () { resize (0); }
+    } m_data;
+
+    deleter_type m_deleter; /* functor to deallocate the buffer when this
+                               buffer is reset.  */
+
+  public:
+    instruction_buffer_ref_t (amd_dbgapi_global_address_t buffer_address,
+                              uint32_t capacity, deleter_type deleter);
+    instruction_buffer_ref_t (instruction_buffer_ref_t &&other);
+    instruction_buffer_ref_t (instruction_buffer_ref_t &other) = delete;
+
+    ~instruction_buffer_ref_t ();
+
+    instruction_buffer_ref_t &operator= (instruction_buffer_ref_t &&other);
+    instruction_buffer_ref_t &operator= (instruction_buffer_ref_t &other)
+        = delete;
+
+    decltype (m_data) *operator-> () { return &m_data; }
+
+    amd_dbgapi_global_address_t release ();
+  };
+
   struct callbacks_t
   {
     /* Return the current scratch backing memory address.  */
     std::function<amd_dbgapi_global_address_t ()> scratch_memory_base;
     /* Return the current scratch backing memory size.  */
     std::function<amd_dbgapi_size_t ()> scratch_memory_size;
+    /* Return a new wave buffer instance in this queue.  */
+    std::function<instruction_buffer_ref_t ()> get_instruction_buffer;
   };
 
 private:
