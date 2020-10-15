@@ -87,6 +87,14 @@ public:
   static constexpr register_cache_policy_t register_cache_policy
       = register_cache_policy_t::write_back;
 
+  struct callbacks_t
+  {
+    /* Return the current scratch backing memory address.  */
+    std::function<amd_dbgapi_global_address_t ()> scratch_memory_base;
+    /* Return the current scratch backing memory size.  */
+    std::function<amd_dbgapi_size_t ()> scratch_memory_size;
+  };
+
 private:
   epoch_t m_mark{ 0 };
   amd_dbgapi_wave_state_t m_state{ AMD_DBGAPI_WAVE_STATE_RUN };
@@ -106,6 +114,7 @@ private:
   uint32_t m_wave_in_group;
 
   const wave_t *m_group_leader{ nullptr };
+  const callbacks_t &m_callbacks;
   dispatch_t &m_dispatch;
 
   amd_dbgapi_status_t
@@ -122,8 +131,9 @@ private:
                      const void *write, size_t *size);
 
 public:
-  wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t &dispatch)
-      : handle_object (wave_id), m_dispatch (dispatch)
+  wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t &dispatch,
+          const callbacks_t &callbacks)
+      : handle_object (wave_id), m_callbacks (callbacks), m_dispatch (dispatch)
   {
   }
 

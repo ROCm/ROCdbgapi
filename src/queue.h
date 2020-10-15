@@ -100,9 +100,6 @@ public:
   amd_dbgapi_global_address_t parked_wave_buffer_address () const;
   amd_dbgapi_global_address_t endpgm_buffer_address () const;
 
-  amd_dbgapi_global_address_t scratch_backing_memory_address () const;
-  amd_dbgapi_size_t scratch_backing_memory_size () const;
-
   amd_dbgapi_status_t get_info (amd_dbgapi_queue_info_t query,
                                 size_t value_size, void *value) const;
 

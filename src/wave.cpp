@@ -409,9 +409,9 @@ wave_t::xfer_private_memory_swizzled (
   if (!dispatch ().is_scratch_enabled ())
     return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
 
-  amd_dbgapi_size_t limit = queue ().scratch_backing_memory_size ();
+  amd_dbgapi_size_t limit = m_callbacks.scratch_memory_size ();
   amd_dbgapi_global_address_t scratch_base
-      = queue ().scratch_backing_memory_address ();
+      = m_callbacks.scratch_memory_base ();
 
   size_t bytes = *size;
   while (bytes > 0)
@@ -473,7 +473,7 @@ wave_t::xfer_private_memory_unswizzled (
   if (!dispatch ().is_scratch_enabled ())
     return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
 
-  amd_dbgapi_size_t limit = queue ().scratch_backing_memory_size ();
+  amd_dbgapi_size_t limit = m_callbacks.scratch_memory_size ();
   amd_dbgapi_size_t offset = m_scratch_offset + segment_address;
 
   if ((offset + *size) > limit)
@@ -485,7 +485,7 @@ wave_t::xfer_private_memory_unswizzled (
     }
 
   amd_dbgapi_global_address_t global_address
-      = queue ().scratch_backing_memory_address () + offset;
+      = m_callbacks.scratch_memory_base () + offset;
 
   if (read)
     return process ().read_global_memory_partial (global_address, read, size);

@@ -85,16 +85,6 @@ public:
     return m_displaced_stepping_buffer_address;
   }
 
-  amd_dbgapi_global_address_t scratch_backing_memory_address () const
-  {
-    return m_scratch_backing_memory_address;
-  }
-
-  amd_dbgapi_size_t scratch_backing_memory_size () const
-  {
-    return m_scratch_backing_memory_size;
-  }
-
   amd_dbgapi_global_address_t parked_wave_buffer_address () const
   {
     return m_parked_wave_buffer_address;
@@ -126,9 +116,6 @@ protected:
 protected:
   amd_dbgapi_global_address_t m_displaced_stepping_buffer_address{ 0 };
 
-  amd_dbgapi_global_address_t m_scratch_backing_memory_address{ 0 };
-  amd_dbgapi_size_t m_scratch_backing_memory_size{ 0 };
-
   os_queue_snapshot_entry_t const m_os_queue_info;
   queue_t &m_queue;
 };
@@ -151,6 +138,18 @@ private:
     uint32_t wave_state_size;
   };
 
+  /* Value used to mark waves that are found in the context save area. When
+     sweeping, any wave found with a mark less than the current mark will be
+     deleted, as these waves are no longer active.  */
+  monotonic_counter_t<epoch_t, 1> m_next_wave_mark;
+
+  amd_dbgapi_global_address_t m_scratch_backing_memory_address{ 0 };
+  amd_dbgapi_size_t m_scratch_backing_memory_size{ 0 };
+
+  amd_dbgapi_global_address_t m_context_save_start_address;
+  wave_t::callbacks_t m_callbacks;
+  hsa_queue_t m_hsa_queue;
+
   amd_dbgapi_status_t update_waves ();
 
 public:
@@ -171,15 +170,6 @@ public:
   virtual amd_dbgapi_os_queue_type_t type () const override;
 
   virtual void state_changed (queue_t::state_t state) override;
-
-private:
-  /* Value used to mark waves that are found in the context save area. When
-     sweeping, any wave found with a mark less than the current mark will be
-     deleted, as these waves are no longer active.  */
-  monotonic_counter_t<epoch_t, 1> m_next_wave_mark;
-
-  amd_dbgapi_global_address_t m_context_save_start_address;
-  hsa_queue_t m_hsa_queue;
 };
 
 aql_queue_impl_t::aql_queue_impl_t (
@@ -254,6 +244,13 @@ aql_queue_impl_t::aql_queue_impl_t (
 
   if ((m_hsa_queue.size * 64) != packets_size ())
     error ("hsa_queue_t size != kfd queue info ring size");
+
+  m_callbacks = {
+    /* Return the current scratch backing memory address.  */
+    [&] () { return m_scratch_backing_memory_address; },
+    /* Return the current scratch backing memory size.  */
+    [&] () { return m_scratch_backing_memory_size; },
+  };
 }
 
 aql_queue_impl_t::~aql_queue_impl_t ()
@@ -497,7 +494,7 @@ aql_queue_impl_t::update_waves ()
               os_queue_packet_id, /* os_queue_packet_id  */
               dispatch_ptr);      /* packet_address  */
 
-        wave = &process.create<wave_t> (*dispatch);
+        wave = &process.create<wave_t> (*dispatch, m_callbacks);
 
         wave->set_visibility (visibility);
       }
@@ -843,18 +840,6 @@ amd_dbgapi_global_address_t
 queue_t::endpgm_buffer_address () const
 {
   return m_impl->endpgm_buffer_address ();
-}
-
-amd_dbgapi_global_address_t
-queue_t::scratch_backing_memory_address () const
-{
-  return m_impl->scratch_backing_memory_address ();
-}
-
-amd_dbgapi_size_t
-queue_t::scratch_backing_memory_size () const
-{
-  return m_impl->scratch_backing_memory_size ();
 }
 
 void
