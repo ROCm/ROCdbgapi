@@ -108,6 +108,9 @@ wave_t::instruction_at_pc () const
 amd_dbgapi_status_t
 wave_t::park ()
 {
+  dbgapi_assert (!m_displaced_stepping
+                 && "Cannot park a wave that is displaced stepping");
+
   if (m_is_parked)
     return AMD_DBGAPI_STATUS_SUCCESS;
 
@@ -117,8 +120,10 @@ wave_t::park ()
      instruction restored.  */
   m_saved_pc = pc ();
 
-  amd_dbgapi_global_address_t parked_pc
-      = queue ().parked_wave_buffer_address ();
+  /* The instruction buffer must be empty as otherwise it would indicate the
+     wave is displace stepping in which case we should not be parking it.  */
+  dbgapi_assert (instruction_buffer ()->empty ());
+  amd_dbgapi_global_address_t parked_pc = instruction_buffer ()->end ();
 
   amd_dbgapi_status_t status
       = write_register (amdgpu_regnum_t::pc, &parked_pc);
@@ -140,7 +145,35 @@ wave_t::unpark ()
 }
 
 amd_dbgapi_status_t
-wave_t::displaced_stepping_start (displaced_stepping_t &displaced_stepping)
+wave_t::terminate ()
+{
+  /* Mark the wave as invalid and un-halt it at an s_endpgm instruction. This
+     allows the hardware to terminate the wave, while ensuring that the wave is
+     never reported to the client as existing.  */
+
+  auto &endpgm_instruction = architecture ().endpgm_instruction ();
+
+  instruction_buffer ()->resize (endpgm_instruction.size ());
+  amd_dbgapi_global_address_t terminate_pc = instruction_buffer ()->begin ();
+
+  amd_dbgapi_status_t status = process ().write_global_memory (
+      terminate_pc, endpgm_instruction.data (), endpgm_instruction.size ());
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    return status;
+
+  /* Make the PC point to an immutable s_endpgm instruction.  */
+  status = write_register (amdgpu_regnum_t::pc, &terminate_pc);
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    return status;
+
+  /* Hide this wave so that it isn't reported to the client.  */
+  set_visibility (wave_t::visibility_t::hidden_at_endpgm);
+
+  return set_state (AMD_DBGAPI_WAVE_STATE_RUN);
+}
+
+amd_dbgapi_status_t
+wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
 {
   dbgapi_assert (!m_displaced_stepping && "already displaced stepping");
   amd_dbgapi_status_t status;
@@ -156,13 +189,38 @@ wave_t::displaced_stepping_start (displaced_stepping_t &displaced_stepping)
         return status;
     }
 
-  amd_dbgapi_global_address_t displaced_pc = displaced_stepping.to ();
-  status = write_register (amdgpu_regnum_t::pc, &displaced_pc);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
+  /* Creating a displaced stepping may throw an exception_t, and in the case of
+     a memory error, we simply want to return the error code.  */
+  try
+    {
+      amd_dbgapi_displaced_stepping_id_t id{ instruction_buffer ()->begin () };
 
-  m_displaced_stepping = &displaced_stepping;
-  return AMD_DBGAPI_STATUS_SUCCESS;
+      /* TODO: Waves of the same queue stepping over the same breakpoint could
+         share a displaced_stepping_t. We would need to find the instance from
+         the old pc, and reference count it.  */
+      displaced_stepping_t *displaced_stepping
+          = &process ().create<displaced_stepping_t> (std::make_optional (id),
+                                                      queue (), pc (),
+                                                      saved_instruction_bytes);
+
+      amd_dbgapi_global_address_t displaced_pc = displaced_stepping->to ();
+      status = write_register (amdgpu_regnum_t::pc, &displaced_pc);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        return status;
+
+      m_displaced_stepping = displaced_stepping;
+      return AMD_DBGAPI_STATUS_SUCCESS;
+    }
+  catch (const exception_t &ex)
+    {
+      if (amd_dbgapi_status_t status = ex.error_code ();
+          status == AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION
+          || status == AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS)
+        return status;
+
+      /* For all other errors, rethrow the exception  */
+      throw;
+    }
 }
 
 amd_dbgapi_status_t
@@ -185,6 +243,7 @@ wave_t::displaced_stepping_complete ()
           *this, *m_displaced_stepping);
     }
 
+  process ().destroy (m_displaced_stepping);
   m_displaced_stepping = nullptr;
 
   if (!architecture ().can_halt_at (instruction_at_pc ()))

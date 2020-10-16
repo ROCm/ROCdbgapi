@@ -80,21 +80,6 @@ public:
 
   os_queue_id_t os_queue_id () const { return m_os_queue_info.queue_id; }
 
-  amd_dbgapi_global_address_t displaced_stepping_buffer_address () const
-  {
-    return m_displaced_stepping_buffer_address;
-  }
-
-  amd_dbgapi_global_address_t parked_wave_buffer_address () const
-  {
-    return m_parked_wave_buffer_address;
-  }
-
-  amd_dbgapi_global_address_t endpgm_buffer_address () const
-  {
-    return m_endpgm_buffer_address;
-  }
-
   virtual amd_dbgapi_status_t
   active_packets_info (amd_dbgapi_os_queue_packet_id_t *read_packet_id_p,
                        amd_dbgapi_os_queue_packet_id_t *write_packet_id_p,
@@ -109,13 +94,6 @@ public:
   virtual void state_changed (queue_t::state_t) {}
 
 protected:
-  /* FIXME: Move out of queue_impl_t.  */
-  amd_dbgapi_global_address_t m_parked_wave_buffer_address{ 0 };
-  amd_dbgapi_global_address_t m_endpgm_buffer_address{ 0 };
-
-protected:
-  amd_dbgapi_global_address_t m_displaced_stepping_buffer_address{ 0 };
-
   os_queue_snapshot_entry_t const m_os_queue_info;
   queue_t &m_queue;
 };
@@ -159,7 +137,6 @@ private:
      deleted, as these waves are no longer active.  */
   monotonic_counter_t<epoch_t, 1> m_next_wave_mark;
 
-  amd_dbgapi_global_address_t m_context_save_start_address;
   wave_t::callbacks_t m_callbacks;
   hsa_queue_t m_hsa_queue;
 
@@ -219,39 +196,6 @@ aql_queue_impl_t::aql_queue_impl_t (
   m_debugger_memory_chunk_count = chunk_count;
 
   m_debugger_memory_free_chunks.reserve (m_debugger_memory_chunk_count);
-
-  m_context_save_start_address = m_os_queue_info.ctx_save_restore_address
-                                 + sizeof (context_save_area_header_s);
-
-  /* FIXME: This is only temporary, we are using the free space in the queue
-     control stack memory. The control stack grows from high to low address, so
-     we can steal bytes between the context save area header and the top of
-     stack limit. update_waves () checks that the area is not overwritten.  */
-
-  m_displaced_stepping_buffer_address = m_context_save_start_address;
-  m_context_save_start_address
-      += architecture.displaced_stepping_buffer_size ();
-
-  m_parked_wave_buffer_address = m_context_save_start_address;
-  m_context_save_start_address
-      += architecture.breakpoint_instruction ().size ();
-
-  status = process.write_global_memory (
-      m_parked_wave_buffer_address,
-      architecture.breakpoint_instruction ().data (),
-      architecture.breakpoint_instruction ().size ());
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not write to the parked wave instruction buffer (rc=%d)",
-           status);
-
-  m_endpgm_buffer_address = m_context_save_start_address;
-  m_context_save_start_address += architecture.endpgm_instruction ().size ();
-
-  status = process.write_global_memory (
-      m_endpgm_buffer_address, architecture.endpgm_instruction ().data (),
-      architecture.endpgm_instruction ().size ());
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not write to the endpgm instruction buffer (rc=%d)", status);
 
   /* Read the hsa_queue_t at the top of the amd_queue_t. Since the amd_queue_t
     structure could change, it can only be accessed by calculating its address
@@ -392,12 +336,6 @@ aql_queue_impl_t::update_waves ()
       m_os_queue_info.ctx_save_restore_address, &header, sizeof (header));
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
-
-  /* Make sure the top of the control stack does not overwrite the displaced
-     stepping buffer or parked wave buffer.  */
-  if (m_os_queue_info.ctx_save_restore_address + header.ctrl_stack_offset
-      < m_context_save_start_address)
-    error ("not enough free space in the control stack");
 
   /* Make sure the bottom of the ctrl stack == the start of the
      wave save area.  */
@@ -909,24 +847,6 @@ os_queue_id_t
 queue_t::os_queue_id () const
 {
   return is_valid () ? m_impl->os_queue_id () : os_invalid_queueid;
-}
-
-amd_dbgapi_global_address_t
-queue_t::displaced_stepping_buffer_address () const
-{
-  return m_impl->displaced_stepping_buffer_address ();
-}
-
-amd_dbgapi_global_address_t
-queue_t::parked_wave_buffer_address () const
-{
-  return m_impl->parked_wave_buffer_address ();
-}
-
-amd_dbgapi_global_address_t
-queue_t::endpgm_buffer_address () const
-{
-  return m_impl->endpgm_buffer_address ();
 }
 
 void

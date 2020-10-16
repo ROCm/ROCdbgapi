@@ -150,27 +150,34 @@ public:
   };
 
 private:
-  epoch_t m_mark{ 0 };
   amd_dbgapi_wave_state_t m_state{ AMD_DBGAPI_WAVE_STATE_RUN };
-  visibility_t m_visibility{ visibility_t::visible };
   amd_dbgapi_wave_stop_reason_t m_stop_reason{};
-
-  uint32_t m_hwregs_cache[amdgpu_regnum_t::last_hwreg
-                          - amdgpu_regnum_t::first_hwreg + 1];
-
-  std::unique_ptr<architecture_t::cwsr_descriptor_t> m_descriptor;
-
-  amd_dbgapi_size_t m_scratch_offset{ 0 };
   amd_dbgapi_global_address_t m_saved_pc{ 0 };
+  epoch_t m_mark{ 0 };
+
+  visibility_t m_visibility{ visibility_t::visible };
   bool m_is_parked{ false };
 
+  amd_dbgapi_size_t m_scratch_offset{ 0 };
   std::array<uint32_t, 3> m_group_ids;
   uint32_t m_wave_in_group;
+
+  std::unique_ptr<architecture_t::cwsr_descriptor_t> m_descriptor;
+  std::optional<instruction_buffer_ref_t> m_instruction_buffer;
+  uint32_t m_hwregs_cache[amdgpu_regnum_t::last_hwreg
+                          - amdgpu_regnum_t::first_hwreg + 1];
 
   displaced_stepping_t *m_displaced_stepping{ nullptr };
   const wave_t *m_group_leader{ nullptr };
   const callbacks_t &m_callbacks;
   dispatch_t &m_dispatch;
+
+  instruction_buffer_ref_t &instruction_buffer ()
+  {
+    if (!m_instruction_buffer)
+      m_instruction_buffer.emplace (m_callbacks.get_instruction_buffer ());
+    return *m_instruction_buffer;
+  }
 
   amd_dbgapi_status_t
   xfer_private_memory_swizzled (amd_dbgapi_segment_address_t segment_address,
@@ -220,9 +227,10 @@ public:
 
   amd_dbgapi_status_t park ();
   amd_dbgapi_status_t unpark ();
+  amd_dbgapi_status_t terminate ();
 
   amd_dbgapi_status_t
-  displaced_stepping_start (displaced_stepping_t &displaced_stepping);
+  displaced_stepping_start (const void *saved_instruction_bytes);
   amd_dbgapi_status_t displaced_stepping_complete ();
   const displaced_stepping_t *displaced_stepping () const
   {

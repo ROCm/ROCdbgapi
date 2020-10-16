@@ -128,33 +128,8 @@ amd_dbgapi_displaced_stepping_start (
   if (wave->displaced_stepping ())
     return AMD_DBGAPI_STATUS_ERROR; /* FIXME: Check error code.  */
 
-  /* TODO: Waves of the same queue stepping over the same breakpoint could
-     share a displaced_stepping_t. We would need to find the instance from
-     the old pc, and reference count it.  */
-
-  amd_dbgapi_global_address_t buffer
-      = wave->queue ().displaced_stepping_buffer_address ();
-
-  /* FIXME: We can only have one displaced_stepping_t per queue, so make sure
-     it isn't currently used.  */
-  amd_dbgapi_displaced_stepping_id_t id{ buffer };
-
-  displaced_stepping_t *displaced_stepping = find (id);
-  if (displaced_stepping)
-    {
-      /* FIXME: gdb's infrun may have canceled the displaced stepping to handle
-         a different event without completing the operation. This needs to be
-         fixed, but until then, simply destroy the stale displaced_stepping.
-
-         When gdb is fixed, re-enable this code:
-         warning ("another stepping buffer is still in use");
-         return AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_BUFFER_UNAVAILABLE;
-       */
-      wave->process ().destroy (displaced_stepping);
-    }
-
-  /* displaced_stepping_t::start may write uncached registers, so we need the
-     queue to be suspended.  (FIXME: Can we check if the instruction is
+  /* wave_t::displaced_stepping_start writes registers, so we need the queue
+     to be suspended.  (FIXME: Can we check if the instruction is
      simulated?)  */
   scoped_queue_suspend_t suspend (wave->queue (), "displaced stepping start");
 
@@ -163,37 +138,17 @@ amd_dbgapi_displaced_stepping_start (
   if (!(wave = find (wave_id)))
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
 
-  /* Creating a displaced stepping may throw an exception_t, and in the case of
-     a memory error, we simply want to return the error code.  */
-  try
-    {
-      displaced_stepping_t &displaced_stepping
-          = wave->process ().create<displaced_stepping_t> (
-              std::make_optional (id), wave->queue (), wave->pc (),
-              saved_instruction_bytes);
+  amd_dbgapi_status_t status
+      = wave->displaced_stepping_start (saved_instruction_bytes);
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    warning ("displaced_stepping_t::start failed (rc=%d)", status);
 
-      amd_dbgapi_status_t status
-          = wave->displaced_stepping_start (displaced_stepping);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        warning ("displaced_stepping_t::start failed (rc=%d)", status);
+  /* TODO: We could handle trivial step-overs (e.g. branches) and return
+     AMD_DBGAPI_DISPLACED_STEPPING_NONE.  In that case, the wave does not
+     need to be single-stepped to step over the breakpoint.  */
+  *displaced_stepping_id = wave->displaced_stepping ()->id ();
 
-      /* TODO: We could handle trivial step-overs (e.g. branches) and return
-         AMD_DBGAPI_DISPLACED_STEPPING_NONE.  In that case, the wave does not
-         need to be single-stepped to step over the breakpoint.  */
-      *displaced_stepping_id = id;
-
-      return status;
-    }
-  catch (const exception_t &ex)
-    {
-      if (amd_dbgapi_status_t status = ex.error_code ();
-          status == AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION
-          || status == AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS)
-        return status;
-
-      /* For all other errors, rethrow the exception  */
-      throw;
-    }
+  return status;
   CATCH;
 }
 
@@ -243,8 +198,6 @@ amd_dbgapi_displaced_stepping_complete (
 
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     warning ("displaced_stepping_t::complete failed (rc=%d)", status);
-
-  wave->process ().destroy (displaced_stepping);
 
   return status;
   CATCH;

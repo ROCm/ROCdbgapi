@@ -25,6 +25,7 @@
 #include "amd-dbgapi.h"
 #include "handle_object.h"
 #include "queue.h"
+#include "wave.h"
 
 #include <cstdint>
 #include <vector>
@@ -33,7 +34,6 @@ namespace amd::dbgapi
 {
 
 class architecture_t;
-class wave_t;
 class process_t;
 
 /* AMD Debugger API Displaced Stepping.  */
@@ -47,7 +47,6 @@ private:
 
   amd_dbgapi_global_address_t const m_from;
   std::vector<uint8_t> m_original_instruction;
-
   queue_t &m_queue;
 
 public:

@@ -922,21 +922,7 @@ amdgcn_architecture_t::simulate_instruction (
     }
   else if (is_endpgm (instruction))
     {
-      /* Mark the wave as invalid and un-halt it at an s_endpgm instruction.
-         This allows the hardware to terminate the wave, while ensuring that
-         the wave is never reported to the client as existing.  */
-
-      /* Make the PC point to an immutable s_endpgm instruction.  */
-      amd_dbgapi_global_address_t pc = wave.queue ().endpgm_buffer_address ();
-      amd_dbgapi_status_t status
-          = wave.write_register (amdgpu_regnum_t::pc, &pc);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
-
-      /* Hide this wave so that it isn't reported to the client.  */
-      wave.set_visibility (wave_t::visibility_t::hidden_at_endpgm);
-
-      return wave.set_state (AMD_DBGAPI_WAVE_STATE_RUN);
+      return wave.terminate ();
     }
   else if (is_branch (instruction) || is_cbranch (instruction))
     {
@@ -1110,9 +1096,6 @@ amdgcn_architecture_t::displaced_stepping_fixup (
   if (wave.write_register (amdgpu_regnum_t::pc, &restored_pc)
       != AMD_DBGAPI_STATUS_SUCCESS)
     return false;
-
-  if (!can_halt_at (wave.instruction_at_pc ()))
-    wave.park ();
 
   return true;
 }
