@@ -112,8 +112,11 @@ public:
         m_size = size;
       }
 
-      amd_dbgapi_global_address_t begin () const { return m_buffer_address; }
-      amd_dbgapi_global_address_t end () const { return begin () + size (); }
+      amd_dbgapi_global_address_t begin () const { return end () - size (); }
+      amd_dbgapi_global_address_t end () const
+      {
+        return m_buffer_address + m_capacity;
+      }
 
       bool empty () const { return !size (); }
       void clear () { resize (0); }
@@ -194,10 +197,8 @@ private:
 
 public:
   wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t &dispatch,
-          const callbacks_t &callbacks)
-      : handle_object (wave_id), m_callbacks (callbacks), m_dispatch (dispatch)
-  {
-  }
+          const callbacks_t &callbacks);
+  ~wave_t ();
 
   visibility_t visibility () const { return m_visibility; }
   void set_visibility (visibility_t visibility);

@@ -38,53 +38,19 @@ namespace amd::dbgapi
 
 displaced_stepping_t::displaced_stepping_t (
     amd_dbgapi_displaced_stepping_id_t displaced_stepping_id, queue_t &queue,
-    amd_dbgapi_global_address_t from, const void *saved_instruction_bytes)
-    : handle_object (displaced_stepping_id), m_from (from), m_queue (queue)
+    wave_t::instruction_buffer_ref_t instruction_buffer,
+    amd_dbgapi_global_address_t from, bool is_simulated,
+    std::vector<uint8_t> instruction)
+    : handle_object (displaced_stepping_id), m_is_simulated (is_simulated),
+      m_from (from), m_instruction_buffer (std::move (instruction_buffer)),
+      m_original_instruction (std::move (instruction)), m_queue (queue)
 {
-  const architecture_t &architecture = this->architecture ();
-  const std::vector<uint8_t> &breakpoint_instruction
-      = architecture.breakpoint_instruction ();
+}
 
-  /* Keep a copy of the original instruction bytes, we may need it to
-     complete the displaced stepping.  */
-
-  m_original_instruction.resize (architecture.largest_instruction_size ());
-  memcpy (m_original_instruction.data (), saved_instruction_bytes,
-          breakpoint_instruction.size ());
-
-  size_t offset = breakpoint_instruction.size ();
-  size_t remaining_size = m_original_instruction.size () - offset;
-
-  if (auto status = process ().read_global_memory_partial (
-          from + offset, m_original_instruction.data () + offset,
-          &remaining_size);
-      status != AMD_DBGAPI_STATUS_SUCCESS)
-    throw exception_t (status);
-
-  /* Trim unread bytes.  */
-  m_original_instruction.resize (offset + remaining_size);
-
-  /* Trim to size of instruction.  */
-  size_t instruction_size
-      = architecture.instruction_size (m_original_instruction);
-
-  if (!instruction_size)
-    {
-      /* If instruction_size is 0, the disassembler did not recognize the
-         instruction.  This instruction may be non-sequencial, and we won't be
-         able to tell if the jump is relative or absolute.  */
-      throw exception_t (AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION);
-    }
-
-  m_original_instruction.resize (instruction_size);
-
-  /* Copy a single instruction to the displaced stepping buffer.  */
-  amd_dbgapi_status_t status
-      = architecture.displaced_stepping_copy (*this, &m_is_simulated);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    throw exception_t (status);
-
-  m_is_valid = true;
+displaced_stepping_t::~displaced_stepping_t ()
+{
+  dbgapi_assert (m_reference_count == 0
+                 && "all displaced stepping operations should have completed");
 }
 
 amd_dbgapi_status_t
@@ -98,6 +64,25 @@ displaced_stepping_t::get_info (amd_dbgapi_displaced_stepping_info_t query,
     }
 
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+}
+
+void
+displaced_stepping_t::retain (displaced_stepping_t *displaced_stepping)
+{
+  dbgapi_assert (displaced_stepping);
+
+  [[maybe_unused]] auto prev_count = displaced_stepping->m_reference_count++;
+  dbgapi_assert (displaced_stepping->m_reference_count > prev_count);
+}
+
+void
+displaced_stepping_t::release (displaced_stepping_t *displaced_stepping)
+{
+  dbgapi_assert (displaced_stepping
+                 && displaced_stepping->m_reference_count > 0);
+
+  if (--displaced_stepping->m_reference_count == 0)
+    displaced_stepping->process ().destroy (displaced_stepping);
 }
 
 } /* namespace amd::dbgapi */

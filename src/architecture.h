@@ -158,6 +158,10 @@ public:
   virtual bool is_trap (const std::vector<uint8_t> &bytes,
                         uint8_t *trap_id = nullptr) const = 0;
 
+  virtual bool
+  can_execute_displaced (const std::vector<uint8_t> &bytes) const = 0;
+  virtual bool can_simulate (const std::vector<uint8_t> &bytes) const = 0;
+
   virtual amd_dbgapi_status_t
   convert_address_space (const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
                          const address_space_t &from_address_space,
@@ -219,9 +223,6 @@ public:
   can_halt_at (const std::optional<std::vector<uint8_t>> &instruction) const;
 
   virtual size_t displaced_stepping_buffer_size () const = 0;
-  virtual amd_dbgapi_status_t
-  displaced_stepping_copy (displaced_stepping_t &displaced_stepping,
-                           bool *simulate) const = 0;
   virtual bool displaced_stepping_fixup (
       wave_t &wave, displaced_stepping_t &displaced_stepping) const = 0;
   virtual bool displaced_stepping_simulate (

@@ -42,30 +42,38 @@ class displaced_stepping_t
     : public detail::handle_object<amd_dbgapi_displaced_stepping_id_t>
 {
 private:
-  bool m_is_valid{ false };
   bool m_is_simulated{ false };
+  size_t m_reference_count{ 1 };
 
   amd_dbgapi_global_address_t const m_from;
+  std::optional<wave_t::instruction_buffer_ref_t> m_instruction_buffer;
   std::vector<uint8_t> m_original_instruction;
   queue_t &m_queue;
 
 public:
   displaced_stepping_t (
       amd_dbgapi_displaced_stepping_id_t displaced_stepping_id, queue_t &queue,
-      amd_dbgapi_global_address_t from, const void *saved_instruction_bytes);
+      wave_t::instruction_buffer_ref_t instruction_buffer,
+      amd_dbgapi_global_address_t from, bool is_simulated,
+      std::vector<uint8_t> instruction);
 
-  ~displaced_stepping_t () {}
+  ~displaced_stepping_t ();
 
-  bool is_valid () const { return m_is_valid; }
   bool is_simulated () const { return m_is_simulated; }
 
   amd_dbgapi_global_address_t from () const { return m_from; }
   /* The address of the displaced stepping buffer is this object's id.  */
   amd_dbgapi_global_address_t to () const { return id ().handle; }
+
   const std::vector<uint8_t> &original_instruction () const
   {
     return m_original_instruction;
   }
+
+  /* Used by waves to indicate if using the displaced stepping buffer.  Uses
+     reference counting to free the buffer when no waves using it.  */
+  static void retain (displaced_stepping_t *displaced_stepping);
+  static void release (displaced_stepping_t *displaced_stepping);
 
   amd_dbgapi_status_t get_info (amd_dbgapi_displaced_stepping_info_t query,
                                 size_t value_size, void *value) const;

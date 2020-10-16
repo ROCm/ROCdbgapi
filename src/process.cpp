@@ -200,6 +200,8 @@ process_t::detach ()
   /* Destruct the waves, dispatches, queues, and agents, in this order.  */
   std::get<handle_object_set_t<watchpoint_t>> (m_handle_object_sets).clear ();
   std::get<handle_object_set_t<wave_t>> (m_handle_object_sets).clear ();
+  dbgapi_assert (count<displaced_stepping_t> () == 0
+                 && "all displaced steppings should have completed");
   std::get<handle_object_set_t<dispatch_t>> (m_handle_object_sets).clear ();
   std::get<handle_object_set_t<queue_t>> (m_handle_object_sets).clear ();
   std::get<handle_object_set_t<agent_t>> (m_handle_object_sets).clear ();

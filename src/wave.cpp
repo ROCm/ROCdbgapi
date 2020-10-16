@@ -41,6 +41,18 @@
 namespace amd::dbgapi
 {
 
+wave_t::wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t &dispatch,
+                const callbacks_t &callbacks)
+    : handle_object (wave_id), m_callbacks (callbacks), m_dispatch (dispatch)
+{
+}
+
+wave_t::~wave_t ()
+{
+  if (m_displaced_stepping)
+    displaced_stepping_complete ();
+}
+
 void
 wave_t::set_visibility (visibility_t visibility)
 {
@@ -189,36 +201,95 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
         return status;
     }
 
-  try
+  /* Check if we already have a displaced stepping buffer for this pc
+     that can be shared between waves associated with the same queue.
+   */
+  displaced_stepping_t *displaced_stepping
+      = process ().find_if ([&] (const displaced_stepping_t &other) {
+          return other.queue () == queue () && other.from () == pc ();
+        });
+
+  if (displaced_stepping)
     {
-      amd_dbgapi_displaced_stepping_id_t id{ instruction_buffer ()->begin () };
+      displaced_stepping_t::retain (displaced_stepping);
+    }
+  else
+    {
+      /* If we can't share a displaced stepping operation with another
+         wave, create a new one.  */
 
-      /* TODO: Waves of the same queue stepping over the same breakpoint could
-         share a displaced_stepping_t. We would need to find the instance from
-         the old pc, and reference count it.  */
-      displaced_stepping_t *displaced_stepping
-          = &process ().create<displaced_stepping_t> (std::make_optional (id),
-                                                      queue (), pc (),
-                                                      saved_instruction_bytes);
+      /* Reconstitute the original instruction bytes.  */
+      std::vector<uint8_t> original_instruction (
+          architecture ().largest_instruction_size ());
 
-      amd_dbgapi_global_address_t displaced_pc = displaced_stepping->to ();
-      status = write_register (amdgpu_regnum_t::pc, &displaced_pc);
+      memcpy (original_instruction.data (), saved_instruction_bytes,
+              architecture ().breakpoint_instruction ().size ());
+
+      size_t offset = architecture ().breakpoint_instruction ().size ();
+      size_t remaining_size = original_instruction.size () - offset;
+
+      amd_dbgapi_status_t status = process ().read_global_memory_partial (
+          pc () + offset, original_instruction.data () + offset,
+          &remaining_size);
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
 
-      m_displaced_stepping = displaced_stepping;
-      return AMD_DBGAPI_STATUS_SUCCESS;
-    }
-  catch (const exception_t &ex)
-    {
-      if (amd_dbgapi_status_t status = ex.error_code ();
-          status == AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION
-          || status == AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS)
-        return status;
+      /* Trim unread bytes.  */
+      original_instruction.resize (offset + remaining_size);
 
-      /* For all other errors, rethrow the exception  */
-      throw;
+      /* Trim to size of instruction.  */
+      size_t instruction_size
+          = architecture ().instruction_size (original_instruction);
+
+      if (!instruction_size
+          || !architecture ().can_execute_displaced (original_instruction))
+        {
+          /* If instruction_size is 0, the disassembler did not recognize the
+             instruction.  This instruction may be non-sequencial, and we won't
+             be able to tell if the jump is relative or absolute.  */
+          return AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION;
+        }
+
+      original_instruction.resize (instruction_size);
+
+      bool simulate = architecture ().can_simulate (original_instruction);
+
+      /* Copy a single instruction to the displaced stepping buffer.  */
+      auto &&displaced_instruction = simulate
+                                         ? architecture ().nop_instruction ()
+                                         : original_instruction;
+
+      instruction_buffer ()->resize (displaced_instruction.size ());
+      amd_dbgapi_global_address_t instruction_addr
+          = instruction_buffer ()->begin ();
+
+      if (process ().write_global_memory (instruction_addr,
+                                          displaced_instruction.data (),
+                                          displaced_instruction.size ())
+          != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("Could not write the displaced instruction");
+
+      /* FIXME: Change this to allow next monotonic ID when gdb stops needing
+         to know the PC.  */
+      amd_dbgapi_displaced_stepping_id_t id{ instruction_addr };
+
+      displaced_stepping = &process ().create<displaced_stepping_t> (
+          std::make_optional (id), queue (), std::move (instruction_buffer ()),
+          pc (), simulate, std::move (original_instruction));
     }
+
+  /* A wave should only hold one instruction buffer reference, either through
+     the displaced_stepping_t or its own buffer.  This guarantees that all
+     waves can get an instruction buffer.  */
+  m_instruction_buffer.reset ();
+
+  amd_dbgapi_global_address_t displaced_pc = displaced_stepping->to ();
+  if (write_register (amdgpu_regnum_t::pc, &displaced_pc)
+      != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not write the pc register");
+
+  m_displaced_stepping = displaced_stepping;
+  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 amd_dbgapi_status_t
@@ -243,7 +314,7 @@ wave_t::displaced_stepping_complete ()
           *this, *m_displaced_stepping);
     }
 
-  process ().destroy (m_displaced_stepping);
+  displaced_stepping_t::release (m_displaced_stepping);
   m_displaced_stepping = nullptr;
 
   if (!architecture ().can_halt_at (instruction_at_pc ()))

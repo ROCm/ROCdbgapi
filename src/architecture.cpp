@@ -180,9 +180,6 @@ public:
 
   virtual size_t displaced_stepping_buffer_size () const override;
 
-  virtual amd_dbgapi_status_t
-  displaced_stepping_copy (displaced_stepping_t &displaced_stepping,
-                           bool *simulate) const override;
   virtual bool displaced_stepping_fixup (
       wave_t &wave, displaced_stepping_t &displaced_stepping) const override;
   virtual bool displaced_stepping_simulate (
@@ -245,13 +242,14 @@ protected:
   virtual bool is_trap (const std::vector<uint8_t> &bytes,
                         uint8_t *trap_id = nullptr) const override;
 
-  bool can_execute_displaced (const std::vector<uint8_t> &bytes) const
+  virtual bool
+  can_execute_displaced (const std::vector<uint8_t> &bytes) const override
   {
     /* Displace stepping over a cbranch_i_fork is not supported.  */
     return !is_cbranch_i_fork (bytes);
   }
 
-  bool can_simulate (const std::vector<uint8_t> &bytes) const
+  virtual bool can_simulate (const std::vector<uint8_t> &bytes) const override
   {
     return is_branch (bytes) || is_cbranch (bytes) || is_call (bytes)
            || is_getpc (bytes) || is_setpc (bytes) || is_swappc (bytes)
@@ -1012,61 +1010,6 @@ amdgcn_architecture_t::displaced_stepping_buffer_size () const
   /* 1 displaced instruction + 1 terminating breakpoint instruction.  The
      terminating instruction is used to catch runaway waves.  */
   return largest_instruction_size () + breakpoint_instruction ().size ();
-}
-
-amd_dbgapi_status_t
-amdgcn_architecture_t::displaced_stepping_copy (
-    displaced_stepping_t &displaced_stepping, bool *simulate) const
-{
-  process_t &process = displaced_stepping.process ();
-  amd_dbgapi_status_t status;
-
-  const std::vector<uint8_t> &original_instruction
-      = displaced_stepping.original_instruction ();
-
-  if (!can_execute_displaced (original_instruction))
-    return AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION;
-
-  /* Copy a single instruction into the displaced stepping buffer.  */
-
-  amd_dbgapi_global_address_t buffer = displaced_stepping.to ();
-
-  if (can_simulate (original_instruction))
-    {
-      /* We simulate PC relative branch instructions to avoid reading
-         uninitialized memory at the branch target.  */
-
-      /* We simulate ENDPGM do make sure we are reporting to the client that
-         the displaced instruction has completed the single step operation.  */
-
-      /* FIXME: If we were simulating the original instruction at 'start' time,
-         we would not need to copy a nop into the displaced instruction buffer,
-         we would simply enqueue a single-step event and skip the resume.   */
-
-      status = process.write_global_memory (buffer, nop_instruction ().data (),
-                                            nop_instruction ().size ());
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
-
-      buffer += nop_instruction ().size ();
-      *simulate = true;
-    }
-  else
-    {
-      status = process.write_global_memory (
-          buffer, original_instruction.data (), original_instruction.size ());
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
-
-      buffer += original_instruction.size ();
-      *simulate = false;
-    }
-
-  /* Insert a terminating instruction (breakpoint) in case the wave is
-     resumed before calling displaced_stepping_fixup.  */
-  return process.write_global_memory (buffer,
-                                      breakpoint_instruction ().data (),
-                                      breakpoint_instruction ().size ());
 }
 
 bool
