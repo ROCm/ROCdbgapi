@@ -226,18 +226,20 @@ wave_t::displaced_stepping_complete ()
 {
   dbgapi_assert (!!m_displaced_stepping && "not displaced stepping");
 
-  /* FIXME: Detect if the single-step has happened, and return if not.
-     Watch out for cbranch to self instruction.  */
-
   bool success;
-  if (m_displaced_stepping->is_simulated ())
+  if (!m_displaced_stepping->is_simulated ()
+      /* The pc could still pointing at the displaced instruction is if the
+         single stepping operation did not execute (we can't have a branch to
+         self here since branches are simulated).  In that case, fixup will
+         simply restore the pc to the original location.  */
+      || pc () == m_displaced_stepping->to ())
     {
-      success = architecture ().displaced_stepping_simulate (
+      success = architecture ().displaced_stepping_fixup (
           *this, *m_displaced_stepping);
     }
   else
     {
-      success = architecture ().displaced_stepping_fixup (
+      success = architecture ().displaced_stepping_simulate (
           *this, *m_displaced_stepping);
     }
 
