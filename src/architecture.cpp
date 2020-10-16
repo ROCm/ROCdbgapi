@@ -180,7 +180,7 @@ public:
 
   virtual size_t displaced_stepping_buffer_size () const override;
 
-  virtual bool
+  virtual amd_dbgapi_status_t
   displaced_stepping_copy (displaced_stepping_t &displaced_stepping,
                            bool *simulate) const override;
   virtual bool displaced_stepping_fixup (
@@ -1014,16 +1014,18 @@ amdgcn_architecture_t::displaced_stepping_buffer_size () const
   return largest_instruction_size () + breakpoint_instruction ().size ();
 }
 
-bool
+amd_dbgapi_status_t
 amdgcn_architecture_t::displaced_stepping_copy (
     displaced_stepping_t &displaced_stepping, bool *simulate) const
 {
   process_t &process = displaced_stepping.process ();
+  amd_dbgapi_status_t status;
+
   const std::vector<uint8_t> &original_instruction
       = displaced_stepping.original_instruction ();
 
   if (!can_execute_displaced (original_instruction))
-    return false;
+    return AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION;
 
   /* Copy a single instruction into the displaced stepping buffer.  */
 
@@ -1041,20 +1043,20 @@ amdgcn_architecture_t::displaced_stepping_copy (
          we would not need to copy a nop into the displaced instruction buffer,
          we would simply enqueue a single-step event and skip the resume.   */
 
-      if (process.write_global_memory (buffer, nop_instruction ().data (),
-                                       nop_instruction ().size ())
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        return false;
+      status = process.write_global_memory (buffer, nop_instruction ().data (),
+                                            nop_instruction ().size ());
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        return status;
 
       buffer += nop_instruction ().size ();
       *simulate = true;
     }
   else
     {
-      if (process.write_global_memory (buffer, original_instruction.data (),
-                                       original_instruction.size ())
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        return false;
+      status = process.write_global_memory (
+          buffer, original_instruction.data (), original_instruction.size ());
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        return status;
 
       buffer += original_instruction.size ();
       *simulate = false;
@@ -1062,12 +1064,9 @@ amdgcn_architecture_t::displaced_stepping_copy (
 
   /* Insert a terminating instruction (breakpoint) in case the wave is
      resumed before calling displaced_stepping_fixup.  */
-  if (process.write_global_memory (buffer, breakpoint_instruction ().data (),
-                                   breakpoint_instruction ().size ())
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    return false;
-
-  return true;
+  return process.write_global_memory (buffer,
+                                      breakpoint_instruction ().data (),
+                                      breakpoint_instruction ().size ());
 }
 
 bool

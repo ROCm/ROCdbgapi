@@ -189,8 +189,6 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
         return status;
     }
 
-  /* Creating a displaced stepping may throw an exception_t, and in the case of
-     a memory error, we simply want to return the error code.  */
   try
     {
       amd_dbgapi_displaced_stepping_id_t id{ instruction_buffer ()->begin () };

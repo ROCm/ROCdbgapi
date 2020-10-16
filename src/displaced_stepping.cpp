@@ -79,8 +79,10 @@ displaced_stepping_t::displaced_stepping_t (
   m_original_instruction.resize (instruction_size);
 
   /* Copy a single instruction to the displaced stepping buffer.  */
-  if (!architecture.displaced_stepping_copy (*this, &m_is_simulated))
-    return;
+  amd_dbgapi_status_t status
+      = architecture.displaced_stepping_copy (*this, &m_is_simulated);
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    throw exception_t (status);
 
   m_is_valid = true;
 }
@@ -141,7 +143,7 @@ amd_dbgapi_displaced_stepping_start (
   amd_dbgapi_status_t status
       = wave->displaced_stepping_start (saved_instruction_bytes);
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    warning ("displaced_stepping_t::start failed (rc=%d)", status);
+    return status;
 
   /* TODO: We could handle trivial step-overs (e.g. branches) and return
      AMD_DBGAPI_DISPLACED_STEPPING_NONE.  In that case, the wave does not
@@ -194,12 +196,7 @@ amd_dbgapi_displaced_stepping_complete (
   if (!(wave = find (wave_id)))
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
 
-  amd_dbgapi_status_t status = wave->displaced_stepping_complete ();
-
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    warning ("displaced_stepping_t::complete failed (rc=%d)", status);
-
-  return status;
+  return wave->displaced_stepping_complete ();
   CATCH;
 }
 

@@ -219,7 +219,7 @@ public:
   can_halt_at (const std::optional<std::vector<uint8_t>> &instruction) const;
 
   virtual size_t displaced_stepping_buffer_size () const = 0;
-  virtual bool
+  virtual amd_dbgapi_status_t
   displaced_stepping_copy (displaced_stepping_t &displaced_stepping,
                            bool *simulate) const = 0;
   virtual bool displaced_stepping_fixup (
