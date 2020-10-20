@@ -26,7 +26,6 @@
 #include "logging.h"
 #include "memory.h"
 #include "process.h"
-#include "queue.h"
 #include "register.h"
 #include "utils.h"
 #include "wave.h"

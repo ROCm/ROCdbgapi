@@ -21,6 +21,7 @@
 #include "register.h"
 #include "architecture.h"
 #include "debug.h"
+#include "displaced_stepping.h"
 #include "initialization.h"
 #include "logging.h"
 #include "process.h"
@@ -32,7 +33,6 @@
 #include <iterator>
 #include <map>
 #include <optional>
-#include <type_traits>
 #include <utility>
 
 namespace amd::dbgapi

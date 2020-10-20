@@ -21,6 +21,7 @@
 #include "wave.h"
 #include "architecture.h"
 #include "dispatch.h"
+#include "displaced_stepping.h"
 #include "event.h"
 #include "initialization.h"
 #include "logging.h"

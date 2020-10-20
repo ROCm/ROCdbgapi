@@ -25,9 +25,11 @@
 #include "handle_object.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <map>
 #include <set>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 namespace amd::dbgapi

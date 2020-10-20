@@ -30,6 +30,9 @@
 
 #include <hsa/amd_hsa_kernel_code.h>
 
+#include <utility>
+#include <vector>
+
 namespace amd::dbgapi
 {
 

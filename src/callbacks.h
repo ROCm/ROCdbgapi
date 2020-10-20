@@ -24,6 +24,7 @@
 #include "amd-dbgapi.h"
 #include "handle_object.h"
 
+#include <cstddef>
 #include <functional>
 #include <string>
 

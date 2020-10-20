@@ -19,21 +19,16 @@
  THE SOFTWARE. */
 
 #include "event.h"
-#include "agent.h"
 #include "debug.h"
 #include "handle_object.h"
 #include "initialization.h"
 #include "logging.h"
-#include "os_driver.h"
 #include "process.h"
 #include "queue.h"
 #include "utils.h"
 #include "wave.h"
 
-#include <algorithm>
-#include <iterator>
 #include <string>
-#include <vector>
 
 namespace amd::dbgapi
 {

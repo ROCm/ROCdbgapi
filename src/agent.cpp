@@ -36,6 +36,7 @@
 #include <string>
 #include <unistd.h>
 #include <utility>
+#include <vector>
 
 namespace amd::dbgapi
 {

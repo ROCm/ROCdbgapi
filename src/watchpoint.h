@@ -24,6 +24,8 @@
 #include "amd-dbgapi.h"
 #include "handle_object.h"
 
+#include <cstddef>
+
 namespace amd::dbgapi
 {
 

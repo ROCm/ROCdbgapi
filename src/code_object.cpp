@@ -25,6 +25,8 @@
 #include "process.h"
 #include "utils.h"
 
+#include <vector>
+
 namespace amd::dbgapi
 {
 
