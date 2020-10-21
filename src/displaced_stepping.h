@@ -65,7 +65,10 @@ public:
 
   amd_dbgapi_global_address_t from () const { return m_from; }
   /* The address of the displaced stepping buffer is this object's id.  */
-  amd_dbgapi_global_address_t to () const { return id ().handle; }
+  amd_dbgapi_global_address_t to () const
+  {
+    return (*m_instruction_buffer)->begin ();
+  }
 
   const std::vector<uint8_t> &original_instruction () const
   {

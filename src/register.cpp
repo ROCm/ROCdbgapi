@@ -445,31 +445,15 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
   if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
     return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED;
 
-  /* FIXME: Enable this check when the FIXME below is removed.
-   *
-   * / * Is displaced stepping active?  * /
-   * if (wave->displaced_stepping ())
-   *   return AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_ACTIVE;
-   */
+  /* Is displaced stepping active?  */
+  if (wave->displaced_stepping ())
+    return AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_ACTIVE;
 
   if (!value)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   if (*architecture != wave->architecture ())
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
-
-  /* FIXME: This is a hack to work around a misbehaving gdb.  To cancel a
-     displaced stepping operation, gdb resets the pc to the original location
-     instead of calling amd_dbgapi_displaced_stepping_complete.  We detect this
-     condition here, and complete the aborted displaced stepping.  */
-  if (*regnum == amdgpu_regnum_t::pc && wave->displaced_stepping ()
-      && offset == 0 && value_size == sizeof (uint64_t)
-      && *(uint64_t *)(value) != wave->displaced_stepping ()->to ())
-    {
-      scoped_queue_suspend_t suspend (wave->queue (),
-                                      "displaced stepping complete");
-      wave->displaced_stepping_complete ();
-    }
 
   std::optional<scoped_queue_suspend_t> suspend;
 

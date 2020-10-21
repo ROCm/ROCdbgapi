@@ -257,13 +257,9 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
           != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not write the displaced instruction");
 
-      /* FIXME: Change this to allow next monotonic ID when gdb stops needing
-         to know the PC.  */
-      amd_dbgapi_displaced_stepping_id_t id{ instruction_addr };
-
       displaced_stepping = &process ().create<displaced_stepping_t> (
-          std::make_optional (id), queue (), std::move (instruction_buffer ()),
-          pc (), simulate, std::move (original_instruction));
+          queue (), std::move (instruction_buffer ()), pc (), simulate,
+          std::move (original_instruction));
     }
 
   /* A wave should only hold one instruction buffer reference, either through
