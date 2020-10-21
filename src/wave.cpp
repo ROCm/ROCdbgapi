@@ -428,18 +428,18 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
             return status;
         }
 
-      if (register_cache_policy == register_cache_policy_t::write_back)
-        {
-          /* Write back the register cache in memory.  */
-          status = process ().write_global_memory (
-              register_address (amdgpu_regnum_t::first_hwreg).value (),
-              &m_hwregs_cache[0], sizeof (m_hwregs_cache));
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
-            return status;
-        }
-
       /* Clear the stop reason.  */
       m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
+    }
+
+  if (register_cache_policy == register_cache_policy_t::write_back)
+    {
+      /* Write back the register cache in memory.  */
+      status = process ().write_global_memory (
+          register_address (amdgpu_regnum_t::first_hwreg).value (),
+          &m_hwregs_cache[0], sizeof (m_hwregs_cache));
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        return status;
     }
 
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
