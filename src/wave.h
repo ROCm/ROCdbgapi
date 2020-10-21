@@ -138,6 +138,7 @@ public:
         = delete;
 
     decltype (m_data) *operator-> () { return &m_data; }
+    decltype (m_data) const *operator-> () const { return &m_data; }
 
     amd_dbgapi_global_address_t release ();
   };

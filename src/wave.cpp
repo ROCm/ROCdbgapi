@@ -289,6 +289,12 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
       != AMD_DBGAPI_STATUS_SUCCESS)
     error ("Could not write the pc register");
 
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+              "changing %s's pc from %#lx to %#lx (started %s)",
+              to_string (id ()).c_str (), displaced_stepping->from (),
+              displaced_stepping->to (),
+              to_string (displaced_stepping->id ()).c_str ());
+
   m_displaced_stepping = displaced_stepping;
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
@@ -298,13 +304,15 @@ wave_t::displaced_stepping_complete ()
 {
   dbgapi_assert (!!m_displaced_stepping && "not displaced stepping");
 
+  amd_dbgapi_global_address_t displaced_pc = pc ();
+
   bool success;
   if (!m_displaced_stepping->is_simulated ()
       /* The pc could still pointing at the displaced instruction is if the
          single stepping operation did not execute (we can't have a branch to
          self here since branches are simulated).  In that case, fixup will
          simply restore the pc to the original location.  */
-      || pc () == m_displaced_stepping->to ())
+      || displaced_pc == m_displaced_stepping->to ())
     {
       success = architecture ().displaced_stepping_fixup (
           *this, *m_displaced_stepping);
@@ -314,6 +322,12 @@ wave_t::displaced_stepping_complete ()
       success = architecture ().displaced_stepping_simulate (
           *this, *m_displaced_stepping);
     }
+
+  dbgapi_log (
+      AMD_DBGAPI_LOG_LEVEL_INFO, "changing %s's pc from %#lx to %#lx (%s %s)",
+      to_string (id ()).c_str (), displaced_pc, pc (),
+      displaced_pc == m_displaced_stepping->to () ? "aborted" : "completed",
+      to_string (m_displaced_stepping->id ()).c_str ());
 
   displaced_stepping_t::release (m_displaced_stepping);
   m_displaced_stepping = nullptr;
@@ -443,9 +457,10 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
     }
 
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-              "changing %s's state from %s to %s (pc=%#lx)",
+              "changing %s's state from %s to %s (%spc=%#lx)",
               to_string (id ()).c_str (), to_string (prev_state).c_str (),
-              to_string (state).c_str (), pc ());
+              to_string (state).c_str (),
+              displaced_stepping () ? "displaced_" : "", pc ());
 
   /* If we requested the wave be stopped, and the wave wasn't already stopped,
      report an event to acknowledge that the wave has stopped.  */

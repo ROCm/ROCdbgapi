@@ -56,8 +56,8 @@ public:
   displaced_stepping_t (
       amd_dbgapi_displaced_stepping_id_t displaced_stepping_id, queue_t &queue,
       wave_t::instruction_buffer_ref_t instruction_buffer,
-      amd_dbgapi_global_address_t from, bool is_simulated,
-      std::vector<uint8_t> instruction);
+      amd_dbgapi_global_address_t original_pc, bool simulate,
+      std::vector<uint8_t> original_instruction);
 
   ~displaced_stepping_t ();
 

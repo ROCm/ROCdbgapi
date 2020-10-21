@@ -36,18 +36,37 @@ namespace amd::dbgapi
 displaced_stepping_t::displaced_stepping_t (
     amd_dbgapi_displaced_stepping_id_t displaced_stepping_id, queue_t &queue,
     wave_t::instruction_buffer_ref_t instruction_buffer,
-    amd_dbgapi_global_address_t from, bool is_simulated,
-    std::vector<uint8_t> instruction)
-    : handle_object (displaced_stepping_id), m_is_simulated (is_simulated),
-      m_from (from), m_instruction_buffer (std::move (instruction_buffer)),
-      m_original_instruction (std::move (instruction)), m_queue (queue)
+    amd_dbgapi_global_address_t original_pc, bool simulate,
+    std::vector<uint8_t> original_instruction)
+    : handle_object (displaced_stepping_id), m_is_simulated (simulate),
+      m_from (original_pc),
+      m_instruction_buffer (std::move (instruction_buffer)),
+      m_original_instruction (std::move (original_instruction)),
+      m_queue (queue)
 {
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+              "created new %s (from=%#lx, to=%#lx, %s\"%s\")",
+              to_string (id ()).c_str (), from (), to (),
+              is_simulated () ? "simulated " : "",
+              [this] () {
+                std::string instruction;
+                std::vector<uint64_t> operands;
+                size_t size = this->original_instruction ().size ();
+                architecture ().disassemble_instruction (
+                    from (), &size, this->original_instruction ().data (),
+                    instruction, operands);
+                return instruction;
+              }()
+                  .c_str ());
 }
 
 displaced_stepping_t::~displaced_stepping_t ()
 {
   dbgapi_assert (m_reference_count == 0
                  && "all displaced stepping operations should have completed");
+
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "destructed %s",
+              to_string (id ()).c_str ());
 }
 
 amd_dbgapi_status_t
