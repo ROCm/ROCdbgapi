@@ -72,7 +72,7 @@ amd_dbgapi_finalize ()
 
   /* Detach all remaining processes.  */
   for (process_t *process : detail::process_list)
-    amd_dbgapi_process_detach (amd_dbgapi_process_id_t{ process->id () });
+    process->detach ();
 
   detail::process_list.clear ();
 
