@@ -446,6 +446,12 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
       m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
     }
 
+  /* If the wave was previously stopped, and is now unhalted, we need to commit
+     the hwregs cache to the context save area in order to restore the state
+     before the queue is resumed.  If the wave was previously running, and is
+     now stopped, we really only need to flush the status hwreg to actually
+     halt the wave, but writting the entire cache is just as fast, and easier
+     to maintain.  */
   if (register_cache_policy == register_cache_policy_t::write_back)
     {
       /* Write back the register cache in memory.  */
