@@ -321,6 +321,14 @@ amd_dbgapi_dwarf_register_to_register (
     {
       regnum = amdgpu_regnum_t::status;
     }
+  else if (dwarf_register == 512)
+    {
+      regnum = amdgpu_regnum_t::vcc_32;
+    }
+  else if (dwarf_register == 768)
+    {
+      regnum = amdgpu_regnum_t::vcc_64;
+    }
   else if (dwarf_register >= 1088 && dwarf_register <= 1129)
     {
       /* Scalar registers 64-105.  */
@@ -347,6 +355,9 @@ amd_dbgapi_dwarf_register_to_register (
       regnum = amdgpu_regnum_t::first_accvgpr_64 + (dwarf_register - 3072);
     }
   else
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
+
+  if (!architecture->register_size (regnum))
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
 
   *register_id = architecture->regnum_to_register_id (regnum);
