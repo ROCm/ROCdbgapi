@@ -1166,9 +1166,6 @@ amdgcn_architecture_t::get_wave_state (
             return status;
         }
 
-      /* FIXME: If we had a way to tell which trap instruction caused the
-         trap_raised, we would not have to read the instruction on the
-         common path.  */
       auto instruction = wave.instruction_at_pc ();
 
       /* Check for spurious single-step events. A context save/restore
@@ -1198,8 +1195,8 @@ amdgcn_architecture_t::get_wave_state (
                  single-step event.  */
               ignore_single_step_event = false;
 
-              if (!can_halt_at (wave.instruction_at_pc ()))
-                wave.park ();
+              /* Reload the instruction since the pc may have changed.  */
+              instruction = wave.instruction_at_pc ();
             }
           else if (status != AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED)
             {
@@ -1219,7 +1216,9 @@ amdgcn_architecture_t::get_wave_state (
                       to_string (wave.id ()).c_str (), pc);
 
           *state = wave.state ();
-          reason_mask = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
+          *stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
+
+          return AMD_DBGAPI_STATUS_SUCCESS;
         }
       else if (trap_raised)
         {
@@ -1278,6 +1277,9 @@ amdgcn_architecture_t::get_wave_state (
         reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT;
 
       *stop_reason = reason_mask;
+
+      if (!can_halt_at (instruction))
+        wave.park ();
     }
 
   return AMD_DBGAPI_STATUS_SUCCESS;

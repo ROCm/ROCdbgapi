@@ -264,6 +264,10 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
       amd_dbgapi_global_address_t instruction_addr
           = instruction_buffer ()->begin ();
 
+      /* Make sure we don't copy an instruction in the displaced stepping
+         buffer that would require the wave to be parked.  */
+      dbgapi_assert (architecture ().can_halt_at (original_instruction));
+
       if (process ().write_global_memory (instruction_addr,
                                           displaced_instruction.data (),
                                           displaced_instruction.size ())
@@ -382,24 +386,11 @@ wave_t::update (const wave_t &group_leader,
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
 
-      if (m_stop_reason && m_state == AMD_DBGAPI_WAVE_STATE_STOP)
+      if (m_state == AMD_DBGAPI_WAVE_STATE_STOP && m_stop_reason
+          && visibility () == visibility_t::visible)
         {
-          if (!!(m_stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT)
-              && !architecture ().can_halt_at (
-                  architecture ().breakpoint_instruction ()))
-            {
-              /* When a wave hits a breakpoint, we change its pc to point to
-                 an immutable breakpoint instruction.  This guarantees that the
-                 wave will never be halted at an s_endpgm if the breakpoint is
-                 removed and the original instruction restored.  */
-              status = park ();
-              if (status != AMD_DBGAPI_STATUS_SUCCESS)
-                return status;
-            }
-
-          if (visibility () == visibility_t::visible)
-            process.enqueue_event (process.create<event_t> (
-                process, AMD_DBGAPI_EVENT_KIND_WAVE_STOP, id ()));
+          process.enqueue_event (process.create<event_t> (
+              process, AMD_DBGAPI_EVENT_KIND_WAVE_STOP, id ()));
         }
     }
 
