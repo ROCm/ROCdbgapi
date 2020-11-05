@@ -306,22 +306,8 @@ wave_t::displaced_stepping_complete ()
 
   amd_dbgapi_global_address_t displaced_pc = pc ();
 
-  bool success;
-  if (!m_displaced_stepping->is_simulated ()
-      /* The pc could still pointing at the displaced instruction is if the
-         single stepping operation did not execute (we can't have a branch to
-         self here since branches are simulated).  In that case, fixup will
-         simply restore the pc to the original location.  */
-      || displaced_pc == m_displaced_stepping->to ())
-    {
-      success = architecture ().displaced_stepping_fixup (
-          *this, *m_displaced_stepping);
-    }
-  else
-    {
-      success = architecture ().displaced_stepping_simulate (
-          *this, *m_displaced_stepping);
-    }
+  bool success = architecture ().displaced_stepping_fixup (
+      *this, *m_displaced_stepping);
 
   dbgapi_log (
       AMD_DBGAPI_LOG_LEVEL_INFO, "changing %s's pc from %#lx to %#lx (%s %s)",
@@ -332,6 +318,8 @@ wave_t::displaced_stepping_complete ()
   displaced_stepping_t::release (m_displaced_stepping);
   m_displaced_stepping = nullptr;
 
+  /* Park after releasing the displaced stepping buffer to ensure a buffer will
+     be available for parking.  */
   if (!architecture ().can_halt_at (instruction_at_pc ()))
     park ();
 

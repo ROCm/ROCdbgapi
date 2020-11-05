@@ -177,11 +177,7 @@ public:
   virtual std::vector<os_watch_id_t>
   triggered_watchpoints (const wave_t &wave) const override;
 
-  virtual size_t displaced_stepping_buffer_size () const override;
-
   virtual bool displaced_stepping_fixup (
-      wave_t &wave, displaced_stepping_t &displaced_stepping) const override;
-  virtual bool displaced_stepping_simulate (
       wave_t &wave, displaced_stepping_t &displaced_stepping) const override;
 
   virtual amd_dbgapi_status_t
@@ -997,42 +993,30 @@ amdgcn_architecture_t::simulate_instruction (
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
 
-  if (!can_halt_at (wave.instruction_at_pc ()))
-    wave.park ();
-
   return AMD_DBGAPI_STATUS_SUCCESS;
-}
-
-size_t
-amdgcn_architecture_t::displaced_stepping_buffer_size () const
-{
-  /* 1 displaced instruction + 1 terminating breakpoint instruction.  The
-     terminating instruction is used to catch runaway waves.  */
-  return largest_instruction_size () + breakpoint_instruction ().size ();
-}
-
-bool
-amdgcn_architecture_t::displaced_stepping_simulate (
-    wave_t &wave, displaced_stepping_t &displaced_stepping) const
-{
-  return simulate_instruction (wave, displaced_stepping.from (),
-                               displaced_stepping.original_instruction ())
-         == AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 bool
 amdgcn_architecture_t::displaced_stepping_fixup (
     wave_t &wave, displaced_stepping_t &displaced_stepping) const
 {
-  [[maybe_unused]] const std::vector<uint8_t> &original_instruction
+  amd_dbgapi_global_address_t displaced_pc = wave.pc ();
+  const std::vector<uint8_t> &original_instruction
       = displaced_stepping.original_instruction ();
 
-  dbgapi_assert (!can_simulate (original_instruction)
-                 && "This instruction should be simulated as it requires "
-                    "special handling");
+  if (displaced_stepping.is_simulated ()
+      /* The pc could still pointing at the displaced instruction is if the
+         single stepping operation did not execute (we can't have a branch to
+         self here since branches are simulated).  In that case, fixup will
+         simply restore the pc to the original location.  */
+      && displaced_pc != displaced_stepping.to ())
+    {
+      return simulate_instruction (wave, displaced_stepping.from (),
+                                   original_instruction);
+    }
 
   amd_dbgapi_global_address_t restored_pc
-      = wave.pc () + displaced_stepping.from () - displaced_stepping.to ();
+      = displaced_pc + displaced_stepping.from () - displaced_stepping.to ();
 
   if (wave.write_register (amdgpu_regnum_t::pc, &restored_pc)
       != AMD_DBGAPI_STATUS_SUCCESS)
@@ -1195,6 +1179,9 @@ amdgcn_architecture_t::get_wave_state (
               /* We successfully simulated the instruction, report the
                  single-step event.  */
               ignore_single_step_event = false;
+
+              if (!can_halt_at (wave.instruction_at_pc ()))
+                wave.park ();
             }
           else if (status != AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED)
             {

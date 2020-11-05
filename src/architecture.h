@@ -222,10 +222,7 @@ public:
   bool
   can_halt_at (const std::optional<std::vector<uint8_t>> &instruction) const;
 
-  virtual size_t displaced_stepping_buffer_size () const = 0;
   virtual bool displaced_stepping_fixup (
-      wave_t &wave, displaced_stepping_t &displaced_stepping) const = 0;
-  virtual bool displaced_stepping_simulate (
       wave_t &wave, displaced_stepping_t &displaced_stepping) const = 0;
 
   virtual amd_dbgapi_status_t
