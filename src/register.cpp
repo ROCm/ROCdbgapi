@@ -443,8 +443,14 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
   if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
     return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED;
 
-  if (!value)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+  /* FIXME: Enable this check when the FIXME below is removed.
+   *
+   * / * Is displaced stepping active?  * /
+   * if (wave->displaced_stepping ())
+   *   return AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_ACTIVE;
+   */
+
+      if (!value) return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   if (*architecture != wave->architecture ())
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;

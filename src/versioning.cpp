@@ -64,6 +64,9 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
     case AMD_DBGAPI_STATUS_FATAL:
       string = "A fatal error has occurred";
       break;
+    case AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED:
+      string = "The operation is not currently implemented";
+      break;
     case AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED:
       string = "The operation is not supported";
       break;
@@ -188,11 +191,11 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
     case AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS:
       string = "The address is not within the shared library";
       break;
-    case AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED:
-      string = "The operation is not currently implemented";
+    case AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_ACTIVE:
+      string = "The wave has an active displaced stepping buffer";
       break;
       /* Don't add a default here, so that we can catch at compile time when an
-         enum value is missing.  */
+          enum value is missing.  */
     }
 
   if (!string)

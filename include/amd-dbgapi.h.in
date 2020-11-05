@@ -466,6 +466,12 @@ extern "C" {
  */
 #define AMD_DBGAPI_VERSION_0_41
 
+/**
+ * The function was introduced in version 0.42 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.42"``.
+ */
+#define AMD_DBGAPI_VERSION_0_42
+
 /** @} */
 
 /** \ingroup callbacks_group
@@ -887,7 +893,11 @@ typedef enum
   /**
    * The address is not within the shared library.
    */
-  AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS = -43
+  AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS = -43,
+  /**
+   * The wave has an active displaced stepping buffer.
+   */
+  AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_ACTIVE = -44
 } amd_dbgapi_status_t;
 
 /**
@@ -1654,6 +1664,19 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
  * operation is being executed, then the operation behaves as if the process
  * exited before it was invoked.  For example, a wave operation will report an
  * invalid wave handle, a list query will report an empty list, and so forth.
+ *
+ * It is undefined to use any library operation except
+ * ::amd_dbgapi_process_detach on a process that has its virtual address space
+ * replaced.  After detach, the same process can be attached again to continue
+ * accessing the process if desired.  For example, in Linux an ``exec`` system
+ * call replaces the virtual address space which causes all information about
+ * agents, queues, dispatches, and waves to become invalid, and the ability to
+ * read and write memory may also no longer be allowed by the operating system.
+ *
+ * If after attaching to a process it spawns another process, the library
+ * continues to be attached to the parent process.  If desired, the client can
+ * always use ::amd_dbgapi_process_attach to attach to the child process and
+ * ::amd_dbgapi_process_detach to detach from the parent process.
  *
  * \param[in] client_process_id The client handle for the process.  It is
  * passed as an argument to any callbacks performed to indicate the process
@@ -3618,9 +3641,10 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_get_info (
     void *value) AMD_DBGAPI_VERSION_0_41;
 
 /**
- * Create a displaced stepping buffer.
+ * Associate an active displaced stepping buffer with a wave.
  *
- * The wave must be stopped.
+ * The wave must be stopped and not already have an active displaced stepping
+ * buffer.
  *
  * Displaced stepping buffers are intended to be used to step over breakpoints.
  * In that case, the wave will be stopped with a program counter set to a
@@ -3628,16 +3652,19 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_get_info (
  * of the original instruction where the breakpoint was placed.  The client
  * must provide the overwritten bytes of the original instruction.
  *
+ * The wave program counter and other registers may be read and written as part
+ * of creating a displaced stepping buffer.  Therefore, the client should flush
+ * any dirty cached register values before creating a displaced stepping
+ * buffer.
+ *
  * If ::AMD_DBGAPI_DISPLACED_STEPPING_NONE is returned successfully it
  * indicates the wave has been single stepped over the breakpoint.  The wave is
  * still stopped and is available to be resumed normally.
  *
  * If a displaced stepping handle is returned successfully, the wave is still
- * stopped.  The wave program counter and other registers may be changed so the
- * client should flush any cached register values.  The client should resume
- * the wave in single step mode using ::amd_dbgapi_wave_resume.  Once the
- * single step is complete as indicated by the
- * ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP event with a stop reason that includes
+ * stopped.  The client should resume the wave in single step mode using
+ * ::amd_dbgapi_wave_resume.  Once the single step is complete as indicated by
+ * the ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP event with a stop reason that includes
  * ::AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP, the client should use
  * ::amd_dbgapi_displaced_stepping_complete to release the displaced stepping
  * buffer.  The wave can then be resumed normally using
@@ -3678,6 +3705,10 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_get_info (
  * stopped.  No displaced stepping buffer is allocated and \p
  * displaced_stepping is unaltered.
  *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_ACTIVE \p wave_id
+ * already has an active displaced stepping buffer.  No displaced stepping
+ * buffer is allocated and \p displaced_stepping is unaltered.
+ *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_BUFFER_UNAVAILABLE No
  * more displaced stepping buffers are available that are suitable for use by
  * \p wave_id.  No displaced stepping buffer is allocated and \p
@@ -3699,12 +3730,12 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_get_info (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_start (
     amd_dbgapi_wave_id_t wave_id, const void *saved_instruction_bytes,
     amd_dbgapi_displaced_stepping_id_t *displaced_stepping)
-    AMD_DBGAPI_VERSION_0_41;
+    AMD_DBGAPI_VERSION_0_42;
 
 /**
  * Complete a displaced stepping buffer for a wave.
  *
- * The wave must be stopped and have been set to use the stepping buffer by
+ * The wave must be stopped and have an associated displaced stepping buffer by
  * using ::amd_dbgapi_displaced_stepping_start.
  *
  * If the wave single step has not completed the wave state is reset to what it
@@ -3712,10 +3743,12 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_start (
  * and the client can retry stepping over the breakpoint again later.
  *
  * If the single step has completed, then the wave state is updated to be after
- * the instruction at which the breakpoint instruction is placed.  The wave
- * program counter and other registers may be changed so the client should
- * flush any cached register values.  The wave is left stopped and can be
- * resumed normally by the client.
+ * the instruction at which the breakpoint instruction is placed.
+ *
+ * Completing a displaced stepping buffer may read and write the wave program
+ * counter and other registers so the client should invalidate any cached
+ * register values after completing a displaced stepping buffer.  The wave is
+ * left stopped and can be resumed normally by the client.
  *
  * If the wave is the last one using the displaced stepping buffer, the buffer
  * is freed and the handle invalidated.
@@ -3739,16 +3772,20 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_start (
  * displaced stepping buffer is completed.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_DISPLACED_STEPPING_ID \p
- * displaced_stepping is invalid or not in use by \p wave_id.  No displaced
- * stepping buffer is completed.
+ * displaced_stepping is invalid.  No displaced stepping buffer is completed.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED \p wave_id is not
  * stopped.  No displaced stepping buffer is completed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * displaced_stepping is not in use by \p wave_id (which includes that the wave
+ * has already competed the displaced stepping buffer).  No displaced stepping
+ * buffer is completed.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_complete (
     amd_dbgapi_wave_id_t wave_id,
     amd_dbgapi_displaced_stepping_id_t displaced_stepping)
-    AMD_DBGAPI_VERSION_0_41;
+    AMD_DBGAPI_VERSION_0_42;
 
 /** @} */
 
@@ -4588,7 +4625,10 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
  * \p value_size bytes are written into the register starting at \p offset.
  *
  * The wave must be stopped.  The register and wave must both belong to the
- * same architecture, and the wave must have allocated that register.
+ * same architecture, and the wave must have allocated that register.  The wave
+ * must not have an active displaced stepping buffer (see
+ * ::amd_dbgapi_displaced_stepping_start) as the program counter and other
+ * registers may be changed as part of creating the displaced stepping buffer.
  *
  * The register size can be obtained using ::amd_dbgapi_register_get_info with
  * the ::AMD_DBGAPI_REGISTER_INFO_SIZE query.
@@ -4626,6 +4666,9 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
  * \retval ::AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED \p wave_id is not
  * stopped.  The register is unaltered.
  *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_ACTIVE \p wave_id has
+ * an active displaced stepping buffer.
+ *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or \p
  * value_size is 0.  \p value is unaltered.
  *
@@ -4637,7 +4680,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
     amd_dbgapi_size_t offset, amd_dbgapi_size_t value_size,
-    const void *value) AMD_DBGAPI_VERSION_0_41;
+    const void *value) AMD_DBGAPI_VERSION_0_42;
 
 /**
  * Prefetch register values.

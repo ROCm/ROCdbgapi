@@ -129,7 +129,7 @@ amd_dbgapi_displaced_stepping_start (
 
   /* Already displaced stepping?  */
   if (wave->displaced_stepping ())
-    return AMD_DBGAPI_STATUS_ERROR; /* FIXME: Check error code.  */
+    return AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_ACTIVE;
 
   /* wave_t::displaced_stepping_start writes registers, so we need the queue
      to be suspended.  (FIXME: Can we check if the instruction is
@@ -147,8 +147,9 @@ amd_dbgapi_displaced_stepping_start (
     return status;
 
   /* TODO: We could handle trivial step-overs (e.g. branches) and return
-     AMD_DBGAPI_DISPLACED_STEPPING_NONE.  In that case, the wave does not
-     need to be single-stepped to step over the breakpoint.  */
+     AMD_DBGAPI_DISPLACED_STEPPING_NONE.  In that case, the wave does not need
+     to be single-stepped to step over the breakpoint and should return a NULL
+     handle.  */
   *displaced_stepping_id = wave->displaced_stepping ()->id ();
 
   return status;
@@ -171,10 +172,6 @@ amd_dbgapi_displaced_stepping_complete (
   if (!wave)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
 
-  /* Not displaced stepping?  */
-  if (!wave->displaced_stepping ())
-    return AMD_DBGAPI_STATUS_ERROR; /* FIXME: Check error code.  */
-
   if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
     return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED;
 
@@ -183,6 +180,8 @@ amd_dbgapi_displaced_stepping_complete (
   if (!displaced_stepping)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_DISPLACED_STEPPING_ID;
 
+  /* Not displaced stepping or stepping with a different displaced stepping
+     buffer?  */
   if (wave->displaced_stepping () != displaced_stepping)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
 
