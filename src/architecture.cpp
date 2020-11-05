@@ -203,10 +203,16 @@ public:
   virtual size_t minimum_instruction_alignment () const override;
   virtual const std::vector<uint8_t> &nop_instruction () const override;
   virtual const std::vector<uint8_t> &breakpoint_instruction () const override;
+  virtual const std::vector<uint8_t> &assert_instruction () const override;
   virtual const std::vector<uint8_t> &endpgm_instruction () const override;
   virtual size_t breakpoint_instruction_pc_adjust () const override;
 
 protected:
+  /* See https://llvm.org/docs/AMDGPUUsage.html#trap-handler-abi  */
+  static constexpr uint8_t assert_trap_id = 0x2;
+  static constexpr uint8_t debug_trap_id = 0x3;
+  static constexpr uint8_t breakpoint_trap_id = 0x7;
+
   static uint8_t encoding_ssrc0 (const std::vector<uint8_t> &bytes);
   static uint8_t encoding_sdst (const std::vector<uint8_t> &bytes);
   static uint8_t encoding_op7 (const std::vector<uint8_t> &bytes);
@@ -233,9 +239,11 @@ protected:
   virtual bool is_cbranch (const std::vector<uint8_t> &bytes) const;
   virtual bool is_cbranch_i_fork (const std::vector<uint8_t> &bytes) const;
   virtual bool is_nop (const std::vector<uint8_t> &bytes) const;
-  virtual bool is_endpgm (const std::vector<uint8_t> &bytes) const override;
   virtual bool is_trap (const std::vector<uint8_t> &bytes,
-                        uint8_t *trap_id = nullptr) const override;
+                        uint8_t *trap_id = nullptr) const;
+  virtual bool is_endpgm (const std::vector<uint8_t> &bytes) const override;
+  virtual bool
+  is_breakpoint (const std::vector<uint8_t> &bytes) const override;
 
   virtual bool
   can_execute_displaced (const std::vector<uint8_t> &bytes) const override
@@ -695,10 +703,20 @@ const std::vector<uint8_t> &
 amdgcn_architecture_t::breakpoint_instruction () const
 {
   static const std::vector<uint8_t> s_breakpoint_instruction_bytes{
-    0x07, 0x00, 0x92, 0xBF /* s_trap 7 */
+    breakpoint_trap_id, 0x00, 0x92, 0xBF /* s_trap 7 */
   };
 
   return s_breakpoint_instruction_bytes;
+}
+
+const std::vector<uint8_t> &
+amdgcn_architecture_t::assert_instruction () const
+{
+  static const std::vector<uint8_t> s_assert_instruction_bytes{
+    assert_trap_id, 0x00, 0x92, 0xBF /* s_trap 2 */
+  };
+
+  return s_assert_instruction_bytes;
 }
 
 const std::vector<uint8_t> &
@@ -1488,6 +1506,13 @@ amdgcn_architecture_t::is_endpgm (const std::vector<uint8_t> &bytes) const
 {
   /* s_endpgm: SOPP Opcode 1  */
   return is_sopp_instruction (bytes, 1);
+}
+
+bool
+amdgcn_architecture_t::is_breakpoint (const std::vector<uint8_t> &bytes) const
+{
+  uint8_t trap_id = 0;
+  return is_trap (bytes, &trap_id) && trap_id == breakpoint_trap_id;
 }
 
 bool
@@ -2441,7 +2466,7 @@ architecture_t::can_halt_at (
      cannot halt at an s_strap. */
   return can_halt_at_endpgm ()
          || (instruction && !is_endpgm (*instruction)
-             && !is_trap (*instruction));
+             && !is_breakpoint (*instruction));
 }
 
 std::set<amdgpu_regnum_t>

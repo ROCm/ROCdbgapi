@@ -236,7 +236,7 @@ aql_queue_impl_t::aql_queue_impl_t (
     [&] () { return m_scratch_backing_memory_size; },
     /* Return a new instruction buffer instance in this queue.  */
     [&] () {
-      auto &breakpoint_instruction = architecture.breakpoint_instruction ();
+      auto &assert_instruction = architecture.assert_instruction ();
       amd_dbgapi_global_address_t instruction_buffer_address;
 
       if (!m_debugger_memory_free_chunks.empty ())
@@ -259,9 +259,8 @@ aql_queue_impl_t::aql_queue_impl_t (
              now before handing the buffer to the instruction_buffer_ref_t. */
           if (process.write_global_memory (
                   instruction_buffer_address + debugger_memory_chunk_size
-                      - breakpoint_instruction.size (),
-                  breakpoint_instruction.data (),
-                  breakpoint_instruction.size ())
+                      - assert_instruction.size (),
+                  assert_instruction.data (), assert_instruction.size ())
               != AMD_DBGAPI_STATUS_SUCCESS)
             error ("Could not write to the debugger memory");
         }
@@ -278,8 +277,7 @@ aql_queue_impl_t::aql_queue_impl_t (
 
       return wave_t::instruction_buffer_ref_t (
           instruction_buffer_address,
-          debugger_memory_chunk_size - breakpoint_instruction.size (),
-          deleter);
+          debugger_memory_chunk_size - assert_instruction.size (), deleter);
     },
   };
 }

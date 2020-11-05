@@ -155,8 +155,7 @@ public:
 
   virtual bool can_halt_at_endpgm () const = 0;
   virtual bool is_endpgm (const std::vector<uint8_t> &bytes) const = 0;
-  virtual bool is_trap (const std::vector<uint8_t> &bytes,
-                        uint8_t *trap_id = nullptr) const = 0;
+  virtual bool is_breakpoint (const std::vector<uint8_t> &bytes) const = 0;
 
   virtual bool
   can_execute_displaced (const std::vector<uint8_t> &bytes) const = 0;
@@ -211,6 +210,7 @@ public:
   virtual size_t breakpoint_instruction_pc_adjust () const = 0;
   virtual const std::vector<uint8_t> &nop_instruction () const = 0;
   virtual const std::vector<uint8_t> &breakpoint_instruction () const = 0;
+  virtual const std::vector<uint8_t> &assert_instruction () const = 0;
   virtual const std::vector<uint8_t> &endpgm_instruction () const = 0;
 
   virtual std::tuple<amd_dbgapi_instruction_kind_t, /* instruction_kind  */
