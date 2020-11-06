@@ -1019,8 +1019,6 @@ amdgcn_architecture_t::displaced_stepping_fixup (
     wave_t &wave, displaced_stepping_t &displaced_stepping) const
 {
   amd_dbgapi_global_address_t displaced_pc = wave.pc ();
-  const std::vector<uint8_t> &original_instruction
-      = displaced_stepping.original_instruction ();
 
   if (displaced_stepping.is_simulated ()
       /* The pc could still pointing at the displaced instruction is if the
@@ -1030,7 +1028,8 @@ amdgcn_architecture_t::displaced_stepping_fixup (
       && displaced_pc != displaced_stepping.to ())
     {
       return simulate_instruction (wave, displaced_stepping.from (),
-                                   original_instruction);
+                                   displaced_stepping.original_instruction ())
+             == AMD_DBGAPI_STATUS_SUCCESS;
     }
 
   amd_dbgapi_global_address_t restored_pc
