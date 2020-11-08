@@ -24,6 +24,7 @@
 #include "utils.h"
 
 #include <algorithm>
+#include <type_traits>
 #include <unordered_map>
 
 namespace amd::dbgapi
@@ -117,9 +118,9 @@ using id_handle_t = decltype (std::declval<Type> ().handle);
 } /* namespace detail */
 
 template <typename Type>
-constexpr bool is_handle_type_v
-    = std::is_integral_v<utils::detected_t<detail::id_handle_t, Type>>
-        &&std::is_unsigned_v<utils::detected_t<detail::id_handle_t, Type>>;
+inline constexpr bool is_handle_type_v = std::conjunction_v<
+    std::is_integral<utils::detected_t<detail::id_handle_t, Type>>,
+    std::is_unsigned<utils::detected_t<detail::id_handle_t, Type>>>;
 
 /* Hash function for handle types.  */
 template <typename Handle, std::enable_if_t<is_handle_type_v<Handle>, int> = 0>
@@ -144,7 +145,7 @@ using object_id_t = decltype (std::declval<Type> ().id ());
 } /* namespace detail */
 
 template <typename Type>
-constexpr bool is_handle_object_type_v
+inline constexpr bool is_handle_object_type_v
     = is_handle_type_v<utils::detected_t<detail::object_id_t, Type>>;
 
 /* Specialize this struct to change the initial value of a monotonic counter
@@ -156,7 +157,7 @@ struct monotonic_counter_start_t
 };
 
 template <typename Type>
-constexpr decltype (Type::handle) monotonic_counter_start_v
+inline constexpr decltype (Type::handle) monotonic_counter_start_v
     = monotonic_counter_start_t<Type>::value;
 
 /* A set container type that holds objects that are referenced using handles.

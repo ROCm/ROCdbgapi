@@ -214,6 +214,9 @@ process_t::detach ()
 
   m_client_notifier_pipe.close ();
 
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "detached %s",
+              to_string (id ()).c_str ());
+
   if (exception)
     std::rethrow_exception (exception);
 }
@@ -1416,6 +1419,10 @@ process_t::attach ()
     enqueue_event (create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
                                     AMD_DBGAPI_RUNTIME_STATE_UNLOADED));
   };
+
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "attaching %s to process %d",
+              to_string (id ()).c_str (),
+              m_os_process_id.has_value () ? m_os_process_id.value () : -1);
 
   /* Set/remove internal breakpoints when the runtime is loaded/unloaded.  */
   shared_library_t &library = create<shared_library_t> (

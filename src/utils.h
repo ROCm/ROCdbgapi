@@ -254,7 +254,7 @@ template <template <typename...> class Op, typename... Args>
 using is_detected = detail::detector<void, Op, Args...>;
 
 template <template <typename...> class Op, typename... Args>
-constexpr bool is_detected_v = is_detected<Op, Args...>::value;
+inline constexpr bool is_detected_v = is_detected<Op, Args...>::value;
 
 template <template <typename...> class Op, typename... Args>
 using detected_t = typename is_detected<Op, Args...>::type;
@@ -298,7 +298,7 @@ template <typename T> struct is_flag : std::false_type
    template <> struct is_flag<my_enum_class> : std::true_type {};
 */
 
-template <typename T> constexpr bool is_flag_v = is_flag<T>::value;
+template <typename T> inline constexpr bool is_flag_v = is_flag<T>::value;
 
 template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
 bool operator! (T flag)
