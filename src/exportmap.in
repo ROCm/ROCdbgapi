@@ -9,7 +9,6 @@ global: amd_dbgapi_architecture_address_class_list;
         amd_dbgapi_get_build_name;
         amd_dbgapi_get_status_string;
         amd_dbgapi_get_version;
-        amd_dbgapi_initialize;
         amd_dbgapi_process_detach;
         amd_dbgapi_process_set_progress;
         amd_dbgapi_process_set_wave_creation;
