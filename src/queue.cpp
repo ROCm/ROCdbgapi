@@ -558,7 +558,7 @@ aql_queue_impl_t::update_waves ()
   m_queue.architecture ().control_stack_iterate (
       &ctrl_stack[0], header.ctrl_stack_size / sizeof (uint32_t),
       m_os_queue_info.ctx_save_restore_address + header.wave_state_offset,
-      callback);
+      header.wave_state_size, callback);
 
   /* Iterate all waves belonging to this queue, and prune those with a mark
      older than the current mark.  Note that the waves must be pruned before

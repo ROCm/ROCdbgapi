@@ -150,6 +150,7 @@ public:
   virtual void control_stack_iterate (
       const uint32_t *control_stack, size_t control_stack_words,
       amd_dbgapi_global_address_t wave_area_address,
+      amd_dbgapi_size_t wave_area_size,
       const std::function<void (std::unique_ptr<cwsr_descriptor_t>)>
           &wave_callback) const = 0;
 

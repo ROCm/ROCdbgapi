@@ -1713,6 +1713,7 @@ public:
   virtual void control_stack_iterate (
       const uint32_t *control_stack, size_t control_stack_words,
       amd_dbgapi_global_address_t wave_area_address,
+      amd_dbgapi_size_t wave_area_size,
       const std::function<void (std::unique_ptr<cwsr_descriptor_t>)>
           &wave_callback) const override;
 
@@ -2005,10 +2006,13 @@ void
 gfx9_base_t::control_stack_iterate (
     const uint32_t *control_stack, size_t control_stack_words,
     amd_dbgapi_global_address_t wave_area_address,
+    amd_dbgapi_size_t wave_area_size,
     const std::function<void (std::unique_ptr<cwsr_descriptor_t>)>
         &wave_callback) const
 {
   uint32_t state{ 0 };
+
+  amd_dbgapi_global_address_t last_wave_area = wave_area_address;
 
   for (size_t i = 2; /* Skip the 2 PM4 packets at the top of the stack.  */
        i < control_stack_words; ++i)
@@ -2027,15 +2031,21 @@ gfx9_base_t::control_stack_iterate (
         {
           std::unique_ptr<cwsr_descriptor_t> descriptor (
               new gfx9_cwsr_descriptor_t{ relaunch, state,
-                                          wave_area_address - 64 });
+                                          last_wave_area - 64 });
 
-          wave_area_address
+          last_wave_area
               = register_address (*descriptor, amdgpu_regnum_t::first_vgpr_64)
                     .value ();
 
           wave_callback (std::move (descriptor));
         }
     }
+
+  /* After iterating the control stack, we should have consumed all the data in
+     the wave save area, and last_wave_area should point to the bottom of the
+     wave save area.  */
+  if (last_wave_area != (wave_area_address - wave_area_size))
+    error ("Corrupted control stack or wave save area");
 }
 
 /* Vega10 Architecture.  */
@@ -2153,6 +2163,7 @@ public:
   virtual void control_stack_iterate (
       const uint32_t *control_stack, size_t control_stack_words,
       amd_dbgapi_global_address_t wave_area_address,
+      amd_dbgapi_size_t wave_area_size,
       const std::function<void (std::unique_ptr<cwsr_descriptor_t>)>
           &wave_callback) const override;
 
@@ -2310,10 +2321,13 @@ void
 gfx10_base_t::control_stack_iterate (
     const uint32_t *control_stack, size_t control_stack_words,
     amd_dbgapi_global_address_t wave_area_address,
+    amd_dbgapi_size_t wave_area_size,
     const std::function<void (std::unique_ptr<cwsr_descriptor_t>)>
         &wave_callback) const
 {
   uint32_t state0{ 0 }, state1{ 0 };
+
+  amd_dbgapi_global_address_t last_wave_area = wave_area_address;
 
   for (size_t i = 2; /* Skip the 2 PM4 packets at the top of the stack.  */
        i < control_stack_words; ++i)
@@ -2334,9 +2348,9 @@ gfx10_base_t::control_stack_iterate (
         {
           std::unique_ptr<cwsr_descriptor_t> descriptor (
               new gfx10_cwsr_descriptor_t{ relaunch, state0, state1,
-                                           wave_area_address });
+                                           last_wave_area });
 
-          wave_area_address
+          last_wave_area
               = register_address (
                     *descriptor,
                     wave_get_info (*descriptor, wave_info_t::lane_count) == 32
@@ -2347,6 +2361,12 @@ gfx10_base_t::control_stack_iterate (
           wave_callback (std::move (descriptor));
         }
     }
+
+  /* After iterating the control stack, we should have consumed all the data in
+     the wave save area, and last_wave_area should point to the bottom of the
+     wave save area.  */
+  if (last_wave_area != (wave_area_address - wave_area_size))
+    error ("Corrupted control stack or wave save area");
 }
 
 class gfx1010_t final : public gfx10_base_t
