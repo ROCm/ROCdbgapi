@@ -141,10 +141,7 @@ amd_dbgapi_displaced_stepping_start (
   if (!(wave = find (wave_id)))
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
 
-  amd_dbgapi_status_t status
-      = wave->displaced_stepping_start (saved_instruction_bytes);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
+  wave->displaced_stepping_start (saved_instruction_bytes);
 
   /* TODO: We could handle trivial step-overs (e.g. branches) and return
      AMD_DBGAPI_DISPLACED_STEPPING_NONE.  In that case, the wave does not need
@@ -152,7 +149,7 @@ amd_dbgapi_displaced_stepping_start (
      handle.  */
   *displaced_stepping_id = wave->displaced_stepping ()->id ();
 
-  return status;
+  return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
 }
 
@@ -196,7 +193,9 @@ amd_dbgapi_displaced_stepping_complete (
   if (!(wave = find (wave_id)))
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
 
-  return wave->displaced_stepping_complete ();
+  wave->displaced_stepping_complete ();
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
 }
 

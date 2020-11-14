@@ -223,23 +223,23 @@ public:
   bool
   can_halt_at (const std::optional<std::vector<uint8_t>> &instruction) const;
 
-  virtual bool displaced_stepping_fixup (
+  virtual void displaced_stepping_fixup (
       wave_t &wave, displaced_stepping_t &displaced_stepping) const = 0;
 
-  virtual amd_dbgapi_status_t
-  get_wave_coords (wave_t &wave, std::array<uint32_t, 3> &group_ids,
-                   uint32_t *wave_in_group) const = 0;
+  virtual void get_wave_coords (wave_t &wave,
+                                std::array<uint32_t, 3> &group_ids,
+                                uint32_t *wave_in_group) const = 0;
 
-  virtual amd_dbgapi_status_t
+  virtual void
   get_wave_state (wave_t &wave, amd_dbgapi_wave_state_t *state,
                   amd_dbgapi_wave_stop_reason_t *stop_reason) const = 0;
-  virtual amd_dbgapi_status_t
-  set_wave_state (wave_t &wave, amd_dbgapi_wave_state_t state) const = 0;
+  virtual void set_wave_state (wave_t &wave,
+                               amd_dbgapi_wave_state_t state) const = 0;
 
-  virtual amd_dbgapi_status_t
-  enable_wave_traps (wave_t &wave, os_wave_launch_trap_mask_t mask) const = 0;
-  virtual amd_dbgapi_status_t
-  disable_wave_traps (wave_t &wave, os_wave_launch_trap_mask_t mask) const = 0;
+  virtual void enable_wave_traps (wave_t &wave,
+                                  os_wave_launch_trap_mask_t mask) const = 0;
+  virtual void disable_wave_traps (wave_t &wave,
+                                   os_wave_launch_trap_mask_t mask) const = 0;
 
   amd_dbgapi_architecture_id_t id () const { return m_architecture_id; }
   elf_amdgpu_machine_t elf_amdgpu_machine () const { return m_e_machine; }

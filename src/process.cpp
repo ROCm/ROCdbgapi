@@ -694,12 +694,8 @@ process_t::insert_watchpoint (const watchpoint_t &watchpoint,
       suspend_queues (queues, "insert watchpoint");
 
       for (auto &&wave : range<wave_t> ())
-        {
-          status = wave.architecture ().enable_wave_traps (
-              wave, os_wave_launch_trap_mask_t::address_watch);
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
-            error ("architecture_t::enable_wave_traps failed (rc=%d)", status);
-        }
+        wave.architecture ().enable_wave_traps (
+            wave, os_wave_launch_trap_mask_t::address_watch);
 
       if (forward_progress_needed ())
         resume_queues (queues, "insert watchpoint");
@@ -853,12 +849,8 @@ process_t::remove_watchpoint (const watchpoint_t &watchpoint)
       suspend_queues (queues, "remove watchpoint");
 
       for (auto &&wave : range<wave_t> ())
-        {
-          status = wave.architecture ().disable_wave_traps (
-              wave, os_wave_launch_trap_mask_t::address_watch);
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
-            error ("architecture_t::enable_wave_traps failed (rc=%d)", status);
-        }
+        wave.architecture ().disable_wave_traps (
+            wave, os_wave_launch_trap_mask_t::address_watch);
 
       if (forward_progress_needed ())
         resume_queues (queues, "remove watchpoint");

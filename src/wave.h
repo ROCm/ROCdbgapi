@@ -227,27 +227,26 @@ public:
   amd_dbgapi_global_address_t saved_pc () const { return m_saved_pc; }
   std::optional<std::vector<uint8_t>> instruction_at_pc () const;
 
-  amd_dbgapi_status_t park ();
-  amd_dbgapi_status_t unpark ();
-  amd_dbgapi_status_t terminate ();
+  void park ();
+  void unpark ();
+  void terminate ();
 
-  amd_dbgapi_status_t
-  displaced_stepping_start (const void *saved_instruction_bytes);
-  amd_dbgapi_status_t displaced_stepping_complete ();
+  void displaced_stepping_start (const void *saved_instruction_bytes);
+  void displaced_stepping_complete ();
   const displaced_stepping_t *displaced_stepping () const
   {
     return m_displaced_stepping;
   }
 
-  amd_dbgapi_status_t
-  update (const wave_t &group_leader,
-          std::unique_ptr<architecture_t::cwsr_descriptor_t> descriptor);
+  /* Update the wave's status from its saved state in the context save area. */
+  void update (const wave_t &group_leader,
+               std::unique_ptr<architecture_t::cwsr_descriptor_t> descriptor);
 
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }
 
   amd_dbgapi_wave_state_t state () const { return m_state; }
-  amd_dbgapi_status_t set_state (amd_dbgapi_wave_state_t state);
+  void set_state (amd_dbgapi_wave_state_t state);
 
   amd_dbgapi_wave_stop_reason_t stop_reason () const
   {
@@ -264,21 +263,37 @@ public:
     return architecture ().register_address (*m_descriptor, regnum);
   }
 
-  amd_dbgapi_status_t read_register (amdgpu_regnum_t regnum, size_t offset,
-                                     size_t value_size, void *value) const;
-  amd_dbgapi_status_t write_register (amdgpu_regnum_t regnum, size_t offset,
-                                      size_t value_size, const void *value);
+  void read_register (amdgpu_regnum_t regnum, size_t offset, size_t value_size,
+                      void *value) const;
+
+  void write_register (amdgpu_regnum_t regnum, size_t offset,
+                       size_t value_size, const void *value);
 
   template <typename T>
-  amd_dbgapi_status_t read_register (amdgpu_regnum_t regnum, T *value) const
+  void read_register (amdgpu_regnum_t regnum, T *value) const
   {
-    return read_register (regnum, 0, sizeof (T), value);
+    try
+      {
+        read_register (regnum, 0, sizeof (T), value);
+      }
+    catch (...)
+      {
+        error ("Could not read the '%s' register",
+               architecture ().register_name (regnum)->c_str ());
+      }
   }
 
-  template <typename T>
-  amd_dbgapi_status_t write_register (amdgpu_regnum_t regnum, T *value)
+  template <typename T> void write_register (amdgpu_regnum_t regnum, T *value)
   {
-    return write_register (regnum, 0, sizeof (T), value);
+    try
+      {
+        write_register (regnum, 0, sizeof (T), value);
+      }
+    catch (...)
+      {
+        error ("Could not write the '%s' register",
+               architecture ().register_name (regnum)->c_str ());
+      }
   }
 
   amd_dbgapi_status_t

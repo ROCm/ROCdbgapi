@@ -310,9 +310,6 @@ aql_queue_impl_t::update_waves ()
   const epoch_t wave_mark = m_next_wave_mark ();
   amd_dbgapi_status_t status;
 
-  amd_dbgapi_global_address_t ctx_save_base
-      = m_os_queue_info.ctx_save_restore_address;
-
   /* Read the queue's write_dispatch_id and read_dispatch_id.  */
 
   uint64_t write_dispatch_id;
@@ -329,41 +326,6 @@ aql_queue_impl_t::update_waves ()
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
 
-  /* Retrieve the used control stack size and used wave area from the
-     context save area header.  */
-
-  struct context_save_area_header_s header;
-
-  status
-      = process.read_global_memory (ctx_save_base, &header, sizeof (header));
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
-
-  /* Make sure the bottom of the ctrl stack == the start of the
-     wave save area.  */
-  dbgapi_assert ((header.ctrl_stack_offset + header.ctrl_stack_size)
-                 == (header.wave_state_offset - header.wave_state_size));
-
-  auto ctrl_stack = std::make_unique<uint32_t[]> (header.ctrl_stack_size
-                                                  / sizeof (uint32_t));
-
-  dbgapi_log (
-      AMD_DBGAPI_LOG_LEVEL_INFO,
-      "decoding %s's context save area: "
-      "ctrl_stk:[0x%lx..0x%lx[, wave_area:[0x%lx..0x%lx[",
-      to_string (m_queue.id ()).c_str (),
-      ctx_save_base + header.ctrl_stack_offset,
-      ctx_save_base + header.ctrl_stack_offset + header.ctrl_stack_size,
-      ctx_save_base + header.wave_state_offset - header.wave_state_size,
-      ctx_save_base + header.wave_state_offset);
-
-  /* Read the entire ctrl stack from the inferior.  */
-  status
-      = process.read_global_memory (ctx_save_base + header.ctrl_stack_offset,
-                                    &ctrl_stack[0], header.ctrl_stack_size);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
-
   wave_t *group_leader = nullptr;
 
   auto callback = [=, &group_leader] (
@@ -374,7 +336,6 @@ aql_queue_impl_t::update_waves ()
 
     amd_dbgapi_wave_id_t wave_id;
     wave_t::visibility_t visibility{ wave_t::visibility_t::visible };
-    amd_dbgapi_status_t status;
 
     if (process.is_flag_set (process_t::flag_t::assign_new_ids_to_all_waves))
       {
@@ -391,10 +352,10 @@ aql_queue_impl_t::update_waves ()
                   .register_address (*descriptor, amdgpu_regnum_t::wave_id)
                   .value ();
 
-        status = process.read_global_memory (wave_id_address, &wave_id,
-                                             sizeof (wave_id));
-        if (status != AMD_DBGAPI_STATUS_SUCCESS)
-          error ("read_global_memory failed at %lx", wave_id_address);
+        if (process.read_global_memory (wave_id_address, &wave_id,
+                                        sizeof (wave_id))
+            != AMD_DBGAPI_STATUS_SUCCESS)
+          error ("Could not read the 'wave_id' register");
 
         /* If this is a new wave, check its visibility.  Waves halted at launch
            should remain hidden until the wave creation mode is changed to
@@ -409,10 +370,10 @@ aql_queue_impl_t::update_waves ()
                       .register_address (*descriptor, amdgpu_regnum_t::status)
                       .value ();
 
-            status = process.read_global_memory (
-                status_reg_address, &status_reg, sizeof (status_reg));
-            if (status != AMD_DBGAPI_STATUS_SUCCESS)
-              error ("read_global_memory failed at %lx", status_reg_address);
+            if (process.read_global_memory (status_reg_address, &status_reg,
+                                            sizeof (status_reg))
+                != AMD_DBGAPI_STATUS_SUCCESS)
+              error ("Could not read the 'status' register");
 
             const bool halted = !!(status_reg & sq_wave_status_halt_mask);
 
@@ -422,10 +383,10 @@ aql_queue_impl_t::update_waves ()
                       .value ();
 
             uint32_t ttmp11;
-            status = process.read_global_memory (ttmp11_address, &ttmp11,
-                                                 sizeof (ttmp11));
-            if (status != AMD_DBGAPI_STATUS_SUCCESS)
-              error ("read_global_memory failed at %lx", ttmp11_address);
+            if (process.read_global_memory (ttmp11_address, &ttmp11,
+                                            sizeof (ttmp11))
+                != AMD_DBGAPI_STATUS_SUCCESS)
+              error ("Could not read the 'ttmp1' register");
 
             /* trap_handler_events is true if the trap handler was entered
                because of a trap instruction or an exception.  */
@@ -459,10 +420,10 @@ aql_queue_impl_t::update_waves ()
                   .value ();
 
         amd_dbgapi_global_address_t dispatch_ptr;
-        status = process.read_global_memory (
-            dispatch_ptr_address, &dispatch_ptr, sizeof (dispatch_ptr));
-        if (status != AMD_DBGAPI_STATUS_SUCCESS)
-          error ("read_global_memory failed at %lx", dispatch_ptr_address);
+        if (process.read_global_memory (dispatch_ptr_address, &dispatch_ptr,
+                                        sizeof (dispatch_ptr))
+            != AMD_DBGAPI_STATUS_SUCCESS)
+          error ("Could not read the 'dispatch_ptr' register");
 
         if (!dispatch_ptr)
           /* TODO: See comment above for corrupted wavefronts. This could be
@@ -549,9 +510,7 @@ aql_queue_impl_t::update_waves ()
     if (!group_leader)
       error ("No group_leader, the control stack may be corrupted");
 
-    status = wave->update (*group_leader, std::move (descriptor));
-    if (status != AMD_DBGAPI_STATUS_SUCCESS)
-      error ("wave_t::update failed");
+    wave->update (*group_leader, std::move (descriptor));
 
     /* This was the last wave in the group. Make sure we have a new group
        leader for the remaining waves.  */
@@ -565,14 +524,56 @@ aql_queue_impl_t::update_waves ()
     wave->set_mark (wave_mark);
   };
 
-  /* Decode the control stack.  For each wave entry in the control stack, the
-     provided function is called with a wave descriptor and a pointer to its
-     context save area.  */
+  amd_dbgapi_global_address_t ctx_save_base
+      = m_os_queue_info.ctx_save_restore_address;
 
-  m_queue.architecture ().control_stack_iterate (
-      &ctrl_stack[0], header.ctrl_stack_size / sizeof (uint32_t),
-      ctx_save_base + header.wave_state_offset, header.wave_state_size,
-      callback);
+  /* Retrieve the used control stack size and used wave area from the context
+     save area header.  */
+
+  struct context_save_area_header_s header;
+
+  if (process.read_global_memory (ctx_save_base, &header, sizeof (header))
+      != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not read %s's control stack header",
+           to_string (m_queue.id ()).c_str ());
+
+  /* Make sure the bottom of the ctrl stack == the start of the wave save
+     area.  */
+  if ((header.ctrl_stack_offset + header.ctrl_stack_size)
+      != (header.wave_state_offset - header.wave_state_size))
+    error ("Corrupted control stack or wave save area");
+
+  if (header.ctrl_stack_size)
+    {
+      dbgapi_log (
+          AMD_DBGAPI_LOG_LEVEL_INFO,
+          "decoding %s's context save area: "
+          "ctrl_stk:[0x%lx..0x%lx[, wave_area:[0x%lx..0x%lx[",
+          to_string (m_queue.id ()).c_str (),
+          ctx_save_base + header.ctrl_stack_offset,
+          ctx_save_base + header.ctrl_stack_offset + header.ctrl_stack_size,
+          ctx_save_base + header.wave_state_offset - header.wave_state_size,
+          ctx_save_base + header.wave_state_offset);
+
+      auto ctrl_stack = std::make_unique<uint32_t[]> (header.ctrl_stack_size
+                                                      / sizeof (uint32_t));
+
+      /* Read the entire ctrl stack from the inferior.  */
+      if (process.read_global_memory (ctx_save_base + header.ctrl_stack_offset,
+                                      &ctrl_stack[0], header.ctrl_stack_size)
+          != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("Could not read %s's control stack",
+               to_string (m_queue.id ()).c_str ());
+
+      /* Decode the control stack.  For each wave entry in the control stack,
+         the provided function is called with a wave descriptor and a pointer
+         to its context save area.  */
+
+      m_queue.architecture ().control_stack_iterate (
+          &ctrl_stack[0], header.ctrl_stack_size / sizeof (uint32_t),
+          ctx_save_base + header.wave_state_offset, header.wave_state_size,
+          callback);
+    }
 
   /* Iterate all waves belonging to this queue, and prune those with a mark
      older than the current mark.  Note that the waves must be pruned before

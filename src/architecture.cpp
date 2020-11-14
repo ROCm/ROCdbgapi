@@ -80,12 +80,14 @@ protected:
   static const std::unordered_map<uint16_t, cbranch_cond_t>
       cbranch_opcodes_map;
 
-  static constexpr uint32_t sq_wave_status_scc_mask = (1 << 0);
-  static constexpr uint32_t sq_wave_status_execz_mask = (1 << 9);
-  static constexpr uint32_t sq_wave_status_vccz_mask = (1 << 10);
+  static constexpr uint32_t sq_wave_status_scc_mask = 1 << 0;
+  static constexpr uint32_t sq_wave_status_priv_mask = 1 << 5;
+  static constexpr uint32_t sq_wave_status_trap_en_mask = 1 << 6;
+  static constexpr uint32_t sq_wave_status_execz_mask = 1 << 9;
+  static constexpr uint32_t sq_wave_status_vccz_mask = 1 << 10;
   static constexpr uint32_t sq_wave_status_halt_mask = 1 << 13;
-  static constexpr uint32_t sq_wave_status_cond_dbg_user_mask = (1 << 20);
-  static constexpr uint32_t sq_wave_status_cond_dbg_sys_mask = (1 << 21);
+  static constexpr uint32_t sq_wave_status_cond_dbg_user_mask = 1 << 20;
+  static constexpr uint32_t sq_wave_status_cond_dbg_sys_mask = 1 << 21;
 
   static constexpr uint32_t ttmp11_wave_in_group_mask = 0x003f;
   static constexpr uint32_t ttmp11_trap_handler_trap_raised_mask = 1 << 7;
@@ -177,26 +179,26 @@ public:
   virtual std::vector<os_watch_id_t>
   triggered_watchpoints (const wave_t &wave) const override;
 
-  virtual bool displaced_stepping_fixup (
+  virtual void displaced_stepping_fixup (
       wave_t &wave, displaced_stepping_t &displaced_stepping) const override;
 
-  virtual amd_dbgapi_status_t
-  get_wave_coords (wave_t &wave, std::array<uint32_t, 3> &group_ids,
-                   uint32_t *wave_in_group) const override;
+  virtual void get_wave_coords (wave_t &wave,
+                                std::array<uint32_t, 3> &group_ids,
+                                uint32_t *wave_in_group) const override;
 
-  virtual amd_dbgapi_status_t
+  virtual void
   get_wave_state (wave_t &wave, amd_dbgapi_wave_state_t *state,
                   amd_dbgapi_wave_stop_reason_t *stop_reason) const override;
-  virtual amd_dbgapi_status_t
-  set_wave_state (wave_t &wave, amd_dbgapi_wave_state_t state) const override;
+  virtual void set_wave_state (wave_t &wave,
+                               amd_dbgapi_wave_state_t state) const override;
 
   virtual uint32_t os_wave_launch_trap_mask_to_wave_mode (
       os_wave_launch_trap_mask_t mask) const;
 
-  virtual amd_dbgapi_status_t
+  virtual void
   enable_wave_traps (wave_t &wave,
                      os_wave_launch_trap_mask_t mask) const override final;
-  virtual amd_dbgapi_status_t
+  virtual void
   disable_wave_traps (wave_t &wave,
                       os_wave_launch_trap_mask_t mask) const override final;
 
@@ -269,7 +271,7 @@ protected:
   classify_instruction (const std::vector<uint8_t> &instruction,
                         amd_dbgapi_global_address_t address) const override;
 
-  virtual amd_dbgapi_status_t
+  virtual void
   simulate_instruction (wave_t &wave, amd_dbgapi_global_address_t pc,
                         const std::vector<uint8_t> &instruction) const;
 };
@@ -524,8 +526,8 @@ amdgcn_architecture_t::convert_address_space (
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
 
-  /* Other conversions from local, private or global can only be to the
-     the generic address space.  */
+  /* Other conversions from local, private or global can only be to the generic
+     address space.  */
 
   if (to_address_space.kind () != address_space_t::generic)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION;
@@ -657,7 +659,6 @@ std::vector<os_watch_id_t>
 amdgcn_architecture_t::triggered_watchpoints (const wave_t &wave) const
 {
   std::vector<os_watch_id_t> watchpoints;
-  amd_dbgapi_status_t status;
 
   if (wave.state () != AMD_DBGAPI_WAVE_STATE_STOP
       || !(wave.stop_reason () & AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT))
@@ -667,9 +668,7 @@ amdgcn_architecture_t::triggered_watchpoints (const wave_t &wave) const
   dbgapi_assert (wave.is_register_cached (amdgpu_regnum_t::trapsts));
 
   uint32_t trapsts;
-  status = wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("could not read the trapsts register (rc=%d)", status);
+  wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
 
   if (trapsts & sq_wave_trapsts_excp_addr_watch0_mask)
     watchpoints.emplace_back (0);
@@ -752,10 +751,7 @@ amdgcn_architecture_t::branch_target (
     {
       uint32_t status_reg;
 
-      amd_dbgapi_status_t status
-          = wave.read_register (amdgpu_regnum_t::status, &status_reg);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("wave::read_register failed (rc=%d)", status);
+      wave.read_register (amdgpu_regnum_t::status, &status_reg);
 
       /* Evaluate the condition.  */
       bool branch_taken{};
@@ -915,17 +911,16 @@ amdgcn_architecture_t::classify_instruction (
   return { instruction_kind, size, std::move (properties) };
 }
 
-amd_dbgapi_status_t
+void
 amdgcn_architecture_t::simulate_instruction (
     wave_t &wave, amd_dbgapi_global_address_t pc,
     const std::vector<uint8_t> &instruction) const
 {
-  amd_dbgapi_global_address_t new_pc;
-  amd_dbgapi_status_t status;
-
   dbgapi_assert (
       wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
       && "We can only simulate instructions when the wave is not running.");
+
+  amd_dbgapi_global_address_t new_pc;
 
   if (is_nop (instruction))
     {
@@ -933,53 +928,53 @@ amdgcn_architecture_t::simulate_instruction (
     }
   else if (is_endpgm (instruction))
     {
-      return wave.terminate ();
+      wave.terminate ();
+      return;
     }
   else if (is_branch (instruction) || is_cbranch (instruction))
     {
       new_pc = branch_target (wave, pc, instruction);
     }
-  else if (is_call (instruction))
+  else if (is_call (instruction) || is_getpc (instruction)
+           || is_swappc (instruction) || is_setpc (instruction))
     {
-      amd_dbgapi_global_address_t return_pc = pc + instruction.size ();
-
-      /* Save the return address.  */
-      amdgpu_regnum_t sdst_regnum
-          = scalar_operand_to_regnum (encoding_sdst (instruction));
-
-      uint32_t sdst_lo = static_cast<uint32_t> (return_pc);
-      uint32_t sdst_hi = static_cast<uint32_t> (return_pc >> 32);
-
-      status = wave.write_register (sdst_regnum, &sdst_lo);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
-
-      status = wave.write_register (sdst_regnum + 1, &sdst_hi);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
-
-      new_pc = branch_target (wave, pc, instruction);
-    }
-  else if (is_getpc (instruction) || is_swappc (instruction)
-           || is_setpc (instruction))
-    {
-      if (is_getpc (instruction) || is_swappc (instruction))
+      if (!is_setpc (instruction))
         {
           amdgpu_regnum_t sdst_regnum
               = scalar_operand_to_regnum (encoding_sdst (instruction));
 
-          new_pc = pc + instruction.size ();
+          /* The hardware requires a 64-bit address register pair to have the
+             lower register number be even.  If it is not, then it is treated
+             as if the lower register number is the preceding even register
+             number.  So mask out lower bit of the register number.  */
+          sdst_regnum = sdst_regnum & -2;
 
-          uint32_t sdst_lo = static_cast<uint32_t> (new_pc);
-          uint32_t sdst_hi = static_cast<uint32_t> (new_pc >> 32);
+          /* If the destination register pair is out of range of the allocated
+             registers, then the hardware does no register write.  */
+          bool commit_write = wave.is_register_available (sdst_regnum);
 
-          status = wave.write_register (sdst_regnum, &sdst_lo);
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
-            return status;
+          /* A ttmp destination is only writable when in privileged mode.  */
+          if (sdst_regnum >= amdgpu_regnum_t::first_ttmp
+              && sdst_regnum <= amdgpu_regnum_t::last_ttmp)
+            {
+              uint32_t status;
+              wave.read_register (amdgpu_regnum_t::status, &status);
+              commit_write = (status & sq_wave_status_priv_mask) != 0;
+            }
 
-          status = wave.write_register (sdst_regnum + 1, &sdst_hi);
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
-            return status;
+          uint64_t sdst_value = pc + instruction.size ();
+          uint32_t sdst_lo = static_cast<uint32_t> (sdst_value);
+          uint32_t sdst_hi = static_cast<uint32_t> (sdst_value >> 32);
+
+          if (commit_write)
+            {
+              wave.write_register (sdst_regnum, &sdst_lo);
+              wave.write_register (sdst_regnum + 1, &sdst_hi);
+            }
+
+          new_pc = is_call (instruction)
+                       ? branch_target (wave, pc, instruction)
+                       : pc + instruction.size ();
         }
 
       if (is_setpc (instruction) || is_swappc (instruction))
@@ -987,15 +982,35 @@ amdgcn_architecture_t::simulate_instruction (
           amdgpu_regnum_t ssrc_regnum
               = scalar_operand_to_regnum (encoding_ssrc0 (instruction));
 
-          uint32_t ssrc_lo, ssrc_hi;
+          /* The hardware requires a 64-bit address register pair to have the
+             lower register number be even.  If it is not, then it is treated
+             as if the lower register number is the preceding even register
+             number.  So mask out lower bit of the register number.  */
+          ssrc_regnum = ssrc_regnum & -2;
 
-          status = wave.read_register (ssrc_regnum, &ssrc_lo);
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
-            return status;
+          /* If the source register pair is out of range of the allocated
+             registers, then the hardware reads from s[0:1].  */
+          if (!wave.is_register_available (ssrc_regnum))
+            ssrc_regnum = amdgpu_regnum_t::s0;
 
-          status = wave.read_register (ssrc_regnum + 1, &ssrc_hi);
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
-            return status;
+          bool ssrc_is_null = ssrc_regnum == amdgpu_regnum_t::null;
+
+          /* Reading a ttmp source when not in priviledged mode returns 0.  */
+          if (ssrc_regnum >= amdgpu_regnum_t::first_ttmp
+              && ssrc_regnum <= amdgpu_regnum_t::last_ttmp)
+            {
+              uint32_t status;
+              wave.read_register (amdgpu_regnum_t::status, &status);
+              ssrc_is_null = !(status & sq_wave_status_priv_mask);
+            }
+
+          uint32_t ssrc_lo = 0, ssrc_hi = 0;
+
+          if (!ssrc_is_null)
+            {
+              wave.read_register (ssrc_regnum, &ssrc_lo);
+              wave.read_register (ssrc_regnum + 1, &ssrc_hi);
+            }
 
           new_pc = amd_dbgapi_global_address_t{ ssrc_lo }
                    | amd_dbgapi_global_address_t{ ssrc_hi } << 32;
@@ -1004,17 +1019,13 @@ amdgcn_architecture_t::simulate_instruction (
   else
     {
       /* We don't know how to simulate this instruction.  */
-      return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
+      dbgapi_assert (!"Cannot simulate instruction");
     }
 
-  status = wave.write_register (amdgpu_regnum_t::pc, &new_pc);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
+  wave.write_register (amdgpu_regnum_t::pc, &new_pc);
 }
 
-bool
+void
 amdgcn_architecture_t::displaced_stepping_fixup (
     wave_t &wave, displaced_stepping_t &displaced_stepping) const
 {
@@ -1027,68 +1038,49 @@ amdgcn_architecture_t::displaced_stepping_fixup (
          simply restore the pc to the original location.  */
       && displaced_pc != displaced_stepping.to ())
     {
-      return simulate_instruction (wave, displaced_stepping.from (),
-                                   displaced_stepping.original_instruction ())
-             == AMD_DBGAPI_STATUS_SUCCESS;
+      simulate_instruction (wave, displaced_stepping.from (),
+                            displaced_stepping.original_instruction ());
     }
+  else
+    {
+      amd_dbgapi_global_address_t restored_pc = displaced_pc
+                                                + displaced_stepping.from ()
+                                                - displaced_stepping.to ();
 
-  amd_dbgapi_global_address_t restored_pc
-      = displaced_pc + displaced_stepping.from () - displaced_stepping.to ();
-
-  if (wave.write_register (amdgpu_regnum_t::pc, &restored_pc)
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    return false;
-
-  return true;
+      wave.write_register (amdgpu_regnum_t::pc, &restored_pc);
+    }
 }
 
-amd_dbgapi_status_t
+void
 amdgcn_architecture_t::get_wave_coords (wave_t &wave,
                                         std::array<uint32_t, 3> &group_ids,
                                         uint32_t *wave_in_group) const
 {
-  amd_dbgapi_status_t status;
   dbgapi_assert (wave_in_group && "Invalid parameter");
 
   /* Read group_ids[0:3].  */
-  status = wave.process ().read_global_memory (
-      wave.register_address (amdgpu_regnum_t::dispatch_grid_x).value (),
-      &group_ids[0], sizeof (group_ids));
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    {
-      warning ("Could not read ttmp[8:10]");
-      return status;
-    }
+  if (wave.process ().read_global_memory (
+          wave.register_address (amdgpu_regnum_t::dispatch_grid_x).value (),
+          &group_ids[0], sizeof (group_ids))
+      != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not read the 'dispatch_grid_*' registers");
 
   uint32_t ttmp11;
-  status = wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    {
-      warning ("Could not read ttmp11");
-      return status;
-    }
-  *wave_in_group = ttmp11 & ttmp11_wave_in_group_mask;
+  wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+  *wave_in_group = ttmp11 & ttmp11_wave_in_group_mask;
 }
 
-amd_dbgapi_status_t
+void
 amdgcn_architecture_t::get_wave_state (
     wave_t &wave, amd_dbgapi_wave_state_t *state,
     amd_dbgapi_wave_stop_reason_t *stop_reason) const
 {
-  amd_dbgapi_status_t status;
   dbgapi_assert (state && stop_reason && "Invalid parameter");
 
-  uint32_t status_reg;
-  status = wave.read_register (amdgpu_regnum_t::status, &status_reg);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
-
-  uint32_t mode_reg;
-  status = wave.read_register (amdgpu_regnum_t::mode, &mode_reg);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
+  uint32_t status_reg, mode_reg;
+  wave.read_register (amdgpu_regnum_t::status, &status_reg);
+  wave.read_register (amdgpu_regnum_t::mode, &mode_reg);
 
   amd_dbgapi_wave_state_t saved_state = wave.state ();
 
@@ -1105,9 +1097,8 @@ amdgcn_architecture_t::get_wave_state (
 
       dbgapi_assert ([&wave] () {
         uint32_t ttmp11;
-        return (wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11)
-                == AMD_DBGAPI_STATUS_SUCCESS)
-               && !(ttmp11 & ttmp11_trap_handler_events_mask);
+        wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
+        return !(ttmp11 & ttmp11_trap_handler_events_mask);
       }()
                      && "Waves should not have trap handler events while "
                         "running. These are reset when unhalting the wave.");
@@ -1127,15 +1118,9 @@ amdgcn_architecture_t::get_wave_state (
                 ? AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP
                 : AMD_DBGAPI_WAVE_STOP_REASON_NONE;
 
-      uint32_t trapsts;
-      status = wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
-
-      uint32_t ttmp11;
-      status = wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
+      uint32_t trapsts, ttmp11;
+      wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
+      wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
 
       bool trap_raised = !!(ttmp11 & ttmp11_trap_handler_trap_raised_mask);
       /* bool excp_raised
@@ -1160,48 +1145,40 @@ amdgcn_architecture_t::get_wave_state (
           /* The first-level trap handler subtracts 8 from the PC, so
              we add it back here.  */
           pc += 8;
-          status = wave.write_register (amdgpu_regnum_t::pc, &pc);
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
-            return status;
+          wave.write_register (amdgpu_regnum_t::pc, &pc);
         }
 
       auto instruction = wave.instruction_at_pc ();
 
-      /* Check for spurious single-step events. A context save/restore
-         before executing the single-stepped instruction could have caused
-         the event to be reported with the wave halted at the instruction
-         instead of after.  In such cases, un-halt the wave and let it
-         continue, so that the instruction is executed.  */
+      /* Check for spurious single-step events. A context save/restore before
+         executing the single-stepped instruction could have caused the event
+         to be reported with the wave halted at the instruction instead of
+         after.  In such cases, un-halt the wave and let it continue, so that
+         the instruction is executed.  */
       bool ignore_single_step_event
           = saved_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
             && wave.saved_pc () == pc && !trap_raised;
 
       if (instruction && ignore_single_step_event)
         {
-          /* Trim to size of instruction, simulate_instruction needs the
-             exact instruction bytes.  */
+          /* Trim to size of instruction, simulate_instruction needs the exact
+           * instruction bytes.  */
           size_t size = instruction_size (*instruction);
           dbgapi_assert (size != 0 && "Invalid instruction");
           instruction->resize (size);
 
-          /* Branch instructions should be simulated, and the event
-             reported, as we cannot tell if a branch to self
-             instruction has executed.  */
-          status = simulate_instruction (wave, pc, *instruction);
-          if (status == AMD_DBGAPI_STATUS_SUCCESS)
+          /* Branch instructions should be simulated, and the event reported,
+             as we cannot tell if a branch to self instruction has executed. */
+          if (can_simulate (*instruction))
             {
+              simulate_instruction (wave, pc, *instruction);
+
               /* We successfully simulated the instruction, report the
                  single-step event.  */
               ignore_single_step_event = false;
 
               /* Reload the instruction since the pc may have changed.  */
               instruction = wave.instruction_at_pc ();
-            }
-          else if (status != AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED)
-            {
-              /* The instruction should have been simulated but an error
-                 has occurred.  */
-              error ("simulate_instruction failed (rc=%d)", status);
             }
         }
 
@@ -1217,7 +1194,7 @@ amdgcn_architecture_t::get_wave_state (
           *state = wave.state ();
           *stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
 
-          return AMD_DBGAPI_STATUS_SUCCESS;
+          return;
         }
       else if (trap_raised)
         {
@@ -1227,8 +1204,8 @@ amdgcn_architecture_t::get_wave_state (
             {
               /* FIXME: We should be getting the stop reason from the trap
                  handler.  As a workaround, assume the the trap_id is of a
-                 breakpoint instruction, that could have been removed by
-                 the debugger since the trap was raised.  */
+                 breakpoint instruction, that could have been removed by the
+                 debugger since the trap was raised.  */
               trap_id = 7;
             }
 
@@ -1280,24 +1257,16 @@ amdgcn_architecture_t::get_wave_state (
       if (!can_halt_at (instruction))
         wave.park ();
     }
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
-amd_dbgapi_status_t
+void
 amdgcn_architecture_t::set_wave_state (wave_t &wave,
                                        amd_dbgapi_wave_state_t state) const
 {
   uint32_t status_reg, mode_reg;
-  amd_dbgapi_status_t status;
 
-  status = wave.read_register (amdgpu_regnum_t::status, &status_reg);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
-
-  status = wave.read_register (amdgpu_regnum_t::mode, &mode_reg);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
+  wave.read_register (amdgpu_regnum_t::status, &status_reg);
+  wave.read_register (amdgpu_regnum_t::mode, &mode_reg);
 
   switch (state)
     {
@@ -1317,57 +1286,38 @@ amdgcn_architecture_t::set_wave_state (wave_t &wave,
       break;
 
     default:
-      return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+      dbgapi_assert (!"Invalid wave state");
     }
 
-  status = wave.write_register (amdgpu_regnum_t::status, &status_reg);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
-
-  status = wave.write_register (amdgpu_regnum_t::mode, &mode_reg);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
+  wave.write_register (amdgpu_regnum_t::status, &status_reg);
+  wave.write_register (amdgpu_regnum_t::mode, &mode_reg);
 
   /* If resuming the wave (run or single-step), clear the trap handler events
      in ttmp11 and the watchpoint exceptions in trapsts.  */
   if (state != AMD_DBGAPI_WAVE_STATE_STOP)
     {
       uint32_t ttmp11;
-
-      status = wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
-
+      wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
       ttmp11 &= ~ttmp11_trap_handler_events_mask;
-
-      status = wave.write_register (amdgpu_regnum_t::ttmp11, &ttmp11);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
+      wave.write_register (amdgpu_regnum_t::ttmp11, &ttmp11);
 
       if (wave.stop_reason () & AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT)
         {
           uint32_t trapsts;
-
-          status = wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
-            return status;
+          wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
 
           trapsts &= ~(sq_wave_trapsts_excp_addr_watch0_mask
                        | sq_wave_trapsts_excp_hi_addr_watch1_mask
                        | sq_wave_trapsts_excp_hi_addr_watch2_mask
                        | sq_wave_trapsts_excp_hi_addr_watch3_mask);
 
-          status = wave.write_register (amdgpu_regnum_t::trapsts, &trapsts);
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
-            return status;
+          wave.write_register (amdgpu_regnum_t::trapsts, &trapsts);
         }
     }
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
-/* Convert an os_wave_launch_trap_mask to a bit mask that can be or'ed in
-   the SQ_WAVE_MODE register.  */
+/* Convert an os_wave_launch_trap_mask to a bit mask that can be or'ed in the
+   SQ_WAVE_MODE register.  */
 uint32_t
 amdgcn_architecture_t::os_wave_launch_trap_mask_to_wave_mode (
     os_wave_launch_trap_mask_t mask) const
@@ -1394,38 +1344,31 @@ amdgcn_architecture_t::os_wave_launch_trap_mask_to_wave_mode (
   return mode;
 }
 
-amd_dbgapi_status_t
+void
 amdgcn_architecture_t::enable_wave_traps (
     wave_t &wave, os_wave_launch_trap_mask_t mask) const
 {
-  amd_dbgapi_status_t status;
   uint32_t mode;
-
-  status = wave.read_register (amdgpu_regnum_t::mode, &mode);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
+  wave.read_register (amdgpu_regnum_t::mode, &mode);
 
   /* OR SQ_WAVE_MODE.EXCP_EN with mask.  */
   mode |= os_wave_launch_trap_mask_to_wave_mode (mask);
 
-  return wave.write_register (amdgpu_regnum_t::mode, &mode);
+  wave.write_register (amdgpu_regnum_t::mode, &mode);
 }
 
-amd_dbgapi_status_t
+void
 amdgcn_architecture_t::disable_wave_traps (
     wave_t &wave, os_wave_launch_trap_mask_t mask) const
 {
-  amd_dbgapi_status_t status;
   uint32_t mode;
 
-  status = wave.read_register (amdgpu_regnum_t::mode, &mode);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
+  wave.read_register (amdgpu_regnum_t::mode, &mode);
 
   /* AND SQ_WAVE_MODE.EXCP_EN with ~mask.  */
   mode &= ~os_wave_launch_trap_mask_to_wave_mode (mask);
 
-  return wave.write_register (amdgpu_regnum_t::mode, &mode);
+  wave.write_register (amdgpu_regnum_t::mode, &mode);
 }
 
 uint8_t
@@ -1610,7 +1553,7 @@ amdgcn_architecture_t::is_cbranch (const std::vector<uint8_t> &bytes) const
      s_cbranch_cdbgsys:          SOPP Opcode 23 [10111111 10010111 SIMM16]
      s_cbranch_cdbguser:         SOPP Opcode 24 [10111111 10011000 SIMM16]
      s_cbranch_cdbgsys_or_user:  SOPP Opcode 25 [10111111 10011001 SIMM16]
-     s_cbranch_cdbgsys_and_user: SOPP Opcode 26 [10111111 10011010 SIMM16]  */
+     s_cbranch_cdbgsys_and_user: SOPP Opcode 26 [10111111 10011010 SIMM16] */
   if ((encoding & 0xFF800000) != 0xBF800000)
     return false;
 
@@ -1744,8 +1687,8 @@ gfx9_base_t::wave_get_info (const cwsr_descriptor_t &descriptor,
 
     case wave_info_t::sgprs:
       /* sgprs are allocated in blocks of 16 registers. Subtract the ttmps
-         registers from this count, as they will be saved in a different
-         area than the sgprs.  */
+         registers from this count, as they will be saved in a different area
+         than the sgprs.  */
       return (1 + compute_relaunch_payload_sgprs (state)) * 16
              - /* ttmps */ 16;
 
@@ -1763,7 +1706,7 @@ gfx9_base_t::wave_get_info (const cwsr_descriptor_t &descriptor,
       return compute_relaunch_payload_first_wave (wave);
 
     default:
-      error ("invalid wave_info query %d", static_cast<int> (query));
+      dbgapi_assert (!"invalid wave_info query");
     }
 }
 
@@ -1941,8 +1884,8 @@ gfx9_base_t::register_address (const cwsr_descriptor_t &descriptor,
       regnum = amdgpu_regnum_t::s0 + std::min (108ul, sgpr_count) - 1;
     }
 
-  /* Note: While EXEC_32 and EXEC_64 alias to sgpr_count - 2, the CWSR handler
-     saves them in the hwreg block.  */
+  /* Note: While EXEC_32 and EXEC_64 alias to sgpr_count - 2, the CWSR
+     handler saves them in the hwreg block.  */
 
   if (regnum == amdgpu_regnum_t::flat_scratch
       || regnum == amdgpu_regnum_t::flat_scratch_lo)
@@ -2483,8 +2426,8 @@ architecture_t::can_halt_at (
 {
   /* A wave cannot halt at an s_endpgm instruction. An s_trap may be used as a
      breakpoint instruction, and since it could be removed and the original
-     instruction restored, which could reveal an s_endpgm, we also
-     cannot halt at an s_strap. */
+     instruction restored, which could reveal an s_endpgm, we also cannot halt
+     at an s_strap. */
   return can_halt_at_endpgm ()
          || (instruction && !is_endpgm (*instruction)
              && !is_breakpoint (*instruction));

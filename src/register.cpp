@@ -411,7 +411,9 @@ amd_dbgapi_read_register (amd_dbgapi_wave_id_t wave_id,
         return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
     }
 
-  return wave->read_register (*regnum, offset, value_size, value);
+  wave->read_register (*regnum, offset, value_size, value);
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
 }
 
@@ -450,7 +452,8 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
    *   return AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_ACTIVE;
    */
 
-      if (!value) return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+  if (!value)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   if (*architecture != wave->architecture ())
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
@@ -483,7 +486,9 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
         return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
     }
 
-  return wave->write_register (*regnum, offset, value_size, value);
+  wave->write_register (*regnum, offset, value_size, value);
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
 }
 

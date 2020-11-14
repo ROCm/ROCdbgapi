@@ -154,6 +154,19 @@ operator- (amdgpu_regnum_t lhs, int rhs)
       static_cast<std::underlying_type_t<decltype (lhs)>> (lhs) - rhs);
 }
 
+constexpr amdgpu_regnum_t operator& (amdgpu_regnum_t lhs, int rhs)
+{
+  return static_cast<amdgpu_regnum_t> (
+      static_cast<std::underlying_type_t<decltype (lhs)>> (lhs) & rhs);
+}
+
+constexpr amdgpu_regnum_t
+operator| (amdgpu_regnum_t lhs, int rhs)
+{
+  return static_cast<amdgpu_regnum_t> (
+      static_cast<std::underlying_type_t<decltype (lhs)>> (lhs) | rhs);
+}
+
 constexpr amdgpu_regnum_t
 operator++ (amdgpu_regnum_t &regnum)
 {
