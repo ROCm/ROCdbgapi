@@ -170,23 +170,24 @@ aql_queue_impl_t::aql_queue_impl_t (
   process_t &process = m_queue.process ();
   amd_dbgapi_status_t status;
 
+  amd_dbgapi_global_address_t ctx_save_base
+      = m_os_queue_info.ctx_save_restore_address;
+
   struct context_save_area_header_s header;
-  if (process.read_global_memory (m_os_queue_info.ctx_save_restore_address,
-                                  &header, sizeof (header))
+  if (process.read_global_memory (ctx_save_base, &header, sizeof (header))
       != AMD_DBGAPI_STATUS_SUCCESS)
     error ("Could not read the context save area header");
 
   if (!header.debugger_memory_offset || !header.debugger_memory_size)
     error ("Per-queue memory reserved for the debugger is missing");
 
-  m_debugger_memory_base = utils::align_up (
-      m_os_queue_info.ctx_save_restore_address + header.debugger_memory_offset,
-      debugger_memory_chunk_size);
+  m_debugger_memory_base
+      = utils::align_up (ctx_save_base + header.debugger_memory_offset,
+                         debugger_memory_chunk_size);
 
-  auto chunk_count
-      = (m_os_queue_info.ctx_save_restore_address + header.debugger_memory_size
-         + header.debugger_memory_offset - m_debugger_memory_base)
-        / debugger_memory_chunk_size;
+  auto chunk_count = (ctx_save_base + header.debugger_memory_size
+                      + header.debugger_memory_offset - m_debugger_memory_base)
+                     / debugger_memory_chunk_size;
 
   /* Ensure that the number of chunks does not overflow the 16 bit index.  */
   if (chunk_count
@@ -309,6 +310,9 @@ aql_queue_impl_t::update_waves ()
   const epoch_t wave_mark = m_next_wave_mark ();
   amd_dbgapi_status_t status;
 
+  amd_dbgapi_global_address_t ctx_save_base
+      = m_os_queue_info.ctx_save_restore_address;
+
   /* Read the queue's write_dispatch_id and read_dispatch_id.  */
 
   uint64_t write_dispatch_id;
@@ -330,8 +334,8 @@ aql_queue_impl_t::update_waves ()
 
   struct context_save_area_header_s header;
 
-  status = process.read_global_memory (
-      m_os_queue_info.ctx_save_restore_address, &header, sizeof (header));
+  status
+      = process.read_global_memory (ctx_save_base, &header, sizeof (header));
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
 
@@ -343,10 +347,20 @@ aql_queue_impl_t::update_waves ()
   auto ctrl_stack = std::make_unique<uint32_t[]> (header.ctrl_stack_size
                                                   / sizeof (uint32_t));
 
+  dbgapi_log (
+      AMD_DBGAPI_LOG_LEVEL_INFO,
+      "decoding %s's context save area: "
+      "ctrl_stk:[0x%lx..0x%lx[, wave_area:[0x%lx..0x%lx[",
+      to_string (m_queue.id ()).c_str (),
+      ctx_save_base + header.ctrl_stack_offset,
+      ctx_save_base + header.ctrl_stack_offset + header.ctrl_stack_size,
+      ctx_save_base + header.wave_state_offset - header.wave_state_size,
+      ctx_save_base + header.wave_state_offset);
+
   /* Read the entire ctrl stack from the inferior.  */
-  status = process.read_global_memory (m_os_queue_info.ctx_save_restore_address
-                                           + header.ctrl_stack_offset,
-                                       &ctrl_stack[0], header.ctrl_stack_size);
+  status
+      = process.read_global_memory (ctx_save_base + header.ctrl_stack_offset,
+                                    &ctrl_stack[0], header.ctrl_stack_size);
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return status;
 
@@ -557,8 +571,8 @@ aql_queue_impl_t::update_waves ()
 
   m_queue.architecture ().control_stack_iterate (
       &ctrl_stack[0], header.ctrl_stack_size / sizeof (uint32_t),
-      m_os_queue_info.ctx_save_restore_address + header.wave_state_offset,
-      header.wave_state_size, callback);
+      ctx_save_base + header.wave_state_offset, header.wave_state_size,
+      callback);
 
   /* Iterate all waves belonging to this queue, and prune those with a mark
      older than the current mark.  Note that the waves must be pruned before
