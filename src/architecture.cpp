@@ -1706,7 +1706,7 @@ gfx9_base_t::wave_get_info (const cwsr_descriptor_t &descriptor,
       return compute_relaunch_payload_first_wave (wave);
 
     default:
-      dbgapi_assert (!"invalid wave_info query");
+      error ("Invalid wave_info query");
     }
 }
 
