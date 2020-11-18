@@ -95,8 +95,8 @@ amd_dbgapi_process_code_object_list (
     }
   else
     {
-      for (auto &&process : detail::process_list)
-        processes.emplace_back (process);
+      for (auto &&process : process_t::all ())
+        processes.emplace_back (&process);
     }
 
   return utils::get_handle_list<code_object_t> (processes, code_object_count,

@@ -232,8 +232,8 @@ amd_dbgapi_process_next_pending_event (amd_dbgapi_process_id_t process_id,
     }
   else
     {
-      for (auto &&process : detail::process_list)
-        if ((event = process->next_pending_event ()))
+      for (auto &&process : process_t::all ())
+        if ((event = process.next_pending_event ()))
           break;
     }
 

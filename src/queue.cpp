@@ -1006,13 +1006,13 @@ amd_dbgapi_process_queue_list (amd_dbgapi_process_id_t process_id,
     }
   else
     {
-      for (auto &&process : detail::process_list)
+      for (auto &&process : process_t::all ())
         {
-          if (amd_dbgapi_status_t status = process->update_queues ();
+          if (amd_dbgapi_status_t status = process.update_queues ();
               status != AMD_DBGAPI_STATUS_SUCCESS)
             error ("process_t::update_agents failed (rc=%d)", status);
 
-          processes.emplace_back (process);
+          processes.emplace_back (&process);
         }
     }
 

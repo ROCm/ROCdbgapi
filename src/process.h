@@ -64,7 +64,6 @@ class process_t;
 namespace detail
 {
 
-extern std::list<process_t *> process_list;
 extern amd_dbgapi_callbacks_s process_callbacks;
 
 /* The process that contained the last successful find result.  The next global
@@ -78,8 +77,11 @@ extern process_t *last_found_process;
 
 /* AMD Debugger API Process.  */
 
-class process_t
+class process_t : public detail::handle_object<amd_dbgapi_process_id_t>
 {
+  static_assert (is_handle_type_v<amd_dbgapi_process_id_t>,
+                 "amd_dbgapi_process_id_t is not a handle type");
+
 public:
   enum class flag_t : uint32_t
   {
@@ -100,7 +102,8 @@ private:
   using notify_shared_library_callback_t = std::function<void (
       amd_dbgapi_shared_library_id_t, amd_dbgapi_shared_library_state_t)>;
 
-  amd_dbgapi_process_id_t const m_process_id;
+  static handle_object_set_t<process_t> s_process_map;
+
   amd_dbgapi_client_process_id_t const m_client_process_id;
   std::optional<amd_dbgapi_os_process_id_t> const m_os_process_id;
   amd_dbgapi_global_address_t m_r_debug_address{ 0 };
@@ -141,8 +144,8 @@ private:
       m_handle_object_sets;
 
 public:
-  process_t (amd_dbgapi_client_process_id_t client_process_id,
-             amd_dbgapi_process_id_t process_id);
+  process_t (amd_dbgapi_process_id_t process_id,
+             amd_dbgapi_client_process_id_t client_process_id);
   ~process_t ()
   {
     if (this == detail::last_found_process)
@@ -162,14 +165,13 @@ public:
 
   bool is_valid () const;
 
-  amd_dbgapi_process_id_t id () const { return m_process_id; }
   amd_dbgapi_client_process_id_t client_id () const
   {
     return m_client_process_id;
   }
 
   /* Reset all the handle_object_sets IDs.  There should not be any attached
-     processes left in the process_list. */
+     processes left in the s_process_map. */
   static void reset_all_ids ();
 
   const os_driver_t &os_driver () const { return *m_os_driver; }
@@ -245,8 +247,19 @@ public:
                      amd_dbgapi_global_address_t *adjusted_size);
   void remove_watchpoint (const watchpoint_t &watchpoint);
 
-  static process_t *find (amd_dbgapi_process_id_t process_id);
+  static process_t &
+  create_process (amd_dbgapi_client_process_id_t client_process_id)
+  {
+    return s_process_map.create_object (client_process_id);
+  }
+  static void destroy_process (process_t *process)
+  {
+    dbgapi_assert (process);
+    s_process_map.destroy (process);
+  }
 
+  static auto all () { return s_process_map.range (); }
+  static process_t *find (amd_dbgapi_process_id_t process_id);
   static process_t *find (amd_dbgapi_client_process_id_t client_process_id);
 
   amd_dbgapi_status_t get_info (amd_dbgapi_process_info_t query,
@@ -406,14 +419,14 @@ find (Handle id)
     if (auto value = detail::last_found_process->find (id); value)
       return value;
 
-  for (auto &&process : detail::process_list)
+  for (auto &&process : process_t::all ())
     {
-      if (process == detail::last_found_process)
+      if (&process == detail::last_found_process)
         continue;
-      auto value = process->find (id);
-      if (value)
+
+      if (auto value = process.find (id); value)
         {
-          detail::last_found_process = process;
+          detail::last_found_process = &process;
           return value;
         }
     }

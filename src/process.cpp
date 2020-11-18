@@ -62,13 +62,14 @@ class dispatch_t;
 
 namespace detail
 {
-std::list<process_t *> process_list;
 process_t *last_found_process = nullptr;
 } /* namespace detail */
 
-process_t::process_t (amd_dbgapi_client_process_id_t client_process_id,
-                      amd_dbgapi_process_id_t process_id)
-    : m_process_id (process_id), m_client_process_id (client_process_id),
+handle_object_set_t<process_t> process_t::s_process_map;
+
+process_t::process_t (amd_dbgapi_process_id_t process_id,
+                      amd_dbgapi_client_process_id_t client_process_id)
+    : handle_object (process_id), m_client_process_id (client_process_id),
       m_os_process_id ([this] () {
         std::optional<amd_dbgapi_os_process_id_t> os_pid;
 
@@ -104,7 +105,7 @@ reset_next_ids ()
 void
 process_t::reset_all_ids ()
 {
-  dbgapi_assert (detail::process_list.empty ()
+  dbgapi_assert (s_process_map.size () == 0
                  && "some processes are still attached");
   detail::reset_next_ids<decltype (m_handle_object_sets)> ();
 }
@@ -461,14 +462,12 @@ process_t::find (amd_dbgapi_process_id_t process_id)
       && detail::last_found_process->id () == process_id)
     return detail::last_found_process;
 
-  for (process_t *process : detail::process_list)
-    if (process->m_process_id == process_id)
-      {
-        detail::last_found_process = process;
-        return process;
-      }
+  process_t *process = s_process_map.find (process_id);
 
-  return NULL;
+  if (process)
+    detail::last_found_process = process;
+
+  return process;
 }
 
 process_t *
@@ -478,14 +477,13 @@ process_t::find (amd_dbgapi_client_process_id_t client_process_id)
       && detail::last_found_process->client_id () == client_process_id)
     return detail::last_found_process;
 
-  for (process_t *process : detail::process_list)
-    if (process->m_client_process_id == client_process_id)
-      {
-        detail::last_found_process = process;
-        return process;
-      }
+  process_t *process = s_process_map.find_if (
+      [=] (auto &v) { return v.client_id () == client_process_id; });
 
-  return NULL;
+  if (process)
+    detail::last_found_process = process;
+
+  return process;
 }
 
 amd_dbgapi_status_t
@@ -1861,12 +1859,6 @@ amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
   TRY;
   TRACE (client_process_id, process_id);
 
-  /* Start the process_ids at 1, so that 0 is reserved for invalid id.  */
-  static monotonic_counter_t<
-      decltype (amd_dbgapi_process_id_t::handle),
-      monotonic_counter_start_v<amd_dbgapi_process_id_t>>
-      next_process_id;
-
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
@@ -1878,19 +1870,27 @@ amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
   if (process_t::find (client_process_id))
     return AMD_DBGAPI_STATUS_ERROR_ALREADY_ATTACHED;
 
-  auto process = std::make_unique<process_t> (
-      client_process_id, amd_dbgapi_process_id_t{ next_process_id () });
-  if (!process->is_valid ())
-    return AMD_DBGAPI_STATUS_ERROR;
+  process_t *process;
+  try
+    {
+      process = &process_t::create_process (client_process_id);
+    }
+  catch (const exception_t &)
+    {
+      /* process_t::create_process could throw a fatal error if it fails to
+         open the /proc/pid/mem file or create a pipe for the notifier.  In
+         that case, simply return an error.  */
+      return AMD_DBGAPI_STATUS_ERROR;
+    }
 
   amd_dbgapi_status_t status = process->attach ();
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
+    {
+      process_t::destroy_process (process);
+      return status;
+    }
 
   *process_id = amd_dbgapi_process_id_t{ process->id () };
-
-  /* Append the new process to the process_list and return.  */
-  detail::process_list.push_back (process.release ());
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
@@ -1911,9 +1911,7 @@ amd_dbgapi_process_detach (amd_dbgapi_process_id_t process_id)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
   process->detach ();
-
-  detail::process_list.remove (process);
-  delete process;
+  process_t::destroy_process (process);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;

@@ -71,10 +71,11 @@ amd_dbgapi_finalize ()
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
   /* Detach all remaining processes.  */
-  for (process_t *process : detail::process_list)
-    process->detach ();
-
-  detail::process_list.clear ();
+  for (auto &&process : process_t::all ())
+    {
+      process.detach ();
+      process_t::destroy_process (&process);
+    }
 
   detail::process_callbacks = {};
   detail::is_initialized = false;
