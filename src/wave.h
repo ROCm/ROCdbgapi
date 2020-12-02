@@ -129,12 +129,12 @@ public:
     instruction_buffer_ref_t (amd_dbgapi_global_address_t buffer_address,
                               uint32_t capacity, deleter_type deleter);
     instruction_buffer_ref_t (instruction_buffer_ref_t &&other);
-    instruction_buffer_ref_t (instruction_buffer_ref_t &other) = delete;
+    instruction_buffer_ref_t (const instruction_buffer_ref_t &other) = delete;
 
     ~instruction_buffer_ref_t ();
 
     instruction_buffer_ref_t &operator= (instruction_buffer_ref_t &&other);
-    instruction_buffer_ref_t &operator= (instruction_buffer_ref_t &other)
+    instruction_buffer_ref_t &operator= (const instruction_buffer_ref_t &other)
         = delete;
 
     decltype (m_data) *operator-> () { return &m_data; }
