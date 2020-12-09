@@ -37,16 +37,14 @@
 #include "watchpoint.h"
 #include "wave.h"
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <future>
-#include <list>
 #include <memory>
 #include <optional>
 #include <queue>
 #include <string>
-#include <thread>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -81,19 +79,17 @@ class process_t : public detail::handle_object<amd_dbgapi_process_id_t>
 public:
   enum class flag_t : uint32_t
   {
-    /* Enable the device debug mode when updating the agents.  */
-    enable_agent_debug_mode = 1 << 0,
     /* Require the NEW_QUEUE bit to be set when a queue_id is reported for the
        first time by kfd to this process. When attaching to an already running
        process, a missing NEW_BIT may be ignored as it could have been cleared
        by another debugger session.  */
-    require_new_queue_bit = 1 << 1,
+    require_new_queue_bit = 1 << 0,
     /* Assign new ids to all waves regardless of the content of their wave_id
        register.  This is needed during attach as waves created before the
        debugger attached to the process may have corrupted wave_ids.  */
-    assign_new_ids_to_all_waves = 1 << 2,
+    assign_new_ids_to_all_waves = 1 << 1,
     /* Disable the decoding of the control stack when a queue is suspended.  */
-    disable_control_stack_decoding = 1 << 3,
+    disable_control_stack_decoding = 1 << 2,
   };
 
   class scoped_disable_control_stack_decoding : private utils::not_copyable
@@ -127,7 +123,7 @@ private:
   amd_dbgapi_os_process_id_t m_os_process_id{};
   amd_dbgapi_global_address_t m_r_debug_address{ 0 };
 
-  std::unique_ptr<const os_driver_t> m_os_driver{};
+  std::unique_ptr<os_driver_t> m_os_driver{};
   flag_t m_flags{};
 
   os_wave_launch_mode_t m_wave_launch_mode{ os_wave_launch_mode_t::normal };
@@ -136,13 +132,12 @@ private:
   };
   bool m_forward_progress_needed{ true };
 
-  std::thread *m_event_thread{ nullptr };
-  std::future<void> m_event_thread_exception{};
-
   pipe_t m_client_notifier_pipe{};
-  pipe_t m_event_thread_exit_pipe{};
+
+  std::unordered_map<os_watch_id_t, const watchpoint_t *> m_watchpoint_map{};
 
   std::queue<event_t *> m_pending_events{};
+  std::atomic<bool> m_has_events{ false };
 
   /* Value used to mark queues that are reported by KFD. When sweeping, any
      queue found with a mark less than the current mark will be deleted, as
@@ -162,11 +157,17 @@ private:
       handle_object_set_t<watchpoint_t>, handle_object_set_t<wave_t>>
       m_handle_object_sets{};
 
+  amd_dbgapi_status_t query_debug_event (amd_dbgapi_queue_id_t *queue_id,
+                                         os_queue_status_t *os_queue_status);
+
 public:
   process_t (amd_dbgapi_process_id_t process_id,
              amd_dbgapi_client_process_id_t client_process_id);
   ~process_t ()
   {
+    dbgapi_assert (m_watchpoint_map.empty ()
+                   && "there should not be any active watchpoints left");
+
     if (this == detail::last_found_process)
       detail::last_found_process = nullptr;
   }
@@ -189,11 +190,16 @@ public:
     return m_client_process_id;
   }
 
+  std::optional<amd_dbgapi_os_process_id_t> os_id () const
+  {
+    return m_os_process_id;
+  }
+
   /* Reset all the handle_object_sets IDs.  There should not be any attached
      processes left in the s_process_map. */
   static void reset_all_ids ();
 
-  const os_driver_t &os_driver () const { return *m_os_driver; }
+  os_driver_t &os_driver () const { return *m_os_driver; }
 
   inline void set_flag (flag_t flags);
   inline void clear_flag (flag_t flags);
@@ -248,10 +254,6 @@ public:
   amd_dbgapi_status_t update_queues ();
   amd_dbgapi_status_t update_code_objects ();
 
-  amd_dbgapi_status_t start_event_thread ();
-  amd_dbgapi_status_t stop_event_thread ();
-  void check_event_thread ();
-
   amd_dbgapi_status_t attach ();
   void detach ();
 
@@ -265,6 +267,7 @@ public:
                      amd_dbgapi_global_address_t *adjusted_address,
                      amd_dbgapi_global_address_t *adjusted_size);
   void remove_watchpoint (const watchpoint_t &watchpoint);
+  const watchpoint_t *find_watchpoint (os_watch_id_t os_watch_id) const;
 
   static process_t &
   create_process (amd_dbgapi_client_process_id_t client_process_id)

@@ -174,9 +174,6 @@ public:
 
   size_t watchpoint_count () const override { return 4; };
 
-  std::optional<os_watch_mode_t>
-  watchpoint_mode (amd_dbgapi_watchpoint_kind_t kind) const override;
-
   std::vector<os_watch_id_t>
   triggered_watchpoints (const wave_t &wave) const override;
 
@@ -1583,24 +1580,6 @@ amdgcn_architecture_t::is_cbranch_i_fork (
 {
   /* s_cbranch_i_fork: SOPK Opcode 16  */
   return is_sopk_instruction (bytes, 16);
-}
-
-std::optional<os_watch_mode_t>
-amdgcn_architecture_t::watchpoint_mode (
-    amd_dbgapi_watchpoint_kind_t kind) const
-{
-  switch (kind)
-    {
-    case AMD_DBGAPI_WATCHPOINT_KIND_LOAD:
-      return os_watch_mode_t::read;
-    case AMD_DBGAPI_WATCHPOINT_KIND_STORE_AND_RMW:
-      return os_watch_mode_t::nonread;
-    case AMD_DBGAPI_WATCHPOINT_KIND_RMW:
-      return os_watch_mode_t::atomic;
-    case AMD_DBGAPI_WATCHPOINT_KIND_ALL:
-      return os_watch_mode_t::all;
-    }
-  return {};
 }
 
 bool

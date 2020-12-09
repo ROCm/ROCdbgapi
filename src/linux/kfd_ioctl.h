@@ -23,7 +23,7 @@
 #ifndef KFD_IOCTL_H_INCLUDED
 #define KFD_IOCTL_H_INCLUDED
 
-#include <linux/types.h>
+#include <drm/drm.h>
 #include <linux/ioctl.h>
 
 /*
@@ -48,8 +48,12 @@
  *	 array slots
  * 2.1 - Add Set Address Watch, and Clear Address Watch support.
  * 3.0 - Overhaul set wave launch override API
+ * 3.1 - Add support for GFX10
+ * 3.2 - Add support for GFX10.3
+ * 3.3 - Add precise memory operations enable
+ * 4.0 - Remove gpu_id from api:wq
  */
-#define KFD_IOCTL_DBG_MAJOR_VERSION	3
+#define KFD_IOCTL_DBG_MAJOR_VERSION	4
 #define KFD_IOCTL_DBG_MINOR_VERSION	0
 
 struct kfd_ioctl_get_version_args {
@@ -259,8 +263,9 @@ enum kfd_dbg_trap_mask {
 /* KFD_IOC_DBG_TRAP_ENABLE:
  * ptr:   unused
  * data1: 0=disable, 1=enable
- * data2: queue ID (for future use)
+ * data2: unused
  * data3: return value for fd
+ * data4: unused
  */
 #define KFD_IOC_DBG_TRAP_ENABLE 0
 
@@ -269,6 +274,7 @@ enum kfd_dbg_trap_mask {
  * data1: override mode (see enum kfd_dbg_trap_override_mode)
  * data2: [in/out] trap mask (see enum kfd_dbg_trap_mask)
  * data3: [in] requested mask, [out] supported mask
+ * data4: unused
  *
  * May fail with -EPERM if the requested mode is not supported.
  *
@@ -285,6 +291,7 @@ enum kfd_dbg_trap_mask {
  * data1: 0=normal, 1=halt, 2=kill, 3=singlestep, 4=disable
  * data2: unused
  * data3: unused
+ * data4: unused
  */
 #define KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_MODE 2
 
@@ -293,6 +300,7 @@ enum kfd_dbg_trap_mask {
  * data1: flags (IN)
  * data2: number of queues (IN)
  * data3: grace period (IN)
+ * data4: unused
  *
  * Returns the number of queues suspended from array of Queue IDs (ptr).
  * Requested queues that fail to suspend are masked in the array:
@@ -319,6 +327,7 @@ enum kfd_dbg_trap_mask {
  * data1: flags (IN)
  * data2: number of queues (IN)
  * data3: unused (IN)
+ * data4: unused
  *
  * Returns the number of queues resumed from array of Queue IDs (ptr).
  * Requested queues that fail to resume are masked in the array:
@@ -335,6 +344,7 @@ enum kfd_dbg_trap_mask {
  * data1: queue id (IN/OUT)
  * data2: flags (IN)
  * data3: suspend[2:2], event type [1:0] (OUT)
+ * data4: unused
  */
 #define KFD_IOC_DBG_TRAP_QUERY_DEBUG_EVENT 5
 
@@ -343,6 +353,7 @@ enum kfd_dbg_trap_mask {
  * data1: flags (IN)
  * data2: number of queue snapshots (IN/OUT) - 0 for IN ignores buffer writes
  * data3: unused
+ * data4: unused
  */
 #define KFD_IOC_DBG_TRAP_GET_QUEUE_SNAPSHOT 6
 
@@ -351,6 +362,7 @@ enum kfd_dbg_trap_mask {
  * data1: major version (OUT)
  * data2: minor version (OUT)
  * data3: unused
+ * data4: unused
  */
 #define KFD_IOC_DBG_TRAP_GET_VERSION	7
 
@@ -359,6 +371,7 @@ enum kfd_dbg_trap_mask {
  * data1: watch ID
  * data2: unused
  * data3: unused
+ * data4: unused
  */
 #define KFD_IOC_DBG_TRAP_CLEAR_ADDRESS_WATCH 8
 
@@ -367,17 +380,27 @@ enum kfd_dbg_trap_mask {
  * data1: Watch ID (OUT)
  * data2: watch_mode: 0=read, 1=nonread, 2=atomic, 3=all
  * data3: watch address mask
+ * data4: unused
  */
 #define KFD_IOC_DBG_TRAP_SET_ADDRESS_WATCH 9
+
+/* KFD_IOC_DBG_TRAP_SET_PRECISE_MEM_OPS
+ * ptr:   unused
+ * data1: 0=disable, 1=enable (IN)
+ * data2: unused
+ * data3: unused
+ * data4: unused
+ */
+#define KFD_IOC_DBG_TRAP_SET_PRECISE_MEM_OPS 10
 
 struct kfd_ioctl_dbg_trap_args {
 	__u64 ptr;     /* to KFD -- used for pointer arguments: queue arrays */
 	__u32 pid;     /* to KFD */
-	__u32 gpu_id;  /* to KFD */
 	__u32 op;      /* to KFD */
 	__u32 data1;   /* to KFD */
 	__u32 data2;   /* to KFD */
 	__u32 data3;   /* to KFD */
+	__u32 data4;   /* to KFD */
 };
 
 /* Matching HSA_EVENTTYPE */
@@ -638,12 +661,94 @@ struct kfd_ioctl_import_dmabuf_args {
 /*
  * KFD SMI(System Management Interface) events
  */
-/* Event type (defined by bitmask) */
-#define KFD_SMI_EVENT_VMFAULT     0x0000000000000001
+enum kfd_smi_event {
+	KFD_SMI_EVENT_NONE = 0, /* not used */
+	KFD_SMI_EVENT_VMFAULT = 1, /* event start counting at 1 */
+	KFD_SMI_EVENT_THERMAL_THROTTLE = 2,
+	KFD_SMI_EVENT_GPU_PRE_RESET = 3,
+	KFD_SMI_EVENT_GPU_POST_RESET = 4,
+};
+
+#define KFD_SMI_EVENT_MASK_FROM_INDEX(i) (1ULL << ((i) - 1))
 
 struct kfd_ioctl_smi_events_args {
 	__u32 gpuid;	/* to KFD */
 	__u32 anon_fd;	/* from KFD */
+};
+
+/**
+ * kfd_ioctl_spm_op - SPM ioctl operations
+ *
+ * @KFD_IOCTL_SPM_OP_ACQUIRE: acquire exclusive access to SPM
+ * @KFD_IOCTL_SPM_OP_RELEASE: release exclusive access to SPM
+ * @KFD_IOCTL_SPM_OP_SET_DEST_BUF: set or unset destination buffer for SPM streaming
+ */
+enum kfd_ioctl_spm_op {
+	KFD_IOCTL_SPM_OP_ACQUIRE,
+	KFD_IOCTL_SPM_OP_RELEASE,
+	KFD_IOCTL_SPM_OP_SET_DEST_BUF
+};
+
+/**
+ * kfd_ioctl_spm_args - Arguments for SPM ioctl
+ *
+ * @op[in]:            specifies the operation to perform
+ * @gpu_id[in]:        GPU ID of the GPU to profile
+ * @dst_buf[in]:       used for the address of the destination buffer
+ *                      in @KFD_IOCTL_SPM_SET_DEST_BUFFER
+ * @buf_size[in]:      size of the destination buffer
+ * @timeout[in/out]:   [in]: timeout in milliseconds, [out]: amount of time left
+ *                      `in the timeout window
+ * @bytes_copied[out]: amount of data that was copied to the previous dest_buf
+ * @has_data_loss:     boolean indicating whether data was lost
+ *                      (e.g. due to a ring-buffer overflow)
+ *
+ * This ioctl performs different functions depending on the @op parameter.
+ *
+ * KFD_IOCTL_SPM_OP_ACQUIRE
+ * ------------------------
+ *
+ * Acquires exclusive access of SPM on the specified @gpu_id for the calling process.
+ * This must be called before using KFD_IOCTL_SPM_OP_SET_DEST_BUF.
+ *
+ * KFD_IOCTL_SPM_OP_RELEASE
+ * ------------------------
+ *
+ * Releases exclusive access of SPM on the specified @gpu_id for the calling process,
+ * which allows another process to acquire it in the future.
+ *
+ * KFD_IOCTL_SPM_OP_SET_DEST_BUF
+ * -----------------------------
+ *
+ * If @dst_buf is NULL, the destination buffer address is unset and copying of counters
+ * is stopped.
+ *
+ * If @dst_buf is not NULL, it specifies the pointer to a new destination buffer.
+ * @buf_size specifies the size of the buffer.
+ *
+ * If @timeout is non-0, the call will wait for up to @timeout ms for the previous
+ * buffer to be filled. If previous buffer to be filled before timeout, the @timeout
+ * will be updated value with the time remaining. If the timeout is exceeded, the function
+ * copies any partial data available into the previous user buffer and returns success.
+ * The amount of valid data in the previous user buffer is indicated by @bytes_copied.
+ *
+ * If @timeout is 0, the function immediately replaces the previous destination buffer
+ * without waiting for the previous buffer to be filled. That means the previous buffer
+ * may only be partially filled, and @bytes_copied will indicate how much data has been
+ * copied to it.
+ *
+ * If data was lost, e.g. due to a ring buffer overflow, @has_data_loss will be non-0.
+ *
+ * Returns negative error code on failure, 0 on success.
+ */
+struct kfd_ioctl_spm_args {
+	__u64 dest_buf;
+	__u32 buf_size;
+	__u32 op;
+	__u32 timeout;
+	__u32 gpu_id;
+	__u32 bytes_copied;
+	__u32 has_data_loss;
 };
 
 /* Register offset inside the remapped mmio page
@@ -757,7 +862,7 @@ struct kfd_ioctl_cross_memory_copy_args {
 #define AMDKFD_IOC_SET_SCRATCH_BACKING_VA	\
 		AMDKFD_IOWR(0x11, struct kfd_ioctl_set_scratch_backing_va_args)
 
-#define AMDKFD_IOC_GET_TILE_CONFIG		\
+#define AMDKFD_IOC_GET_TILE_CONFIG                                      \
 		AMDKFD_IOWR(0x12, struct kfd_ioctl_get_tile_config_args)
 
 #define AMDKFD_IOC_SET_TRAP_HANDLER		\
@@ -816,7 +921,11 @@ struct kfd_ioctl_cross_memory_copy_args {
 #define AMDKFD_IOC_CROSS_MEMORY_COPY		\
 		AMDKFD_IOWR(0x83, struct kfd_ioctl_cross_memory_copy_args)
 
+#define AMDKFD_IOC_RLC_SPM		\
+		AMDKFD_IOWR(0x84, struct kfd_ioctl_spm_args)
+
+
 #define AMDKFD_COMMAND_START_2		0x80
-#define AMDKFD_COMMAND_END_2		0x84
+#define AMDKFD_COMMAND_END_2		0x85
 
 #endif

@@ -171,8 +171,9 @@ protected:
 public:
   virtual ~os_driver_t () = default;
 
-  static std::unique_ptr<const os_driver_t>
-  create (amd_dbgapi_os_process_id_t os_pid);
+  static std::unique_ptr<os_driver_t>
+  create_driver (amd_dbgapi_os_process_id_t os_pid,
+                 std::function<void ()> pending_event_notifier);
 
   virtual bool is_valid () const = 0;
 
@@ -182,15 +183,14 @@ public:
   agent_snapshot (os_agent_snapshot_entry_t *snapshots, size_t snapshot_count,
                   size_t *agent_count) const = 0;
 
-  virtual amd_dbgapi_status_t
-  enable_debug_trap (os_agent_id_t os_agent_id,
-                     file_desc_t *poll_fd) const = 0;
-  virtual amd_dbgapi_status_t
-  disable_debug_trap (os_agent_id_t os_agent_id) const = 0;
+  virtual amd_dbgapi_status_t enable_debug () = 0;
+  virtual amd_dbgapi_status_t disable_debug () = 0;
+  virtual bool is_debug_enabled () const = 0;
 
   virtual amd_dbgapi_status_t
-  query_debug_event (os_agent_id_t os_agent_id, os_queue_id_t *os_queue_id,
-                     os_queue_status_t *os_queue_status) const = 0;
+  query_debug_event (os_queue_id_t *os_queue_id,
+                     os_queue_status_t *os_queue_status)
+      = 0;
 
   virtual size_t suspend_queues (os_queue_id_t *queues,
                                  size_t queue_count) const = 0;
@@ -202,20 +202,17 @@ public:
                   size_t *queue_count) const = 0;
 
   virtual amd_dbgapi_status_t set_address_watch (
-      os_agent_id_t os_agent_id, amd_dbgapi_global_address_t address,
-      amd_dbgapi_global_address_t mask, os_watch_mode_t os_watch_mode,
-      os_watch_id_t *os_watch_id) const = 0;
+      amd_dbgapi_global_address_t address, amd_dbgapi_global_address_t mask,
+      os_watch_mode_t os_watch_mode, os_watch_id_t *os_watch_id) const = 0;
 
   virtual amd_dbgapi_status_t
-  clear_address_watch (os_agent_id_t os_agent_id,
-                       os_watch_id_t os_watch_id) const = 0;
+  clear_address_watch (os_watch_id_t os_watch_id) const = 0;
 
   virtual amd_dbgapi_status_t
-  set_wave_launch_mode (os_agent_id_t os_agent_id,
-                        os_wave_launch_mode_t mode) const = 0;
+  set_wave_launch_mode (os_wave_launch_mode_t mode) const = 0;
 
   virtual amd_dbgapi_status_t set_wave_launch_trap_override (
-      os_agent_id_t os_agent_id, os_wave_launch_trap_override_t override,
+      os_wave_launch_trap_override_t override,
       os_wave_launch_trap_mask_t trap_mask,
       os_wave_launch_trap_mask_t requested_bits,
       os_wave_launch_trap_mask_t *previous_mask,

@@ -213,10 +213,6 @@ public:
   /* Return the bits that can be programmed in the address watch mask.  */
   virtual size_t watchpoint_mask_bits () const = 0;
 
-  /* Convert a watchpoint kind into this architecture address watch mode.  */
-  virtual std::optional<os_watch_mode_t>
-  watchpoint_mode (amd_dbgapi_watchpoint_kind_t kind) const = 0;
-
   virtual amd_dbgapi_watchpoint_share_kind_t
   watchpoint_share_kind () const = 0;
 

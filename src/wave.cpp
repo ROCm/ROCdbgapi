@@ -886,7 +886,7 @@ wave_t::get_info (amd_dbgapi_wave_info_t query, size_t value_size,
 
         auto watchpoint_id = [this] (os_watch_id_t os_watch_id) {
           const watchpoint_t *watchpoint
-              = agent ().find_watchpoint (os_watch_id);
+              = process ().find_watchpoint (os_watch_id);
           if (!watchpoint)
             error ("kfd_watch_%d not set on %s", os_watch_id,
                    to_string (agent ().id ()).c_str ());

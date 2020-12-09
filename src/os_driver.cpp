@@ -21,11 +21,18 @@
 #include "os_driver.h"
 #include "debug.h"
 #include "logging.h"
+#include "process.h"
+#include "utils.h"
 
 #include <algorithm>
+#include <chrono>
+#include <exception>
 #include <fstream>
+#include <functional>
+#include <future>
 #include <limits>
 #include <optional>
+#include <thread>
 #include <type_traits>
 #include <unordered_set>
 #include <utility>
@@ -34,6 +41,8 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
+#include <signal.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
@@ -65,7 +74,7 @@ linux_driver_t::linux_driver_t (amd_dbgapi_os_process_id_t os_pid)
     : os_driver_t (os_pid)
 {
   /* Open the /proc/pid/mem file for this process.  */
-  std::string filename = string_printf ("/proc/%d/mem", m_os_pid);
+  std::string filename = string_printf ("/proc/%d/mem", os_pid);
   int fd = ::open (filename.c_str (), O_RDWR | O_LARGEFILE | O_CLOEXEC, 0);
   if (fd == -1)
     {
@@ -136,6 +145,19 @@ private:
   static size_t s_kfd_open_count;
   static std::optional<file_desc_t> s_kfd_fd;
 
+  std::optional<file_desc_t> m_event_poll_fd{};
+  std::function<void ()> const m_pending_event_notifier;
+
+  std::thread *m_event_thread{ nullptr };
+  std::future<void> m_event_thread_exception{};
+  pipe_t m_event_thread_exit_pipe{};
+
+  void event_loop (std::promise<void> thread_exception);
+
+  amd_dbgapi_status_t start_event_thread ();
+  amd_dbgapi_status_t stop_event_thread ();
+  void check_event_thread ();
+
   static void open_kfd ();
   static void close_kfd ();
 
@@ -143,7 +165,10 @@ private:
                           kfd_ioctl_dbg_trap_args *args) const;
 
 public:
-  kfd_driver_t (amd_dbgapi_os_process_id_t os_pid) : linux_driver_t (os_pid)
+  kfd_driver_t (amd_dbgapi_os_process_id_t os_pid,
+                std::function<void ()> pending_event_notifier)
+      : linux_driver_t (os_pid),
+        m_pending_event_notifier (std::move (pending_event_notifier))
   {
     open_kfd ();
 
@@ -152,6 +177,10 @@ public:
   }
 
   ~kfd_driver_t () override { close_kfd (); }
+
+  /* Disable copies.  */
+  kfd_driver_t (const kfd_driver_t &) = delete;
+  kfd_driver_t &operator= (const kfd_driver_t &) = delete;
 
   bool is_valid () const override
   {
@@ -164,14 +193,16 @@ public:
                                       size_t snapshot_count,
                                       size_t *agent_count) const override;
 
-  amd_dbgapi_status_t enable_debug_trap (os_agent_id_t os_agent_id,
-                                         file_desc_t *poll_fd) const override;
-  amd_dbgapi_status_t
-  disable_debug_trap (os_agent_id_t os_agent_id) const override;
+  amd_dbgapi_status_t enable_debug () override;
+  amd_dbgapi_status_t disable_debug () override;
+  bool is_debug_enabled () const override
+  {
+    return m_event_poll_fd.has_value ();
+  }
 
   amd_dbgapi_status_t
-  query_debug_event (os_agent_id_t os_agent_id, os_queue_id_t *os_queue_id,
-                     os_queue_status_t *os_queue_status) const override;
+  query_debug_event (os_queue_id_t *os_queue_id,
+                     os_queue_status_t *os_queue_status) override;
 
   size_t suspend_queues (os_queue_id_t *queues,
                          size_t queue_count) const override;
@@ -182,21 +213,20 @@ public:
                                       size_t snapshot_count,
                                       size_t *queue_count) const override;
 
-  amd_dbgapi_status_t set_address_watch (
-      os_agent_id_t os_agent_id, amd_dbgapi_global_address_t address,
-      amd_dbgapi_global_address_t mask, os_watch_mode_t os_watch_mode,
-      os_watch_id_t *os_watch_id) const override;
+  amd_dbgapi_status_t
+  set_address_watch (amd_dbgapi_global_address_t address,
+                     amd_dbgapi_global_address_t mask,
+                     os_watch_mode_t os_watch_mode,
+                     os_watch_id_t *os_watch_id) const override;
 
   amd_dbgapi_status_t
-  clear_address_watch (os_agent_id_t os_agent_id,
-                       os_watch_id_t os_watch_id) const override;
+  clear_address_watch (os_watch_id_t os_watch_id) const override;
 
   amd_dbgapi_status_t
-  set_wave_launch_mode (os_agent_id_t os_agent_id,
-                        os_wave_launch_mode_t mode) const override;
+  set_wave_launch_mode (os_wave_launch_mode_t mode) const override;
 
   amd_dbgapi_status_t set_wave_launch_trap_override (
-      os_agent_id_t os_agent_id, os_wave_launch_trap_override_t override,
+      os_wave_launch_trap_override_t override,
       os_wave_launch_trap_mask_t trap_mask,
       os_wave_launch_trap_mask_t requested_bits,
       os_wave_launch_trap_mask_t *previous_mask,
@@ -468,17 +498,15 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
 }
 
 amd_dbgapi_status_t
-kfd_driver_t::enable_debug_trap (os_agent_id_t os_agent_id,
-                                 file_desc_t *poll_fd) const
+kfd_driver_t::enable_debug ()
 {
-  dbgapi_assert (poll_fd && "must not be null");
+  dbgapi_assert (!m_event_poll_fd && "debug is already enabled");
 
   /* KFD_IOC_DBG_TRAP_ENABLE (#0):
      data1: [in] enable/disable (1/0)
      data3: [out] poll_fd  */
 
   kfd_ioctl_dbg_trap_args args{};
-  args.gpu_id = os_agent_id;
   args.data1 = 1; /* enable  */
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_ENABLE, &args);
@@ -486,28 +514,41 @@ kfd_driver_t::enable_debug_trap (os_agent_id_t os_agent_id,
     return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
   else if (err == -EBUSY)
     {
-      /* The agent does not support multi-process debugging and already has
+      /* An agent does not support multi-process debugging and already has
          debug trap enabled by another process.  */
-      warning ("os_agent_id %d: device is busy (debugging may be enabled by "
-               "another process)",
-               os_agent_id);
+      warning ("At least one agent is busy (debugging may be enabled by "
+               "another process)");
       return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
     }
   else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
-  *poll_fd = args.data3;
+  m_event_poll_fd.emplace (static_cast<file_desc_t> (args.data3));
+
+  amd_dbgapi_status_t status = start_event_thread ();
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Cannot start the event thread (rc=%d)", status);
+
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 amd_dbgapi_status_t
-kfd_driver_t::disable_debug_trap (os_agent_id_t os_agent_id) const
+kfd_driver_t::disable_debug ()
 {
+  amd_dbgapi_status_t status = stop_event_thread ();
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not stop the event thread (rc=%d)", status);
+
+  if (!m_event_poll_fd.has_value ())
+    return AMD_DBGAPI_STATUS_SUCCESS;
+
+  ::close (*m_event_poll_fd);
+  m_event_poll_fd.reset ();
+
   /* KFD_IOC_DBG_TRAP_ENABLE (#0):
-     data1: [in] enable/disable (1/0)  */
+   data1: [in] enable/disable (1/0)  */
 
   kfd_ioctl_dbg_trap_args args{};
-  args.gpu_id = os_agent_id;
   args.data1 = 0; /* disable  */
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_ENABLE, &args);
@@ -520,11 +561,15 @@ kfd_driver_t::disable_debug_trap (os_agent_id_t os_agent_id) const
 }
 
 amd_dbgapi_status_t
-kfd_driver_t::query_debug_event (os_agent_id_t os_agent_id,
-                                 os_queue_id_t *os_queue_id,
-                                 os_queue_status_t *os_queue_status) const
+kfd_driver_t::query_debug_event (os_queue_id_t *os_queue_id,
+                                 os_queue_status_t *os_queue_status)
 {
   dbgapi_assert (os_queue_id && os_queue_status && "must not be null");
+
+  /* We get our event notifications from the process event thread, so
+     make sure it is still running, an exception may have caused it to
+     exit.  */
+  check_event_thread ();
 
   /* KFD_IOC_DBG_TRAP_QUERY_DEBUG_EVENT (#6):
      data1: [in/out] queue id
@@ -532,7 +577,6 @@ kfd_driver_t::query_debug_event (os_agent_id_t os_agent_id,
      data3: [out] new_queue[3:3], suspended[2:2], event_type [1:0]  */
 
   kfd_ioctl_dbg_trap_args args{};
-  args.gpu_id = os_agent_id;
   args.data1 = KFD_INVALID_QUEUEID;
   args.data2 = KFD_DBG_EV_FLAG_CLEAR_STATUS;
 
@@ -637,8 +681,7 @@ kfd_driver_t::queue_snapshot (os_queue_snapshot_entry_t *snapshots,
 }
 
 amd_dbgapi_status_t
-kfd_driver_t::set_address_watch (os_agent_id_t os_agent_id,
-                                 amd_dbgapi_global_address_t address,
+kfd_driver_t::set_address_watch (amd_dbgapi_global_address_t address,
                                  amd_dbgapi_global_address_t mask,
                                  os_watch_mode_t os_watch_mode,
                                  os_watch_id_t *os_watch_id) const
@@ -652,7 +695,6 @@ kfd_driver_t::set_address_watch (os_agent_id_t os_agent_id,
      data3: [in] watch address mask  */
 
   kfd_ioctl_dbg_trap_args args{};
-  args.gpu_id = os_agent_id;
   args.ptr = address;
   args.data2 = static_cast<std::underlying_type_t<decltype (os_watch_mode)>> (
       os_watch_mode);
@@ -672,14 +714,12 @@ kfd_driver_t::set_address_watch (os_agent_id_t os_agent_id,
 }
 
 amd_dbgapi_status_t
-kfd_driver_t::clear_address_watch (os_agent_id_t os_agent_id,
-                                   os_watch_id_t os_watch_id) const
+kfd_driver_t::clear_address_watch (os_watch_id_t os_watch_id) const
 {
   /* KFD_IOC_DBG_TRAP_CLEAR_ADDRESS_WATCH (#8)
      data1: [in] watch ID  */
 
   kfd_ioctl_dbg_trap_args args{};
-  args.gpu_id = os_agent_id;
   args.data1 = os_watch_id;
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_CLEAR_ADDRESS_WATCH, &args);
@@ -692,14 +732,12 @@ kfd_driver_t::clear_address_watch (os_agent_id_t os_agent_id,
 }
 
 amd_dbgapi_status_t
-kfd_driver_t::set_wave_launch_mode (os_agent_id_t os_agent_id,
-                                    os_wave_launch_mode_t mode) const
+kfd_driver_t::set_wave_launch_mode (os_wave_launch_mode_t mode) const
 {
   /* KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_MODE (#2)
      data1: mode (0=normal, 1=halt, 2=kill, 3=single-step, 4=disable)  */
 
   kfd_ioctl_dbg_trap_args args{};
-  args.gpu_id = os_agent_id;
   args.data1 = static_cast<std::underlying_type_t<decltype (mode)>> (mode);
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_MODE, &args);
@@ -713,7 +751,7 @@ kfd_driver_t::set_wave_launch_mode (os_agent_id_t os_agent_id,
 
 amd_dbgapi_status_t
 kfd_driver_t::set_wave_launch_trap_override (
-    os_agent_id_t os_agent_id, os_wave_launch_trap_override_t override,
+    os_wave_launch_trap_override_t override,
     os_wave_launch_trap_mask_t trap_mask,
     os_wave_launch_trap_mask_t requested_bits,
     os_wave_launch_trap_mask_t *previous_mask,
@@ -727,7 +765,6 @@ kfd_driver_t::set_wave_launch_trap_override (
      data3: [in] requested mask, [out] supported mask  */
 
   kfd_ioctl_dbg_trap_args args{};
-  args.gpu_id = os_agent_id;
   args.data1
       = static_cast<std::underlying_type_t<decltype (override)>> (override);
   args.data2
@@ -748,6 +785,166 @@ kfd_driver_t::set_wave_launch_trap_override (
   *supported_mask = static_cast<os_wave_launch_trap_mask_t> (args.data3);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
+void
+kfd_driver_t::event_loop (std::promise<void> thread_exception/*
+    std::vector<std::pair<file_desc_t, std::function<void ()>>> input,
+    pipe_t event_thread_exit_pipe, std::promise<void> thread_exception*/)
+{
+  bool event_thread_exit{ false };
+
+  dbgapi_assert (m_event_poll_fd.has_value ());
+
+  struct pollfd fds[] = {
+    { *m_event_poll_fd, POLLIN, 0 },
+    /* Add the read end of the event_thread_exit_pipe to the monitored
+       fds. This pipe is marked when the event thread needs to terminate.  */
+    { m_event_thread_exit_pipe.read_fd (), POLLIN, 0 }
+  };
+
+  try
+    {
+      do
+        {
+          size_t fd_count = sizeof (fds) / sizeof (fds[0]);
+          int ret = poll (fds, fd_count, -1);
+
+          if (ret == -1 && errno != EINTR)
+            error ("poll: %s", strerror (errno));
+          else if (ret <= 0)
+            continue;
+
+          /* Check the file descriptors for data ready to read.  */
+          for (size_t i = 0; i < fd_count; ++i)
+            {
+              if (!(fds[i].revents & POLLIN))
+                continue;
+
+              file_desc_t fd = fds[i].fd;
+
+              /* flush the event pipe, ...  */
+              do
+                {
+                  char buf;
+                  ret = read (fd, &buf, 1);
+                }
+              while (ret >= 0 || (ret == -1 && errno == EINTR));
+
+              if (ret == -1 && errno != EAGAIN)
+                error ("read: %s", strerror (errno));
+
+              if (fd == m_event_thread_exit_pipe.read_fd ())
+                {
+                  event_thread_exit = true;
+                  continue;
+                }
+
+              /* Notify the process that an event is available.  */
+              m_pending_event_notifier ();
+            }
+        }
+      while (!event_thread_exit);
+    }
+  catch (...)
+    {
+      thread_exception.set_exception (std::current_exception ());
+    }
+}
+
+amd_dbgapi_status_t
+kfd_driver_t::start_event_thread ()
+{
+  sigset_t new_mask;
+  sigset_t orig_mask;
+
+  /* Make sure another thread is not running.  */
+  if (m_event_thread)
+    stop_event_thread ();
+
+  /* We want the event thread to inherit an all-signals-blocked mask.  */
+  sigfillset (&new_mask);
+  if (pthread_sigmask (SIG_SETMASK, &new_mask, &orig_mask))
+    {
+      warning ("pthread_sigmask failed: %s", strerror (errno));
+      return AMD_DBGAPI_STATUS_ERROR;
+    }
+
+  /* Create a pipe that we can use to wake up ::poll, and make the event
+     thread exit.  */
+  if (!m_event_thread_exit_pipe.open ())
+    {
+      warning ("Could not create exit pipe: %s", strerror (errno));
+      return AMD_DBGAPI_STATUS_ERROR;
+    }
+
+  /* TODO: To save resources (threads, file descriptors), we could start only
+     one event thread for the entire host process, and listen on the file
+     descriptors for all the agents in all processes, then individually notify
+     the processes with events.  We would need to notify the event thread when
+     processes are attached or detached so that the list of polled file
+     descriptors is updated.  */
+
+  std::promise<void> event_thread_exception;
+  m_event_thread_exception = event_thread_exception.get_future ();
+
+  /* Start a new event thread. We capture a snapshot of the file descriptors
+     and associated callback. If agents were to be added to or removed from the
+     agent_map, we would stop this thread and start a new event thread with a
+     new set of file descriptors, and notifiers. */
+
+  using namespace std::placeholders;
+  m_event_thread
+      = new std::thread (std::bind (&kfd_driver_t::event_loop, this, _1),
+                         std::move (event_thread_exception));
+
+  if (pthread_sigmask (SIG_SETMASK, &orig_mask, nullptr))
+    {
+      warning ("pthread_sigmask failed: %s", strerror (errno));
+      return AMD_DBGAPI_STATUS_ERROR;
+    }
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
+amd_dbgapi_status_t
+kfd_driver_t::stop_event_thread ()
+{
+  int ret;
+
+  if (!m_event_thread)
+    return AMD_DBGAPI_STATUS_SUCCESS;
+
+  if (!m_event_thread_exit_pipe.is_valid ())
+    return AMD_DBGAPI_STATUS_ERROR;
+
+  /* Send a termination request to the event thread.  */
+  if ((ret = m_event_thread_exit_pipe.mark ()))
+    {
+      warning ("exit_pipe mark failed (rc=%d)", ret);
+      return AMD_DBGAPI_STATUS_ERROR;
+    }
+
+  /* Wait for the event thread to terminate.  */
+  m_event_thread->join ();
+
+  delete m_event_thread;
+  m_event_thread = nullptr;
+  m_event_thread_exit_pipe.close ();
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
+void
+kfd_driver_t::check_event_thread ()
+{
+  /* Check for exceptions in the event thread, and rethrow in the
+     application thread.  */
+  if (m_event_thread_exception.valid ()
+      && m_event_thread_exception.wait_until (
+             std::chrono::steady_clock::time_point::min ())
+             == std::future_status::ready)
+    m_event_thread_exception.get ();
 }
 
 class no_agents_driver_t : public linux_driver_t
@@ -773,23 +970,24 @@ public:
     return AMD_DBGAPI_STATUS_SUCCESS;
   }
 
-  amd_dbgapi_status_t
-  enable_debug_trap (os_agent_id_t /* os_agent_id  */,
-                     file_desc_t * /* poll_fd  */) const override
+  amd_dbgapi_status_t enable_debug () override
+  {
+    error ("should not call this, null_driver does not have any agents");
+  }
+
+  amd_dbgapi_status_t disable_debug () override
+  {
+    error ("should not call this, null_driver does not have any agents");
+  }
+
+  virtual bool is_debug_enabled () const override
   {
     error ("should not call this, null_driver does not have any agents");
   }
 
   amd_dbgapi_status_t
-      disable_debug_trap (os_agent_id_t /* os_agent_id  */) const override
-  {
-    error ("should not call this, null_driver does not have any agents");
-  }
-
-  amd_dbgapi_status_t
-  query_debug_event (os_agent_id_t /* os_agent_id  */,
-                     os_queue_id_t * /* os_queue_id  */,
-                     os_queue_status_t * /* os_queue_status  */) const override
+  query_debug_event (os_queue_id_t * /* os_queue_id  */,
+                     os_queue_status_t * /* os_queue_status  */) override
   {
     error ("should not call this, null_driver does not have any agents");
   }
@@ -820,8 +1018,7 @@ public:
   }
 
   amd_dbgapi_status_t
-  set_address_watch (os_agent_id_t /* os_agent_id  */,
-                     amd_dbgapi_global_address_t /* address  */,
+  set_address_watch (amd_dbgapi_global_address_t /* address  */,
                      amd_dbgapi_global_address_t /* mask  */,
                      os_watch_mode_t /* os_watch_mode  */,
                      os_watch_id_t * /* os_watch_id  */) const override
@@ -830,21 +1027,18 @@ public:
   }
 
   amd_dbgapi_status_t
-      clear_address_watch (os_agent_id_t /* os_agent_id  */,
-                           os_watch_id_t /* os_watch_id  */) const override
+      clear_address_watch (os_watch_id_t /* os_watch_id  */) const override
   {
     error ("should not call this, null_driver does not have any agents");
   }
 
   amd_dbgapi_status_t
-      set_wave_launch_mode (os_agent_id_t /* os_agent_id  */,
-                            os_wave_launch_mode_t /* mode  */) const override
+      set_wave_launch_mode (os_wave_launch_mode_t /* mode  */) const override
   {
     error ("should not call this, null_driver does not have any agents");
   }
 
   amd_dbgapi_status_t set_wave_launch_trap_override (
-      os_agent_id_t /* os_agent_id  */,
       os_wave_launch_trap_override_t /* override  */,
       os_wave_launch_trap_mask_t /* trap_mask  */,
       os_wave_launch_trap_mask_t /* requested_bits  */,
@@ -855,17 +1049,18 @@ public:
   }
 };
 
-std::unique_ptr<const os_driver_t>
-os_driver_t::create (amd_dbgapi_os_process_id_t os_pid)
+std::unique_ptr<os_driver_t>
+os_driver_t::create_driver (amd_dbgapi_os_process_id_t os_pid,
+                            std::function<void ()> pending_event_notifier)
 {
-  std::unique_ptr<const os_driver_t> os_driver{ new kfd_driver_t (os_pid) };
+  std::unique_ptr<os_driver_t> os_driver{ new kfd_driver_t (
+      os_pid, std::move (pending_event_notifier)) };
+  if (os_driver->is_valid ())
+    return os_driver;
 
   /* If we failed to create a kfd_driver_t (kfd is not installed?), then revert
      to a null_driver.  */
-  if (!os_driver->is_valid ())
-    os_driver.reset (new no_agents_driver_t (os_pid));
-
-  return os_driver;
+  return std::make_unique<no_agents_driver_t> (os_pid);
 }
 
 template <>

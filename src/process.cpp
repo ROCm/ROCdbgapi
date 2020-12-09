@@ -35,24 +35,17 @@
 #include "wave.h"
 
 #include <algorithm>
-#include <chrono>
-#include <cstring>
+#include <atomic>
 #include <exception>
-#include <future>
 #include <iterator>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <string>
-#include <thread>
 #include <utility>
 #include <vector>
 
-#include <errno.h>
 #include <link.h>
-#include <poll.h>
-#include <signal.h>
-#include <unistd.h>
 
 namespace amd::dbgapi
 {
@@ -79,7 +72,10 @@ process_t::process_t (amd_dbgapi_process_id_t process_id,
   else if (status != AMD_DBGAPI_STATUS_SUCCESS)
     error ("get_os_pid () failed (rc=%d)", status);
 
-  m_os_driver = os_driver_t::create (m_os_process_id);
+  m_os_driver = os_driver_t::create_driver (m_os_process_id, [this] () {
+    m_has_events.store (true, std::memory_order_release);
+    m_client_notifier_pipe.mark ();
+  });
 
   /* See is_valid() for information about how failing to open the files or
      the notifier pipe is handled.  */
@@ -192,12 +188,13 @@ process_t::detach ()
       exception = std::current_exception ();
     }
 
-  /* Stop the event thread before destructing the agents.  The event loop polls
-     the file descriptors returned by the KFD for each agent.  We need to
-     terminate the event loop before the files are closed.  */
-  amd_dbgapi_status_t status = stop_event_thread ();
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not stop the event thread (rc=%d)", status);
+  amd_dbgapi_status_t status = os_driver ().disable_debug ();
+  if (status != AMD_DBGAPI_STATUS_SUCCESS
+      && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    error ("Could not disable debug (rc=%d)", status);
+
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "debugging is disabled for %s",
+              to_string (id ()).c_str ());
 
   /* Destruct the waves, dispatches, queues, and agents, in this order.  */
   std::get<handle_object_set_t<watchpoint_t>> (m_handle_object_sets).clear ();
@@ -350,18 +347,10 @@ process_t::set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode)
   if (m_wave_launch_mode == wave_launch_mode)
     return AMD_DBGAPI_STATUS_SUCCESS;
 
-  for (auto &&agent : range<agent_t> ())
+  if (os_driver ().is_debug_enabled ())
     {
-      if (!agent.is_debug_mode_enabled ())
-        {
-          /* This agent is not available for debugging.  If it becomes
-             available in the future, its wave_launch_mode will be set at that
-             time.  */
-          continue;
-        }
-
-      amd_dbgapi_status_t status = os_driver ().set_wave_launch_mode (
-          agent.os_agent_id (), wave_launch_mode);
+      amd_dbgapi_status_t status
+          = os_driver ().set_wave_launch_mode (wave_launch_mode);
       if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
         return status;
       else if (status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -374,7 +363,8 @@ process_t::set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode)
 
   /* When changing the wave launch mode from WAVE_LAUNCH_MODE_HALT, all waves
      halted at launch need to be resumed and reported to the client.  */
-  if (saved_wave_launch_mode == os_wave_launch_mode_t::halt)
+  if (os_driver ().is_debug_enabled ()
+      && saved_wave_launch_mode == os_wave_launch_mode_t::halt)
     {
       update_queues ();
 
@@ -412,38 +402,18 @@ amd_dbgapi_status_t
 process_t::set_wave_launch_trap_override (os_wave_launch_trap_mask_t mask,
                                           os_wave_launch_trap_mask_t bits)
 {
-  /* Compute the mask that is supported by all agents.  */
-  os_wave_launch_trap_mask_t supported_trap_mask_bits{
-    ~os_wave_launch_trap_mask_t::none
-  };
-  for (auto &&agent : range<agent_t> ())
-    supported_trap_mask_bits &= agent.supported_trap_mask ();
-
-  /* Check that this operation is supported on all agents.  */
-  if ((bits & supported_trap_mask_bits) != bits)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
-
   os_wave_launch_trap_mask_t wave_trap_mask
       = (m_wave_trap_mask & ~bits) | (mask & bits);
 
   if (wave_trap_mask == m_wave_trap_mask)
     return AMD_DBGAPI_STATUS_SUCCESS;
 
-  for (auto &&agent : range<agent_t> ())
+  if (os_driver ().is_debug_enabled ())
     {
-      if (!agent.is_debug_mode_enabled ())
-        {
-          /* This agent is not available for debugging.  If it becomes
-             available in the future, its wave_launch_trap mask will be set at
-             that time.  */
-          continue;
-        }
-
       os_wave_launch_trap_mask_t ignored;
-
       amd_dbgapi_status_t status = os_driver ().set_wave_launch_trap_override (
-          agent.os_agent_id (), os_wave_launch_trap_override_t::apply, mask,
-          bits, &ignored, &ignored);
+          os_wave_launch_trap_override_t::apply, mask, bits, &ignored,
+          &ignored);
 
       if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
         return status;
@@ -490,8 +460,11 @@ process_t::find (amd_dbgapi_client_process_id_t client_process_id)
 amd_dbgapi_status_t
 process_t::update_agents ()
 {
+  size_t agent_count = count<agent_t> ();
+  bool first_update = agent_count == 0;
+
   std::vector<os_agent_snapshot_entry_t> agent_infos;
-  size_t agent_count = count<agent_t> () + 16;
+  agent_count += 16;
 
   do
     {
@@ -507,14 +480,18 @@ process_t::update_agents ()
   while (agent_infos.size () < agent_count);
   agent_infos.resize (agent_count);
 
-  amd_dbgapi_status_t retval = AMD_DBGAPI_STATUS_SUCCESS;
-
   /* Add new agents to the process.  */
   for (auto &&agent_info : agent_infos)
     {
       agent_t *agent = find_if ([&] (const agent_t &a) {
         return a.os_agent_id () == agent_info.os_agent_id;
       });
+
+      if (agent)
+        continue;
+
+      if (!first_update)
+        error ("gpu hot pluging is not supported");
 
       const architecture_t *architecture
           = architecture_t::find (agent_info.e_machine);
@@ -525,90 +502,26 @@ process_t::update_agents ()
 
       if (!architecture)
         {
-          /* If debug mode is not enabled, simply skip this agent, it just
-             won't be reported to the debugger client.  */
-          if (!is_flag_set (flag_t::enable_agent_debug_mode))
-            continue;
-
           warning ("os_agent_id %d: `%s' architecture not supported.",
                    agent_info.os_agent_id, agent_info.name.c_str ());
-
-          return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
+          continue;
         }
 
-      if (!agent)
-        agent = &create<agent_t> (*this,         /* process  */
-                                  *architecture, /* architecture  */
-                                  agent_info);   /* os_agent_info  */
-
-      bool agent_debug_mode_enabled = agent->is_debug_mode_enabled ();
-
-      if (is_flag_set (flag_t::enable_agent_debug_mode)
-          && !agent_debug_mode_enabled)
+      if (agent_info.fw_version < agent_info.fw_version_required)
         {
-          amd_dbgapi_status_t status = agent->enable_debug_mode ();
-          if (status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
-            {
-              /* This agent is not available for debugging in this process.  */
-              warning ("os_agent_id %d cannot be enabled for debugging "
-                       "in this process",
-                       agent->os_agent_id ());
-              retval = status;
-            }
-          else if (status != AMD_DBGAPI_STATUS_SUCCESS
-                   && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-            error ("Could not enable debugging on os_agent_id %d (rc=%d)",
-                   agent->os_agent_id (), status);
-        }
-      else if (!is_flag_set (flag_t::enable_agent_debug_mode)
-               && agent_debug_mode_enabled)
-        {
-          amd_dbgapi_status_t status = agent->disable_debug_mode ();
-          if (status != AMD_DBGAPI_STATUS_SUCCESS
-              && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-            error ("Could not disable debugging on os_agent_id %d (rc=%d)",
-                   agent->os_agent_id (), status);
+          warning ("os_agent_id %d: firmware version %d does not match "
+                   "%d+ requirement",
+                   agent_info.os_agent_id, agent_info.fw_version,
+                   agent_info.fw_version_required);
+          continue;
         }
 
-      if (!agent_debug_mode_enabled && agent->is_debug_mode_enabled ())
-        {
-          /* If this agent's debug mode got enabled in this update, set its
-             wave launch configuration now.  */
-
-          amd_dbgapi_status_t status = os_driver ().set_wave_launch_mode (
-              agent->os_agent_id (), m_wave_launch_mode);
-          if (status != AMD_DBGAPI_STATUS_SUCCESS
-              && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-            error ("Could not set the wave launch mode for os_agent_id %d "
-                   "(rc=%d).",
-                   agent->os_agent_id (), status);
-
-          os_wave_launch_trap_mask_t ignored;
-          status = os_driver ().set_wave_launch_trap_override (
-              agent->os_agent_id (), os_wave_launch_trap_override_t::apply,
-              m_wave_trap_mask, agent->supported_trap_mask (), &ignored,
-              &ignored);
-          if (status != AMD_DBGAPI_STATUS_SUCCESS
-              && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-            error ("Could not set the wave launch trap override for "
-                   "os_agent_id %d (rc=%d).",
-                   agent->os_agent_id (), status);
-        }
+      create<agent_t> (*this,         /* process  */
+                       *architecture, /* architecture  */
+                       agent_info);   /* os_agent_info  */
     }
 
-  /* Delete agents that are no longer present in this process. */
-  auto &&agent_range = range<agent_t> ();
-  for (auto it = agent_range.begin (); it != agent_range.end ();)
-    if (std::find_if (agent_infos.begin (), agent_infos.end (),
-                      [&] (const auto &agent_info) {
-                        return it->os_agent_id () == agent_info.os_agent_id;
-                      })
-        == agent_infos.end ())
-      it = destroy (it);
-    else
-      ++it;
-
-  return retval;
+  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 size_t
@@ -789,21 +702,39 @@ process_t::insert_watchpoint (const watchpoint_t &watchpoint,
   amd_dbgapi_global_address_t watch_address
       = watchpoint.requested_address () & watch_mask;
 
-  /* Insert the watchpoint on all agents.  */
-  auto &&agent_range = range<agent_t> ();
-  for (auto it = agent_range.begin (); it != agent_range.end (); ++it)
+  os_watch_mode_t watch_mode;
+  switch (watchpoint.kind ())
     {
-      amd_dbgapi_status_t status
-          = it->insert_watchpoint (watchpoint, watch_address, watch_mask);
-
-      /* If we fail, remove all the watchpoints inserted so far.  */
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        {
-          for (auto it2 = agent_range.begin (); it2 != it; ++it2)
-            it2->remove_watchpoint (watchpoint);
-          return status;
-        }
+    case AMD_DBGAPI_WATCHPOINT_KIND_LOAD:
+      watch_mode = os_watch_mode_t::read;
+      break;
+    case AMD_DBGAPI_WATCHPOINT_KIND_STORE_AND_RMW:
+      watch_mode = os_watch_mode_t::nonread;
+      break;
+    case AMD_DBGAPI_WATCHPOINT_KIND_RMW:
+      watch_mode = os_watch_mode_t::atomic;
+      break;
+    case AMD_DBGAPI_WATCHPOINT_KIND_ALL:
+      watch_mode = os_watch_mode_t::all;
+      break;
+    default:
+      return AMD_DBGAPI_STATUS_ERROR_NO_WATCHPOINT_AVAILABLE;
     }
+
+  os_watch_id_t os_watch_id;
+  amd_dbgapi_status_t status = os_driver ().set_address_watch (
+      watch_address, watch_mask, watch_mode, &os_watch_id);
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    return status;
+
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+              "%s: set address_watch%d [%#lx-%#lx] (%s)",
+              to_string (id ()).c_str (), os_watch_id, watch_address,
+              watch_address + (1 << utils::trailing_zeroes_count (watch_mask)),
+              to_string (watchpoint.kind ()).c_str ());
+
+  if (!m_watchpoint_map.emplace (os_watch_id, &watchpoint).second)
+    error ("os_watch_id %d is already in use", os_watch_id);
 
   *adjusted_address = watch_address;
   *adjusted_size = -watch_mask;
@@ -814,19 +745,31 @@ process_t::insert_watchpoint (const watchpoint_t &watchpoint,
 void
 process_t::remove_watchpoint (const watchpoint_t &watchpoint)
 {
-  for (auto &&agent : range<agent_t> ())
-    {
-      amd_dbgapi_status_t status = agent.remove_watchpoint (watchpoint);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS
-          && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-        error ("failed to remove watchpoint (rc=%d)", status);
-    }
+  /* Find watchpoint in the os_watch_id to watchpoint_t map.  The key will be
+     the os_watch_id to clear for this agent.  */
+  auto it = std::find_if (m_watchpoint_map.begin (), m_watchpoint_map.end (),
+                          [&watchpoint] (const auto &value) {
+                            return value.second == &watchpoint;
+                          });
+
+  if (it == m_watchpoint_map.end ())
+    error ("watchpoint is not inserted");
+
+  os_watch_id_t os_watch_id = it->first;
+
+  amd_dbgapi_status_t status = os_driver ().clear_address_watch (os_watch_id);
+  if (status != AMD_DBGAPI_STATUS_SUCCESS
+      && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    error ("failed to remove watchpoint (rc=%d)", status);
+
+  m_watchpoint_map.erase (it);
+
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "%s: clear address_watch%d",
+              to_string (id ()).c_str (), os_watch_id);
 
   const bool last_watchpoint = count<watchpoint_t> () == 1;
   if (last_watchpoint)
     {
-      amd_dbgapi_status_t status;
-
       status = set_wave_launch_trap_override (
           os_wave_launch_trap_mask_t::none,
           os_wave_launch_trap_mask_t::address_watch);
@@ -855,6 +798,13 @@ process_t::remove_watchpoint (const watchpoint_t &watchpoint)
       if (forward_progress_needed ())
         resume_queues (queues, "remove watchpoint");
     }
+}
+
+const watchpoint_t *
+process_t::find_watchpoint (os_watch_id_t os_watch_id) const
+{
+  auto it = m_watchpoint_map.find (os_watch_id);
+  return it != m_watchpoint_map.end () ? it->second : nullptr;
 }
 
 size_t
@@ -1269,11 +1219,16 @@ process_t::attach ()
   auto on_runtime_load_callback = [this] (const shared_library_t &library) {
     amd_dbgapi_status_t status;
 
-    /* The runtime is loaded, enable the debug trap on all devices.  */
-    set_flag (flag_t::enable_agent_debug_mode);
+    if (os_driver ().check_version () != AMD_DBGAPI_STATUS_SUCCESS)
+      {
+        enqueue_event (create<event_t> (
+            *this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
+            AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION));
+        return;
+      }
 
-    if (os_driver ().check_version () != AMD_DBGAPI_STATUS_SUCCESS
-        || (status = update_agents ()) == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
+    status = os_driver ().enable_debug ();
+    if (status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
       {
         enqueue_event (create<event_t> (
             *this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
@@ -1281,7 +1236,23 @@ process_t::attach ()
         return;
       }
     else if (status != AMD_DBGAPI_STATUS_SUCCESS)
-      error ("update_agents failed (rc=%d)", status);
+      error ("enable_debug failed (rc=%d)", status);
+
+    dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "debugging is enabled for %s",
+                to_string (id ()).c_str ());
+
+    status = set_wave_launch_mode (m_wave_launch_mode);
+    if (status != AMD_DBGAPI_STATUS_SUCCESS
+        && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+      error ("Could not set the wave launch mode for %s (rc=%d).",
+             to_string (id ()).c_str (), status);
+
+    status
+        = set_wave_launch_trap_override (m_wave_trap_mask, m_wave_trap_mask);
+    if (status != AMD_DBGAPI_STATUS_SUCCESS
+        && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+      error ("Could not set the wave launch trap override for %s (rc=%d).",
+             to_string (id ()).c_str (), status);
 
     status = update_queues ();
     if (status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -1300,10 +1271,6 @@ process_t::attach ()
     suspend_queues (queues, "attach to process");
     clear_flag (flag_t::assign_new_ids_to_all_waves);
     resume_queues (queues, "attach to process");
-
-    status = start_event_thread ();
-    if (status != AMD_DBGAPI_STATUS_SUCCESS)
-      error ("Cannot start the event thread (rc=%d)", status);
 
     /* Retrieve the address of the rendez-vous structure (_amd_gpu_r_debug)
        used by the runtime loader to communicate details of code objects
@@ -1407,9 +1374,6 @@ process_t::attach ()
     std::get<handle_object_set_t<code_object_t>> (m_handle_object_sets)
         .clear ();
 
-    /* Disable the debug trap on all devices.  */
-    clear_flag (flag_t::enable_agent_debug_mode);
-
     amd_dbgapi_status_t status = update_agents ();
     if (status != AMD_DBGAPI_STATUS_SUCCESS)
       error ("update_agents failed (rc=%d)", status);
@@ -1425,204 +1389,19 @@ process_t::attach ()
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "attaching %s to process %d",
               to_string (id ()).c_str (), m_os_process_id);
 
+  amd_dbgapi_status_t status = update_agents ();
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("update_agents failed (rc=%d)", status);
+
   /* Set/remove internal breakpoints when the runtime is loaded/unloaded.  */
-  shared_library_t &library = create<shared_library_t> (
+  shared_library_t &shared_library = create<shared_library_t> (
       *this, "libhsa-runtime64.so.1", on_runtime_load_callback,
       on_runtime_unload_callback);
 
-  if (!library.enable ())
-    error ("failed to enabled %s", to_string (library.id ()).c_str ());
-
-  /* If the runtime is not yet loaded, create agents without enabling the
-     debug trap.  */
-  if (library.state () != AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED)
-    {
-      amd_dbgapi_status_t status = update_agents ();
-      if (status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
-        {
-          destroy (&library);
-          return status;
-        }
-      else if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("update_agents failed (rc=%d)", status);
-    }
+  if (!shared_library.enable ())
+    error ("failed to enable %s", to_string (shared_library.id ()).c_str ());
 
   return AMD_DBGAPI_STATUS_SUCCESS;
-}
-
-namespace
-{
-
-void
-process_event_thread (
-    std::vector<std::pair<file_desc_t, std::function<void ()>>> input,
-    pipe_t event_thread_exit_pipe, std::promise<void> thread_exception)
-{
-  bool event_thread_exit{ false };
-
-  /* Add the read end of the event_thread_exit_pipe to the monitored fds. This
-     pipe is marked when the event thread needs to terminate.  */
-  input.emplace_back (event_thread_exit_pipe.read_fd (),
-                      [&] () { event_thread_exit = true; });
-
-  std::vector<struct pollfd> fds;
-  fds.reserve (input.size ());
-
-  std::transform (input.begin (), input.end (), std::back_inserter (fds),
-                  [] (auto entry) {
-                    return pollfd{ entry.first, POLLIN, 0 };
-                  });
-
-  try
-    {
-      do
-        {
-          int ret = poll (fds.data (), fds.size (), -1);
-
-          if (ret == -1 && errno != EINTR)
-            error ("poll: %s", strerror (errno));
-          else if (ret <= 0)
-            continue;
-
-          /* Check the file descriptors for data ready to read.  */
-          for (size_t i = 0; i < fds.size (); ++i)
-            {
-              struct pollfd &fd = fds[i];
-
-              if (!(fd.revents & POLLIN))
-                continue;
-
-              /* flush the event pipe, ...  */
-              do
-                {
-                  char buf;
-                  ret = read (fd.fd, &buf, 1);
-                }
-              while (ret >= 0 || (ret == -1 && errno == EINTR));
-
-              if (ret == -1 && errno != EAGAIN)
-                error ("read: %s", strerror (errno));
-
-              /* ... and invoke the event notifier callback.  */
-              (input[i].second) ();
-            }
-        }
-      while (!event_thread_exit);
-    }
-  catch (...)
-    {
-      thread_exception.set_exception (std::current_exception ());
-    }
-}
-
-} /* namespace */
-
-amd_dbgapi_status_t
-process_t::start_event_thread ()
-{
-  sigset_t new_mask;
-  sigset_t orig_mask;
-
-  /* Make sure another thread is not running.  */
-  if (m_event_thread)
-    stop_event_thread ();
-
-  /* We want the event thread to inherit an all-signals-blocked mask.  */
-  sigfillset (&new_mask);
-  if (pthread_sigmask (SIG_SETMASK, &new_mask, &orig_mask))
-    {
-      warning ("pthread_sigmask failed: %s", strerror (errno));
-      return AMD_DBGAPI_STATUS_ERROR;
-    }
-
-  /* Create a pipe that we can use to wake up ::poll, and make the event
-     thread exit.  */
-  if (!m_event_thread_exit_pipe.open ())
-    {
-      warning ("Could not create exit pipe: %s", strerror (errno));
-      return AMD_DBGAPI_STATUS_ERROR;
-    }
-
-  /* TODO: To save resources (threads, file descriptors), we could start only
-     one event thread for the entire host process, and listen on the file
-     descriptors for all the agents in all processes, then individually notify
-     the processes with events.  We would need to notify the event thread when
-     processes are attached or detached so that the list of polled file
-     descriptors is updated.  */
-
-  /* The input to the event thread loop is a vector of file descriptors to
-     monitor (read end of the pipe created by the os_driver), and associated
-     callbacks to invoke when data is present in the pipe.  The os_driver will
-     write to the pipe when an event for an agent is pending, causing the event
-     thread to wake up and invoke the callback for that agent.  */
-  std::vector<std::pair<file_desc_t, std::function<void ()>>> file_descriptors;
-  file_descriptors.reserve (count<agent_t> ());
-
-  for (auto &&agent : range<agent_t> ())
-    file_descriptors.emplace_back (agent.event_poll_fd (), [&agent, this] () {
-      agent.set_pending_events ();
-      m_client_notifier_pipe.mark ();
-    });
-
-  std::promise<void> event_thread_exception;
-  m_event_thread_exception = event_thread_exception.get_future ();
-
-  /* Start a new event thread. We capture a snapshot of the file descriptors
-     and associated callback. If agents were to be added to or removed from the
-     agent_map, we would stop this thread and start a new event thread with a
-     new set of file descriptors, and notifiers. */
-
-  m_event_thread = new std::thread (
-      process_event_thread, std::move (file_descriptors),
-      m_event_thread_exit_pipe, std::move (event_thread_exception));
-
-  if (pthread_sigmask (SIG_SETMASK, &orig_mask, nullptr))
-    {
-      warning ("pthread_sigmask failed: %s", strerror (errno));
-      return AMD_DBGAPI_STATUS_ERROR;
-    }
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
-}
-
-amd_dbgapi_status_t
-process_t::stop_event_thread ()
-{
-  int ret;
-
-  if (!m_event_thread)
-    return AMD_DBGAPI_STATUS_SUCCESS;
-
-  if (!m_event_thread_exit_pipe.is_valid ())
-    return AMD_DBGAPI_STATUS_ERROR;
-
-  /* Send a termination request to the event thread.  */
-  if ((ret = m_event_thread_exit_pipe.mark ()))
-    {
-      warning ("exit_pipe mark failed (rc=%d)", ret);
-      return AMD_DBGAPI_STATUS_ERROR;
-    }
-
-  /* Wait for the event thread to terminate.  */
-  m_event_thread->join ();
-
-  delete m_event_thread;
-  m_event_thread = nullptr;
-  m_event_thread_exit_pipe.close ();
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
-}
-
-void
-process_t::check_event_thread ()
-{
-  /* Check for exceptions in the event thread, and rethrow in the
-     application thread.  */
-  if (m_event_thread_exception.valid ()
-      && m_event_thread_exception.wait_until (
-             std::chrono::steady_clock::time_point::min ())
-             == std::future_status::ready)
-    m_event_thread_exception.get ();
 }
 
 amd_dbgapi_status_t
@@ -1666,6 +1445,82 @@ process_t::enqueue_event (event_t &event)
   client_notifier_pipe ().mark ();
 }
 
+amd_dbgapi_status_t
+process_t::query_debug_event (amd_dbgapi_queue_id_t *queue_id,
+                              os_queue_status_t *os_queue_status)
+{
+  dbgapi_assert (queue_id && os_queue_status && "must not be null");
+
+  while (true)
+    {
+      os_queue_id_t os_queue_id;
+
+      amd_dbgapi_status_t status
+          = os_driver ().query_debug_event (&os_queue_id, os_queue_status);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        return status;
+
+      if (os_queue_id == os_invalid_queueid)
+        {
+          /* There are no more events.  */
+          *queue_id = AMD_DBGAPI_QUEUE_NONE;
+          return AMD_DBGAPI_STATUS_SUCCESS;
+        }
+
+      /* Find the queue by matching its os_queue_id with the one
+         returned by the ioctl.  */
+
+      queue_t *queue = find_if ([os_queue_id] (const queue_t &q) {
+        return q.os_queue_id () == os_queue_id;
+      });
+
+      /* If this is a new queue, update the queues to make sure we don't
+         return a stale queue with the same os_queue_id.  */
+      if ((*os_queue_status & os_queue_status_t::new_queue) != 0)
+        {
+          /* If there is a stale queue with the same os_queue_id, destroy it.
+           */
+          if (queue)
+            {
+              amd_dbgapi_queue_id_t stale_queue_id = queue->id ();
+
+              destroy (queue);
+
+              dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+                          "destroyed stale %s (os_queue_id=%d)",
+                          to_string (stale_queue_id).c_str (), os_queue_id);
+            }
+
+          /* Create a temporary queue instance to reserve the unique queue_id,
+             update_queues with fill in the missing information
+             (os_queue_snapshot_entry_t).  FIXME: need a dummy agent  */
+          *queue_id = create<queue_t> (*(agent_t *)0xbad, os_queue_id).id ();
+          *os_queue_status &= ~os_queue_status_t::new_queue;
+          update_queues ();
+
+          /* Check that the queue still exists, update_queues () may have
+             destroyed it if it isn't a supported queue type.  */
+          if (find (*queue_id))
+            return AMD_DBGAPI_STATUS_SUCCESS;
+
+          dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+                      "skipping event (%s) for deleted os_queue_id %d",
+                      to_string (*os_queue_status).c_str (), os_queue_id);
+        }
+      else if (queue)
+        {
+          *queue_id = queue->id ();
+          return AMD_DBGAPI_STATUS_SUCCESS;
+        }
+      else
+        {
+          error ("os_queue_id %d should have been reported as a new_queue "
+                 "before",
+                 os_queue_id);
+        }
+    }
+}
+
 event_t *
 process_t::next_pending_event ()
 {
@@ -1676,11 +1531,6 @@ process_t::next_pending_event ()
     {
       std::vector<queue_t *> queues_needing_resume;
       queues_needing_resume.reserve (count<queue_t> ());
-
-      /* We get our event notifications from the process event thread, so
-         make sure it is still running, an exception may have caused it to
-         exit.  */
-      check_event_thread ();
 
       /* It is possible for new events to be generated between the time we
          query the agents for pending queue events and the time we actually
@@ -1696,63 +1546,60 @@ process_t::next_pending_event ()
         {
           std::vector<queue_t *> queues;
 
-          for (auto &&agent : range<agent_t> ())
+          if (!m_has_events.exchange (false, std::memory_order_acquire))
+            break;
+
+          while (true)
             {
-              if (!agent.has_pending_events ())
-                continue;
+              amd_dbgapi_queue_id_t queue_id;
+              os_queue_status_t queue_status;
 
-              while (true)
+              amd_dbgapi_status_t status
+                  = query_debug_event (&queue_id, &queue_status);
+              if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+                return nullptr;
+              else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+                error ("agent_t::query_debug_event failed (rc=%d)", status);
+
+              if (queue_id == AMD_DBGAPI_QUEUE_NONE)
+                break;
+
+              queue_t *queue = find (queue_id);
+
+              if (!queue)
                 {
-                  amd_dbgapi_queue_id_t queue_id;
-                  os_queue_status_t queue_status;
+                  /* Events that are reported for a queue that is deleted
+                     before the events are retrieved are ignored.  This
+                     includes events that are retrieved for a new queue
+                     that is deleted before information about the queue can
+                     be retrieved.  */
+                  continue;
+                }
 
-                  amd_dbgapi_status_t status
-                      = agent.next_os_event (&queue_id, &queue_status);
-                  if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-                    return nullptr;
-                  else if (status != AMD_DBGAPI_STATUS_SUCCESS)
-                    error ("agent_t::next_os_event failed (rc=%d)", status);
+              /* Check that the queue suspend status returned by KFD
+                 matches the status we are keeping for the queue_t.  */
+              dbgapi_assert (
+                  queue->is_suspended ()
+                      == !!(queue_status & os_queue_status_t::suspended)
+                  && "inconsistent suspend status");
 
-                  if (queue_id == AMD_DBGAPI_QUEUE_NONE)
-                    break;
+              dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+                          "%s on %s has pending events (%s)",
+                          to_string (queue_id).c_str (),
+                          to_string (queue->agent ().id ()).c_str (),
+                          to_string (queue_status).c_str ());
 
-                  queue_t *queue = find (queue_id);
-
-                  if (!queue)
-                    {
-                      /* Events that are reported for a queue that is deleted
-                         before the events are retrieved are ignored.  This
-                         includes events that are retrieved for a new queue
-                         that is deleted before information about the queue can
-                         be retrieved.  */
-                      continue;
-                    }
-
-                  /* Check that the queue suspend status returned by KFD
-                     matches the status we are keeping for the queue_t.  */
-                  dbgapi_assert (
-                      queue->is_suspended ()
-                          == !!(queue_status & os_queue_status_t::suspended)
-                      && "inconsistent suspend status");
-
-                  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                              "%s on %s has pending events (%s)",
-                              to_string (queue_id).c_str (),
-                              to_string (queue->agent ().id ()).c_str (),
-                              to_string (queue_status).c_str ());
-
-                  /* The queue may already be suspended. This can happen if an
-                     event occurs after requesting the queue to be suspended
-                     and before that request has completed, or if the act of
-                     suspending a wave generates a new event (such as for the
-                     single step work-around in the CWSR handler).  */
-                  if (!queue->is_suspended ())
-                    {
-                      /* Don't add a queue more than once.  */
-                      if (std::find (queues.begin (), queues.end (), queue)
-                          == queues.end ())
-                        queues.emplace_back (queue);
-                    }
+              /* The queue may already be suspended. This can happen if an
+                 event occurs after requesting the queue to be suspended
+                 and before that request has completed, or if the act of
+                 suspending a wave generates a new event (such as for the
+                 single step work-around in the CWSR handler).  */
+              if (!queue->is_suspended ())
+                {
+                  /* Don't add a queue more than once.  */
+                  if (std::find (queues.begin (), queues.end (), queue)
+                      == queues.end ())
+                    queues.emplace_back (queue);
                 }
             }
 
