@@ -158,20 +158,24 @@ process_t::detach ()
       for (auto &&watchpoint : range<watchpoint_t> ())
         remove_watchpoint (watchpoint);
 
-      /* Resume the waves that were halted by a debug event (single-step,
-         breakpoint, watchpoint), but keep the waves halted because of an
-         exception running.  */
       for (auto &&wave : range<wave_t> ())
         {
-          /* TODO: Move this to the architecture class.  Not absolutely
-             necessary, but restore the DATA0/DATA1 registers to zero for the
-             next attach.  */
+          /* If the wave was displaced stepping, cancel the operation now while
+             the queue is suspended (it may write registers).  */
+          if (wave.displaced_stepping ())
+            {
+              wave.set_state (AMD_DBGAPI_WAVE_STATE_STOP);
+              wave.displaced_stepping_complete ();
+            }
+
+          /* Restore the wave_id register to its default value.  */
           uint64_t zero = 0;
           wave.write_register (amdgpu_regnum_t::wave_id, &zero);
 
           /* Resume the wave if it is single-stepping, or if it is stopped
              because of a debug event (completed single-step, breakpoint,
-             watchpoint).  */
+             watchpoint).  The wave is not resumed if it is halted because of
+             pending exceptions.  */
           if ((wave.state () == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
               || (wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
                   && !(wave.stop_reason ()
@@ -1030,7 +1034,12 @@ process_t::update_queues ()
           snapshots.data (), snapshot_count, &queue_count);
 
       if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-        queue_count = 0;
+        {
+          /* The process exited so none of the queues are valid.  */
+          for (auto &&queue : range<queue_t> ())
+            queue.set_state (queue_t::state_t::invalid);
+          queue_count = 0;
+        }
       else if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
 

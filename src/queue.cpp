@@ -871,6 +871,13 @@ queue_t::set_state (state_t state)
   dbgapi_assert (m_state != state_t::invalid
                  && "an invalid queue cannot change state");
 
+  m_state = state;
+
+  /* Notify the queue_impl of the change of state. Some implementation may act
+     on some state transitions, for example a compute queue may update its
+     dispatches and waves.  */
+  m_impl->state_changed (state);
+
   if (state == state_t::invalid)
     {
       /* Destructing the queue impl for compute queues also destructs all
@@ -881,13 +888,6 @@ queue_t::set_state (state_t state)
       dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "invalidated %s",
                   to_string (id ()).c_str ());
     }
-
-  m_state = state;
-
-  /* Notify the queue_impl of the change of state. Some implementation may act
-     on some state transitions, for example a compute queue may update its
-     dispatches and waves.  */
-  m_impl->state_changed (state);
 }
 
 amd_dbgapi_status_t

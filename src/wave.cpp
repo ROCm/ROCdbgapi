@@ -50,8 +50,14 @@ wave_t::wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t &dispatch,
 
 wave_t::~wave_t ()
 {
-  if (m_displaced_stepping)
-    displaced_stepping_complete ();
+  if (displaced_stepping ())
+    {
+      /* displaced step operations are cancelled by the process on detach,
+         unless the process has exited and the queue is invalid, in which case,
+         we simply release the displaced stepping buffer.  */
+      dbgapi_assert (!queue ().is_valid ());
+      displaced_stepping_t::release (m_displaced_stepping);
+    }
 }
 
 void
@@ -177,6 +183,7 @@ void
 wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
 {
   dbgapi_assert (!m_displaced_stepping && "already displaced stepping");
+  dbgapi_assert (state () == AMD_DBGAPI_WAVE_STATE_STOP && "not stopped");
 
   /* FIXME: When it becomes possible to skip the resuming of the wave at the
      displaced instruction, simulate it here and enqueue a WAVE_STOP event.  */
@@ -283,6 +290,7 @@ void
 wave_t::displaced_stepping_complete ()
 {
   dbgapi_assert (!!m_displaced_stepping && "not displaced stepping");
+  dbgapi_assert (state () == AMD_DBGAPI_WAVE_STATE_STOP && "not stopped");
 
   amd_dbgapi_global_address_t displaced_pc = pc ();
 
