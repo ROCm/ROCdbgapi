@@ -347,7 +347,7 @@ amdgcn_architecture_t::initialize ()
                             amdgpu_regnum_t::last_sgpr);
   create<register_class_t> (*this, "scalar", scalar_registers);
 
-  /* Vector registers: [v0-v255, acc0-acc255]  */
+  /* Vector registers: [v0-v255, a0-a255]  */
   register_class_t::register_map_t vector_registers;
   if (has_wave32_vgprs ())
     {
@@ -1910,18 +1910,16 @@ gfx9_base_t::register_address (const cwsr_descriptor_t &descriptor,
 
   if (lane_count == 32 && regnum >= amdgpu_regnum_t::first_accvgpr_32
       && regnum <= amdgpu_regnum_t::last_accvgpr_32
-      && ((regnum - amdgpu_regnum_t::acc0_32) < accvgpr_count))
+      && ((regnum - amdgpu_regnum_t::a0_32) < accvgpr_count))
     {
-      return accvgprs_addr
-             + (regnum - amdgpu_regnum_t::acc0_32) * accvgpr_size;
+      return accvgprs_addr + (regnum - amdgpu_regnum_t::a0_32) * accvgpr_size;
     }
 
   if (lane_count == 64 && regnum >= amdgpu_regnum_t::first_accvgpr_64
       && regnum <= amdgpu_regnum_t::last_accvgpr_64
-      && ((regnum - amdgpu_regnum_t::acc0_64) < accvgpr_count))
+      && ((regnum - amdgpu_regnum_t::a0_64) < accvgpr_count))
     {
-      return accvgprs_addr
-             + (regnum - amdgpu_regnum_t::acc0_64) * accvgpr_size;
+      return accvgprs_addr + (regnum - amdgpu_regnum_t::a0_64) * accvgpr_size;
     }
 
   size_t vgpr_count = wave_get_info (descriptor, wave_info_t::vgprs);
@@ -2469,14 +2467,14 @@ architecture_t::register_name (amdgpu_regnum_t regnum) const
       && regnum >= amdgpu_regnum_t::first_accvgpr_32
       && regnum <= amdgpu_regnum_t::last_accvgpr_32)
     {
-      return string_printf ("acc%ld",
+      return string_printf ("a%ld",
                             regnum - amdgpu_regnum_t::first_accvgpr_32);
     }
   if (has_acc_vgprs () && has_wave64_vgprs ()
       && regnum >= amdgpu_regnum_t::first_accvgpr_64
       && regnum <= amdgpu_regnum_t::last_accvgpr_64)
     {
-      return string_printf ("acc%ld",
+      return string_printf ("a%ld",
                             regnum - amdgpu_regnum_t::first_accvgpr_64);
     }
   if (regnum >= amdgpu_regnum_t::first_ttmp

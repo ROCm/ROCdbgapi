@@ -58,17 +58,17 @@ enum class amdgpu_regnum_t : uint32_t
   first_accvgpr_32 = last_vgpr_64 + 1,
 
   /* 32-bit Accumulation Vector registers (accvgprs) for wave64 wavefronts  */
-  acc0_32 = first_accvgpr_32,
-  acc255_32 = acc0_32 + 255,
+  a0_32 = first_accvgpr_32,
+  a255_32 = a0_32 + 255,
 
-  last_accvgpr_32 = acc255_32,
+  last_accvgpr_32 = a255_32,
   first_accvgpr_64 = last_accvgpr_32 + 1,
 
   /* 32-bit Accumulation Vector registers (accvgprs) for wave64 wavefronts  */
-  acc0_64 = first_accvgpr_64,
-  acc255_64 = acc0_64 + 255,
+  a0_64 = first_accvgpr_64,
+  a255_64 = a0_64 + 255,
 
-  last_accvgpr_64 = acc255_64,
+  last_accvgpr_64 = a255_64,
   first_sgpr = last_accvgpr_64 + 1,
 
   /* 32-bit Scalar registers (sgprs).  */
