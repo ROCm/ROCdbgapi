@@ -54,12 +54,12 @@ private:
   std::optional<file_desc_t> m_proc_mem_fd;
 
 public:
-  linux_driver_t (std::optional<amd_dbgapi_os_process_id_t> os_pid);
+  linux_driver_t (amd_dbgapi_os_process_id_t os_pid);
   virtual ~linux_driver_t ();
 
   virtual bool is_valid () const override
   {
-    return os_driver_t::is_valid () && m_proc_mem_fd;
+    return m_proc_mem_fd.has_value ();
   }
 
   virtual amd_dbgapi_status_t
@@ -67,15 +67,11 @@ public:
                               const void *write, size_t *size) const override;
 };
 
-linux_driver_t::linux_driver_t (
-    std::optional<amd_dbgapi_os_process_id_t> os_pid)
-    : os_driver_t (std::move (os_pid))
+linux_driver_t::linux_driver_t (amd_dbgapi_os_process_id_t os_pid)
+    : os_driver_t (os_pid)
 {
-  if (!m_os_pid)
-    return;
-
   /* Open the /proc/pid/mem file for this process.  */
-  std::string filename = string_printf ("/proc/%d/mem", *m_os_pid);
+  std::string filename = string_printf ("/proc/%d/mem", m_os_pid);
   int fd = ::open (filename.c_str (), O_RDWR | O_LARGEFILE | O_CLOEXEC, 0);
   if (fd == -1)
     {
@@ -152,8 +148,7 @@ private:
                           kfd_ioctl_dbg_trap_args *args) const;
 
 public:
-  kfd_driver_t (std::optional<amd_dbgapi_os_process_id_t> os_pid)
-      : linux_driver_t (std::move (os_pid))
+  kfd_driver_t (amd_dbgapi_os_process_id_t os_pid) : linux_driver_t (os_pid)
   {
     open_kfd ();
 
@@ -165,7 +160,7 @@ public:
 
   virtual bool is_valid () const override
   {
-    return linux_driver_t::is_valid () && s_kfd_fd;
+    return linux_driver_t::is_valid () && s_kfd_fd.has_value ();
   }
 
   virtual amd_dbgapi_status_t check_version () const override;
@@ -260,7 +255,7 @@ kfd_driver_t::kfd_dbg_trap_ioctl (uint32_t action,
 {
   dbgapi_assert (is_valid ());
 
-  args->pid = *m_os_pid;
+  args->pid = m_os_pid;
   args->op = action;
 
   int ret = ::ioctl (*s_kfd_fd, AMDKFD_IOC_DBG_TRAP, args);
@@ -765,16 +760,11 @@ kfd_driver_t::set_wave_launch_trap_override (
 class no_agents_driver_t : public linux_driver_t
 {
 public:
-  no_agents_driver_t (std::optional<amd_dbgapi_os_process_id_t> os_pid)
-      : linux_driver_t (std::move (os_pid))
+  no_agents_driver_t (amd_dbgapi_os_process_id_t os_pid)
+      : linux_driver_t (os_pid)
   {
   }
   virtual ~no_agents_driver_t () = default;
-
-  virtual bool is_valid () const override
-  {
-    return linux_driver_t::is_valid ();
-  }
 
   virtual amd_dbgapi_status_t check_version () const override
   {
@@ -864,13 +854,8 @@ public:
 
 } /* namespace */
 
-os_driver_t::os_driver_t (std::optional<amd_dbgapi_os_process_id_t> os_pid)
-    : m_os_pid (std::move (os_pid))
-{
-}
-
 std::unique_ptr<const os_driver_t>
-os_driver_t::create (std::optional<amd_dbgapi_os_process_id_t> os_pid)
+os_driver_t::create (amd_dbgapi_os_process_id_t os_pid)
 {
   std::unique_ptr<const os_driver_t> os_driver{ new kfd_driver_t (os_pid) };
 

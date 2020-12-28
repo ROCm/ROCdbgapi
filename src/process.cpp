@@ -69,20 +69,15 @@ handle_object_set_t<process_t> process_t::s_process_map;
 
 process_t::process_t (amd_dbgapi_process_id_t process_id,
                       amd_dbgapi_client_process_id_t client_process_id)
-    : handle_object (process_id), m_client_process_id (client_process_id),
-      m_os_process_id ([this] () {
-        std::optional<amd_dbgapi_os_process_id_t> os_pid;
-
-        amd_dbgapi_os_process_id_t value;
-        if (get_os_pid (&value) == AMD_DBGAPI_STATUS_SUCCESS)
-          os_pid.emplace (value);
-
-        return os_pid;
-      }()),
-      m_os_driver (os_driver_t::create (m_os_process_id))
+    : handle_object (process_id), m_client_process_id (client_process_id)
 {
   /* Create the notifier pipe.  */
   m_client_notifier_pipe.open ();
+
+  if (get_os_pid (&m_os_process_id) != AMD_DBGAPI_STATUS_SUCCESS)
+    return;
+
+  m_os_driver = os_driver_t::create (m_os_process_id);
 
   /* See is_valid() for information about how failing to open the files or
      the notifier pipe is handled.  */
@@ -113,13 +108,13 @@ process_t::reset_all_ids ()
 bool
 process_t::is_valid () const
 {
-  /* This process is ready if /proc/pid/mem is open, the notifier pipe (used to
-     communicate with the client) is ready, and the os_driver is ready. A
-     process only exists in the not ready state while being created by the
-     factory, and if not ready  will be destructed and never be put in the map
-     of processes.
+  /* This process is ready if the notifier pipe (used to communicate with the
+     client) is ready, and the os_driver is ready. A process only exists in the
+     not ready state while being created by the factory, and if not ready it
+     will be destructed and never be put in the map of processes.
    */
-  return m_os_driver->is_valid () && m_client_notifier_pipe.is_valid ();
+  return (m_os_driver && m_os_driver->is_valid ())
+         && m_client_notifier_pipe.is_valid ();
 }
 
 void
@@ -1420,8 +1415,7 @@ process_t::attach ()
   };
 
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "attaching %s to process %d",
-              to_string (id ()).c_str (),
-              m_os_process_id.has_value () ? m_os_process_id.value () : -1);
+              to_string (id ()).c_str (), m_os_process_id);
 
   /* Set/remove internal breakpoints when the runtime is loaded/unloaded.  */
   shared_library_t &library = create<shared_library_t> (
@@ -1640,10 +1634,7 @@ process_t::get_info (amd_dbgapi_process_info_t query, size_t value_size,
                               AMD_DBGAPI_MEMORY_PRECISION_NONE);
 
     case AMD_DBGAPI_PROCESS_INFO_OS_ID:
-      if (!m_os_process_id.has_value ())
-        return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
-
-      return utils::get_info (value_size, value, *m_os_process_id);
+      return utils::get_info (value_size, value, m_os_process_id);
     }
 
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
