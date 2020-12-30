@@ -74,8 +74,11 @@ process_t::process_t (amd_dbgapi_process_id_t process_id,
   /* Create the notifier pipe.  */
   m_client_notifier_pipe.open ();
 
-  if (get_os_pid (&m_os_process_id) != AMD_DBGAPI_STATUS_SUCCESS)
-    return;
+  amd_dbgapi_status_t status = get_os_pid (&m_os_process_id);
+  if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    throw exception_t (status);
+  else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("get_os_pid () failed (rc=%d)", status);
 
   m_os_driver = os_driver_t::create (m_os_process_id);
 
@@ -1875,11 +1878,15 @@ amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
     {
       process = &process_t::create_process (client_process_id);
     }
-  catch (const exception_t &)
+  catch (const exception_t &e)
     {
-      /* process_t::create_process could throw a fatal error if it fails to
-         open the /proc/pid/mem file or create a pipe for the notifier.  In
-         that case, simply return an error.  */
+      if (amd_dbgapi_status_t status = e.error_code ();
+          status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+        return status;
+
+      /* For all other exceptions (process_t::create_process could throw a
+         fatal error if it fails to create a new os_driver instance or create a
+         pipe for the notifier), simply return an error.  */
       return AMD_DBGAPI_STATUS_ERROR;
     }
 
