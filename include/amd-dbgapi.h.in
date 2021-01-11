@@ -2130,7 +2130,7 @@ typedef enum
    */
   AMD_DBGAPI_AGENT_INFO_PROCESS = 1,
   /**
-   * Agent name.  The type of this attribute is a poiter to a NUL terminated
+   * Agent name.  The type of this attribute is a pointer to a NUL terminated
    * \p char*.  It is allocated by amd_dbgapi_callbacks_s::allocate_memory and
    * is owned by the client.
    */
