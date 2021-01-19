@@ -2310,52 +2310,68 @@ gfx10_base_t::control_stack_iterate (
     error ("Corrupted control stack or wave save area");
 }
 
-class gfx1010_t final : public gfx10_base_t
+class gfx10_1_t : public gfx10_base_t
+{
+protected:
+  gfx10_1_t (elf_amdgpu_machine_t e_machine, std::string target_triple)
+      : gfx10_base_t (e_machine, std::move (target_triple))
+  {
+  }
+};
+
+class gfx1010_t final : public gfx10_1_t
 {
 public:
   gfx1010_t ()
-      : gfx10_base_t (EF_AMDGPU_MACH_AMDGCN_GFX1010,
-                      "amdgcn-amd-amdhsa--gfx1010")
+      : gfx10_1_t (EF_AMDGPU_MACH_AMDGCN_GFX1010, "amdgcn-amd-amdhsa--gfx1010")
   {
   }
 };
 
-class gfx1011_t final : public gfx10_base_t
+class gfx1011_t final : public gfx10_1_t
 {
 public:
   gfx1011_t ()
-      : gfx10_base_t (EF_AMDGPU_MACH_AMDGCN_GFX1011,
-                      "amdgcn-amd-amdhsa--gfx1011")
+      : gfx10_1_t (EF_AMDGPU_MACH_AMDGCN_GFX1011, "amdgcn-amd-amdhsa--gfx1011")
   {
   }
 };
 
-class gfx1012_t final : public gfx10_base_t
+class gfx1012_t final : public gfx10_1_t
 {
 public:
   gfx1012_t ()
-      : gfx10_base_t (EF_AMDGPU_MACH_AMDGCN_GFX1012,
-                      "amdgcn-amd-amdhsa--gfx1012")
+      : gfx10_1_t (EF_AMDGPU_MACH_AMDGCN_GFX1012, "amdgcn-amd-amdhsa--gfx1012")
   {
   }
 };
 
-class gfx1030_t final : public gfx10_base_t
+class gfx10_3_t : public gfx10_1_t
+{
+protected:
+  gfx10_3_t (elf_amdgpu_machine_t e_machine, std::string target_triple)
+      : gfx10_1_t (e_machine, std::move (target_triple))
+  {
+  }
+
+public:
+  virtual bool can_halt_at_endpgm () const override { return true; }
+};
+
+class gfx1030_t final : public gfx10_3_t
 {
 public:
   gfx1030_t ()
-      : gfx10_base_t (EF_AMDGPU_MACH_AMDGCN_GFX1030,
-                      "amdgcn-amd-amdhsa--gfx1030")
+      : gfx10_3_t (EF_AMDGPU_MACH_AMDGCN_GFX1030, "amdgcn-amd-amdhsa--gfx1030")
   {
   }
 };
 
-class gfx1031_t final : public gfx10_base_t
+class gfx1031_t final : public gfx10_3_t
 {
 public:
   gfx1031_t ()
-      : gfx10_base_t (EF_AMDGPU_MACH_AMDGCN_GFX1031,
-                      "amdgcn-amd-amdhsa--gfx1031")
+      : gfx10_3_t (EF_AMDGPU_MACH_AMDGCN_GFX1031, "amdgcn-amd-amdhsa--gfx1031")
   {
   }
 };
