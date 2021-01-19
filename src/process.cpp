@@ -912,7 +912,7 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
 
       if (queue_ids[i] & os_queue_error_mask)
         {
-          error ("failed to suspend %s (%#x",
+          error ("failed to suspend %s (%#x)",
                  to_string (queues[i]->id ()).c_str (), queue_ids[i]);
         }
       else if (queue_ids[i] & os_queue_invalid_mask)
