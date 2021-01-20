@@ -122,6 +122,8 @@ wave_t::park ()
 {
   dbgapi_assert (!m_displaced_stepping
                  && "Cannot park a wave that is displaced stepping");
+  dbgapi_assert (state () == AMD_DBGAPI_WAVE_STATE_STOP
+                 && "Cannot park a running wave");
 
   if (m_is_parked)
     return;
@@ -307,7 +309,8 @@ wave_t::displaced_stepping_complete ()
 
   /* Park after releasing the displaced stepping buffer to ensure a buffer will
      be available for parking.  */
-  if (!architecture ().can_halt_at (instruction_at_pc ()))
+  if (state () == AMD_DBGAPI_WAVE_STATE_STOP
+      && !architecture ().can_halt_at (instruction_at_pc ()))
     park ();
 }
 
