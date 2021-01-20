@@ -376,14 +376,40 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
 
   m_state = state;
 
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+              "changing %s's state from %s to %s (%spc=%#lx)",
+              to_string (id ()).c_str (), to_string (prev_state).c_str (),
+              to_string (state).c_str (),
+              displaced_stepping () ? "displaced_" : "", pc ());
+
   if (state != AMD_DBGAPI_WAVE_STATE_STOP)
     {
+      dbgapi_assert (prev_state == AMD_DBGAPI_WAVE_STATE_STOP
+                     && "cannot resume an already running wave");
+
       /* Restore the original pc if the wave was parked.  */
       if (m_is_parked)
         unpark ();
 
       /* Clear the stop reason.  */
       m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
+    }
+  else if (prev_state != AMD_DBGAPI_WAVE_STATE_STOP)
+    {
+      /* We requested the wave be stopped, and the wave wasn't already stopped,
+         report an event to acknowledge that the wave has stopped.  */
+
+      /* We have to park the wave if we cannot halt at the current pc.  */
+      if (!m_is_parked && !architecture ().can_halt_at (instruction_at_pc ()))
+        park ();
+
+      m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
+
+      dbgapi_assert (visibility () == visibility_t::visible
+                     && "cannot request a hidden wave to stop");
+
+      process ().enqueue_event (process ().create<event_t> (
+          process (), AMD_DBGAPI_EVENT_KIND_WAVE_STOP, id ()));
     }
 
   /* If the wave was previously stopped, and is now unhalted, we need to commit
@@ -400,30 +426,6 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
               &m_hwregs_cache[0], sizeof (m_hwregs_cache))
           != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not write the hwregs cache back to memory");
-    }
-
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-              "changing %s's state from %s to %s (%spc=%#lx)",
-              to_string (id ()).c_str (), to_string (prev_state).c_str (),
-              to_string (state).c_str (),
-              displaced_stepping () ? "displaced_" : "", pc ());
-
-  /* If we requested the wave be stopped, and the wave wasn't already stopped,
-     report an event to acknowledge that the wave has stopped.  */
-  if (state == AMD_DBGAPI_WAVE_STATE_STOP
-      && prev_state != AMD_DBGAPI_WAVE_STATE_STOP)
-    {
-      /* We have to park the wave if we cannot halt at the current pc.  */
-      if (!m_is_parked && !architecture ().can_halt_at (instruction_at_pc ()))
-        park ();
-
-      m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
-
-      dbgapi_assert (visibility () == visibility_t::visible
-                     && "cannot set the state of an hidden wave");
-
-      process ().enqueue_event (process ().create<event_t> (
-          process (), AMD_DBGAPI_EVENT_KIND_WAVE_STOP, id ()));
     }
 }
 
