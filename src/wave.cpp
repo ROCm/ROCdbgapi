@@ -256,7 +256,7 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
 
       /* Make sure we don't copy an instruction in the displaced stepping
          buffer that would require the wave to be parked.  */
-      dbgapi_assert (architecture ().can_halt_at (original_instruction));
+      dbgapi_assert (architecture ().can_halt_at (displaced_instruction));
 
       if (process ().write_global_memory (instruction_addr,
                                           displaced_instruction.data (),
