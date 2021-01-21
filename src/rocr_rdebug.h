@@ -28,8 +28,10 @@
 1: Initial debug protocol
 2: New trap handler ABI. The reason for halting a wave is recorded in
    ttmp11[8:7].
+3: New trap handler ABI. A wave halted at S_ENDPGM rewinds its PC by 8 bytes,
+   and sets ttmp11[9]=1.
 */
 
-#define ROCR_RDEBUG_VERSION 2
+#define ROCR_RDEBUG_VERSION 3
 
 #endif /* ROCR_RDEBUG_H */

@@ -92,6 +92,7 @@ protected:
   static constexpr uint32_t ttmp11_wave_in_group_mask = 0x003f;
   static constexpr uint32_t ttmp11_trap_handler_trap_raised_mask = 1 << 7;
   static constexpr uint32_t ttmp11_trap_handler_excp_raised_mask = 1 << 8;
+  static constexpr uint32_t ttmp11_trap_handler_halted_at_s_endpgm = 1 << 9;
   static constexpr uint32_t ttmp11_trap_handler_events_mask
       = (ttmp11_trap_handler_trap_raised_mask
          | ttmp11_trap_handler_excp_raised_mask);
@@ -1128,12 +1129,13 @@ amdgcn_architecture_t::get_wave_state (
 
       amd_dbgapi_global_address_t pc = wave.pc ();
 
-      if ((trapsts & sq_wave_trapsts_excp_mem_viol_mask
-           || trapsts & sq_wave_trapsts_illegal_inst_mask)
-          /* FIXME: If the wave was single-stepping when the exception
-             occurred, the first level trap handler did not decrement the PC as
-             it took the SINGLE_STEP_WORKAROUND path.  */
-          && saved_state != AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
+      if ((ttmp11 & ttmp11_trap_handler_halted_at_s_endpgm)
+          || ((trapsts & sq_wave_trapsts_excp_mem_viol_mask
+               || trapsts & sq_wave_trapsts_illegal_inst_mask)
+              /* FIXME: If the wave was single-stepping when the exception
+                 occurred, the first level trap handler did not decrement
+                 the PC as it took the SINGLE_STEP_WORKAROUND path.  */
+              && saved_state != AMD_DBGAPI_WAVE_STATE_SINGLE_STEP))
         {
           /* FIXME: Enable this when the trap handler is modified to send
              debugger notifications for exceptions.
