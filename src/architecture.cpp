@@ -1032,10 +1032,9 @@ amdgcn_architecture_t::displaced_stepping_fixup (
   amd_dbgapi_global_address_t displaced_pc = wave.pc ();
 
   if (displaced_stepping.is_simulated ()
-      /* The pc could still pointing at the displaced instruction is if the
-         single stepping operation did not execute (we can't have a branch to
-         self here since branches are simulated).  In that case, fixup will
-         simply restore the pc to the original location.  */
+      /* If the single-step has not yet happened, the pc could still be
+         pointing at the start of the displaced stepping buffer.  In that
+         case, fixup can simply restore the pc to the original location.  */
       && displaced_pc != displaced_stepping.to ())
     {
       simulate_instruction (wave, displaced_stepping.from (),
