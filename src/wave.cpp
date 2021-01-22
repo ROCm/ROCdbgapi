@@ -375,6 +375,19 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
   if (state == prev_state)
     return;
 
+  /* A wave single-stepping an s_endpgm instruction does not generate a trap
+     exception upon executing the instruction, so we need to immediately
+     terminate the wave and enqueue an aborted command event.  */
+  if (state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
+    if (auto instruction = instruction_at_pc ();
+        instruction && architecture ().is_endpgm (*instruction))
+      {
+        terminate ();
+        process ().enqueue_event (process ().create<event_t> (
+            process (), AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED, id ()));
+        return;
+      }
+
   architecture ().set_wave_state (*this, state);
 
   m_state = state;

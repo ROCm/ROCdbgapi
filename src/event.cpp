@@ -80,6 +80,11 @@ event_t::event_t (amd_dbgapi_event_id_t event_id, process_t &process,
       (event_kind == AMD_DBGAPI_EVENT_KIND_WAVE_STOP
        || event_kind == AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED)
       && "check event kind");
+
+  /* Check that the wave reporting a 'command terminated' event is hidden.  */
+  dbgapi_assert ((event_kind != AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED
+                  || !process.find (wave_id))
+                 && "wave should be terminated");
 }
 
 std::string
