@@ -104,13 +104,12 @@ event_t::pretty_printer_string () const
               "EVENT_KIND_WAVE_STOP for terminated %s",
               to_string (std::get<wave_event_t> (m_data).wave_id).c_str ());
         else
-          return string_printf (
-              "EVENT_KIND_WAVE_STOP for %s on %s "
-              "(%spc=%#lx, stop_reason=%s)",
-              to_string (wave->id ()).c_str (),
-              to_string (wave->queue ().id ()).c_str (),
-              wave->displaced_stepping () ? "displaced_" : "", wave->pc (),
-              to_string (wave->stop_reason ()).c_str ());
+          return string_printf ("EVENT_KIND_WAVE_STOP for %s on %s "
+                                "(pc=%#lx, stop_reason=%s)",
+                                to_string (wave->id ()).c_str (),
+                                to_string (wave->queue ().id ()).c_str (),
+                                wave->pc (),
+                                to_string (wave->stop_reason ()).c_str ());
       }
 
     case AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED:

@@ -476,7 +476,9 @@ extern "C" {
  * The function was introduced in version 0.43 of the interface and has the
  * symbol version string of ``"@AMD_DBGAPI_NAME@_0.43"``.
  */
-#define AMD_DBGAPI_VERSION_0_43/** @} */
+#define AMD_DBGAPI_VERSION_0_43
+
+/** @} */
 
 /** \ingroup callbacks_group
  * Forward declaration of callbacks used to specify services that must be

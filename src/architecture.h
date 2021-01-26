@@ -220,11 +220,12 @@ public:
   classify_instruction (const std::vector<uint8_t> &instruction,
                         amd_dbgapi_global_address_t address) const = 0;
 
+  virtual void
+  simulate_instruction (wave_t &wave, amd_dbgapi_global_address_t pc,
+                        const std::vector<uint8_t> &instruction) const = 0;
+
   bool
   can_halt_at (const std::optional<std::vector<uint8_t>> &instruction) const;
-
-  virtual void displaced_stepping_fixup (
-      wave_t &wave, displaced_stepping_t &displaced_stepping) const = 0;
 
   virtual void get_wave_coords (wave_t &wave,
                                 std::array<uint32_t, 3> &group_ids,

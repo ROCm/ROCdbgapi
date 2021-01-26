@@ -44,7 +44,7 @@ class displaced_stepping_t
     : public detail::handle_object<amd_dbgapi_displaced_stepping_id_t>
 {
 private:
-  bool m_is_simulated{ false };
+  bool const m_is_simulated;
   size_t m_reference_count{ 1 };
 
   amd_dbgapi_global_address_t const m_from;
@@ -55,9 +55,9 @@ private:
 public:
   displaced_stepping_t (
       amd_dbgapi_displaced_stepping_id_t displaced_stepping_id, queue_t &queue,
-      wave_t::instruction_buffer_ref_t instruction_buffer,
-      amd_dbgapi_global_address_t original_pc, bool simulate,
-      std::vector<uint8_t> original_instruction);
+      amd_dbgapi_global_address_t original_pc,
+      std::vector<uint8_t> original_instruction, bool simulate,
+      std::optional<wave_t::instruction_buffer_ref_t> instruction_buffer);
 
   ~displaced_stepping_t ();
 
@@ -67,12 +67,19 @@ public:
   /* The address of the displaced stepping buffer is this object's id.  */
   amd_dbgapi_global_address_t to () const
   {
-    return (*m_instruction_buffer)->begin ();
+    return m_instruction_buffer ? (*m_instruction_buffer)->begin ()
+                                : amd_dbgapi_global_address_t{};
   }
 
   const std::vector<uint8_t> &original_instruction () const
   {
     return m_original_instruction;
+  }
+
+  const std::optional<wave_t::instruction_buffer_ref_t> &
+  instruction_buffer () const
+  {
+    return m_instruction_buffer;
   }
 
   /* Used by waves to indicate if using the displaced stepping buffer.  Uses

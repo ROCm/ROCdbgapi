@@ -35,29 +35,22 @@ namespace amd::dbgapi
 
 displaced_stepping_t::displaced_stepping_t (
     amd_dbgapi_displaced_stepping_id_t displaced_stepping_id, queue_t &queue,
-    wave_t::instruction_buffer_ref_t instruction_buffer,
-    amd_dbgapi_global_address_t original_pc, bool simulate,
-    std::vector<uint8_t> original_instruction)
+    amd_dbgapi_global_address_t original_pc,
+    std::vector<uint8_t> original_instruction, bool simulate,
+    std::optional<wave_t::instruction_buffer_ref_t> instruction_buffer)
     : handle_object (displaced_stepping_id), m_is_simulated (simulate),
       m_from (original_pc),
-      m_instruction_buffer (std::move (instruction_buffer)),
+      m_instruction_buffer (instruction_buffer ? std::move (instruction_buffer)
+                                               : std::nullopt),
       m_original_instruction (std::move (original_instruction)),
       m_queue (queue)
 {
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-              "created new %s (from=%#lx, to=%#lx, %s\"%s\")",
-              to_string (id ()).c_str (), from (), to (),
-              is_simulated () ? "simulated " : "",
-              [this] () {
-                std::string instruction;
-                std::vector<uint64_t> operands;
-                size_t size = this->original_instruction ().size ();
-                architecture ().disassemble_instruction (
-                    from (), &size, this->original_instruction ().data (),
-                    instruction, operands);
-                return instruction;
-              }()
-                  .c_str ());
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "created new %s (from=%#lx, %s)",
+              to_string (id ()).c_str (), from (),
+              m_is_simulated ? "simulated"
+                             : string_printf ("to=[%#lx..%#lx[", to (),
+                                              (*m_instruction_buffer)->end ())
+                                   .c_str ());
 }
 
 displaced_stepping_t::~displaced_stepping_t ()
@@ -143,10 +136,6 @@ amd_dbgapi_displaced_stepping_start (
 
   wave->displaced_stepping_start (saved_instruction_bytes);
 
-  /* TODO: We could handle trivial step-overs (e.g. branches) and return
-     AMD_DBGAPI_DISPLACED_STEPPING_NONE.  In that case, the wave does not need
-     to be single-stepped to step over the breakpoint and should return a NULL
-     handle.  */
   *displaced_stepping_id = wave->displaced_stepping ()->id ();
 
   return AMD_DBGAPI_STATUS_SUCCESS;

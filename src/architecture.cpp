@@ -180,9 +180,6 @@ public:
   virtual std::vector<os_watch_id_t>
   triggered_watchpoints (const wave_t &wave) const override;
 
-  virtual void displaced_stepping_fixup (
-      wave_t &wave, displaced_stepping_t &displaced_stepping) const override;
-
   virtual void get_wave_coords (wave_t &wave,
                                 std::array<uint32_t, 3> &group_ids,
                                 uint32_t *wave_in_group) const override;
@@ -272,9 +269,9 @@ protected:
   classify_instruction (const std::vector<uint8_t> &instruction,
                         amd_dbgapi_global_address_t address) const override;
 
-  virtual void
-  simulate_instruction (wave_t &wave, amd_dbgapi_global_address_t pc,
-                        const std::vector<uint8_t> &instruction) const;
+  virtual void simulate_instruction (
+      wave_t &wave, amd_dbgapi_global_address_t pc,
+      const std::vector<uint8_t> &instruction) const override;
 };
 
 decltype (amdgcn_architecture_t::cbranch_opcodes_map)
@@ -927,9 +924,8 @@ amdgcn_architecture_t::simulate_instruction (
     wave_t &wave, amd_dbgapi_global_address_t pc,
     const std::vector<uint8_t> &instruction) const
 {
-  dbgapi_assert (
-      wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
-      && "We can only simulate instructions when the wave is not running.");
+  dbgapi_assert (wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
+                 && "wave must be stopped to simulate instructions");
 
   amd_dbgapi_global_address_t new_pc;
 
@@ -1034,31 +1030,20 @@ amdgcn_architecture_t::simulate_instruction (
     }
 
   wave.write_register (amdgpu_regnum_t::pc, &new_pc);
-}
 
-void
-amdgcn_architecture_t::displaced_stepping_fixup (
-    wave_t &wave, displaced_stepping_t &displaced_stepping) const
-{
-  amd_dbgapi_global_address_t displaced_pc = wave.pc ();
-
-  if (displaced_stepping.is_simulated ()
-      /* If the single-step has not yet happened, the pc could still be
-         pointing at the start of the displaced stepping buffer.  In that
-         case, fixup can simply restore the pc to the original location.  */
-      && displaced_pc != displaced_stepping.to ())
-    {
-      simulate_instruction (wave, displaced_stepping.from (),
-                            displaced_stepping.original_instruction ());
-    }
-  else
-    {
-      amd_dbgapi_global_address_t restored_pc = displaced_pc
-                                                + displaced_stepping.from ()
-                                                - displaced_stepping.to ();
-
-      wave.write_register (amdgpu_regnum_t::pc, &restored_pc);
-    }
+  dbgapi_log (
+      AMD_DBGAPI_LOG_LEVEL_INFO, "%s simulated \"%s\" (pc=%#lx)",
+      to_string (wave.id ()).c_str (),
+      [&] () {
+        std::string instruction_string;
+        std::vector<uint64_t> operands;
+        size_t size = instruction.size ();
+        wave.architecture ().disassemble_instruction (
+            pc, &size, instruction.data (), instruction_string, operands);
+        return instruction_string;
+      }()
+          .c_str (),
+      pc);
 }
 
 void

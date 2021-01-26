@@ -120,8 +120,9 @@ wave_t::instruction_at_pc () const
 void
 wave_t::park ()
 {
-  dbgapi_assert (!m_displaced_stepping
-                 && "Cannot park a wave that is displaced stepping");
+  dbgapi_assert (
+      (!m_displaced_stepping || !m_displaced_stepping->instruction_buffer ())
+      && "Cannot park a wave with a displaced stepping buffer");
   dbgapi_assert (state () == AMD_DBGAPI_WAVE_STATE_STOP
                  && "Cannot park a running wave");
 
@@ -134,12 +135,9 @@ wave_t::park ()
      instruction restored.  */
   m_saved_pc = pc ();
 
-  /* The instruction buffer must be empty as otherwise it would indicate the
-     wave is displace stepping in which case we should not be parking it.  */
-  dbgapi_assert (instruction_buffer ()->empty ());
   amd_dbgapi_global_address_t parked_pc = instruction_buffer ()->end ();
-
   write_register (amdgpu_regnum_t::pc, &parked_pc);
+
   m_is_parked = true;
 }
 
@@ -186,13 +184,6 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
 {
   dbgapi_assert (!m_displaced_stepping && "already displaced stepping");
   dbgapi_assert (state () == AMD_DBGAPI_WAVE_STATE_STOP && "not stopped");
-
-  /* FIXME: When it becomes possible to skip the resuming of the wave at the
-     displaced instruction, simulate it here and enqueue a WAVE_STOP event.  */
-
-  /* Restore the original pc if the wave was parked.  */
-  if (m_is_parked)
-    unpark ();
 
   /* Check if we already have a displaced stepping buffer for this pc
      that can be shared between waves associated with the same queue.
@@ -247,43 +238,51 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
 
       bool simulate = architecture ().can_simulate (original_instruction);
 
-      /* Copy a single instruction to the displaced stepping buffer.  */
-      auto &&displaced_instruction = simulate
-                                         ? architecture ().nop_instruction ()
-                                         : original_instruction;
+      if (!simulate)
+        {
+          /* Copy a single instruction to the displaced stepping buffer.  */
+          instruction_buffer ()->resize (original_instruction.size ());
+          amd_dbgapi_global_address_t instruction_addr
+              = instruction_buffer ()->begin ();
 
-      instruction_buffer ()->resize (displaced_instruction.size ());
-      amd_dbgapi_global_address_t instruction_addr
-          = instruction_buffer ()->begin ();
+          /* Make sure we don't copy an instruction in the displaced stepping
+             buffer that would require the wave to be parked.  */
+          dbgapi_assert (architecture ().can_halt_at (original_instruction));
 
-      /* Make sure we don't copy an instruction in the displaced stepping
-         buffer that would require the wave to be parked.  */
-      dbgapi_assert (architecture ().can_halt_at (displaced_instruction));
-
-      if (process ().write_global_memory (instruction_addr,
-                                          displaced_instruction.data (),
-                                          displaced_instruction.size ())
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("Could not write the displaced instruction");
+          if (process ().write_global_memory (instruction_addr,
+                                              original_instruction.data (),
+                                              original_instruction.size ())
+              != AMD_DBGAPI_STATUS_SUCCESS)
+            error ("Could not write the displaced instruction");
+        }
 
       displaced_stepping = &process ().create<displaced_stepping_t> (
-          queue (), std::move (instruction_buffer ()), pc (), simulate,
-          std::move (original_instruction));
+          queue (), pc (), std::move (original_instruction), simulate,
+          simulate ? std::nullopt
+                   : std::make_optional (std::move (instruction_buffer ())));
     }
 
-  /* A wave should only hold one instruction buffer reference, either through
-     the displaced_stepping_t or its own buffer.  This guarantees that all
-     waves can get an instruction buffer.  */
-  m_instruction_buffer.reset ();
+  if (!displaced_stepping->is_simulated ())
+    {
+      if (m_is_parked)
+        unpark ();
 
-  amd_dbgapi_global_address_t displaced_pc = displaced_stepping->to ();
-  write_register (amdgpu_regnum_t::pc, &displaced_pc);
+      /* A wave should only hold one instruction buffer reference, either
+         through the displaced_stepping_t or its own buffer.  This guarantees
+         that all waves can get an instruction buffer.  */
+      m_instruction_buffer.reset ();
 
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-              "changing %s's pc from %#lx to %#lx (started %s)",
-              to_string (id ()).c_str (), displaced_stepping->from (),
-              displaced_stepping->to (),
-              to_string (displaced_stepping->id ()).c_str ());
+      amd_dbgapi_global_address_t displaced_pc = displaced_stepping->to ();
+      dbgapi_assert (displaced_pc != amd_dbgapi_global_address_t{});
+
+      write_register (amdgpu_regnum_t::pc, &displaced_pc);
+
+      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+                  "changing %s's pc from %#lx to %#lx (started %s)",
+                  to_string (id ()).c_str (), displaced_stepping->from (),
+                  displaced_stepping->to (),
+                  to_string (displaced_stepping->id ()).c_str ());
+    }
 
   m_displaced_stepping = displaced_stepping;
 }
@@ -294,15 +293,21 @@ wave_t::displaced_stepping_complete ()
   dbgapi_assert (!!m_displaced_stepping && "not displaced stepping");
   dbgapi_assert (state () == AMD_DBGAPI_WAVE_STATE_STOP && "not stopped");
 
-  amd_dbgapi_global_address_t displaced_pc = pc ();
+  if (!m_displaced_stepping->is_simulated ())
+    {
+      amd_dbgapi_global_address_t displaced_pc = pc ();
+      amd_dbgapi_global_address_t restored_pc = displaced_pc
+                                                + m_displaced_stepping->from ()
+                                                - m_displaced_stepping->to ();
+      write_register (amdgpu_regnum_t::pc, &restored_pc);
 
-  architecture ().displaced_stepping_fixup (*this, *m_displaced_stepping);
-
-  dbgapi_log (
-      AMD_DBGAPI_LOG_LEVEL_INFO, "changing %s's pc from %#lx to %#lx (%s %s)",
-      to_string (id ()).c_str (), displaced_pc, pc (),
-      displaced_pc == m_displaced_stepping->to () ? "aborted" : "completed",
-      to_string (m_displaced_stepping->id ()).c_str ());
+      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+                  "changing %s's pc from %#lx to %#lx (%s %s)",
+                  to_string (id ()).c_str (), displaced_pc, pc (),
+                  displaced_pc == m_displaced_stepping->to () ? "aborted"
+                                                              : "completed",
+                  to_string (m_displaced_stepping->id ()).c_str ());
+    }
 
   displaced_stepping_t::release (m_displaced_stepping);
   m_displaced_stepping = nullptr;
@@ -375,6 +380,10 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
   if (state == prev_state)
     return;
 
+  dbgapi_assert (
+      (!m_displaced_stepping || state != AMD_DBGAPI_WAVE_STATE_RUN)
+      && "displaced-stepping waves can only be stopped or single-stepped");
+
   /* A wave single-stepping an s_endpgm instruction does not generate a trap
      exception upon executing the instruction, so we need to immediately
      terminate the wave and enqueue an aborted command event.  */
@@ -388,15 +397,41 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
         return;
       }
 
+  if (visibility () == visibility_t::visible)
+    dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+                "changing %s's state from %s to %s (pc=%#lx)",
+                to_string (id ()).c_str (), to_string (prev_state).c_str (),
+                to_string (state).c_str (), pc ());
+
+  /* Single-stepping a simulated displaced instruction does not require the
+     wave to run, simulate resuming of the wave as well.  */
+  if (state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP && m_displaced_stepping
+      && m_displaced_stepping->is_simulated ())
+    {
+      if (m_is_parked)
+        unpark ();
+
+      architecture ().simulate_instruction (
+          *this, m_displaced_stepping->from (),
+          m_displaced_stepping->original_instruction ());
+
+      m_state = AMD_DBGAPI_WAVE_STATE_STOP;
+      m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP;
+
+      process ().enqueue_event (process ().create<event_t> (
+          process (), AMD_DBGAPI_EVENT_KIND_WAVE_STOP, id ()));
+
+      /* We don't know where the PC may have landed after simulating the
+         instruction, so park now since the wave is halted.  */
+      if (!architecture ().can_halt_at (instruction_at_pc ()))
+        park ();
+
+      /* No need to flush the register cache, the wave is still halted.  */
+      return;
+    }
+
   architecture ().set_wave_state (*this, state);
-
   m_state = state;
-
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-              "changing %s's state from %s to %s (%spc=%#lx)",
-              to_string (id ()).c_str (), to_string (prev_state).c_str (),
-              to_string (state).c_str (),
-              displaced_stepping () ? "displaced_" : "", pc ());
 
   if (state != AMD_DBGAPI_WAVE_STATE_STOP)
     {
@@ -912,6 +947,10 @@ amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
   if (resume_mode != AMD_DBGAPI_RESUME_MODE_NORMAL
       && resume_mode != AMD_DBGAPI_RESUME_MODE_SINGLE_STEP)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
+  if (wave->displaced_stepping ()
+      && resume_mode != AMD_DBGAPI_RESUME_MODE_SINGLE_STEP)
+    return AMD_DBGAPI_STATUS_ERROR_RESUME_DISPLACED_STEPPING;
 
   scoped_queue_suspend_t suspend (wave->queue (), "resume wave");
 
