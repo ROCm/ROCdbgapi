@@ -898,10 +898,20 @@ amdgcn_architecture_t::classify_instruction (
     }
   else if (properties_kind == properties_kind_t::pc_indirect)
     {
-      amdgpu_regnum_t sdst_regnum
-          = scalar_operand_to_regnum (encoding_sdst (instruction));
-      properties.emplace_back (static_cast<uint64_t> (sdst_regnum));
-      properties.emplace_back (static_cast<uint64_t> (sdst_regnum) + 1);
+      amdgpu_regnum_t ssrc_regnum
+          = scalar_operand_to_regnum (encoding_ssrc0 (instruction));
+      properties.emplace_back (static_cast<uint64_t> (ssrc_regnum));
+      properties.emplace_back (static_cast<uint64_t> (ssrc_regnum) + 1);
+
+      /* Indirect calls also store the return PC in a register pair.  */
+      if (instruction_kind
+          == AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_CALL_REGISTER_PAIRS)
+        {
+          amdgpu_regnum_t sdst_regnum
+              = scalar_operand_to_regnum (encoding_sdst (instruction));
+          properties.emplace_back (static_cast<uint64_t> (sdst_regnum));
+          properties.emplace_back (static_cast<uint64_t> (sdst_regnum) + 1);
+        }
     }
   else if (properties_kind == properties_kind_t::uint8)
     {
