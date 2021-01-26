@@ -403,9 +403,10 @@ aql_queue_impl_t::update_waves ()
 
     if (wave_id != wave_t::undefined)
       {
+        static constexpr bool including_invisible_waves = true;
         /* The wave already exists, so we should find it and update its context
-           save area address.  */
-        wave = process.find (wave_id);
+           save area address.  Search all waves, visible and invisible.  */
+        wave = process.find (wave_id, including_invisible_waves);
         if (!wave)
           warning ("%s not found in the process map",
                    to_string (wave_id).c_str ());

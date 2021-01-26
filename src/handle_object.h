@@ -304,41 +304,46 @@ public:
     return iterator (m_map.erase (it));
   }
 
-  /* The find() and find_if() operations hide any !is_invalid() objects.  This
-    is important for the find_if() as the predicate may match multiple objects,
-    of which only one is_valid().  However, the range() operations will allow
-    iteration of all objects including !is_valid().  As a consequence, the
-    !is_valid() objects may stay in the map until range() is used to sweep over
-    all the objects to destroy them.  */
+  /* The find() and find_if() operations hide any !is_valid() objects unless
+    'all' is specified as 'true'.  This is important for the find_if() as the
+    predicate may match multiple objects, of which only one is_valid().
+    However, the range() operations will allow iteration of all objects
+    including !is_valid().  As a consequence, the !is_valid() objects may stay
+    in the map until range() is used to sweep over all the objects to destroy
+    them.  */
 
-  Object *find (handle_type id)
+  Object *find (handle_type id, bool all = false)
   {
     auto it = m_map.find (id);
-    return (it != m_map.end () && is_valid (it->second)) ? &it->second
-                                                         : nullptr;
+    return (it != m_map.end () && (all || is_valid (it->second))) ? &it->second
+                                                                  : nullptr;
   }
 
-  const Object *find (handle_type id) const
+  const Object *find (handle_type id, bool all = false) const
   {
     auto it = m_map.find (id);
-    return (it != m_map.end () && is_valid (it->second)) ? &it->second
-                                                         : nullptr;
+    return (it != m_map.end () && (all || is_valid (it->second))) ? &it->second
+                                                                  : nullptr;
   }
 
-  template <typename Functor> Object *find_if (Functor predicate)
+  template <typename Functor>
+  Object *find_if (Functor predicate, bool all = false)
   {
     auto it
         = std::find_if (m_map.begin (), m_map.end (), [=] (const auto &value) {
-            return bool{ is_valid (value.second) && predicate (value.second) };
+            return bool{ (all || is_valid (value.second))
+                         && predicate (value.second) };
           });
     return (it != m_map.end ()) ? &it->second : nullptr;
   }
 
-  template <typename Functor> const Object *find_if (Functor predicate) const
+  template <typename Functor>
+  const Object *find_if (Functor predicate, bool all = false) const
   {
     auto it
         = std::find_if (m_map.begin (), m_map.end (), [=] (const auto &value) {
-            return bool{ is_valid (value.second) && predicate (value.second) };
+            return bool{ (all || is_valid (value.second))
+                         && predicate (value.second) };
           });
     return (it != m_map.end ()) ? &it->second : nullptr;
   }

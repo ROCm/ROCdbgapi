@@ -380,22 +380,23 @@ public:
             std::enable_if_t<!std::is_void_v<object_type_from_handle_t<
                                  Handle, decltype (m_handle_object_sets)>>,
                              int> = 0>
-  auto *find (Handle id)
+  auto *find (Handle id, bool all = false)
   {
     using object_type
         = object_type_from_handle_t<Handle, decltype (m_handle_object_sets)>;
 
     return std::get<handle_object_set_t<object_type>> (m_handle_object_sets)
-        .find (id);
+        .find (id, all);
   }
 
   /* Find an object for which the unary predicate f returns true.  */
-  template <typename Functor> auto *find_if (Functor predicate)
+  template <typename Functor>
+  auto *find_if (Functor predicate, bool all = false)
   {
     using object_type = std::decay_t<utils::first_argument_of_t<Functor>>;
 
     return std::get<handle_object_set_t<object_type>> (m_handle_object_sets)
-        .find_if (predicate);
+        .find_if (predicate, all);
   }
 
   pipe_t &client_notifier_pipe () { return m_client_notifier_pipe; }
