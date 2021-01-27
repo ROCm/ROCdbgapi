@@ -156,6 +156,15 @@ wave_t::unpark ()
 void
 wave_t::terminate ()
 {
+  if (m_is_parked)
+    unpark ();
+
+  if (m_displaced_stepping)
+    {
+      displaced_stepping_t::release (m_displaced_stepping);
+      m_displaced_stepping = nullptr;
+    }
+
   /* Mark the wave as invalid and un-halt it at an s_endpgm instruction. This
      allows the hardware to terminate the wave, while ensuring that the wave is
      never reported to the client as existing.  */
@@ -388,14 +397,27 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
      exception upon executing the instruction, so we need to immediately
      terminate the wave and enqueue an aborted command event.  */
   if (state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
-    if (auto instruction = instruction_at_pc ();
-        instruction && architecture ().is_endpgm (*instruction))
-      {
-        terminate ();
-        process ().enqueue_event (process ().create<event_t> (
-            process (), AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED, id ()));
-        return;
-      }
+    {
+      auto instruction = instruction_at_pc ();
+      bool is_endpgm
+          = /* the simulated displaced instruction is s_endpgm */ (
+                m_displaced_stepping && m_displaced_stepping->is_simulated ()
+                && architecture ().is_endpgm (
+                    m_displaced_stepping->original_instruction ()))
+            || /* the current instruction at pc is s_endpgm  */ (
+                instruction && architecture ().is_endpgm (*instruction));
+
+      if (is_endpgm)
+        {
+          terminate ();
+
+          process ().enqueue_event (process ().create<event_t> (
+              process (), AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED,
+              id ()));
+
+          return;
+        }
+    }
 
   if (visibility () == visibility_t::visible)
     dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
