@@ -301,28 +301,28 @@ template <typename T> struct is_flag : std::false_type
 template <typename T> inline constexpr bool is_flag_v = is_flag<T>::value;
 
 template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
-bool operator! (T flag)
+constexpr bool operator! (T flag)
 {
   using t = std::underlying_type_t<T>;
   return static_cast<t> (flag) == t{};
 }
 
 template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
-bool
+constexpr bool
 operator== (T flag, std::underlying_type_t<T> value)
 {
   return static_cast<std::underlying_type_t<T>> (flag) == value;
 }
 
 template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
-bool
+constexpr bool
 operator!= (T flag, std::underlying_type_t<T> value)
 {
   return !(flag == value);
 }
 
 template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
-T
+constexpr T
 operator~ (T flag)
 {
   using t = std::underlying_type_t<T>;
@@ -330,7 +330,7 @@ operator~ (T flag)
 }
 
 template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
-T
+constexpr T
 operator| (T lhs, T rhs)
 {
   using t = std::underlying_type_t<T>;
@@ -338,28 +338,28 @@ operator| (T lhs, T rhs)
 }
 
 template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
-T &
+constexpr T &
 operator|= (T &lhs, T rhs)
 {
   return lhs = lhs | rhs;
 }
 
 template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
-T operator& (T lhs, T rhs)
+constexpr T operator& (T lhs, T rhs)
 {
   using t = std::underlying_type_t<T>;
   return static_cast<T> (static_cast<t> (lhs) & static_cast<t> (rhs));
 }
 
 template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
-T &
+constexpr T &
 operator&= (T &lhs, T rhs)
 {
   return lhs = lhs & rhs;
 }
 
 template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
-T
+constexpr T
 operator^ (T lhs, T rhs)
 {
   using t = std::underlying_type_t<T>;
@@ -367,14 +367,14 @@ operator^ (T lhs, T rhs)
 }
 
 template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
-T &
+constexpr T &
 operator^= (T &lhs, T rhs)
 {
   return lhs = lhs ^ rhs;
 }
 
 template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
-T
+constexpr T
 operator- (T lhs, int rhs)
 {
   using t = std::underlying_type_t<T>;
@@ -382,14 +382,14 @@ operator- (T lhs, int rhs)
 }
 
 template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
-T &
+constexpr T &
 operator-= (T &lhs, int rhs)
 {
   return lhs = lhs - rhs;
 }
 
 template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
-T
+constexpr T
 operator+ (T lhs, int rhs)
 {
   using t = std::underlying_type_t<T>;
@@ -397,7 +397,7 @@ operator+ (T lhs, int rhs)
 }
 
 template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
-T &
+constexpr T &
 operator+= (T &lhs, int rhs)
 {
   return lhs = lhs + rhs;
