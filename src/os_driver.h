@@ -93,16 +93,66 @@ enum class os_queue_type_t : uint32_t
   sdma_xgmi = KFD_IOC_QUEUE_TYPE_SDMA_XGMI
 };
 
-enum class os_queue_status_t : uint32_t
+union os_source_id_t
 {
-  trap = KFD_DBG_EV_STATUS_TRAP,
-  vmfault = KFD_DBG_EV_STATUS_VMFAULT,
-  suspended = KFD_DBG_EV_STATUS_SUSPENDED,
-  new_queue = KFD_DBG_EV_STATUS_NEW_QUEUE
+  os_agent_id_t agent;
+  os_queue_id_t queue;
+  uint32_t raw;
 };
-template <> struct is_flag<os_queue_status_t> : std::true_type
+static_assert (sizeof (os_source_id_t) == sizeof (uint32_t));
+
+enum class os_exception_mask_t : uint64_t
+{
+  none = EC_NONE,
+
+  /* per queue exceptions  */
+  queue_new = KFD_EC_MASK (EC_QUEUE_NEW),
+  trap_handler = KFD_EC_MASK (EC_TRAP_HANDLER),
+  cp_packet_error = KFD_EC_MASK (EC_CP_PACKET_ERROR),
+  hws_preemption_error = KFD_EC_MASK (EC_HWS_PREEMPTION_ERROR),
+
+  /* per device exceptions  */
+  memory_violation = KFD_EC_MASK (EC_MEMORY_VIOLATION),
+  ras_error = KFD_EC_MASK (EC_RAS_ERROR),
+  fatal_halt = KFD_EC_MASK (EC_FATAL_HALT),
+  queue_delete = KFD_EC_MASK (EC_QUEUE_DELETE),
+  gpu_add = KFD_EC_MASK (EC_GPU_ADD),
+
+  /* per process exceptions  */
+  runtime_enable = KFD_EC_MASK (EC_RUNTIME_ENABLE),
+  runtime_disable = KFD_EC_MASK (EC_RUNTIME_DISABLE),
+  gpu_remove = KFD_EC_MASK (EC_GPU_REMOVE),
+};
+template <> struct is_flag<os_exception_mask_t> : std::true_type
 {
 };
+
+static constexpr os_exception_mask_t os_queue_exceptions_mask
+    = static_cast<os_exception_mask_t> (KFD_EC_MASK_QUEUE);
+
+static_assert (os_queue_exceptions_mask
+               == (os_exception_mask_t::queue_new
+                   | os_exception_mask_t::trap_handler
+                   | os_exception_mask_t::cp_packet_error
+                   | os_exception_mask_t::hws_preemption_error));
+
+static constexpr os_exception_mask_t os_agent_exceptions_mask
+    = static_cast<os_exception_mask_t> (KFD_EC_MASK_DEVICE);
+
+static_assert (os_agent_exceptions_mask
+               == (os_exception_mask_t::memory_violation
+                   | os_exception_mask_t::ras_error
+                   | os_exception_mask_t::fatal_halt
+                   | os_exception_mask_t::queue_delete
+                   | os_exception_mask_t::gpu_add));
+
+static constexpr os_exception_mask_t os_process_exceptions_mask
+    = static_cast<os_exception_mask_t> (KFD_EC_MASK_PROCESS);
+
+static_assert (os_process_exceptions_mask
+               == (os_exception_mask_t::runtime_enable
+                   | os_exception_mask_t::runtime_disable
+                   | os_exception_mask_t::gpu_remove));
 
 enum class os_wave_launch_trap_override_t : uint32_t
 {
@@ -126,6 +176,8 @@ template <> struct is_flag<os_wave_launch_trap_mask_t> : std::true_type
 {
 };
 
+template <> std::string to_string (os_wave_launch_trap_mask_t value);
+
 enum class os_watch_mode_t : uint32_t
 {
   read = 0,    /* Read operations only.  */
@@ -136,10 +188,10 @@ enum class os_watch_mode_t : uint32_t
 
 using os_queue_snapshot_entry_t = kfd_queue_snapshot_entry;
 
-inline os_queue_status_t
-os_queue_status (os_queue_snapshot_entry_t entry)
+inline os_exception_mask_t
+os_queue_exception_status (os_queue_snapshot_entry_t entry)
 {
-  return static_cast<os_queue_status_t> (entry.queue_status);
+  return static_cast<os_exception_mask_t> (entry.exception_status);
 }
 
 inline os_queue_type_t
@@ -183,23 +235,28 @@ public:
   agent_snapshot (os_agent_snapshot_entry_t *snapshots, size_t snapshot_count,
                   size_t *agent_count) const = 0;
 
-  virtual amd_dbgapi_status_t enable_debug () = 0;
+  virtual amd_dbgapi_status_t
+  enable_debug (os_exception_mask_t exceptions_reported)
+      = 0;
   virtual amd_dbgapi_status_t disable_debug () = 0;
   virtual bool is_debug_enabled () const = 0;
 
   virtual amd_dbgapi_status_t
-  query_debug_event (os_queue_id_t *os_queue_id,
-                     os_queue_status_t *os_queue_status)
+  query_debug_event (os_exception_mask_t *exceptions_present,
+                     os_source_id_t *os_source_id,
+                     os_exception_mask_t exceptions_cleared)
       = 0;
 
-  virtual size_t suspend_queues (os_queue_id_t *queues,
-                                 size_t queue_count) const = 0;
+  virtual size_t
+  suspend_queues (os_queue_id_t *queues, size_t queue_count,
+                  os_exception_mask_t exceptions_cleared) const = 0;
   virtual size_t resume_queues (os_queue_id_t *queues,
                                 size_t queue_count) const = 0;
 
   virtual amd_dbgapi_status_t
   queue_snapshot (os_queue_snapshot_entry_t *snapshots, size_t snapshot_count,
-                  size_t *queue_count) const = 0;
+                  size_t *queue_count,
+                  os_exception_mask_t exceptions_cleared) const = 0;
 
   virtual amd_dbgapi_status_t set_address_watch (
       amd_dbgapi_global_address_t address, amd_dbgapi_global_address_t mask,
@@ -213,10 +270,9 @@ public:
 
   virtual amd_dbgapi_status_t set_wave_launch_trap_override (
       os_wave_launch_trap_override_t override,
-      os_wave_launch_trap_mask_t trap_mask,
-      os_wave_launch_trap_mask_t requested_bits,
-      os_wave_launch_trap_mask_t *previous_mask,
-      os_wave_launch_trap_mask_t *supported_mask) const = 0;
+      os_wave_launch_trap_mask_t value, os_wave_launch_trap_mask_t mask,
+      os_wave_launch_trap_mask_t *previous_value = nullptr,
+      os_wave_launch_trap_mask_t *supported_mask = nullptr) const = 0;
 
   virtual amd_dbgapi_status_t
   xfer_global_memory_partial (amd_dbgapi_global_address_t address, void *read,
@@ -224,7 +280,7 @@ public:
 };
 
 template <> std::string to_string (os_wave_launch_mode_t mode);
-template <> std::string to_string (os_queue_status_t queue_status);
+template <> std::string to_string (os_exception_mask_t exception_mask);
 
 } /* namespace amd::dbgapi */
 

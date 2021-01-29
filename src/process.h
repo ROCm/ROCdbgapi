@@ -48,6 +48,7 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace amd::dbgapi
@@ -127,9 +128,8 @@ private:
   flag_t m_flags{};
 
   os_wave_launch_mode_t m_wave_launch_mode{ os_wave_launch_mode_t::normal };
-  os_wave_launch_trap_mask_t m_wave_trap_mask{
-    os_wave_launch_trap_mask_t::none
-  };
+  os_wave_launch_trap_mask_t m_wave_trap_mask{};
+
   bool m_forward_progress_needed{ true };
 
   pipe_t m_client_notifier_pipe{};
@@ -157,8 +157,9 @@ private:
       handle_object_set_t<watchpoint_t>, handle_object_set_t<wave_t>>
       m_handle_object_sets{};
 
-  amd_dbgapi_status_t query_debug_event (amd_dbgapi_queue_id_t *queue_id,
-                                         os_queue_status_t *os_queue_status);
+  std::pair<std::variant<process_t *, agent_t *, queue_t *>,
+            os_exception_mask_t>
+  query_debug_event ();
 
 public:
   process_t (amd_dbgapi_process_id_t process_id,
@@ -232,8 +233,8 @@ public:
   set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode);
 
   amd_dbgapi_status_t
-  set_wave_launch_trap_override (os_wave_launch_trap_mask_t mask,
-                                 os_wave_launch_trap_mask_t bits);
+  set_wave_launch_trap_override (os_wave_launch_trap_mask_t value,
+                                 os_wave_launch_trap_mask_t mask);
 
   /* Suspend/resume a list of queues.  Queues may become invalid as a result of
      suspension/resumption, but not destroyed.  Queues made invalid will

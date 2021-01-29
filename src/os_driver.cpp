@@ -193,7 +193,8 @@ public:
                                       size_t snapshot_count,
                                       size_t *agent_count) const override;
 
-  amd_dbgapi_status_t enable_debug () override;
+  amd_dbgapi_status_t
+  enable_debug (os_exception_mask_t exceptions_reported) override;
   amd_dbgapi_status_t disable_debug () override;
   bool is_debug_enabled () const override
   {
@@ -201,17 +202,20 @@ public:
   }
 
   amd_dbgapi_status_t
-  query_debug_event (os_queue_id_t *os_queue_id,
-                     os_queue_status_t *os_queue_status) override;
+  query_debug_event (os_exception_mask_t *exceptions_present,
+                     os_source_id_t *os_source_id,
+                     os_exception_mask_t exceptions_cleared) override;
 
-  size_t suspend_queues (os_queue_id_t *queues,
-                         size_t queue_count) const override;
+  size_t
+  suspend_queues (os_queue_id_t *queues, size_t queue_count,
+                  os_exception_mask_t exceptions_cleared) const override;
   size_t resume_queues (os_queue_id_t *queues,
                         size_t queue_count) const override;
 
-  amd_dbgapi_status_t queue_snapshot (os_queue_snapshot_entry_t *snapshots,
-                                      size_t snapshot_count,
-                                      size_t *queue_count) const override;
+  amd_dbgapi_status_t
+  queue_snapshot (os_queue_snapshot_entry_t *snapshots, size_t snapshot_count,
+                  size_t *queue_count,
+                  os_exception_mask_t exceptions_cleared) const override;
 
   amd_dbgapi_status_t
   set_address_watch (amd_dbgapi_global_address_t address,
@@ -498,16 +502,19 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
 }
 
 amd_dbgapi_status_t
-kfd_driver_t::enable_debug ()
+kfd_driver_t::enable_debug (os_exception_mask_t exceptions_reported)
 {
   dbgapi_assert (!m_event_poll_fd && "debug is already enabled");
 
   /* KFD_IOC_DBG_TRAP_ENABLE (#0):
-     data1: [in] enable/disable (1/0)
-     data3: [out] poll_fd  */
+     exception_mask: [in] exceptions to be reported to the debugger
+     data1: [in] 0=disable, 1=enable
+     data2: [out] poll_fd
+     data3: [out] ttmps setup enabled (0=disabled, 1=enabled)  */
 
   kfd_ioctl_dbg_trap_args args{};
   args.data1 = 1; /* enable  */
+  args.exception_mask = static_cast<uint64_t> (exceptions_reported);
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_ENABLE, &args);
   if (err == -ESRCH)
@@ -523,7 +530,7 @@ kfd_driver_t::enable_debug ()
   else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
-  m_event_poll_fd.emplace (static_cast<file_desc_t> (args.data3));
+  m_event_poll_fd.emplace (static_cast<file_desc_t> (args.data2));
 
   amd_dbgapi_status_t status = start_event_thread ();
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -546,7 +553,7 @@ kfd_driver_t::disable_debug ()
   m_event_poll_fd.reset ();
 
   /* KFD_IOC_DBG_TRAP_ENABLE (#0):
-   data1: [in] enable/disable (1/0)  */
+     data1: [in] 0=disable, 1=enable  */
 
   kfd_ioctl_dbg_trap_args args{};
   args.data1 = 0; /* disable  */
@@ -561,10 +568,11 @@ kfd_driver_t::disable_debug ()
 }
 
 amd_dbgapi_status_t
-kfd_driver_t::query_debug_event (os_queue_id_t *os_queue_id,
-                                 os_queue_status_t *os_queue_status)
+kfd_driver_t::query_debug_event (os_exception_mask_t *exceptions_present,
+                                 os_source_id_t *os_source_id,
+                                 os_exception_mask_t exceptions_cleared)
 {
-  dbgapi_assert (os_queue_id && os_queue_status && "must not be null");
+  dbgapi_assert (exceptions_present && os_source_id && "must not be null");
 
   /* We get our event notifications from the process event thread, so
      make sure it is still running, an exception may have caused it to
@@ -572,13 +580,12 @@ kfd_driver_t::query_debug_event (os_queue_id_t *os_queue_id,
   check_event_thread ();
 
   /* KFD_IOC_DBG_TRAP_QUERY_DEBUG_EVENT (#6):
-     data1: [in/out] queue id
-     data2: [in] flags
-     data3: [out] new_queue[3:3], suspended[2:2], event_type [1:0]  */
+
+     exception_mask: [in/out] exception to clear on query, and report
+     data1: [out] source id  */
 
   kfd_ioctl_dbg_trap_args args{};
-  args.data1 = KFD_INVALID_QUEUEID;
-  args.data2 = KFD_DBG_EV_FLAG_CLEAR_STATUS;
+  args.exception_mask = static_cast<uint64_t> (exceptions_cleared);
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_QUERY_DEBUG_EVENT, &args);
   if (err == -ESRCH)
@@ -586,33 +593,34 @@ kfd_driver_t::query_debug_event (os_queue_id_t *os_queue_id,
   else if (err == -EAGAIN)
     {
       /* There are no more events.  */
-      *os_queue_id = os_invalid_queueid;
-      *os_queue_status = {};
+      *exceptions_present = os_exception_mask_t::none;
+      os_source_id->raw = 0;
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
   else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
-  *os_queue_id = args.data1;
-  *os_queue_status = static_cast<os_queue_status_t> (args.data3);
+  *exceptions_present = static_cast<os_exception_mask_t> (args.exception_mask);
+  os_source_id->raw = args.data1;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 size_t
-kfd_driver_t::suspend_queues (os_queue_id_t *queues, size_t queue_count) const
+kfd_driver_t::suspend_queues (os_queue_id_t *queues, size_t queue_count,
+                              os_exception_mask_t exceptions_cleared) const
 {
   dbgapi_assert (queue_count <= std::numeric_limits<uint32_t>::max ());
 
   /* KFD_IOC_DBG_TRAP_NODE_SUSPEND (#4):
-     data1: [in] flags
-     data2: [in] number of queues
-     data3: [in] grace period
-     ptr:   [in] queue ids  */
+     exception_mask: [in] exceptions to clear on suspend
+     data1: [in] number of queues
+     data2: [in] grace period
+     ptr:   [in/out] queue ids  */
 
   kfd_ioctl_dbg_trap_args args{};
-  args.data1 = KFD_DBG_EV_FLAG_CLEAR_STATUS;
-  args.data2 = static_cast<uint32_t> (queue_count);
+  args.exception_mask = static_cast<uint64_t> (exceptions_cleared);
+  args.data1 = static_cast<uint32_t> (queue_count);
   args.ptr = reinterpret_cast<uint64_t> (queues);
 
   int ret = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_SUSPEND, &args);
@@ -630,13 +638,11 @@ kfd_driver_t::resume_queues (os_queue_id_t *queues, size_t queue_count) const
   dbgapi_assert (queue_count <= std::numeric_limits<uint32_t>::max ());
 
   /* KFD_IOC_DBG_TRAP_NODE_RESUME (#5):
-     data1: [in] flags
-     data2: [in] number of queues
-     ptr:   [in] queue ids  */
+     data1: [in] number of queues
+     ptr:   [in/out] queue ids  */
 
   kfd_ioctl_dbg_trap_args args{};
-  args.data1 = 0;
-  args.data2 = static_cast<uint32_t> (queue_count);
+  args.data1 = static_cast<uint32_t> (queue_count);
   args.ptr = reinterpret_cast<uint64_t> (queues);
 
   int ret = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_RESUME, &args);
@@ -650,20 +656,21 @@ kfd_driver_t::resume_queues (os_queue_id_t *queues, size_t queue_count) const
 
 amd_dbgapi_status_t
 kfd_driver_t::queue_snapshot (os_queue_snapshot_entry_t *snapshots,
-                              size_t snapshot_count, size_t *queue_count) const
+                              size_t snapshot_count, size_t *queue_count,
+                              os_exception_mask_t exceptions_cleared) const
 {
   dbgapi_assert (snapshots && queue_count && "must not be null");
   dbgapi_assert (snapshot_count <= std::numeric_limits<uint32_t>::max ()
                  && "invalid argument");
 
   /* KFD_IOC_DBG_TRAP_GET_QUEUE_SNAPSHOT (#7):
-     data1: [in] flags
-     data2: [in/out] number of queues snapshots
+     exception_mask: [in] exceptions to clear on snapshot
+     data1: [in/out] number of queues snapshots
      ptr:   [in] user buffer  */
 
   kfd_ioctl_dbg_trap_args args{};
-  args.data1 = 0;
-  args.data2 = static_cast<uint32_t> (snapshot_count);
+  args.exception_mask = static_cast<uint64_t> (exceptions_cleared);
+  args.data1 = static_cast<uint32_t> (snapshot_count);
   args.ptr = reinterpret_cast<uint64_t> (snapshots);
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_GET_QUEUE_SNAPSHOT, &args);
@@ -675,7 +682,7 @@ kfd_driver_t::queue_snapshot (os_queue_snapshot_entry_t *snapshots,
   /* KFD writes up to snapshot_count queue snapshots, but returns the
      number of queues in the process so that we can check if we have
      allocated enough memory to hold all the snapshots.  */
-  *queue_count = args.data2;
+  *queue_count = args.data1;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
@@ -751,14 +758,11 @@ kfd_driver_t::set_wave_launch_mode (os_wave_launch_mode_t mode) const
 
 amd_dbgapi_status_t
 kfd_driver_t::set_wave_launch_trap_override (
-    os_wave_launch_trap_override_t override,
-    os_wave_launch_trap_mask_t trap_mask,
-    os_wave_launch_trap_mask_t requested_bits,
-    os_wave_launch_trap_mask_t *previous_mask,
+    os_wave_launch_trap_override_t override, os_wave_launch_trap_mask_t value,
+    os_wave_launch_trap_mask_t mask,
+    os_wave_launch_trap_mask_t *previous_value,
     os_wave_launch_trap_mask_t *supported_mask) const
 {
-  dbgapi_assert (previous_mask && supported_mask && "must not be null");
-
   /* KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_OVERRIDE (#1)
      data1: [in] override mode (see enum kfd_dbg_trap_override_mode)
      data2: [in/out] trap mask (see enum kfd_dbg_trap_mask)
@@ -767,10 +771,8 @@ kfd_driver_t::set_wave_launch_trap_override (
   kfd_ioctl_dbg_trap_args args{};
   args.data1
       = static_cast<std::underlying_type_t<decltype (override)>> (override);
-  args.data2
-      = static_cast<std::underlying_type_t<decltype (trap_mask)>> (trap_mask);
-  args.data3 = static_cast<std::underlying_type_t<decltype (requested_bits)>> (
-      requested_bits);
+  args.data2 = static_cast<std::underlying_type_t<decltype (value)>> (value);
+  args.data3 = static_cast<std::underlying_type_t<decltype (mask)>> (mask);
 
   int err
       = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_OVERRIDE, &args);
@@ -781,8 +783,10 @@ kfd_driver_t::set_wave_launch_trap_override (
   else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
-  *previous_mask = static_cast<os_wave_launch_trap_mask_t> (args.data2);
-  *supported_mask = static_cast<os_wave_launch_trap_mask_t> (args.data3);
+  if (previous_value)
+    *previous_value = static_cast<os_wave_launch_trap_mask_t> (args.data2);
+  if (supported_mask)
+    *supported_mask = static_cast<os_wave_launch_trap_mask_t> (args.data3);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
@@ -970,7 +974,8 @@ public:
     return AMD_DBGAPI_STATUS_SUCCESS;
   }
 
-  amd_dbgapi_status_t enable_debug () override
+  amd_dbgapi_status_t
+      enable_debug (os_exception_mask_t /* exceptions_reported  */) override
   {
     error ("should not call this, null_driver does not have any agents");
   }
@@ -980,20 +985,22 @@ public:
     error ("should not call this, null_driver does not have any agents");
   }
 
-  virtual bool is_debug_enabled () const override
+  bool is_debug_enabled () const override
   {
     error ("should not call this, null_driver does not have any agents");
   }
 
   amd_dbgapi_status_t
-  query_debug_event (os_queue_id_t * /* os_queue_id  */,
-                     os_queue_status_t * /* os_queue_status  */) override
+  query_debug_event (os_exception_mask_t * /* exceptions_present  */,
+                     os_source_id_t * /* os_source_id  */,
+                     os_exception_mask_t /* exceptions_cleared  */) override
   {
     error ("should not call this, null_driver does not have any agents");
   }
 
-  size_t suspend_queues (os_queue_id_t * /* queues  */,
-                         size_t queue_count) const override
+  size_t
+  suspend_queues (os_queue_id_t * /* queues  */, size_t queue_count,
+                  os_exception_mask_t /* exceptions_cleared  */) const override
   {
     if (queue_count > 0)
       error ("should not call this, null_driver does not have any queues");
@@ -1010,8 +1017,8 @@ public:
 
   amd_dbgapi_status_t
   queue_snapshot (os_queue_snapshot_entry_t * /* snapshots  */,
-                  size_t /* snapshot_count  */,
-                  size_t *queue_count) const override
+                  size_t /* snapshot_count  */, size_t *queue_count,
+                  os_exception_mask_t /* exceptions_cleared  */) const override
   {
     *queue_count = 0;
     return AMD_DBGAPI_STATUS_SUCCESS;
@@ -1084,20 +1091,70 @@ to_string (os_wave_launch_mode_t mode)
       make_hex (static_cast<std::underlying_type_t<decltype (mode)>> (mode)));
 }
 
+namespace
+{
+
+inline std::string
+one_os_exception_to_string (os_exception_mask_t exception_mask)
+{
+  dbgapi_assert (!(exception_mask & (exception_mask - 1)) && "only 1 bit");
+
+  switch (exception_mask)
+    {
+    case os_exception_mask_t::none:
+      return "NONE";
+    case os_exception_mask_t::queue_new:
+      return "QUEUE_NEW";
+    case os_exception_mask_t::trap_handler:
+      return "TRAP_HANDLER";
+    case os_exception_mask_t::cp_packet_error:
+      return "CP_PACKET_ERROR";
+    case os_exception_mask_t::hws_preemption_error:
+      return "HWS_PREEMPTION_ERROR";
+    case os_exception_mask_t::memory_violation:
+      return "MEMORY_VIOLATION";
+    case os_exception_mask_t::ras_error:
+      return "RAS_ERROR";
+    case os_exception_mask_t::fatal_halt:
+      return "FATAL_HALT";
+    case os_exception_mask_t::queue_delete:
+      return "QUEUE_DELETE";
+    case os_exception_mask_t::gpu_add:
+      return "GPU_ADD";
+    case os_exception_mask_t::runtime_enable:
+      return "RUNTIME_ENABLE";
+    case os_exception_mask_t::runtime_disable:
+      return "RUNTIME_DISABLE";
+    case os_exception_mask_t::gpu_remove:
+      return "GPU_REMOVE";
+    }
+  return to_string (make_hex (
+      static_cast<std::underlying_type_t<decltype (exception_mask)>> (
+          exception_mask)));
+}
+
+} /* namespace */
+
 template <>
 std::string
-to_string (os_queue_status_t queue_status)
+to_string (os_exception_mask_t exception_mask)
 {
-  std::string str
-      = (queue_status & os_queue_status_t::trap) != 0
-            ? "trap"
-            : (!!(queue_status & os_queue_status_t::vmfault) ? "vmfault"
-                                                             : "unknown");
+  std::string str;
 
-  if ((queue_status & os_queue_status_t::new_queue) != 0)
-    str += "|new_queue";
-  if ((queue_status & os_queue_status_t::suspended) != 0)
-    str += "|suspended";
+  if (!exception_mask)
+    return one_os_exception_to_string (exception_mask);
+
+  while (exception_mask != 0)
+    {
+      os_exception_mask_t one_bit
+          = exception_mask ^ (exception_mask & (exception_mask - 1));
+
+      if (!str.empty ())
+        str += " | ";
+      str += one_os_exception_to_string (one_bit);
+
+      exception_mask ^= one_bit;
+    }
 
   return str;
 }

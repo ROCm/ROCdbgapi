@@ -42,6 +42,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -356,64 +357,62 @@ process_t::set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode)
       else if (status != AMD_DBGAPI_STATUS_SUCCESS)
         error ("agent_t::set_wave_launch_mode (%s) failed (rc=%d)",
                to_string (wave_launch_mode).c_str (), status);
+
+      /* When changing the wave launch mode from WAVE_LAUNCH_MODE_HALT, all
+         waves halted at launch need to be resumed and reported to the client.
+       */
+      if (m_wave_launch_mode == os_wave_launch_mode_t::halt)
+        {
+          update_queues ();
+
+          std::vector<queue_t *> queues;
+          queues.reserve (count<queue_t> ());
+
+          for (auto &&queue : range<queue_t> ())
+            if (!queue.is_suspended ())
+              queues.emplace_back (&queue);
+
+          suspend_queues (queues, "halt waves at launch");
+
+          /* For all waves in this process, resume the wave if it is halted at
+             launch.  */
+          for (auto &&wave : range<wave_t> ())
+            if (wave.visibility ()
+                == wave_t::visibility_t::hidden_halted_at_launch)
+              {
+                dbgapi_assert (wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
+                               && wave.stop_reason ()
+                                      == AMD_DBGAPI_WAVE_STOP_REASON_NONE);
+
+                wave.set_visibility (wave_t::visibility_t::visible);
+                wave.set_state (AMD_DBGAPI_WAVE_STATE_RUN);
+              }
+
+          if (forward_progress_needed ())
+            resume_queues (queues, "halt waves at launch");
+        }
     }
 
-  os_wave_launch_mode_t saved_wave_launch_mode = m_wave_launch_mode;
   m_wave_launch_mode = wave_launch_mode;
-
-  /* When changing the wave launch mode from WAVE_LAUNCH_MODE_HALT, all waves
-     halted at launch need to be resumed and reported to the client.  */
-  if (os_driver ().is_debug_enabled ()
-      && saved_wave_launch_mode == os_wave_launch_mode_t::halt)
-    {
-      update_queues ();
-
-      std::vector<queue_t *> queues;
-      queues.reserve (count<queue_t> ());
-
-      for (auto &&queue : range<queue_t> ())
-        if (!queue.is_suspended ())
-          queues.emplace_back (&queue);
-
-      suspend_queues (queues, "halt waves at launch");
-
-      /* For all waves in this process, resume the wave if it is halted at
-         launch.  */
-      for (auto &&wave : range<wave_t> ())
-        if (wave.visibility ()
-            == wave_t::visibility_t::hidden_halted_at_launch)
-          {
-            dbgapi_assert (wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
-                           && wave.stop_reason ()
-                                  == AMD_DBGAPI_WAVE_STOP_REASON_NONE);
-
-            wave.set_visibility (wave_t::visibility_t::visible);
-            wave.set_state (AMD_DBGAPI_WAVE_STATE_RUN);
-          }
-
-      if (forward_progress_needed ())
-        resume_queues (queues, "halt waves at launch");
-    }
-
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 amd_dbgapi_status_t
-process_t::set_wave_launch_trap_override (os_wave_launch_trap_mask_t mask,
-                                          os_wave_launch_trap_mask_t bits)
+process_t::set_wave_launch_trap_override (os_wave_launch_trap_mask_t value,
+                                          os_wave_launch_trap_mask_t mask)
 {
+  dbgapi_assert ((value & ~mask) == 0 && "invalid value");
+
   os_wave_launch_trap_mask_t wave_trap_mask
-      = (m_wave_trap_mask & ~bits) | (mask & bits);
+      = (m_wave_trap_mask & ~mask) | (value & mask);
 
   if (wave_trap_mask == m_wave_trap_mask)
     return AMD_DBGAPI_STATUS_SUCCESS;
 
   if (os_driver ().is_debug_enabled ())
     {
-      os_wave_launch_trap_mask_t ignored;
       amd_dbgapi_status_t status = os_driver ().set_wave_launch_trap_override (
-          os_wave_launch_trap_override_t::apply, mask, bits, &ignored,
-          &ignored);
+          os_wave_launch_trap_override_t::apply, value, mask);
 
       if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
         return status;
@@ -841,7 +840,10 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
       queue_ids.emplace_back (queue->os_queue_id ());
     }
 
-  int ret = os_driver ().suspend_queues (queue_ids.data (), queue_ids.size ());
+  int ret = os_driver ().suspend_queues (
+      queue_ids.data (), queue_ids.size (),
+      os_exception_mask_t::trap_handler
+          | os_exception_mask_t::memory_violation);
   if (ret == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
     {
       for (auto &&queue : queues)
@@ -984,7 +986,8 @@ process_t::update_queues ()
       snapshots.resize (snapshot_count);
 
       amd_dbgapi_status_t status = os_driver ().queue_snapshot (
-          snapshots.data (), snapshot_count, &queue_count);
+          snapshots.data (), snapshot_count, &queue_count,
+          os_exception_mask_t::queue_new);
 
       if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
         {
@@ -1011,21 +1014,22 @@ process_t::update_queues ()
             return x.os_queue_id () == queue_info.queue_id;
           });
 
-          if (!!(os_queue_status (queue_info) & os_queue_status_t::new_queue))
+          if ((os_queue_exception_status (queue_info)
+               & os_exception_mask_t::queue_new)
+              != 0)
             {
               /* If there is a stale queue with the same os_queue_id,
                  destroy it.  */
               if (queue)
                 {
                   amd_dbgapi_queue_id_t destroyed_queue_id = queue->id ();
-                  os_queue_id_t os_queue_id = queue->os_queue_id ();
 
                   destroy (queue);
 
                   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
                               "destroyed stale %s (os_queue_id=%d)",
                               to_string (destroyed_queue_id).c_str (),
-                              os_queue_id);
+                              queue_info.queue_id);
                 }
             }
           else if (is_flag_set (flag_t::require_new_queue_bit))
@@ -1036,17 +1040,9 @@ process_t::update_queues ()
                  reported (we consumed the event without action), or KFD did
                  not report the new queue.  */
               if (!queue)
-                {
-                  error ("os_queue_id %d should have been reported as a "
-                         "new_queue before",
-                         queue_info.queue_id);
-                }
-
-              /* FIXME: If we could select which flags get cleared by the
-                 query_debug_event ioctl, we would not need to create a
-                 partially initialized queue in agent_t::next_os_event, and
-                 fix it here with the information contained in the queue
-                 snapshots.  */
+                error ("os_queue_id %d should have been reported as a  new "
+                       "queue before",
+                       queue_info.queue_id);
 
               /* If the queue mark is null, the queue was created outside of
                  update_queues, and it does not have all the information yet
@@ -1060,11 +1056,6 @@ process_t::update_queues ()
                 }
               else
                 {
-                  dbgapi_assert (!!(os_queue_status (queue_info)
-                                    & os_queue_status_t::suspended)
-                                     == queue->is_suspended ()
-                                 && "queue state does not match queue_info");
-
                   /* This isn't a new queue, and it is fully initialized.
                      Mark it as active, and continue to the next snapshot.  */
                   queue->set_mark (queue_mark);
@@ -1091,10 +1082,8 @@ process_t::update_queues ()
           queue = &create<queue_t> (queue_id,    /* queue_id */
                                     *agent,      /* agent */
                                     queue_info); /* queue_info */
-          queue->set_state (
-              !(os_queue_status (queue_info) & os_queue_status_t::suspended)
-                  ? queue_t::state_t::running
-                  : queue_t::state_t::suspended);
+
+          queue->set_state (queue_t::state_t::running);
           queue->set_mark (queue_mark);
 
           dbgapi_log (
@@ -1227,7 +1216,9 @@ process_t::attach ()
         return;
       }
 
-    status = os_driver ().enable_debug ();
+    status
+        = os_driver ().enable_debug (os_exception_mask_t::trap_handler
+                                     | os_exception_mask_t::memory_violation);
     if (status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
       {
         enqueue_event (create<event_t> (
@@ -1241,14 +1232,30 @@ process_t::attach ()
     dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "debugging is enabled for %s",
                 to_string (id ()).c_str ());
 
-    status = set_wave_launch_mode (m_wave_launch_mode);
+    status = os_driver ().set_wave_launch_mode (m_wave_launch_mode);
     if (status != AMD_DBGAPI_STATUS_SUCCESS
         && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
       error ("Could not set the wave launch mode for %s (rc=%d).",
              to_string (id ()).c_str (), status);
 
-    status
-        = set_wave_launch_trap_override (m_wave_trap_mask, m_wave_trap_mask);
+    os_wave_launch_trap_mask_t supported_wave_trap_mask;
+    status = os_driver ().set_wave_launch_trap_override (
+        os_wave_launch_trap_override_t::apply,
+        os_wave_launch_trap_mask_t::none, os_wave_launch_trap_mask_t::none,
+        nullptr, &supported_wave_trap_mask);
+    if (status != AMD_DBGAPI_STATUS_SUCCESS
+        && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+      error ("Could not set the wave launch trap override for %s (rc=%d).",
+             to_string (id ()).c_str (), status);
+
+    if ((m_wave_trap_mask & ~supported_wave_trap_mask) != 0)
+      error ("Unsupported wave trap mask (%s) requested for %s",
+             to_string (m_wave_trap_mask & ~supported_wave_trap_mask).c_str (),
+             to_string (id ()).c_str ());
+
+    status = os_driver ().set_wave_launch_trap_override (
+        os_wave_launch_trap_override_t::apply, m_wave_trap_mask,
+        supported_wave_trap_mask);
     if (status != AMD_DBGAPI_STATUS_SUCCESS
         && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
       error ("Could not set the wave launch trap override for %s (rc=%d).",
@@ -1445,38 +1452,72 @@ process_t::enqueue_event (event_t &event)
   client_notifier_pipe ().mark ();
 }
 
-amd_dbgapi_status_t
-process_t::query_debug_event (amd_dbgapi_queue_id_t *queue_id,
-                              os_queue_status_t *os_queue_status)
+std::pair<std::variant<process_t *, agent_t *, queue_t *>, os_exception_mask_t>
+process_t::query_debug_event ()
 {
-  dbgapi_assert (queue_id && os_queue_status && "must not be null");
-
   while (true)
     {
-      os_queue_id_t os_queue_id;
+      os_source_id_t source_id;
+      os_exception_mask_t exceptions;
 
-      amd_dbgapi_status_t status
-          = os_driver ().query_debug_event (&os_queue_id, os_queue_status);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
+      amd_dbgapi_status_t status = os_driver ().query_debug_event (
+          &exceptions, &source_id,
+          os_exception_mask_t::trap_handler
+              | os_exception_mask_t::memory_violation
+              | os_exception_mask_t::queue_new);
 
-      if (os_queue_id == os_invalid_queueid)
+      if (status != AMD_DBGAPI_STATUS_SUCCESS
+          && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+        error ("os_driver_t::query_debug_event failed (rc=%d)", status);
+
+      if (exceptions == os_exception_mask_t::none
+          || status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
         {
           /* There are no more events.  */
-          *queue_id = AMD_DBGAPI_QUEUE_NONE;
-          return AMD_DBGAPI_STATUS_SUCCESS;
+          return { this, os_exception_mask_t::none };
         }
+
+      if ((exceptions & os_process_exceptions_mask) != 0)
+        {
+          dbgapi_assert ((exceptions & ~os_process_exceptions_mask) == 0
+                         && "can only have process exceptions");
+
+          return { this, exceptions };
+        }
+
+      if ((exceptions & os_agent_exceptions_mask) != 0)
+        {
+          dbgapi_assert ((exceptions & ~os_agent_exceptions_mask) == 0
+                         && "can only have device exceptions");
+
+          /* Find the agent by matching its os_agent_id with the one
+             returned by the ioctl.  */
+          agent_t *agent = find_if ([source_id] (const agent_t &q) {
+            return q.os_agent_id () == source_id.agent;
+          });
+
+          if (agent)
+            return { agent, exceptions };
+
+          error ("could not find os_agent_id %d", source_id.agent);
+        }
+
+      /* We've handled process and device exceptions, the only exceptions
+         left are queue exceptions.  */
+      dbgapi_assert ((exceptions & os_queue_exceptions_mask) != 0
+                     && (exceptions & ~os_queue_exceptions_mask) == 0
+                     && "can only have queue exceptions");
 
       /* Find the queue by matching its os_queue_id with the one
          returned by the ioctl.  */
 
-      queue_t *queue = find_if ([os_queue_id] (const queue_t &q) {
-        return q.os_queue_id () == os_queue_id;
+      queue_t *queue = find_if ([source_id] (const queue_t &q) {
+        return q.os_queue_id () == source_id.queue;
       });
 
       /* If this is a new queue, update the queues to make sure we don't
          return a stale queue with the same os_queue_id.  */
-      if ((*os_queue_status & os_queue_status_t::new_queue) != 0)
+      if ((exceptions & os_exception_mask_t::queue_new) != 0)
         {
           /* If there is a stale queue with the same os_queue_id, destroy it.
            */
@@ -1485,39 +1526,54 @@ process_t::query_debug_event (amd_dbgapi_queue_id_t *queue_id,
               amd_dbgapi_queue_id_t stale_queue_id = queue->id ();
 
               destroy (queue);
+              queue = nullptr;
 
               dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
                           "destroyed stale %s (os_queue_id=%d)",
-                          to_string (stale_queue_id).c_str (), os_queue_id);
+                          to_string (stale_queue_id).c_str (),
+                          source_id.queue);
             }
 
-          /* Create a temporary queue instance to reserve the unique queue_id,
-             update_queues with fill in the missing information
-             (os_queue_snapshot_entry_t).  FIXME: need a dummy agent  */
-          *queue_id = create<queue_t> (*(agent_t *)0xbad, os_queue_id).id ();
-          *os_queue_status &= ~os_queue_status_t::new_queue;
+          /* ABA handling: create a temporary, partially initialized, queue
+             instance to hold a unique queue_id associated with this new
+             os_queue_id, the call to update_queues below will fill in the
+             missing information.
+
+             Between now and the time update_queues is called, this os_queue
+             may be destroyed, and a new os_queue with the same os_queue_id may
+             be created.
+
+             In that case the new queue instance created by update_queues will
+             have a different unique queue_id, and the code below will not find
+             the original queue_id in the process. The event will be
+             dropped.  */
+
+          /* FIXME: need a dummy agent, for now, use the 1st agent in the
+             process, there must be at least 1 agent if we have exceptions.  */
+          amd_dbgapi_queue_id_t queue_id
+              = create<queue_t> (*range<agent_t> ().begin (), source_id.queue)
+                    .id ();
+
           update_queues ();
 
           /* Check that the queue still exists, update_queues () may have
-             destroyed it if it isn't a supported queue type.  */
-          if (find (*queue_id))
-            return AMD_DBGAPI_STATUS_SUCCESS;
+             destroyed it if it isn't a supported queue type or if a new queue
+             with the same os_queue_id is reported.  */
+          if ((queue = find (queue_id)))
+            return { queue, exceptions };
 
           dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                      "skipping event (%s) for deleted os_queue_id %d",
-                      to_string (*os_queue_status).c_str (), os_queue_id);
+                      "dropping event (%s) for deleted os_queue_id %d",
+                      to_string (exceptions).c_str (), source_id.queue);
         }
       else if (queue)
         {
-          *queue_id = queue->id ();
-          return AMD_DBGAPI_STATUS_SUCCESS;
+          return { queue, exceptions };
         }
       else
-        {
-          error ("os_queue_id %d should have been reported as a new_queue "
-                 "before",
-                 os_queue_id);
-        }
+        error (
+            "os_queue_id %d should have been reported as a new_queue before",
+            source_id.queue);
     }
 }
 
@@ -1544,64 +1600,60 @@ process_t::next_pending_event ()
          number of queues N, this can at most result in 2*N iterations.  */
       while (true)
         {
-          std::vector<queue_t *> queues;
+          std::unordered_set<queue_t *> queues_needing_suspend;
 
           if (!m_has_events.exchange (false, std::memory_order_acquire))
             break;
 
           while (true)
             {
-              amd_dbgapi_queue_id_t queue_id;
-              os_queue_status_t queue_status;
+              auto [source, exceptions] = query_debug_event ();
+              dbgapi_assert (
+                  std::visit ([] (auto &&x) -> bool { return x; }, source)
+                  && "source cannot be null");
 
-              amd_dbgapi_status_t status
-                  = query_debug_event (&queue_id, &queue_status);
-              if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-                return nullptr;
-              else if (status != AMD_DBGAPI_STATUS_SUCCESS)
-                error ("agent_t::query_debug_event failed (rc=%d)", status);
-
-              if (queue_id == AMD_DBGAPI_QUEUE_NONE)
+              if (exceptions == os_exception_mask_t::none)
                 break;
 
-              queue_t *queue = find (queue_id);
+              dbgapi_log (
+                  AMD_DBGAPI_LOG_LEVEL_INFO, "%s has pending exceptions (%s)",
+                  std::visit ([] (auto &&x) { return to_string (x->id ()); },
+                              source)
+                      .c_str (),
+                  to_string (exceptions).c_str ());
 
-              if (!queue)
+              if ((exceptions & os_exception_mask_t::memory_violation) != 0)
                 {
-                  /* Events that are reported for a queue that is deleted
-                     before the events are retrieved are ignored.  This
-                     includes events that are retrieved for a new queue
-                     that is deleted before information about the queue can
-                     be retrieved.  */
-                  continue;
+                  agent_t *agent = std::get<agent_t *> (source);
+
+                  /* All queues on the device should be suspended to inspect
+                     the state.  */
+                  for (auto &&queue : range<queue_t> ())
+                    if (!queue.is_suspended () && queue.agent () == *agent)
+                      queues_needing_suspend.emplace (&queue);
                 }
 
-              /* Check that the queue suspend status returned by KFD
-                 matches the status we are keeping for the queue_t.  */
-              dbgapi_assert (
-                  queue->is_suspended ()
-                      == !!(queue_status & os_queue_status_t::suspended)
-                  && "inconsistent suspend status");
-
-              dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                          "%s on %s has pending events (%s)",
-                          to_string (queue_id).c_str (),
-                          to_string (queue->agent ().id ()).c_str (),
-                          to_string (queue_status).c_str ());
-
-              /* The queue may already be suspended. This can happen if an
-                 event occurs after requesting the queue to be suspended
-                 and before that request has completed, or if the act of
-                 suspending a wave generates a new event (such as for the
-                 single step work-around in the CWSR handler).  */
-              if (!queue->is_suspended ())
+              if ((exceptions & os_exception_mask_t::trap_handler) != 0)
                 {
-                  /* Don't add a queue more than once.  */
-                  if (std::find (queues.begin (), queues.end (), queue)
-                      == queues.end ())
-                    queues.emplace_back (queue);
+                  queue_t *queue = std::get<queue_t *> (source);
+
+                  /* The queue may already be suspended. This can happen if
+                     an event occurs after requesting the queue to be
+                     suspended and before that request has completed, or if
+                     the act of suspending a wave generates a new event (such
+                     as for the single step work-around in the CWSR handler).
+                   */
+                  if (!queue->is_suspended ())
+                    queues_needing_suspend.emplace (queue);
                 }
             }
+
+          /* Convert the std::set<queue_t *> into a std::vector<queue_t *>.  */
+          std::vector<queue_t *> queues;
+          queues.reserve (queues_needing_suspend.size ());
+          std::copy (queues_needing_suspend.begin (),
+                     queues_needing_suspend.end (),
+                     std::back_inserter (queues));
 
           /* Suspend the queues that have pending events which will cause all
              events to be created for any waves that have pending events.  */

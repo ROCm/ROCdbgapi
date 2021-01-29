@@ -851,6 +851,9 @@ inline std::string
 one_queue_error_reason_to_string (
     amd_dbgapi_queue_error_reason_t queue_error_reason)
 {
+  dbgapi_assert (!(queue_error_reason & (queue_error_reason - 1))
+                 && "only 1 bit");
+
   switch (queue_error_reason)
     {
       CASE (QUEUE_ERROR_REASON_NONE);
@@ -1087,6 +1090,8 @@ namespace
 inline std::string
 one_stop_reason_to_string (amd_dbgapi_wave_stop_reason_t stop_reason)
 {
+  dbgapi_assert (!(stop_reason & (stop_reason - 1)) && "only 1 bit");
+
   switch (stop_reason)
     {
       CASE (WAVE_STOP_REASON_NONE);
@@ -1519,6 +1524,64 @@ to_string (amd_dbgapi_breakpoint_action_t breakpoint_action)
       CASE (BREAKPOINT_ACTION_HALT);
     }
   return to_string (make_hex (breakpoint_action));
+}
+
+namespace
+{
+
+inline std::string
+one_launch_trap_mask_to_string (os_wave_launch_trap_mask_t value)
+{
+  dbgapi_assert (!(value & (value - 1)) && "only 1 bit");
+
+  switch (value)
+    {
+    case os_wave_launch_trap_mask_t::none:
+      return "none";
+    case os_wave_launch_trap_mask_t::fp_invalid:
+      return "fp_invalid";
+    case os_wave_launch_trap_mask_t::fp_input_denormal:
+      return "fp_input_denormal";
+    case os_wave_launch_trap_mask_t::fp_divide_by_zero:
+      return "fp_divide_by_zero";
+    case os_wave_launch_trap_mask_t::fp_overflow:
+      return "fp_overflow";
+    case os_wave_launch_trap_mask_t::fp_underflow:
+      return "fp_underflow";
+    case os_wave_launch_trap_mask_t::fp_inexact:
+      return "fp_inexact";
+    case os_wave_launch_trap_mask_t::int_divide_by_zero:
+      return "int_divide_by_zero";
+    case os_wave_launch_trap_mask_t::address_watch:
+      return "address_watch";
+    }
+  return to_string (make_hex (
+      static_cast<std::underlying_type_t<decltype (value)>> (value)));
+}
+
+} /* namespace */
+
+template <>
+std::string
+to_string (os_wave_launch_trap_mask_t value)
+{
+  std::string str;
+
+  if (!value)
+    return one_launch_trap_mask_to_string (value);
+
+  while (value != os_wave_launch_trap_mask_t::none)
+    {
+      os_wave_launch_trap_mask_t one_bit = value ^ (value & (value - 1));
+
+      if (!str.empty ())
+        str += " | ";
+      str += one_launch_trap_mask_to_string (one_bit);
+
+      value ^= one_bit;
+    }
+
+  return str;
 }
 
 #undef CASE
