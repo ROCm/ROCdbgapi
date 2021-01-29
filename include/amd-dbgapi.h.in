@@ -472,7 +472,11 @@ extern "C" {
  */
 #define AMD_DBGAPI_VERSION_0_42
 
-/** @} */
+/**
+ * The function was introduced in version 0.43 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.43"``.
+ */
+#define AMD_DBGAPI_VERSION_0_43/** @} */
 
 /** \ingroup callbacks_group
  * Forward declaration of callbacks used to specify services that must be
@@ -897,7 +901,12 @@ typedef enum
   /**
    * The wave has an active displaced stepping buffer.
    */
-  AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_ACTIVE = -44
+  AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_ACTIVE = -44,
+  /**
+   * The wave cannot be resumed in the manner requested due to displaced
+   * stepping restrictions.
+   */
+  AMD_DBGAPI_STATUS_ERROR_RESUME_DISPLACED_STEPPING = -45
 } amd_dbgapi_status_t;
 
 /**
@@ -3471,10 +3480,17 @@ typedef enum
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_RESUMABLE \p wave_id is stopped
  * with a reason that includes one that cannot be resumed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_RESUME_DISPLACED_STEPPING \p wave_id is
+ * stopped and has an associated displaced stepping buffer. The \p resume_mode
+ * is is either not ::AMD_DBGAPI_RESUME_MODE_SINGLE_STEP, or the \p wave_id has
+ * already been single stepped by one instruction and so
+ * ::amd_dbgapi_displaced_stepping_complete must be used before the wave can be
+ * resumed.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_resume (
     amd_dbgapi_wave_id_t wave_id,
-    amd_dbgapi_resume_mode_t resume_mode) AMD_DBGAPI_VERSION_0_41;
+    amd_dbgapi_resume_mode_t resume_mode) AMD_DBGAPI_VERSION_0_43;
 
 /** @} */
 
@@ -3522,18 +3538,25 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_resume (
  * buffer through sharing, or through buffers being associated with specific
  * agents or queues.
  *
- * If allocating a displaced stepping buffer indicates that the wave has
- * already been single stepped over the breakpoint, the client can simply
- * resume the wave normally.
+ * If allocating a displaced stepping buffer
+ * (::amd_dbgapi_displaced_stepping_start) is successful, then the client must
+ * resume the wave (::amd_dbgapi_wave_resume) in single step mode.  When the
+ * single step is reported as completed (::AMD_DBGAPI_EVENT_KIND_WAVE_STOP),
+ * the buffer can be released (::amd_dbgapi_displaced_stepping_complete), and
+ * the wave resumed normally (::amd_dbgapi_wave_resume).
  *
- * If allocating a displaced stepping buffer is successful, then the client
- * must resume the wave in single step mode.  When the single step has
- * completed, the buffer can be released, and the wave resumed normally.
+ * If the single step is reported as terminated
+ * (::AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED), then that indicates that
+ * the wave has exited.  When a wave exits, any associated displaced stepping
+ * buffer is automatically released.
  *
- * If the wave does not complete the single step, then the wave can be stopped,
- * and the buffer released.  If the single step did not complete then this will
- * leave the wave still at the breakpoint, and the client can retry stepping
- * over the breakpoint later.
+ * If the wave does not report the single step as complete
+ * (::AMD_DBGAPI_EVENT_KIND_WAVE_STOP) or terminated
+ * (::AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED), then the wave can be
+ * stopped (::amd_dbgapi_wave_stop), and the buffer released
+ * (::amd_dbgapi_displaced_stepping_complete).  This will leave the wave still
+ * at the breakpoint, and the client can retry stepping over the breakpoint
+ * later (::amd_dbgapi_displaced_stepping_start).
  *
  * If allocating a displaced stepping buffer indicates no more are available,
  * the client must complete using the previously allocated buffers.  It can do
@@ -3657,10 +3680,6 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_get_info (
  * any dirty cached register values before creating a displaced stepping
  * buffer.
  *
- * If ::AMD_DBGAPI_DISPLACED_STEPPING_NONE is returned successfully it
- * indicates the wave has been single stepped over the breakpoint.  The wave is
- * still stopped and is available to be resumed normally.
- *
  * If a displaced stepping handle is returned successfully, the wave is still
  * stopped.  The client should resume the wave in single step mode using
  * ::amd_dbgapi_wave_resume.  Once the single step is complete as indicated by
@@ -3681,12 +3700,10 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_get_info (
  * breakpoint instruction replaced.  The number of bytes must be
  * ::AMD_DBGAPI_ARCHITECTURE_INFO_BREAKPOINT_INSTRUCTION_SIZE.
  *
- * \param[out] displaced_stepping The displace stepping handle, or
- * ::AMD_DBGAPI_DISPLACED_STEPPING_NONE.
+ * \param[out] displaced_stepping The displaced stepping handle.
  *
  * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
- * successfully and \p displaced_stepping is set to
- * ::AMD_DBGAPI_DISPLACED_STEPPING_NONE or to a valid displaced stepping
+ * successfully and \p displaced_stepping is set to a valid displaced stepping
  * handle.
  *
  * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
@@ -3730,7 +3747,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_get_info (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_start (
     amd_dbgapi_wave_id_t wave_id, const void *saved_instruction_bytes,
     amd_dbgapi_displaced_stepping_id_t *displaced_stepping)
-    AMD_DBGAPI_VERSION_0_42;
+    AMD_DBGAPI_VERSION_0_43;
 
 /**
  * Complete a displaced stepping buffer for a wave.

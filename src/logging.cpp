@@ -237,6 +237,7 @@ to_string (amd_dbgapi_status_t status)
       CASE (STATUS_ERROR_SYMBOL_NOT_FOUND);
       CASE (STATUS_ERROR_INVALID_ADDRESS);
       CASE (STATUS_ERROR_DISPLACED_STEPPING_ACTIVE);
+      CASE (STATUS_ERROR_RESUME_DISPLACED_STEPPING);
     }
   return to_string (make_hex (status));
 }

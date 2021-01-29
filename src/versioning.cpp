@@ -194,6 +194,10 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
     case AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_ACTIVE:
       string = "The wave has an active displaced stepping buffer";
       break;
+    case AMD_DBGAPI_STATUS_ERROR_RESUME_DISPLACED_STEPPING:
+      string = "The wave cannot be resumed in the manner requested due to "
+               "displaced stepping restrictions.";
+      break;
       /* Don't add a default here, so that we can catch at compile time when an
           enum value is missing.  */
     }
