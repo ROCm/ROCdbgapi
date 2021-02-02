@@ -338,6 +338,22 @@ operator| (T lhs, T rhs)
 }
 
 template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
+constexpr T
+operator<< (T flag, size_t shift)
+{
+  using t = std::underlying_type_t<T>;
+  return static_cast<T> (static_cast<t> (flag) << shift);
+}
+
+template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
+constexpr T
+operator>> (T flag, size_t shift)
+{
+  using t = std::underlying_type_t<T>;
+  return static_cast<T> (static_cast<t> (flag) >> shift);
+}
+
+template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
 constexpr T &
 operator|= (T &lhs, T rhs)
 {
