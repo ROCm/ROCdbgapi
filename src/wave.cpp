@@ -998,12 +998,23 @@ amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
   if (!wave)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
 
-  if (wave->client_visible_state () != AMD_DBGAPI_WAVE_STATE_STOP)
-    return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED;
-
   if (resume_mode != AMD_DBGAPI_RESUME_MODE_NORMAL
       && resume_mode != AMD_DBGAPI_RESUME_MODE_SINGLE_STEP)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
+  if (wave->client_visible_state () != AMD_DBGAPI_WAVE_STATE_STOP)
+    return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED;
+
+  if (wave->stop_reason ()
+      & ~(AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT
+          | AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT
+          | AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP))
+    return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_RESUMABLE;
+
+  /* The wave is not resumable if the stop event is not yet processed.  */
+  if (const event_t *event = wave->last_stop_event ();
+      event && event->state () < event_t::state_t::processed)
+    return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_RESUMABLE;
 
   if (wave->displaced_stepping ()
       && resume_mode != AMD_DBGAPI_RESUME_MODE_SINGLE_STEP)

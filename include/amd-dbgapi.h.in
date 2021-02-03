@@ -3408,10 +3408,7 @@ typedef enum
  * ::AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP.  After completing execution of a
  * wave termination instruction, a
  * ::AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED event will be created that
- * indicates that the wave has terminated.  On some architectures, a single
- * step that completes with the wave positioned at a wave termination
- * instruction may also report the
- * ::AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED event.
+ * indicates that the wave has terminated.
  *
  * Resuming a wave in single step mode does not necessarily cause it to execute
  * any instructions as it is up to the AMD GPU hardware scheduler to decide
@@ -3481,7 +3478,9 @@ typedef enum
  * stopped.  The wave remains running.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_RESUMABLE \p wave_id is stopped
- * with a reason that includes one that cannot be resumed.
+ * with a reason that includes one that cannot be resumed, or the event that
+ * put it in the stop state has not yet been completed using the
+ * ::amd_dbgapi_event_processed operation.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_RESUME_DISPLACED_STEPPING \p wave_id is
  * stopped and has an associated displaced stepping buffer. The \p resume_mode
