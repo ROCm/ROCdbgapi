@@ -396,6 +396,8 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
       (!m_displaced_stepping || state != AMD_DBGAPI_WAVE_STATE_RUN)
       && "displaced-stepping waves can only be stopped or single-stepped");
 
+  m_stop_requested = state == AMD_DBGAPI_WAVE_STATE_STOP;
+
   /* A wave single-stepping an s_endpgm instruction does not generate a trap
      exception upon executing the instruction, so we need to immediately
      terminate the wave and enqueue an aborted command event.  */
@@ -478,7 +480,9 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
       dbgapi_assert (visibility () == visibility_t::visible
                      && "cannot request a hidden wave to stop");
 
-      raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
+      raise_event (prev_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
+                       ? AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED
+                       : AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
     }
 
   /* If the wave was previously stopped, and is now unhalted, we need to commit
@@ -966,10 +970,11 @@ amd_dbgapi_wave_stop (amd_dbgapi_wave_id_t wave_id)
   if (!wave)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
 
-  /* FIXME: We can't enable this yet as a trap could set the state to STOP.
-     We need the ability to track stop requests.
-  if (it->second.state () == AMD_DBGAPI_WAVE_STATE_STOP)
-    return AMD_DBGAPI_STATUS_ERROR_WAVE_STOPPED; */
+  if (wave->client_visible_state () == AMD_DBGAPI_WAVE_STATE_STOP)
+    return AMD_DBGAPI_STATUS_ERROR_WAVE_STOPPED;
+
+  if (wave->stop_requested ())
+    return AMD_DBGAPI_STATUS_ERROR_WAVE_OUTSTANDING_STOP;
 
   scoped_queue_suspend_t suspend (wave->queue (), "stop wave");
 

@@ -156,6 +156,7 @@ public:
 
 private:
   amd_dbgapi_wave_state_t m_state{ AMD_DBGAPI_WAVE_STATE_RUN };
+  bool m_stop_requested{ false };
   amd_dbgapi_wave_stop_reason_t m_stop_reason{};
   amd_dbgapi_global_address_t m_saved_pc{ 0 };
   epoch_t m_mark{ 0 };
@@ -257,6 +258,7 @@ public:
   amd_dbgapi_wave_state_t state () const { return m_state; }
   void set_state (amd_dbgapi_wave_state_t state);
 
+  bool stop_requested () const { return m_stop_requested; }
   amd_dbgapi_wave_stop_reason_t stop_reason () const
   {
     dbgapi_assert (state () == AMD_DBGAPI_WAVE_STATE_STOP);
