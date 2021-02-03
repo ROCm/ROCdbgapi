@@ -394,7 +394,8 @@ aql_queue_impl_t::update_waves ()
                 = !!(ttmp11 & ttmp11_trap_handler_events_mask);
 
             /* Waves halted at launch do not have trap handler events).  */
-            if (halted && !trap_handler_events)
+            if (process.wave_launch_mode () == os_wave_launch_mode_t::halt
+                && halted && !trap_handler_events)
               visibility = wave_t::visibility_t::hidden_halted_at_launch;
           }
       }

@@ -44,6 +44,7 @@ namespace amd::dbgapi
 
 class architecture_t;
 class address_space_t;
+class event_t;
 class displaced_stepping_t;
 class process_t;
 
@@ -159,6 +160,7 @@ private:
   amd_dbgapi_global_address_t m_saved_pc{ 0 };
   epoch_t m_mark{ 0 };
 
+  amd_dbgapi_event_id_t m_last_stop_event_id{ AMD_DBGAPI_EVENT_NONE };
   visibility_t m_visibility{ visibility_t::visible };
   bool m_is_parked{ false };
 
@@ -196,6 +198,8 @@ private:
   xfer_local_memory (amd_dbgapi_segment_address_t segment_address, void *read,
                      const void *write, size_t *size);
 
+  void raise_event (amd_dbgapi_event_kind_t event_kind);
+
 public:
   wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t &dispatch,
           const callbacks_t &callbacks);
@@ -205,6 +209,10 @@ public:
   void set_visibility (visibility_t visibility);
 
   bool is_valid () const { return visibility () == visibility_t::visible; }
+
+  /* Return the last wave stop event, or nullptr if the event is already
+     processed and destroyed.  */
+  const event_t *last_stop_event () const;
 
   const wave_t &group_leader () const
   {

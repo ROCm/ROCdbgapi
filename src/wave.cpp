@@ -333,7 +333,6 @@ wave_t::update (const wave_t &group_leader,
                 std::unique_ptr<architecture_t::cwsr_descriptor_t> descriptor)
 {
   dbgapi_assert (queue ().is_suspended ());
-  process_t &process = this->process ();
 
   const bool first_update = !m_descriptor;
   m_descriptor = std::move (descriptor);
@@ -364,7 +363,7 @@ wave_t::update (const wave_t &group_leader,
         m_saved_pc = pc ();
 
       /* Reload the HW registers cache.  */
-      if (process.read_global_memory (
+      if (process ().read_global_memory (
               register_address (amdgpu_regnum_t::first_hwreg).value (),
               &m_hwregs_cache[0], sizeof (m_hwregs_cache))
           != AMD_DBGAPI_STATUS_SUCCESS)
@@ -372,11 +371,15 @@ wave_t::update (const wave_t &group_leader,
 
       architecture ().get_wave_state (*this, &m_state, &m_stop_reason);
 
-      if (m_state == AMD_DBGAPI_WAVE_STATE_STOP && m_stop_reason
-          && visibility () == visibility_t::visible)
+      if (visibility () == visibility_t::visible
+          && m_state == AMD_DBGAPI_WAVE_STATE_STOP)
         {
-          process.enqueue_event (process.create<event_t> (
-              process, AMD_DBGAPI_EVENT_KIND_WAVE_STOP, id ()));
+          /* FIXME: Right now we can't differentiate a wave halted because of
+             s_sethalt 1 from  a wave stopped because of a trap or an
+             exception.  Always raise a stop event so that the client visible
+             wave state is AMD_DBGAPI_WAVE_STATE_RUN/SINGLE_STEP until the
+             stop event is consumed.  */
+          raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
         }
     }
 }
@@ -410,11 +413,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
       if (is_endpgm)
         {
           terminate ();
-
-          process ().enqueue_event (process ().create<event_t> (
-              process (), AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED,
-              id ()));
-
+          raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED);
           return;
         }
     }
@@ -439,9 +438,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
 
       m_state = AMD_DBGAPI_WAVE_STATE_STOP;
       m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP;
-
-      process ().enqueue_event (process ().create<event_t> (
-          process (), AMD_DBGAPI_EVENT_KIND_WAVE_STOP, id ()));
+      raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
 
       /* We don't know where the PC may have landed after simulating the
          instruction, so park now since the wave is halted.  */
@@ -481,8 +478,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
       dbgapi_assert (visibility () == visibility_t::visible
                      && "cannot request a hidden wave to stop");
 
-      process ().enqueue_event (process ().create<event_t> (
-          process (), AMD_DBGAPI_EVENT_KIND_WAVE_STOP, id ()));
+      raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
     }
 
   /* If the wave was previously stopped, and is now unhalted, we need to commit
@@ -793,6 +789,26 @@ wave_t::xfer_segment_memory (const address_space_t &address_space,
       error ("xfer_segment_memory from address space `%s' not supported",
              address_space.name ().c_str ());
     }
+}
+
+void
+wave_t::raise_event (amd_dbgapi_event_kind_t event_kind)
+{
+  process_t &process = this->process ();
+  event_t &event = process.create<event_t> (process, event_kind, id ());
+
+  if (event_kind == AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED
+      || event_kind == AMD_DBGAPI_EVENT_KIND_WAVE_STOP)
+    m_last_stop_event_id = event.id ();
+
+  process.enqueue_event (event);
+}
+
+const event_t *
+wave_t::last_stop_event () const
+{
+  dbgapi_assert (state () == AMD_DBGAPI_WAVE_STATE_STOP);
+  return process ().find (m_last_stop_event_id);
 }
 
 amd_dbgapi_status_t
