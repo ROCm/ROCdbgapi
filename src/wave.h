@@ -253,6 +253,7 @@ public:
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }
 
+  amd_dbgapi_wave_state_t client_visible_state () const;
   amd_dbgapi_wave_state_t state () const { return m_state; }
   void set_state (amd_dbgapi_wave_state_t state);
 

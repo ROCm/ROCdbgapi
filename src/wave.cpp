@@ -811,6 +811,25 @@ wave_t::last_stop_event () const
   return process ().find (m_last_stop_event_id);
 }
 
+amd_dbgapi_wave_state_t
+wave_t::client_visible_state () const
+{
+  amd_dbgapi_wave_state_t state = this->state ();
+
+  if (state != AMD_DBGAPI_WAVE_STATE_STOP)
+    return state;
+
+  if (const event_t *event = last_stop_event ();
+      !event || event->state () >= event_t::state_t::reported)
+    return AMD_DBGAPI_WAVE_STATE_STOP;
+
+  /* If the wave is stopped, but the wave stop event has not yet been
+     reported to the client, return the last resumed state.  */
+  return (stop_reason () & AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP)
+             ? AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
+             : AMD_DBGAPI_WAVE_STATE_RUN;
+}
+
 amd_dbgapi_status_t
 wave_t::get_info (amd_dbgapi_wave_info_t query, size_t value_size,
                   void *value) const
@@ -818,10 +837,10 @@ wave_t::get_info (amd_dbgapi_wave_info_t query, size_t value_size,
   switch (query)
     {
     case AMD_DBGAPI_WAVE_INFO_STATE:
-      return utils::get_info (value_size, value, m_state);
+      return utils::get_info (value_size, value, client_visible_state ());
 
     case AMD_DBGAPI_WAVE_INFO_STOP_REASON:
-      return utils::get_info (value_size, value, m_stop_reason);
+      return utils::get_info (value_size, value, stop_reason ());
 
     case AMD_DBGAPI_WAVE_INFO_DISPATCH:
       return utils::get_info (value_size, value, dispatch ().id ());
@@ -979,7 +998,7 @@ amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
   if (!wave)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
 
-  if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
+  if (wave->client_visible_state () != AMD_DBGAPI_WAVE_STATE_STOP)
     return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED;
 
   if (resume_mode != AMD_DBGAPI_RESUME_MODE_NORMAL
@@ -1026,7 +1045,7 @@ amd_dbgapi_wave_get_info (amd_dbgapi_wave_id_t wave_id,
     case AMD_DBGAPI_WAVE_INFO_PC:
     case AMD_DBGAPI_WAVE_INFO_EXEC_MASK:
     case AMD_DBGAPI_WAVE_INFO_WATCHPOINTS:
-      if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
+      if (wave->client_visible_state () != AMD_DBGAPI_WAVE_STATE_STOP)
         return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED;
     default:
       break;
