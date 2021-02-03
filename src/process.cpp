@@ -1644,19 +1644,20 @@ process_t::get_info (amd_dbgapi_process_info_t query, size_t value_size,
 }
 
 void
-process_t::enqueue_event (const event_t &event)
+process_t::enqueue_event (event_t &event)
 {
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "reporting %s, %s",
               to_string (event.id ()).c_str (),
               event.pretty_printer_string ().c_str ());
 
   m_pending_events.emplace (&event);
+  event.set_state (event_t::state_t::queued);
 
   /* Notify the client that a new event is available.  */
   client_notifier_pipe ().mark ();
 }
 
-const event_t *
+event_t *
 process_t::next_pending_event ()
 {
   /* If we don't have any events left, we have to suspend the queues with
@@ -1775,7 +1776,7 @@ process_t::next_pending_event ()
 
   if (!m_pending_events.empty ())
     {
-      const event_t *event = m_pending_events.front ();
+      event_t *event = m_pending_events.front ();
       m_pending_events.pop ();
       return event;
     }

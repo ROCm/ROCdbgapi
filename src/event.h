@@ -35,8 +35,18 @@ class process_t;
 
 class event_t : public detail::handle_object<amd_dbgapi_event_id_t>
 {
+public:
+  enum class state_t
+  {
+    created,
+    queued,
+    reported,
+    processed
+  };
+
 private:
   amd_dbgapi_event_kind_t const m_event_kind;
+  state_t m_state{ state_t::created };
 
   /* Breakpoint resume event.  */
   struct breakpoint_resume_event_t
@@ -91,7 +101,8 @@ public:
 
   amd_dbgapi_event_kind_t kind () const { return m_event_kind; }
 
-  void set_processed ();
+  state_t state () const { return m_state; }
+  void set_state (state_t state);
 
   amd_dbgapi_status_t get_info (amd_dbgapi_event_info_t query,
                                 size_t value_size, void *value) const;

@@ -140,9 +140,14 @@ event_t::pretty_printer_string () const
 }
 
 void
-event_t::set_processed ()
+event_t::set_state (state_t state)
 {
-  if (kind () == AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED)
+  /* An event's state can only progress, the last state being 'processed', at
+     which point the event may be destroyed.  */
+  dbgapi_assert (state > m_state);
+
+  if (state == state_t::processed
+      && kind () == AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED)
     {
       amd_dbgapi_event_id_t event_id
           = std::get<code_object_list_updated_event_t> (m_data)
@@ -157,6 +162,8 @@ event_t::set_processed ()
           process ().enqueue_event (*breakpoint_resume_event);
         }
     }
+
+  m_state = state;
 }
 
 amd_dbgapi_status_t
@@ -223,7 +230,7 @@ amd_dbgapi_process_next_pending_event (amd_dbgapi_process_id_t process_id,
   if (!event_id || !kind)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
-  const event_t *event = nullptr;
+  event_t *event = nullptr;
 
   if (process_id != AMD_DBGAPI_PROCESS_NONE)
     {
@@ -241,8 +248,17 @@ amd_dbgapi_process_next_pending_event (amd_dbgapi_process_id_t process_id,
           break;
     }
 
-  *event_id = event ? event->id () : AMD_DBGAPI_EVENT_NONE;
-  *kind = event ? event->kind () : AMD_DBGAPI_EVENT_KIND_NONE;
+  if (!event)
+    {
+      *event_id = AMD_DBGAPI_EVENT_NONE;
+      *kind = AMD_DBGAPI_EVENT_KIND_NONE;
+    }
+  else
+    {
+      *event_id = event->id ();
+      *kind = event->kind ();
+      event->set_state (event_t::state_t::reported);
+    }
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
@@ -261,7 +277,7 @@ amd_dbgapi_event_get_info (amd_dbgapi_event_id_t event_id,
 
   event_t *event = find (event_id);
 
-  if (!event)
+  if (!event || event->state () < event_t::state_t::reported)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID;
 
   return event->get_info (query, value_size, value);
@@ -279,10 +295,10 @@ amd_dbgapi_event_processed (amd_dbgapi_event_id_t event_id)
 
   event_t *event = find (event_id);
 
-  if (!event)
+  if (!event || event->state () < event_t::state_t::reported)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID;
 
-  event->set_processed ();
+  event->set_state (event_t::state_t::processed);
 
   /* We are done with this event, remove it from the map.  */
   event->process ().destroy (event);

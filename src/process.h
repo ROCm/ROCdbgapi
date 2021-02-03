@@ -123,7 +123,7 @@ private:
   pipe_t m_client_notifier_pipe;
   pipe_t m_event_thread_exit_pipe;
 
-  std::queue<const event_t *> m_pending_events;
+  std::queue<event_t *> m_pending_events;
 
   /* Value used to mark queues that are reported by KFD. When sweeping, any
      queue found with a mark less than the current mark will be deleted, as
@@ -236,8 +236,8 @@ public:
   amd_dbgapi_status_t attach ();
   void detach ();
 
-  void enqueue_event (const event_t &event);
-  const event_t *next_pending_event ();
+  void enqueue_event (event_t &event);
+  event_t *next_pending_event ();
 
   size_t watchpoint_count () const;
   amd_dbgapi_watchpoint_share_kind_t watchpoint_shared_kind () const;
