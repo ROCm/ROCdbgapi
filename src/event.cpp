@@ -80,11 +80,6 @@ event_t::event_t (amd_dbgapi_event_id_t event_id, process_t &process,
       (event_kind == AMD_DBGAPI_EVENT_KIND_WAVE_STOP
        || event_kind == AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED)
       && "check event kind");
-
-  /* Check that the wave reporting a 'command terminated' event is hidden.  */
-  dbgapi_assert ((event_kind != AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED
-                  || !process.find (wave_id))
-                 && "wave should be terminated");
 }
 
 std::string
@@ -96,26 +91,26 @@ event_t::pretty_printer_string () const
       return "null event";
 
     case AMD_DBGAPI_EVENT_KIND_WAVE_STOP:
+    case AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED:
       {
         wave_t *wave
             = process ().find (std::get<wave_event_t> (m_data).wave_id);
         if (!wave)
           return string_printf (
-              "EVENT_KIND_WAVE_STOP for terminated %s",
+              "%s for terminated %s", to_string (kind ()).c_str (),
               to_string (std::get<wave_event_t> (m_data).wave_id).c_str ());
-        else
-          return string_printf ("EVENT_KIND_WAVE_STOP for %s on %s "
-                                "(pc=%#lx, stop_reason=%s)",
-                                to_string (wave->id ()).c_str (),
-                                to_string (wave->queue ().id ()).c_str (),
-                                wave->pc (),
-                                to_string (wave->stop_reason ()).c_str ());
-      }
 
-    case AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED:
-      return string_printf (
-          "EVENT_KIND_WAVE_COMMAND_TERMINATED for terminated %s",
-          to_string (std::get<wave_event_t> (m_data).wave_id).c_str ());
+        std::string stop_reason_str;
+        if (kind () == AMD_DBGAPI_EVENT_KIND_WAVE_STOP)
+          stop_reason_str = string_printf (
+              ", stop_reason=%s", to_string (wave->stop_reason ()).c_str ());
+
+        return string_printf (
+                   "%s for %s on %s (pc=%#lx", to_string (kind ()).c_str (),
+                   to_string (wave->id ()).c_str (),
+                   to_string (wave->queue ().id ()).c_str (), wave->pc ())
+               + stop_reason_str + ")";
+      }
 
     case AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED:
       return "EVENT_KIND_CODE_OBJECT_LIST_UPDATED";
