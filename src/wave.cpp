@@ -532,11 +532,9 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
              > architecture ().register_size (regnum).value ())
     throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
-  if (regnum == amdgpu_regnum_t::null)
-    {
-      memset (static_cast<char *> (value) + offset, '\0', value_size);
-      return;
-    }
+  if (regnum >= amdgpu_regnum_t::first_pseudo
+      && regnum <= amdgpu_regnum_t::last_pseudo)
+    return read_pseudo_register (regnum, offset, value_size, value);
 
   if (m_is_parked && regnum == amdgpu_regnum_t::pc)
     {
@@ -583,8 +581,9 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
              > architecture ().register_size (regnum).value ())
     throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
-  if (regnum == amdgpu_regnum_t::null)
-    return;
+  if (regnum >= amdgpu_regnum_t::first_pseudo
+      && regnum <= amdgpu_regnum_t::last_pseudo)
+    return write_pseudo_register (regnum, offset, value_size, value);
 
   if (m_is_parked && regnum == amdgpu_regnum_t::pc)
     {

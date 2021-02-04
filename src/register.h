@@ -128,9 +128,13 @@ enum class amdgpu_regnum_t : uint32_t
 
   lds_0, /* First dword of the LDS backing store.  */
 
+  first_pseudo = lds_0 + 1,
+
+  pseudo_status = first_pseudo, /* The client visible status register.  */
   null, /* Special register: read returns 0, write is ignored.  */
 
-  last_regnum = null
+  last_pseudo = null,
+  last_regnum = last_pseudo
 };
 
 constexpr size_t

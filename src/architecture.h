@@ -293,6 +293,14 @@ public:
   register_address (const cwsr_descriptor_t &descriptor,
                     amdgpu_regnum_t regnum) const = 0;
 
+  virtual void read_pseudo_register (const wave_t &wave,
+                                     amdgpu_regnum_t regnum, size_t offset,
+                                     size_t value_size, void *value) const = 0;
+
+  virtual void write_pseudo_register (wave_t &wave, amdgpu_regnum_t regnum,
+                                      size_t offset, size_t value_size,
+                                      const void *value) const = 0;
+
   amd_dbgapi_status_t instruction_size (const void *memory,
                                         size_t *size) const;
   size_t instruction_size (const std::vector<uint8_t> &bytes) const;

@@ -183,6 +183,15 @@ public:
   virtual std::vector<os_watch_id_t>
   triggered_watchpoints (const wave_t &wave) const override;
 
+  virtual void read_pseudo_register (const wave_t &wave,
+                                     amdgpu_regnum_t regnum, size_t offset,
+                                     size_t value_size,
+                                     void *value) const override;
+
+  virtual void write_pseudo_register (wave_t &wave, amdgpu_regnum_t regnum,
+                                      size_t offset, size_t value_size,
+                                      const void *value) const override;
+
   virtual void get_wave_coords (wave_t &wave,
                                 std::array<uint32_t, 3> &group_ids,
                                 uint32_t *wave_in_group) const override;
@@ -380,7 +389,8 @@ amdgcn_architecture_t::initialize ()
   register_class_t::register_map_t system_registers;
 
   system_registers.emplace (amdgpu_regnum_t::m0, amdgpu_regnum_t::m0);
-  system_registers.emplace (amdgpu_regnum_t::status, amdgpu_regnum_t::status);
+  system_registers.emplace (amdgpu_regnum_t::pseudo_status,
+                            amdgpu_regnum_t::pseudo_status);
   system_registers.emplace (amdgpu_regnum_t::mode, amdgpu_regnum_t::mode);
   system_registers.emplace (amdgpu_regnum_t::trapsts,
                             amdgpu_regnum_t::trapsts);
@@ -1598,6 +1608,98 @@ amdgcn_architecture_t::watchpoint_mode (
   return {};
 }
 
+void
+amdgcn_architecture_t::read_pseudo_register (const wave_t &wave,
+                                             amdgpu_regnum_t regnum,
+                                             size_t offset, size_t value_size,
+                                             void *value) const
+{
+  dbgapi_assert (regnum >= amdgpu_regnum_t::first_pseudo
+                 && regnum <= amdgpu_regnum_t::last_pseudo);
+
+  if (regnum == amdgpu_regnum_t::null)
+    {
+      memset (static_cast<char *> (value) + offset, '\0', value_size);
+      return;
+    }
+
+  if (regnum == amdgpu_regnum_t::pseudo_status)
+    {
+      /* pseudo_status is a composite of: sq_wave_status[31:14], ttmp11[9]
+         (halt), sq_wave_status [12:6], 0[0] (priv), sq_wave_status [4:0].  */
+
+      uint32_t ttmp11, status_reg;
+
+      wave.read_register (amdgpu_regnum_t::status, &status_reg);
+      wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
+
+      status_reg &= ~(sq_wave_status_priv_mask | sq_wave_status_halt_mask);
+      if (ttmp11 & ttmp11_saved_status_halt_mask)
+        status_reg |= sq_wave_status_halt_mask;
+
+      memcpy (static_cast<char *> (value) + offset,
+              reinterpret_cast<const char *> (&status_reg) + offset,
+              value_size);
+      return;
+    }
+
+  error ("unhandled pseudo register %s",
+         register_name (regnum).value ().c_str ());
+}
+
+void
+amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
+                                              amdgpu_regnum_t regnum,
+                                              size_t offset, size_t value_size,
+                                              const void *value) const
+{
+  dbgapi_assert (regnum >= amdgpu_regnum_t::first_pseudo
+                 && regnum <= amdgpu_regnum_t::last_pseudo);
+
+  if (regnum == amdgpu_regnum_t::null)
+    /* Writing to null is a no-op.  */
+    return;
+
+  if (regnum == amdgpu_regnum_t::pseudo_status)
+    {
+      /* pseudo_status is a composite of: status[31:14], ttmp11[9] (halt),
+         status [12:6], 0[0] (priv), status [4:0].  */
+
+      uint32_t prev_status_reg, status_reg, ttmp11;
+
+      /* Only some fields of the status register are writable.  */
+      constexpr uint32_t writable_fields_mask
+          = utils::bit_mask (0, 4)      /* scc, spi_prio, user_prio  */
+            | utils::bit_mask (8, 8)    /* export_rdy  */
+            | utils::bit_mask (13, 13)  /* halt  */
+            | utils::bit_mask (17, 18)  /* ecc_err, skip_export  */
+            | utils::bit_mask (20, 21)  /* cond_dbg_user, cond_dbg_sys  */
+            | utils::bit_mask (27, 27); /* must_export  */
+
+      wave.read_register (amdgpu_regnum_t::status, &prev_status_reg);
+      wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
+
+      status_reg = prev_status_reg;
+      memcpy (reinterpret_cast<char *> (&status_reg) + offset,
+              static_cast<const char *> (value) + offset, value_size);
+
+      /* We should only modify the writable bits.  */
+      status_reg = (status_reg & writable_fields_mask)
+                   | (prev_status_reg & ~writable_fields_mask);
+
+      ttmp11 &= ~ttmp11_saved_status_halt_mask;
+      if (status_reg & sq_wave_status_halt_mask)
+        ttmp11 |= ttmp11_saved_status_halt_mask;
+
+      wave.write_register (amdgpu_regnum_t::status, &status_reg);
+      wave.write_register (amdgpu_regnum_t::ttmp11, &ttmp11);
+      return;
+    }
+
+  error ("unhandled pseudo register %s",
+         register_name (regnum).value ().c_str ());
+}
+
 /* Base class for all GFX9 architectures.  */
 
 class gfx9_base_t : public amdgcn_architecture_t
@@ -1765,8 +1867,9 @@ std::optional<amd_dbgapi_global_address_t>
 gfx9_base_t::register_address (const cwsr_descriptor_t &descriptor,
                                amdgpu_regnum_t regnum) const
 {
-  if (regnum == amdgpu_regnum_t::null)
-    return 0;
+  if (regnum >= amdgpu_regnum_t::first_pseudo
+      && regnum <= amdgpu_regnum_t::last_pseudo)
+    return amd_dbgapi_global_address_t{};
 
   size_t lane_count = wave_get_info (descriptor, wave_info_t::lane_count);
   amd_dbgapi_global_address_t save_area_addr
@@ -2552,6 +2655,7 @@ architecture_t::register_name (amdgpu_regnum_t regnum) const
       return "pc";
     case amdgpu_regnum_t::m0:
       return "m0";
+    case amdgpu_regnum_t::pseudo_status:
     case amdgpu_regnum_t::status:
       return "status";
     case amdgpu_regnum_t::trapsts:
@@ -2665,6 +2769,7 @@ architecture_t::register_type (amdgpu_regnum_t regnum) const
     case amdgpu_regnum_t::dispatch_grid_y:
     case amdgpu_regnum_t::dispatch_grid_z:
     case amdgpu_regnum_t::scratch_offset:
+    case amdgpu_regnum_t::pseudo_status:
     case amdgpu_regnum_t::null:
       return "uint32_t";
 
@@ -2747,6 +2852,7 @@ architecture_t::register_size (amdgpu_regnum_t regnum) const
     case amdgpu_regnum_t::dispatch_grid_y:
     case amdgpu_regnum_t::dispatch_grid_z:
     case amdgpu_regnum_t::scratch_offset:
+    case amdgpu_regnum_t::pseudo_status:
     case amdgpu_regnum_t::null:
       return sizeof (uint32_t);
 

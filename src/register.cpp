@@ -104,7 +104,7 @@ amdgpu_regnum_to_dwarf_register (amdgpu_regnum_t regnum)
       /* Scalar registers 0-63.  */
       return 32 + (regnum - amdgpu_regnum_t::first_sgpr);
     }
-  else if (regnum == amdgpu_regnum_t::status)
+  else if (regnum == amdgpu_regnum_t::pseudo_status)
     {
       return 128;
     }
@@ -173,7 +173,7 @@ dwarf_register_to_amdgpu_regnum (uint64_t dwarf_register)
     }
   else if (dwarf_register == 128)
     {
-      return amdgpu_regnum_t::status;
+      return amdgpu_regnum_t::pseudo_status;
     }
   else if (dwarf_register == 512)
     {
