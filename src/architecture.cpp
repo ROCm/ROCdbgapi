@@ -366,11 +366,15 @@ amdgcn_architecture_t::initialize ()
     }
   create<register_class_t> (*this, "vector", vector_registers);
 
-  /* System registers: [ttmps, hwregs, flat_scratch, xnack_mask, vcc]  */
-  register_class_t::register_map_t system_registers;
+  /* Trap temporary registers: [ttmp4-ttmp11, ttmp13]  */
+  register_class_t::register_map_t trap_registers;
 
-  system_registers.emplace (amdgpu_regnum_t::ttmp4, amdgpu_regnum_t::ttmp11);
-  system_registers.emplace (amdgpu_regnum_t::ttmp13, amdgpu_regnum_t::ttmp13);
+  trap_registers.emplace (amdgpu_regnum_t::ttmp4, amdgpu_regnum_t::ttmp11);
+  trap_registers.emplace (amdgpu_regnum_t::ttmp13, amdgpu_regnum_t::ttmp13);
+  create<register_class_t> (*this, "trap", trap_registers);
+
+  /* System registers: [hwregs, flat_scratch, xnack_mask, vcc]  */
+  register_class_t::register_map_t system_registers;
 
   system_registers.emplace (amdgpu_regnum_t::m0, amdgpu_regnum_t::m0);
   system_registers.emplace (amdgpu_regnum_t::status, amdgpu_regnum_t::status);
