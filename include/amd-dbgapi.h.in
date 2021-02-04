@@ -473,10 +473,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_42
 
 /**
- * The function was introduced in version 0.43 of the interface and has the
+ * The function was introduced in version 0.44 of the interface and has the
  * symbol version string of ``"@AMD_DBGAPI_NAME@_0.43"``.
  */
-#define AMD_DBGAPI_VERSION_0_43
+#define AMD_DBGAPI_VERSION_0_44
 
 /** @} */
 
@@ -3491,7 +3491,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_resume (
     amd_dbgapi_wave_id_t wave_id,
-    amd_dbgapi_resume_mode_t resume_mode) AMD_DBGAPI_VERSION_0_43;
+    amd_dbgapi_resume_mode_t resume_mode) AMD_DBGAPI_VERSION_0_44;
 
 /** @} */
 
@@ -3748,7 +3748,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_get_info (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_start (
     amd_dbgapi_wave_id_t wave_id, const void *saved_instruction_bytes,
     amd_dbgapi_displaced_stepping_id_t *displaced_stepping)
-    AMD_DBGAPI_VERSION_0_43;
+    AMD_DBGAPI_VERSION_0_44;
 
 /**
  * Complete a displaced stepping buffer for a wave.
@@ -4288,7 +4288,12 @@ typedef enum
    * is allocated by the amd_dbgapi_callbacks_s::allocate_memory callback and
    * is owned by the client.
    */
-  AMD_DBGAPI_REGISTER_INFO_TYPE = 4
+  AMD_DBGAPI_REGISTER_INFO_TYPE = 4,
+  /**
+   * Return the AMD GPU DWARF register number for the register's architecture.
+   * The type of this attribute is \p uint64_t.
+   */
+  AMD_DBGAPI_REGISTER_INFO_DWARF = 5
 } amd_dbgapi_register_info_t;
 
 /**
@@ -4332,7 +4337,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_get_info (
     amd_dbgapi_register_id_t register_id, amd_dbgapi_register_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_41;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_44;
 
 /**
  * Indication of if a wave has a register.
@@ -4853,7 +4858,12 @@ typedef enum
    * See [User Guide for AMDGPU Backend - Code Object - DWARF - Address Class
    * Mapping] (https://llvm.org/docs/AMDGPUUsage.html#address-class-mapping).
    */
-  AMD_DBGAPI_ADDRESS_CLASS_INFO_ADDRESS_SPACE = 3
+  AMD_DBGAPI_ADDRESS_CLASS_INFO_ADDRESS_SPACE = 3,
+  /**
+   * Return the AMD GPU DWARF address class number for the address class'
+   * architecture.  The type of this attribute is \p uint64_t.
+   */
+  AMD_DBGAPI_ADDRESS_CLASS_INFO_DWARF = 4
 } amd_dbgapi_address_class_info_t;
 
 /**
@@ -4898,7 +4908,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_class_get_info (
     amd_dbgapi_address_class_id_t address_class_id,
     amd_dbgapi_address_class_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_41;
+    void *value) AMD_DBGAPI_VERSION_0_44;
 
 /**
  * Report the list of source language address classes supported by the
@@ -5073,7 +5083,12 @@ typedef enum
    * Return the address space access.  The type of this attribute is \p
    * uint32_t with values defined by ::amd_dbgapi_address_space_access_t.
    */
-  AMD_DBGAPI_ADDRESS_SPACE_INFO_ACCESS = 5
+  AMD_DBGAPI_ADDRESS_SPACE_INFO_ACCESS = 5,
+  /**
+   * Return the AMD GPU DWARF address space number for the address space's
+   * architecture. The type of this attribute is \p uint64_t.
+   */
+  AMD_DBGAPI_ADDRESS_SPACE_INFO_DWARF = 6
 } amd_dbgapi_address_space_info_t;
 
 /**
@@ -5117,7 +5132,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_space_get_info (
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_address_space_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_41;
+    void *value) AMD_DBGAPI_VERSION_0_44;
 
 /**
  * Report the list of address spaces supported by the architecture.

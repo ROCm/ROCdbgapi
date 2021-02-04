@@ -47,6 +47,9 @@ address_class_t::get_info (amd_dbgapi_address_class_info_t query,
 
     case AMD_DBGAPI_ADDRESS_CLASS_INFO_ADDRESS_SPACE:
       return utils::get_info (value_size, value, m_address_space.id ());
+
+    case AMD_DBGAPI_ADDRESS_CLASS_INFO_DWARF:
+      return utils::get_info (value_size, value, dwarf_value ());
     }
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }
@@ -71,6 +74,9 @@ address_space_t::get_info (amd_dbgapi_address_space_info_t query,
 
     case AMD_DBGAPI_ADDRESS_SPACE_INFO_ACCESS:
       return utils::get_info (value_size, value, m_access);
+
+    case AMD_DBGAPI_ADDRESS_SPACE_INFO_DWARF:
+      return utils::get_info (value_size, value, dwarf_value ());
     }
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }

@@ -708,6 +708,7 @@ to_string (amd_dbgapi_register_info_t register_info)
       CASE (REGISTER_INFO_NAME);
       CASE (REGISTER_INFO_SIZE);
       CASE (REGISTER_INFO_TYPE);
+      CASE (REGISTER_INFO_DWARF);
     }
   return to_string (make_hex (register_info));
 }
@@ -745,6 +746,7 @@ to_string (amd_dbgapi_address_class_info_t address_class_info)
       CASE (ADDRESS_CLASS_INFO_ARCHITECTURE);
       CASE (ADDRESS_CLASS_INFO_NAME);
       CASE (ADDRESS_CLASS_INFO_ADDRESS_SPACE);
+      CASE (ADDRESS_CLASS_INFO_DWARF);
     }
   return to_string (make_hex (address_class_info));
 }
@@ -773,6 +775,7 @@ to_string (amd_dbgapi_address_space_info_t address_space_info)
       CASE (ADDRESS_SPACE_INFO_ADDRESS_SIZE);
       CASE (ADDRESS_SPACE_INFO_NULL_ADDRESS);
       CASE (ADDRESS_SPACE_INFO_ACCESS);
+      CASE (ADDRESS_SPACE_INFO_DWARF);
     }
   return to_string (make_hex (address_space_info));
 }
