@@ -372,15 +372,9 @@ wave_t::update (const wave_t &group_leader,
       architecture ().get_wave_state (*this, &m_state, &m_stop_reason);
 
       if (visibility () == visibility_t::visible
-          && m_state == AMD_DBGAPI_WAVE_STATE_STOP)
-        {
-          /* FIXME: Right now we can't differentiate a wave halted because of
-             s_sethalt 1 from  a wave stopped because of a trap or an
-             exception.  Always raise a stop event so that the client visible
-             wave state is AMD_DBGAPI_WAVE_STATE_RUN/SINGLE_STEP until the
-             stop event is consumed.  */
-          raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
-        }
+          && m_state == AMD_DBGAPI_WAVE_STATE_STOP
+          && m_stop_reason != AMD_DBGAPI_WAVE_STOP_REASON_NONE)
+        raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
     }
 }
 
@@ -434,21 +428,22 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
       if (m_is_parked)
         unpark ();
 
-      architecture ().simulate_instruction (
-          *this, m_displaced_stepping->from (),
-          m_displaced_stepping->original_instruction ());
+      if (architecture ().simulate_instruction (
+              *this, m_displaced_stepping->from (),
+              m_displaced_stepping->original_instruction ()))
+        {
+          m_state = AMD_DBGAPI_WAVE_STATE_STOP;
+          m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP;
+          raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
 
-      m_state = AMD_DBGAPI_WAVE_STATE_STOP;
-      m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP;
-      raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
+          /* We don't know where the PC may have landed after simulating the
+             instruction, so park now since the wave is halted.  */
+          if (!architecture ().can_halt_at (instruction_at_pc ()))
+            park ();
 
-      /* We don't know where the PC may have landed after simulating the
-         instruction, so park now since the wave is halted.  */
-      if (!architecture ().can_halt_at (instruction_at_pc ()))
-        park ();
-
-      /* No need to flush the register cache, the wave is still halted.  */
-      return;
+          /* No need to flush the register cache, the wave is still halted.  */
+          return;
+        }
     }
 
   architecture ().set_wave_state (*this, state);

@@ -272,7 +272,7 @@ protected:
   classify_instruction (const std::vector<uint8_t> &instruction,
                         amd_dbgapi_global_address_t address) const override;
 
-  virtual void simulate_instruction (
+  virtual bool simulate_instruction (
       wave_t &wave, amd_dbgapi_global_address_t pc,
       const std::vector<uint8_t> &instruction) const override;
 };
@@ -926,13 +926,20 @@ amdgcn_architecture_t::classify_instruction (
   return { instruction_kind, size, std::move (properties) };
 }
 
-void
+bool
 amdgcn_architecture_t::simulate_instruction (
     wave_t &wave, amd_dbgapi_global_address_t pc,
     const std::vector<uint8_t> &instruction) const
 {
   dbgapi_assert (wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
                  && "wave must be stopped to simulate instructions");
+
+  uint32_t ttmp11;
+  wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
+
+  /* Don't simulate the instruction if the wave is halted.  */
+  if (ttmp11 & ttmp11_saved_status_halt_mask)
+    return false;
 
   amd_dbgapi_global_address_t new_pc;
 
@@ -943,7 +950,7 @@ amdgcn_architecture_t::simulate_instruction (
   else if (is_endpgm (instruction))
     {
       wave.terminate ();
-      return;
+      return true;
     }
   else if (is_branch (instruction) || is_cbranch (instruction))
     {
@@ -1051,6 +1058,8 @@ amdgcn_architecture_t::simulate_instruction (
       }()
           .c_str (),
       pc);
+
+  return true;
 }
 
 void
@@ -1080,13 +1089,13 @@ amdgcn_architecture_t::get_wave_state (
 {
   dbgapi_assert (state && stop_reason && "Invalid parameter");
 
-  uint32_t status_reg, mode_reg;
-  wave.read_register (amdgpu_regnum_t::status, &status_reg);
+  uint32_t ttmp11, mode_reg;
+  wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
   wave.read_register (amdgpu_regnum_t::mode, &mode_reg);
 
   amd_dbgapi_wave_state_t saved_state = wave.state ();
 
-  *state = (status_reg & sq_wave_status_halt_mask)
+  *state = (ttmp11 & ttmp11_wave_stopped_mask)
                ? AMD_DBGAPI_WAVE_STATE_STOP
                : ((mode_reg & sq_wave_mode_debug_en_mask)
                       ? AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
@@ -1112,12 +1121,8 @@ amdgcn_architecture_t::get_wave_state (
                 ? AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP
                 : AMD_DBGAPI_WAVE_STOP_REASON_NONE;
 
-      uint32_t trapsts, ttmp11;
+      uint32_t trapsts;
       wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
-      wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
-
-      bool trap_raised = (ttmp11 & ttmp11_wave_stopped_mask) != 0
-                         && ttmp11_saved_trap_id (ttmp11) != 0;
 
       amd_dbgapi_global_address_t pc = wave.pc ();
 
@@ -1143,6 +1148,8 @@ amdgcn_architecture_t::get_wave_state (
 
       auto instruction = wave.instruction_at_pc ();
 
+      uint8_t trap_id = ttmp11_saved_trap_id (ttmp11);
+
       /* Check for spurious single-step events. A context save/restore before
          executing the single-stepped instruction could have caused the event
          to be reported with the wave halted at the instruction instead of
@@ -1150,7 +1157,7 @@ amdgcn_architecture_t::get_wave_state (
          the instruction is executed.  */
       bool ignore_single_step_event
           = saved_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
-            && wave.saved_pc () == pc && !trap_raised;
+            && wave.saved_pc () == pc && trap_id == 0;
 
       if (instruction && ignore_single_step_event)
         {
@@ -1177,21 +1184,21 @@ amdgcn_architecture_t::get_wave_state (
 
       if (ignore_single_step_event)
         {
-          /* Place the wave back into single-stepping state.  */
-          wave.set_state (AMD_DBGAPI_WAVE_STATE_SINGLE_STEP);
-
           dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
                       "%s (pc=%#lx) ignore spurious single-step",
                       to_string (wave.id ()).c_str (), pc);
+
+          /* Place the wave back into single-stepping state.  */
+          wave.set_state (AMD_DBGAPI_WAVE_STATE_SINGLE_STEP);
 
           *state = wave.state ();
           *stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
 
           return;
         }
-      else if (trap_raised)
+      else if (trap_id != 0)
         {
-          switch (ttmp11_saved_trap_id (ttmp11))
+          switch (trap_id)
             {
             case 1:
               reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_DEBUG_TRAP;
@@ -1245,26 +1252,54 @@ void
 amdgcn_architecture_t::set_wave_state (wave_t &wave,
                                        amd_dbgapi_wave_state_t state) const
 {
-  uint32_t status_reg, mode_reg;
+  uint32_t status_reg, mode_reg, ttmp11;
 
   wave.read_register (amdgpu_regnum_t::status, &status_reg);
   wave.read_register (amdgpu_regnum_t::mode, &mode_reg);
+  wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
 
   switch (state)
     {
     case AMD_DBGAPI_WAVE_STATE_STOP:
+      /* Put the wave in the stop state (ttmp11.wave_stopped=1), save
+         status.halt in ttm11.saved_status_halt, and halt the wave
+         (status.halt=1).  */
+      ttmp11 &= ~(ttmp11_wave_stopped_mask | ttmp11_saved_status_halt_mask
+                  | ttmp11_saved_trap_id_mask);
+
+      if (status_reg & sq_wave_status_halt_mask)
+        ttmp11 |= ttmp11_saved_status_halt_mask;
+      ttmp11 |= ttmp11_wave_stopped_mask;
+
       mode_reg &= ~sq_wave_mode_debug_en_mask;
+
       status_reg |= sq_wave_status_halt_mask;
       break;
 
     case AMD_DBGAPI_WAVE_STATE_RUN:
+      /* Restore status.halt from ttmp11.saved_status_halt, put the wave in the
+         run state (ttmp11.wave_stopped=0), and set mode.debug_en=0.  */
       mode_reg &= ~sq_wave_mode_debug_en_mask;
+
       status_reg &= ~sq_wave_status_halt_mask;
+      if (ttmp11 & ttmp11_saved_status_halt_mask)
+        status_reg |= sq_wave_status_halt_mask;
+
+      ttmp11 &= ~(ttmp11_wave_stopped_mask | ttmp11_saved_status_halt_mask
+                  | ttmp11_saved_trap_id_mask);
       break;
 
     case AMD_DBGAPI_WAVE_STATE_SINGLE_STEP:
+      /* Restore status.halt from ttmp11.saved_status_halt, put the wave in the
+         run state (ttmp11.wave_stopped=0), and set mode.debug_en=1.  */
       mode_reg |= sq_wave_mode_debug_en_mask;
+
       status_reg &= ~sq_wave_status_halt_mask;
+      if (ttmp11 & ttmp11_saved_status_halt_mask)
+        status_reg |= sq_wave_status_halt_mask;
+
+      ttmp11 &= ~(ttmp11_wave_stopped_mask | ttmp11_saved_status_halt_mask
+                  | ttmp11_saved_trap_id_mask);
       break;
 
     default:
@@ -1273,28 +1308,22 @@ amdgcn_architecture_t::set_wave_state (wave_t &wave,
 
   wave.write_register (amdgpu_regnum_t::status, &status_reg);
   wave.write_register (amdgpu_regnum_t::mode, &mode_reg);
+  wave.write_register (amdgpu_regnum_t::ttmp11, &ttmp11);
 
-  /* If resuming the wave (run or single-step), clear the trap handler events
-     in ttmp11 and the watchpoint exceptions in trapsts.  */
-  if (state != AMD_DBGAPI_WAVE_STATE_STOP)
+  /* If resuming the wave (run or single-step), clear the watchpoint exceptions
+     in trapsts.  */
+  if (state != AMD_DBGAPI_WAVE_STATE_STOP
+      && wave.stop_reason () & AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT)
     {
-      uint32_t ttmp11;
-      wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
-      ttmp11 &= ~ttmp11_wave_stopped_mask;
-      wave.write_register (amdgpu_regnum_t::ttmp11, &ttmp11);
+      uint32_t trapsts;
+      wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
 
-      if (wave.stop_reason () & AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT)
-        {
-          uint32_t trapsts;
-          wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
+      trapsts &= ~(sq_wave_trapsts_excp_addr_watch0_mask
+                   | sq_wave_trapsts_excp_hi_addr_watch1_mask
+                   | sq_wave_trapsts_excp_hi_addr_watch2_mask
+                   | sq_wave_trapsts_excp_hi_addr_watch3_mask);
 
-          trapsts &= ~(sq_wave_trapsts_excp_addr_watch0_mask
-                       | sq_wave_trapsts_excp_hi_addr_watch1_mask
-                       | sq_wave_trapsts_excp_hi_addr_watch2_mask
-                       | sq_wave_trapsts_excp_hi_addr_watch3_mask);
-
-          wave.write_register (amdgpu_regnum_t::trapsts, &trapsts);
-        }
+      wave.write_register (amdgpu_regnum_t::trapsts, &trapsts);
     }
 }
 

@@ -220,7 +220,7 @@ public:
   classify_instruction (const std::vector<uint8_t> &instruction,
                         amd_dbgapi_global_address_t address) const = 0;
 
-  virtual void
+  virtual bool
   simulate_instruction (wave_t &wave, amd_dbgapi_global_address_t pc,
                         const std::vector<uint8_t> &instruction) const = 0;
 
