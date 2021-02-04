@@ -44,8 +44,8 @@
 namespace amd::dbgapi
 {
 
-constexpr uint32_t sq_wave_status_halt_mask = utils::bit_mask (13, 13);
-constexpr uint32_t ttmp11_trap_handler_events_mask = utils::bit_mask (7, 8);
+static constexpr uint32_t sq_wave_status_halt_mask = utils::bit_mask (13, 13);
+static constexpr uint32_t ttmp11_wave_stopped_mask = utils::bit_mask (7, 7);
 
 /* Base class for all queue implementations.  */
 
@@ -375,7 +375,7 @@ aql_queue_impl_t::update_waves ()
                 != AMD_DBGAPI_STATUS_SUCCESS)
               error ("Could not read the 'status' register");
 
-            const bool halted = !!(status_reg & sq_wave_status_halt_mask);
+            const bool halted = (status_reg & sq_wave_status_halt_mask) != 0;
 
             const amd_dbgapi_global_address_t ttmp11_address
                 = architecture
@@ -388,14 +388,11 @@ aql_queue_impl_t::update_waves ()
                 != AMD_DBGAPI_STATUS_SUCCESS)
               error ("Could not read the 'ttmp1' register");
 
-            /* trap_handler_events is true if the trap handler was entered
-               because of a trap instruction or an exception.  */
-            const bool trap_handler_events
-                = !!(ttmp11 & ttmp11_trap_handler_events_mask);
+            const bool stopped = (ttmp11 & ttmp11_wave_stopped_mask) != 0;
 
-            /* Waves halted at launch do not have trap handler events).  */
+            /* Waves halted at launch are halted but not stopped.  */
             if (process.wave_launch_mode () == os_wave_launch_mode_t::halt
-                && halted && !trap_handler_events)
+                && halted && !stopped)
               visibility = wave_t::visibility_t::hidden_halted_at_launch;
           }
       }

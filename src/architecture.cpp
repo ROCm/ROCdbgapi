@@ -90,12 +90,15 @@ protected:
   static constexpr uint32_t sq_wave_status_cond_dbg_sys_mask = 1 << 21;
 
   static constexpr uint32_t ttmp11_wave_in_group_mask = 0x003f;
-  static constexpr uint32_t ttmp11_trap_handler_trap_raised_mask = 1 << 7;
-  static constexpr uint32_t ttmp11_trap_handler_excp_raised_mask = 1 << 8;
-  static constexpr uint32_t ttmp11_trap_handler_halted_at_s_endpgm = 1 << 9;
-  static constexpr uint32_t ttmp11_trap_handler_events_mask
-      = (ttmp11_trap_handler_trap_raised_mask
-         | ttmp11_trap_handler_excp_raised_mask);
+  static constexpr uint32_t ttmp11_wave_stopped_mask = 1 << 7;
+  static constexpr uint32_t ttmp11_halted_at_s_endpgm_mask = 1 << 8;
+  static constexpr uint32_t ttmp11_saved_status_halt_mask = 1 << 9;
+  static constexpr uint32_t ttmp11_saved_trap_id_mask
+      = utils::bit_mask (10, 17);
+  static constexpr uint32_t ttmp11_saved_trap_id (uint32_t x)
+  {
+    return utils::bit_extract (x, 10, 17);
+  }
 
   static constexpr uint32_t sq_wave_mode_debug_en_mask = 1 << 11;
   static constexpr uint32_t sq_wave_mode_excp_en_invalid_mask = 1 << 12;
@@ -1093,14 +1096,6 @@ amdgcn_architecture_t::get_wave_state (
     {
       /* The wave is running, there is no stop reason.  */
       *stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
-
-      dbgapi_assert ([&wave] () {
-        uint32_t ttmp11;
-        wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
-        return !(ttmp11 & ttmp11_trap_handler_events_mask);
-      }()
-                     && "Waves should not have trap handler events while "
-                        "running. These are reset when unhalting the wave.");
     }
   else if (saved_state == AMD_DBGAPI_WAVE_STATE_STOP)
     {
@@ -1121,14 +1116,12 @@ amdgcn_architecture_t::get_wave_state (
       wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
       wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
 
-      bool trap_raised = !!(ttmp11 & ttmp11_trap_handler_trap_raised_mask);
-      /* bool excp_raised
-             = !!(ttmp11 & TTMP11_TRAP_HANDLER_EXCP_RAISED_MASK);
-       */
+      bool trap_raised = (ttmp11 & ttmp11_wave_stopped_mask) != 0
+                         && ttmp11_saved_trap_id (ttmp11) != 0;
 
       amd_dbgapi_global_address_t pc = wave.pc ();
 
-      if ((ttmp11 & ttmp11_trap_handler_halted_at_s_endpgm)
+      if ((ttmp11 & ttmp11_halted_at_s_endpgm_mask)
           || ((trapsts & sq_wave_trapsts_excp_mem_viol_mask
                || trapsts & sq_wave_trapsts_illegal_inst_mask)
               /* FIXME: If the wave was single-stepping when the exception
@@ -1198,18 +1191,7 @@ amdgcn_architecture_t::get_wave_state (
         }
       else if (trap_raised)
         {
-          uint8_t trap_id = 0;
-
-          if (instruction && !is_trap (*instruction, &trap_id))
-            {
-              /* FIXME: We should be getting the stop reason from the trap
-                 handler.  As a workaround, assume the the trap_id is of a
-                 breakpoint instruction, that could have been removed by the
-                 debugger since the trap was raised.  */
-              trap_id = 7;
-            }
-
-          switch (trap_id)
+          switch (ttmp11_saved_trap_id (ttmp11))
             {
             case 1:
               reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_DEBUG_TRAP;
@@ -1298,7 +1280,7 @@ amdgcn_architecture_t::set_wave_state (wave_t &wave,
     {
       uint32_t ttmp11;
       wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
-      ttmp11 &= ~ttmp11_trap_handler_events_mask;
+      ttmp11 &= ~ttmp11_wave_stopped_mask;
       wave.write_register (amdgpu_regnum_t::ttmp11, &ttmp11);
 
       if (wave.stop_reason () & AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT)
