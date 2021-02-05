@@ -106,6 +106,12 @@ be installed as part of the AMD ROCm release by the ``comgr`` package:
 
 - ``libamd_comgr.so.1``
 
+The ROCdbgapi library requires that the ROCr library is loaded in the inferior
+to enable AMD GPU debugging.  This can be installed as part of the AMD ROCm
+release by the ``hsa-rocr-dev`` package:
+
+- ``libhsa-runtime64.so.1 ``
+
 Known Limitations and Restrictions
 ----------------------------------
 
