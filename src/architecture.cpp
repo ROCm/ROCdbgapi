@@ -1103,7 +1103,7 @@ amdgcn_architecture_t::get_wave_state (
   wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
   wave.read_register (amdgpu_regnum_t::mode, &mode_reg);
 
-  amd_dbgapi_wave_state_t saved_state = wave.state ();
+  amd_dbgapi_wave_state_t prev_state = wave.state ();
 
   *state = (ttmp11 & ttmp11_wave_stopped_mask)
                ? AMD_DBGAPI_WAVE_STATE_STOP
@@ -1116,7 +1116,7 @@ amdgcn_architecture_t::get_wave_state (
       /* The wave is running, there is no stop reason.  */
       *stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
     }
-  else if (saved_state == AMD_DBGAPI_WAVE_STATE_STOP)
+  else if (prev_state == AMD_DBGAPI_WAVE_STATE_STOP)
     {
       /* The wave was previously stopped, and it still is stopped, the stop
          reason is unchanged.  */
@@ -1126,8 +1126,11 @@ amdgcn_architecture_t::get_wave_state (
     {
       /* The wave is stopped, but it was previously running.  */
 
+      mode_reg &= ~sq_wave_mode_debug_en_mask;
+      wave.write_register (amdgpu_regnum_t::mode, &mode_reg);
+
       amd_dbgapi_wave_stop_reason_t reason_mask
-          = (saved_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
+          = (prev_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
                 ? AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP
                 : AMD_DBGAPI_WAVE_STOP_REASON_NONE;
 
@@ -1142,7 +1145,7 @@ amdgcn_architecture_t::get_wave_state (
               /* FIXME: If the wave was single-stepping when the exception
                  occurred, the first level trap handler did not decrement
                  the PC as it took the SINGLE_STEP_WORKAROUND path.  */
-              && saved_state != AMD_DBGAPI_WAVE_STATE_SINGLE_STEP))
+              && prev_state != AMD_DBGAPI_WAVE_STATE_SINGLE_STEP))
         {
           /* FIXME: Enable this when the trap handler is modified to send
              debugger notifications for exceptions.
@@ -1166,7 +1169,7 @@ amdgcn_architecture_t::get_wave_state (
          after.  In such cases, un-halt the wave and let it continue, so that
          the instruction is executed.  */
       bool ignore_single_step_event
-          = saved_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
+          = prev_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
             && wave.saved_pc () == pc && trap_id == 0;
 
       if (instruction && ignore_single_step_event)
