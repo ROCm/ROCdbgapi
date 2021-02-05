@@ -131,6 +131,12 @@ enum class amdgpu_regnum_t : uint32_t
   first_pseudo = lds_0 + 1,
 
   pseudo_status = first_pseudo, /* The client visible status register.  */
+
+  pseudo_exec_32, /* Read from exec_32, write to exec_32 and status.execz.  */
+  pseudo_exec_64, /* Read from exec_64, write to exec_64 and status.execz.  */
+  pseudo_vcc_32,  /* Read from vcc_32, write to vcc_32 and status.vccz.  */
+  pseudo_vcc_64,  /* Read from vcc_64, write to vcc_64 and status.vccz.  */
+
   null, /* Special register: read returns 0, write is ignored.  */
 
   last_pseudo = null,

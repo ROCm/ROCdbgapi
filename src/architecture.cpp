@@ -398,21 +398,21 @@ amdgcn_architecture_t::initialize ()
                             amdgpu_regnum_t::flat_scratch);
   if (has_wave32_vgprs ())
     {
-      system_registers.emplace (amdgpu_regnum_t::exec_32,
-                                amdgpu_regnum_t::exec_32);
+      system_registers.emplace (amdgpu_regnum_t::pseudo_exec_32,
+                                amdgpu_regnum_t::pseudo_exec_32);
       system_registers.emplace (amdgpu_regnum_t::xnack_mask_32,
                                 amdgpu_regnum_t::xnack_mask_32);
-      system_registers.emplace (amdgpu_regnum_t::vcc_32,
-                                amdgpu_regnum_t::vcc_32);
+      system_registers.emplace (amdgpu_regnum_t::pseudo_vcc_32,
+                                amdgpu_regnum_t::pseudo_vcc_32);
     }
   if (has_wave64_vgprs ())
     {
-      system_registers.emplace (amdgpu_regnum_t::exec_64,
-                                amdgpu_regnum_t::exec_64);
+      system_registers.emplace (amdgpu_regnum_t::pseudo_exec_64,
+                                amdgpu_regnum_t::pseudo_exec_64);
       system_registers.emplace (amdgpu_regnum_t::xnack_mask_64,
                                 amdgpu_regnum_t::xnack_mask_64);
-      system_registers.emplace (amdgpu_regnum_t::vcc_64,
-                                amdgpu_regnum_t::vcc_64);
+      system_registers.emplace (amdgpu_regnum_t::pseudo_vcc_64,
+                                amdgpu_regnum_t::pseudo_vcc_64);
     }
   create<register_class_t> (*this, "system", system_registers);
 
@@ -425,17 +425,17 @@ amdgcn_architecture_t::initialize ()
   general_registers.emplace (amdgpu_regnum_t::pc, amdgpu_regnum_t::pc);
   if (has_wave32_vgprs ())
     {
-      general_registers.emplace (amdgpu_regnum_t::exec_32,
-                                 amdgpu_regnum_t::exec_32);
-      general_registers.emplace (amdgpu_regnum_t::vcc_32,
-                                 amdgpu_regnum_t::vcc_32);
+      general_registers.emplace (amdgpu_regnum_t::pseudo_exec_32,
+                                 amdgpu_regnum_t::pseudo_exec_32);
+      general_registers.emplace (amdgpu_regnum_t::pseudo_vcc_32,
+                                 amdgpu_regnum_t::pseudo_vcc_32);
     }
   if (has_wave64_vgprs ())
     {
-      general_registers.emplace (amdgpu_regnum_t::exec_64,
-                                 amdgpu_regnum_t::exec_64);
-      general_registers.emplace (amdgpu_regnum_t::vcc_64,
-                                 amdgpu_regnum_t::vcc_64);
+      general_registers.emplace (amdgpu_regnum_t::pseudo_exec_64,
+                                 amdgpu_regnum_t::pseudo_exec_64);
+      general_registers.emplace (amdgpu_regnum_t::pseudo_vcc_64,
+                                 amdgpu_regnum_t::pseudo_vcc_64);
     }
   create<register_class_t> (*this, "general", general_registers);
 }
@@ -1626,6 +1626,30 @@ amdgcn_architecture_t::read_pseudo_register (const wave_t &wave,
       return;
     }
 
+  if (regnum == amdgpu_regnum_t::pseudo_exec_32)
+    {
+      wave.read_register (amdgpu_regnum_t::exec_32, offset, value_size, value);
+      return;
+    }
+
+  if (regnum == amdgpu_regnum_t::pseudo_exec_64)
+    {
+      wave.read_register (amdgpu_regnum_t::exec_64, offset, value_size, value);
+      return;
+    }
+
+  if (regnum == amdgpu_regnum_t::pseudo_vcc_32)
+    {
+      wave.read_register (amdgpu_regnum_t::vcc_32, offset, value_size, value);
+      return;
+    }
+
+  if (regnum == amdgpu_regnum_t::pseudo_vcc_64)
+    {
+      wave.read_register (amdgpu_regnum_t::vcc_64, offset, value_size, value);
+      return;
+    }
+
   if (regnum == amdgpu_regnum_t::pseudo_status)
     {
       /* pseudo_status is a composite of: sq_wave_status[31:14], ttmp11[9]
@@ -1662,6 +1686,59 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
   if (regnum == amdgpu_regnum_t::null)
     /* Writing to null is a no-op.  */
     return;
+
+  if (regnum == amdgpu_regnum_t::pseudo_exec_32
+      || regnum == amdgpu_regnum_t::pseudo_vcc_32)
+    {
+      uint32_t base_reg, status_reg;
+
+      amdgpu_regnum_t base_regnum = regnum == amdgpu_regnum_t::pseudo_exec_32
+                                        ? amdgpu_regnum_t::exec_32
+                                        : amdgpu_regnum_t::vcc_32;
+      uint32_t status_mask = regnum == amdgpu_regnum_t::pseudo_exec_32
+                                 ? sq_wave_status_execz_mask
+                                 : sq_wave_status_vccz_mask;
+
+      wave.read_register (amdgpu_regnum_t::status, &status_reg);
+      wave.read_register (base_regnum, &base_reg);
+
+      memcpy (reinterpret_cast<char *> (&base_reg) + offset,
+              static_cast<const char *> (value) + offset, value_size);
+
+      status_reg
+          = (status_reg & ~status_mask) | (base_reg == 0 ? status_mask : 0);
+
+      wave.write_register (amdgpu_regnum_t::status, &status_reg);
+      wave.write_register (base_regnum, &base_reg);
+      return;
+    }
+
+  if (regnum == amdgpu_regnum_t::pseudo_exec_64
+      || regnum == amdgpu_regnum_t::pseudo_vcc_64)
+    {
+      uint64_t base_reg;
+      uint32_t status_reg;
+
+      amdgpu_regnum_t base_regnum = regnum == amdgpu_regnum_t::pseudo_exec_64
+                                        ? amdgpu_regnum_t::exec_64
+                                        : amdgpu_regnum_t::vcc_64;
+      uint32_t status_mask = regnum == amdgpu_regnum_t::pseudo_exec_64
+                                 ? sq_wave_status_execz_mask
+                                 : sq_wave_status_vccz_mask;
+
+      wave.read_register (amdgpu_regnum_t::status, &status_reg);
+      wave.read_register (base_regnum, &base_reg);
+
+      memcpy (reinterpret_cast<char *> (&base_reg) + offset,
+              static_cast<const char *> (value) + offset, value_size);
+
+      status_reg
+          = (status_reg & ~status_mask) | (base_reg == 0 ? status_mask : 0);
+
+      wave.write_register (amdgpu_regnum_t::status, &status_reg);
+      wave.write_register (base_regnum, &base_reg);
+      return;
+    }
 
   if (regnum == amdgpu_regnum_t::pseudo_status)
     {
@@ -2636,13 +2713,21 @@ architecture_t::register_name (amdgpu_regnum_t regnum) const
       return string_printf ("hwreg%ld", regnum - amdgpu_regnum_t::first_hwreg);
     }
 
-  if ((has_wave32_vgprs () && regnum == amdgpu_regnum_t::exec_32)
-      || (has_wave64_vgprs () && regnum == amdgpu_regnum_t::exec_64))
+  if ((has_wave32_vgprs ()
+       && (regnum == amdgpu_regnum_t::exec_32
+           || regnum == amdgpu_regnum_t::pseudo_exec_32))
+      || (has_wave64_vgprs ()
+          && (regnum == amdgpu_regnum_t::exec_64
+              || regnum == amdgpu_regnum_t::pseudo_exec_64)))
     {
       return "exec";
     }
-  if ((has_wave32_vgprs () && regnum == amdgpu_regnum_t::vcc_32)
-      || (has_wave64_vgprs () && regnum == amdgpu_regnum_t::vcc_64))
+  if ((has_wave32_vgprs ()
+       && (regnum == amdgpu_regnum_t::vcc_32
+           || regnum == amdgpu_regnum_t::pseudo_vcc_32))
+      || (has_wave64_vgprs ()
+          && (regnum == amdgpu_regnum_t::vcc_64
+              || regnum == amdgpu_regnum_t::pseudo_vcc_64)))
     {
       return "vcc";
     }
@@ -2739,14 +2824,18 @@ architecture_t::register_type (amdgpu_regnum_t regnum) const
     }
   if (has_wave32_vgprs ()
       && (regnum == amdgpu_regnum_t::exec_32
+          || regnum == amdgpu_regnum_t::pseudo_exec_32
           || regnum == amdgpu_regnum_t::vcc_32
+          || regnum == amdgpu_regnum_t::pseudo_vcc_32
           || regnum == amdgpu_regnum_t::xnack_mask_32))
     {
       return "uint32_t";
     }
   if (has_wave64_vgprs ()
       && (regnum == amdgpu_regnum_t::exec_64
+          || regnum == amdgpu_regnum_t::pseudo_exec_64
           || regnum == amdgpu_regnum_t::vcc_64
+          || regnum == amdgpu_regnum_t::pseudo_vcc_64
           || regnum == amdgpu_regnum_t::xnack_mask_64))
     {
       return "uint64_t";
@@ -2822,14 +2911,18 @@ architecture_t::register_size (amdgpu_regnum_t regnum) const
     }
   if (has_wave32_vgprs ()
       && (regnum == amdgpu_regnum_t::exec_32
+          || regnum == amdgpu_regnum_t::pseudo_exec_32
           || regnum == amdgpu_regnum_t::vcc_32
+          || regnum == amdgpu_regnum_t::pseudo_vcc_32
           || regnum == amdgpu_regnum_t::xnack_mask_32))
     {
       return sizeof (uint32_t);
     }
   if (has_wave64_vgprs ()
       && (regnum == amdgpu_regnum_t::exec_64
+          || regnum == amdgpu_regnum_t::pseudo_exec_64
           || regnum == amdgpu_regnum_t::vcc_64
+          || regnum == amdgpu_regnum_t::pseudo_vcc_64
           || regnum == amdgpu_regnum_t::xnack_mask_64))
     {
       return sizeof (uint64_t);

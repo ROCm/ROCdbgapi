@@ -86,11 +86,11 @@ std::optional<uint64_t>
 amdgpu_regnum_to_dwarf_register (amdgpu_regnum_t regnum)
 {
   /* See https://llvm.org/docs/AMDGPUUsage.html#register-mapping.  */
-  if (regnum == amdgpu_regnum_t::exec_32)
+  if (regnum == amdgpu_regnum_t::pseudo_exec_32)
     {
       return 1;
     }
-  else if (regnum == amdgpu_regnum_t::exec_64)
+  else if (regnum == amdgpu_regnum_t::pseudo_exec_64)
     {
       return 17;
     }
@@ -108,11 +108,11 @@ amdgpu_regnum_to_dwarf_register (amdgpu_regnum_t regnum)
     {
       return 128;
     }
-  else if (regnum == amdgpu_regnum_t::vcc_32)
+  else if (regnum == amdgpu_regnum_t::pseudo_vcc_32)
     {
       return 512;
     }
-  else if (regnum == amdgpu_regnum_t::vcc_64)
+  else if (regnum == amdgpu_regnum_t::pseudo_vcc_64)
     {
       return 768;
     }
@@ -156,11 +156,11 @@ dwarf_register_to_amdgpu_regnum (uint64_t dwarf_register)
   /* See https://llvm.org/docs/AMDGPUUsage.html#register-mapping.  */
   if (dwarf_register == 1)
     {
-      return amdgpu_regnum_t::exec_32;
+      return amdgpu_regnum_t::pseudo_exec_32;
     }
   else if (dwarf_register == 17)
     {
-      return amdgpu_regnum_t::exec_64;
+      return amdgpu_regnum_t::pseudo_exec_64;
     }
   else if (dwarf_register == 16)
     {
@@ -177,11 +177,11 @@ dwarf_register_to_amdgpu_regnum (uint64_t dwarf_register)
     }
   else if (dwarf_register == 512)
     {
-      return amdgpu_regnum_t::vcc_32;
+      return amdgpu_regnum_t::pseudo_vcc_32;
     }
   else if (dwarf_register == 768)
     {
-      return amdgpu_regnum_t::vcc_64;
+      return amdgpu_regnum_t::pseudo_vcc_64;
     }
   else if (dwarf_register >= 1088 && dwarf_register <= 1129)
     {
