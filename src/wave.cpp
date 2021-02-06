@@ -390,6 +390,13 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
       (!m_displaced_stepping || state != AMD_DBGAPI_WAVE_STATE_RUN)
       && "displaced-stepping waves can only be stopped or single-stepped");
 
+  dbgapi_assert ((state == AMD_DBGAPI_WAVE_STATE_STOP
+                  || !(m_stop_reason
+                       & ~(AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT
+                           | AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT
+                           | AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP)))
+                 && "cannot resume a wave with exceptions");
+
   m_stop_requested = state == AMD_DBGAPI_WAVE_STATE_STOP;
 
   /* A wave single-stepping an s_endpgm instruction does not generate a trap
