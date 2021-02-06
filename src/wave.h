@@ -169,7 +169,7 @@ private:
   std::array<uint32_t, 3> m_group_ids;
   uint32_t m_wave_in_group;
 
-  std::unique_ptr<architecture_t::cwsr_descriptor_t> m_descriptor;
+  std::unique_ptr<architecture_t::cwsr_record_t> m_cwsr_record;
   std::optional<instruction_buffer_ref_t> m_instruction_buffer;
   uint32_t m_hwregs_cache[amdgpu_regnum_t::last_hwreg
                           - amdgpu_regnum_t::first_hwreg + 1];
@@ -225,8 +225,8 @@ public:
 
   size_t lane_count () const
   {
-    return architecture ().wave_get_info (
-        *m_descriptor, architecture_t::wave_info_t::lane_count);
+    return m_cwsr_record->get_info (
+        architecture_t::cwsr_record_t::query_kind_t::lane_count);
   }
 
   auto group_ids () const { return m_group_ids; }
@@ -249,7 +249,7 @@ public:
 
   /* Update the wave's status from its saved state in the context save area. */
   void update (const wave_t &group_leader,
-               std::unique_ptr<architecture_t::cwsr_descriptor_t> descriptor);
+               std::unique_ptr<architecture_t::cwsr_record_t> cwsr_record);
 
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }
@@ -271,7 +271,7 @@ public:
   std::optional<amd_dbgapi_global_address_t>
   register_address (amdgpu_regnum_t regnum) const
   {
-    return architecture ().register_address (*m_descriptor, regnum);
+    return m_cwsr_record->register_address (regnum);
   }
 
   void read_pseudo_register (amdgpu_regnum_t regnum, size_t offset,

@@ -22,7 +22,6 @@
 #define AMD_DBGAPI_PROCESS_H 1
 
 #include "amd-dbgapi.h"
-#include "architecture.h"
 #include "callbacks.h"
 #include "code_object.h"
 #include "debug.h"

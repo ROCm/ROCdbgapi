@@ -330,12 +330,12 @@ wave_t::displaced_stepping_complete ()
 
 void
 wave_t::update (const wave_t &group_leader,
-                std::unique_ptr<architecture_t::cwsr_descriptor_t> descriptor)
+                std::unique_ptr<architecture_t::cwsr_record_t> cwsr_record)
 {
   dbgapi_assert (queue ().is_suspended ());
 
-  const bool first_update = !m_descriptor;
-  m_descriptor = std::move (descriptor);
+  const bool first_update = !m_cwsr_record;
+  m_cwsr_record = std::move (cwsr_record);
   m_group_leader = &group_leader;
 
   if (first_update)
@@ -727,8 +727,8 @@ wave_t::xfer_local_memory (amd_dbgapi_segment_address_t segment_address,
   /* The LDS is stored in the context save area.  */
   dbgapi_assert (queue ().is_suspended ());
 
-  amd_dbgapi_size_t limit = architecture ().wave_get_info (
-      *m_descriptor, architecture_t::wave_info_t::lds_size);
+  amd_dbgapi_size_t limit = m_cwsr_record->get_info (
+      architecture_t::cwsr_record_t::query_kind_t::lds_size);
   amd_dbgapi_size_t offset = segment_address;
 
   if ((offset + *size) > limit)
@@ -739,8 +739,9 @@ wave_t::xfer_local_memory (amd_dbgapi_segment_address_t segment_address,
       *size = max_size;
     }
 
-  auto local_memory_base_address = architecture ().register_address (
-      *group_leader ().m_descriptor, amdgpu_regnum_t::lds_0);
+  auto local_memory_base_address
+      = group_leader ().m_cwsr_record->register_address (
+          amdgpu_regnum_t::lds_0);
 
   if (!local_memory_base_address)
     error ("local memory is not accessible");

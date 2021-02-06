@@ -21,10 +21,12 @@
 #ifndef AMD_DBGAPI_ARCHITECTURE_H
 #define AMD_DBGAPI_ARCHITECTURE_H 1
 
+#include "agent.h"
 #include "amd-dbgapi.h"
 #include "handle_object.h"
 #include "memory.h"
 #include "os_driver.h"
+#include "queue.h"
 #include "register.h"
 #include "utils.h"
 
@@ -47,9 +49,10 @@
 namespace amd::dbgapi
 {
 
-class displaced_stepping_t;
-class wave_t;
 class architecture_t;
+class displaced_stepping_t;
+class process_t;
+class wave_t;
 
 namespace detail
 {
@@ -101,10 +104,40 @@ public:
   /* Return the map of all instantiated architectures  */
   static const auto &all () { return s_architecture_map; }
 
-  struct cwsr_descriptor_t
+  class cwsr_record_t
   {
-    /* cwsr_descriptor_t is a polymorphic base class.  */
-    virtual ~cwsr_descriptor_t () = default;
+  private:
+    queue_t &m_queue;
+
+  public:
+    enum class query_kind_t
+    {
+      vgprs,      /* Number of VGPRs.  */
+      acc_vgprs,  /* Number of AccVGPR. */
+      sgprs,      /* Number of SGPRs.  */
+      lds_size,   /* LDS space (bytes).  */
+      lane_count, /* Number of lanes.  */
+
+      last_wave,  /* Last wave of threadgroup.  */
+      first_wave, /* First wave of threadgroup.  */
+
+      is_halted,  /* The wave is halted (status.halt=1).  */
+      is_stopped, /* The wave is stopped at the request of the trap handler. */
+    };
+
+    cwsr_record_t (queue_t &queue) : m_queue (queue) {}
+
+    /* cwsr_record_t is a polymorphic base class.  */
+    virtual ~cwsr_record_t () = default;
+
+    virtual uint64_t get_info (query_kind_t query) const = 0;
+
+    virtual std::optional<amd_dbgapi_global_address_t>
+    register_address (amdgpu_regnum_t regnum) const = 0;
+
+    queue_t &queue () const { return m_queue; }
+    agent_t &agent () const { return queue ().agent (); }
+    process_t &process () const { return agent ().process (); }
   };
 
   virtual ~architecture_t ();
@@ -132,26 +165,12 @@ public:
   virtual bool has_wave64_vgprs () const = 0;
   virtual bool has_acc_vgprs () const = 0;
 
-  enum class wave_info_t
-  {
-    vgprs,      /* Number of VGPRs.  */
-    acc_vgprs,  /* Number of AccVGPR. */
-    sgprs,      /* Number of SGPRs.  */
-    lds_size,   /* LDS space (bytes).  */
-    lane_count, /* Number of lanes.  */
-
-    last_wave,  /* Last wave of threadgroup.  */
-    first_wave, /* First wave of threadgroup.  */
-  };
-
-  virtual uint64_t wave_get_info (const cwsr_descriptor_t &descriptor,
-                                  wave_info_t query) const = 0;
-
   virtual void control_stack_iterate (
-      const uint32_t *control_stack, size_t control_stack_words,
+      queue_t &queue, const uint32_t *control_stack,
+      size_t control_stack_words,
       amd_dbgapi_global_address_t wave_area_address,
       amd_dbgapi_size_t wave_area_size,
-      const std::function<void (std::unique_ptr<cwsr_descriptor_t>)>
+      const std::function<void (std::unique_ptr<cwsr_record_t>)>
           &wave_callback) const = 0;
 
   virtual bool can_halt_at_endpgm () const = 0;
@@ -288,10 +307,6 @@ public:
   std::optional<std::string> register_type (amdgpu_regnum_t regnum) const;
   std::optional<amd_dbgapi_size_t>
   register_size (amdgpu_regnum_t regnum) const;
-
-  virtual std::optional<amd_dbgapi_global_address_t>
-  register_address (const cwsr_descriptor_t &descriptor,
-                    amdgpu_regnum_t regnum) const = 0;
 
   virtual void read_pseudo_register (const wave_t &wave,
                                      amdgpu_regnum_t regnum, size_t offset,

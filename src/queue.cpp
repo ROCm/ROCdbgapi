@@ -44,9 +44,6 @@
 namespace amd::dbgapi
 {
 
-static constexpr uint32_t sq_wave_status_halt_mask = utils::bit_mask (13, 13);
-static constexpr uint32_t ttmp11_wave_stopped_mask = utils::bit_mask (7, 7);
-
 /* Base class for all queue implementations.  */
 
 class queue_t::queue_impl_t
@@ -328,10 +325,8 @@ aql_queue_impl_t::update_waves ()
 
   wave_t *group_leader = nullptr;
 
-  auto callback = [=, &group_leader] (
-                      std::unique_ptr<architecture_t::cwsr_descriptor_t>
-                          descriptor) {
-    const architecture_t &architecture = m_queue.architecture ();
+  auto callback = [=, &group_leader] (auto cwsr_record) {
+    dbgapi_assert (m_queue == cwsr_record->queue ());
     process_t &process = m_queue.process ();
 
     amd_dbgapi_wave_id_t wave_id;
@@ -348,8 +343,7 @@ aql_queue_impl_t::update_waves ()
       {
         /* The wave id is preserved in ttmp registers.  */
         const amd_dbgapi_global_address_t wave_id_address
-            = architecture
-                  .register_address (*descriptor, amdgpu_regnum_t::wave_id)
+            = cwsr_record->register_address (amdgpu_regnum_t::wave_id)
                   .value ();
 
         if (process.read_global_memory (wave_id_address, &wave_id,
@@ -364,31 +358,10 @@ aql_queue_impl_t::update_waves ()
          */
         if (wave_id == wave_t::undefined)
           {
-            uint32_t status_reg;
-            const amd_dbgapi_global_address_t status_reg_address
-                = architecture
-                      .register_address (*descriptor, amdgpu_regnum_t::status)
-                      .value ();
-
-            if (process.read_global_memory (status_reg_address, &status_reg,
-                                            sizeof (status_reg))
-                != AMD_DBGAPI_STATUS_SUCCESS)
-              error ("Could not read the 'status' register");
-
-            const bool halted = (status_reg & sq_wave_status_halt_mask) != 0;
-
-            const amd_dbgapi_global_address_t ttmp11_address
-                = architecture
-                      .register_address (*descriptor, amdgpu_regnum_t::ttmp11)
-                      .value ();
-
-            uint32_t ttmp11;
-            if (process.read_global_memory (ttmp11_address, &ttmp11,
-                                            sizeof (ttmp11))
-                != AMD_DBGAPI_STATUS_SUCCESS)
-              error ("Could not read the 'ttmp1' register");
-
-            const bool stopped = (ttmp11 & ttmp11_wave_stopped_mask) != 0;
+            const bool halted = cwsr_record->get_info (
+                architecture_t::cwsr_record_t::query_kind_t::is_halted);
+            const bool stopped = cwsr_record->get_info (
+                architecture_t::cwsr_record_t::query_kind_t::is_stopped);
 
             /* Waves halted at launch are halted but not stopped.  */
             if (process.wave_launch_mode () == os_wave_launch_mode_t::halt
@@ -413,9 +386,7 @@ aql_queue_impl_t::update_waves ()
     if (!wave)
       {
         const amd_dbgapi_global_address_t dispatch_ptr_address
-            = architecture
-                  .register_address (*descriptor,
-                                     amdgpu_regnum_t::dispatch_ptr)
+            = cwsr_record->register_address (amdgpu_regnum_t::dispatch_ptr)
                   .value ();
 
         amd_dbgapi_global_address_t dispatch_ptr;
@@ -469,7 +440,7 @@ aql_queue_impl_t::update_waves ()
                    ? (read_dispatch_id & ~id_mask)
                    : (write_dispatch_id & ~id_mask);
 
-        /* Check that read_dispatch_id <= dispatch_id < write_dispatch_id */
+        /* Check that read_dispatch_id <= dispatch_id < write_dispatch_id.  */
         if (read_dispatch_id > os_queue_packet_id
             || os_queue_packet_id >= write_dispatch_id)
           /* TODO: See comment above for corrupted wavefronts. This could be
@@ -487,19 +458,19 @@ aql_queue_impl_t::update_waves ()
         /* If we did not find the current dispatch, create a new one.  */
         if (!dispatch)
           dispatch = &process.create<dispatch_t> (
-              m_queue,            /* queue  */
-              os_queue_packet_id, /* os_queue_packet_id  */
-              dispatch_ptr);      /* packet_address  */
+              cwsr_record->queue (), /* queue  */
+              os_queue_packet_id,    /* os_queue_packet_id  */
+              dispatch_ptr);         /* packet_address  */
 
         wave = &process.create<wave_t> (*dispatch, m_callbacks);
 
         wave->set_visibility (visibility);
       }
 
-    bool first_wave = architecture.wave_get_info (
-        *descriptor, architecture_t::wave_info_t::first_wave);
-    bool last_wave = architecture.wave_get_info (
-        *descriptor, architecture_t::wave_info_t::last_wave);
+    bool first_wave = cwsr_record->get_info (
+        architecture_t::cwsr_record_t::query_kind_t::first_wave);
+    bool last_wave = cwsr_record->get_info (
+        architecture_t::cwsr_record_t::query_kind_t::last_wave);
 
     /* The first wave in the group is the group leader.  The group leader owns
        the backing store for the group memory (LDS).  */
@@ -509,7 +480,7 @@ aql_queue_impl_t::update_waves ()
     if (!group_leader)
       error ("No group_leader, the control stack may be corrupted");
 
-    wave->update (*group_leader, std::move (descriptor));
+    wave->update (*group_leader, std::move (cwsr_record));
 
     /* This was the last wave in the group. Make sure we have a new group
        leader for the remaining waves.  */
@@ -569,7 +540,7 @@ aql_queue_impl_t::update_waves ()
          to its context save area.  */
 
       m_queue.architecture ().control_stack_iterate (
-          &ctrl_stack[0], header.ctrl_stack_size / sizeof (uint32_t),
+          m_queue, &ctrl_stack[0], header.ctrl_stack_size / sizeof (uint32_t),
           ctx_save_base + header.wave_state_offset, header.wave_state_size,
           callback);
     }
