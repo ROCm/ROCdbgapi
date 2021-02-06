@@ -1182,10 +1182,9 @@ amdgcn_architecture_t::get_wave_state (
 
           /* Branch instructions should be simulated, and the event reported,
              as we cannot tell if a branch to self instruction has executed. */
-          if (can_simulate (*instruction))
+          if (can_simulate (*instruction)
+              && simulate_instruction (wave, pc, *instruction))
             {
-              simulate_instruction (wave, pc, *instruction);
-
               /* We successfully simulated the instruction, report the
                  single-step event.  */
               ignore_single_step_event = false;
