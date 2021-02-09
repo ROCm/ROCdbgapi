@@ -39,12 +39,10 @@ class shared_library_t
 private:
   using notify_callback_t = std::function<void (const shared_library_t &)>;
 
-  bool m_is_valid{ false };
-
   std::string const m_name;
   notify_callback_t const m_on_load;
   notify_callback_t const m_on_unload;
-  amd_dbgapi_shared_library_state_t m_state;
+  std::optional<amd_dbgapi_shared_library_state_t> m_state;
 
   process_t &m_process;
 
@@ -54,11 +52,14 @@ public:
                     notify_callback_t on_load, notify_callback_t on_unload);
   ~shared_library_t ();
 
+  bool enable ();
+  void disable ();
+
   const std::string &name () const { return m_name; }
-  bool is_valid () const { return m_is_valid; }
+  bool is_enabled () const { return m_state.has_value (); }
 
   void set_state (amd_dbgapi_shared_library_state_t state);
-  amd_dbgapi_shared_library_state_t state () const { return m_state; }
+  amd_dbgapi_shared_library_state_t state () const { return m_state.value (); }
 
   amd_dbgapi_status_t get_info (amd_dbgapi_shared_library_info_t query,
                                 size_t value_size, void *value) const;

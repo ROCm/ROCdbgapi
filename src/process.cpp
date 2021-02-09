@@ -1425,6 +1425,9 @@ process_t::attach ()
       *this, "libhsa-runtime64.so.1", on_runtime_load_callback,
       on_runtime_unload_callback);
 
+  if (!library.enable ())
+    error ("failed to enabled %s", to_string (library.id ()).c_str ());
+
   /* If the runtime is not yet loaded, create agents without enabling the
      debug trap.  */
   if (library.state () != AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED)

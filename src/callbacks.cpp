@@ -37,24 +37,37 @@ shared_library_t::shared_library_t (amd_dbgapi_shared_library_id_t library_id,
                                     notify_callback_t on_load,
                                     notify_callback_t on_unload)
     : handle_object (library_id), m_name (std::move (name)),
-      m_on_load (on_load), m_on_unload (on_unload),
-      m_state (AMD_DBGAPI_SHARED_LIBRARY_STATE_UNLOADED), m_process (process)
+      m_on_load (on_load), m_on_unload (on_unload), m_process (process)
 {
-  amd_dbgapi_shared_library_state_t state;
-
-  if (m_process.enable_notify_shared_library (m_name.c_str (), library_id,
-                                              &state)
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    return;
-
-  m_is_valid = true;
-  set_state (state);
 }
 
 shared_library_t::~shared_library_t ()
 {
-  if (m_is_valid)
-    m_process.disable_notify_shared_library (id ());
+  if (is_enabled ())
+    disable ();
+}
+
+bool
+shared_library_t::enable ()
+{
+  dbgapi_assert (!is_enabled () && "already enabled");
+
+  amd_dbgapi_shared_library_state_t state;
+  if (m_process.enable_notify_shared_library (m_name.c_str (), id (), &state)
+      != AMD_DBGAPI_STATUS_SUCCESS)
+    return false;
+
+  set_state (state);
+  return true;
+}
+
+void
+shared_library_t::disable ()
+{
+  dbgapi_assert (is_enabled () && "not enabled");
+
+  m_process.disable_notify_shared_library (id ());
+  m_state.reset ();
 }
 
 amd_dbgapi_status_t
@@ -76,13 +89,13 @@ shared_library_t::set_state (amd_dbgapi_shared_library_state_t state)
   dbgapi_assert (state == AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED
                  || state == AMD_DBGAPI_SHARED_LIBRARY_STATE_UNLOADED);
 
-  if (m_state != state)
-    {
-      m_state = state;
-      /* Call the notifier since the state has changed.  */
-      (state == AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED ? m_on_load
-                                                       : m_on_unload) (*this);
-    }
+  if (m_state && m_state == state)
+    return;
+
+  m_state.emplace (state);
+  /* Call the notifier since the state has changed.  */
+  (state == AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED ? m_on_load
+                                                   : m_on_unload) (*this);
 }
 
 breakpoint_t::breakpoint_t (amd_dbgapi_breakpoint_id_t breakpoint_id,
