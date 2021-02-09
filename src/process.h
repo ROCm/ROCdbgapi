@@ -52,7 +52,7 @@
 #include <utility>
 #include <vector>
 
-#define TRACE_CALLBACK(prefix, ...)                                           \
+#define TRACE_CALLBACK(...)                                                   \
   tracer __tracer__##__COUNTER__ { "[callback]", __FUNCTION__, ##__VA_ARGS__ }
 
 namespace amd::dbgapi

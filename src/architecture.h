@@ -148,6 +148,8 @@ public:
   architecture_t &operator= (const architecture_t &) = delete;
   architecture_t &operator= (architecture_t &&) = delete;
 
+  std::string name () const;
+
   /* Since architecture objects disallow copying & moving, two architecture
      objects are identical if they have the same address.  */
   bool operator== (const architecture_t &other) const

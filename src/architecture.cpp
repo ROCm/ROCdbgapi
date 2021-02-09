@@ -2656,6 +2656,14 @@ architecture_t::~architecture_t ()
     amd_comgr_destroy_disassembly_info (*m_disassembly_info);
 }
 
+std::string
+architecture_t::name () const
+{
+  size_t pos = m_target_triple.rfind ('-');
+  dbgapi_assert (pos != std::string::npos);
+  return m_target_triple.substr (pos + 1);
+}
+
 const architecture_t *
 architecture_t::find (amd_dbgapi_architecture_id_t architecture_id, int ignore)
 {

@@ -68,7 +68,13 @@ template <>
 std::string
 to_string (amd_dbgapi_architecture_id_t architecture_id)
 {
-  return string_printf ("architecture_%ld", architecture_id.handle);
+  std::string str = string_printf ("architecture_%ld", architecture_id.handle);
+
+  if (const architecture_t *architecture = find (architecture_id);
+      architecture)
+    str += " {" + architecture->name () + "}";
+
+  return str;
 }
 
 template <>
@@ -82,7 +88,12 @@ template <>
 std::string
 to_string (amd_dbgapi_code_object_id_t code_object_id)
 {
-  return string_printf ("code_object_%ld", code_object_id.handle);
+  std::string str = string_printf ("code_object_%ld", code_object_id.handle);
+
+  if (code_object_t *code_object = find (code_object_id); code_object)
+    str += " {\"" + code_object->uri () + "\"}";
+
+  return str;
 }
 
 template <>
@@ -125,28 +136,66 @@ template <>
 std::string
 to_string (amd_dbgapi_register_class_id_t register_class_id)
 {
-  return string_printf ("register_class_%ld", register_class_id.handle);
+  std::string str
+      = string_printf ("register_class_%ld", register_class_id.handle);
+
+  if (const register_class_t *register_class = find (register_class_id);
+      register_class)
+    str += " {" + register_class->architecture ().name ()
+           + "::" + register_class->name () + "}";
+
+  return str;
 }
 
 template <>
 std::string
 to_string (amd_dbgapi_register_id_t register_id)
 {
-  return string_printf ("register_%ld", register_id.handle);
+  auto regnum = architecture_t::register_id_to_regnum (register_id);
+
+  const architecture_t *architecture
+      = architecture_t::register_id_to_architecture (register_id);
+
+  std::string str = string_printf ("register_%ld", register_id.handle);
+
+  if (architecture && regnum)
+    {
+      auto name = architecture->register_name (*regnum);
+      if (name)
+        str += " {" + architecture->name () + "::" + *name + "}";
+    }
+
+  return str;
 }
 
 template <>
 std::string
 to_string (amd_dbgapi_address_class_id_t address_class_id)
 {
-  return string_printf ("address_class_%ld", address_class_id.handle);
+  std::string str
+      = string_printf ("address_class_%ld", address_class_id.handle);
+
+  if (const address_class_t *address_class = find (address_class_id);
+      address_class)
+    str += " {" + address_class->architecture ().name ()
+           + "::" + address_class->name () + "}";
+
+  return str;
 }
 
 template <>
 std::string
 to_string (amd_dbgapi_address_space_id_t address_space_id)
 {
-  return string_printf ("address_space_%ld", address_space_id.handle);
+  std::string str
+      = string_printf ("address_space_%ld", address_space_id.handle);
+
+  if (const address_space_t *address_space = find (address_space_id);
+      address_space)
+    str += " {" + address_space->architecture ().name ()
+           + "::" + address_space->name () + "}";
+
+  return str;
 }
 
 template <>
@@ -160,7 +209,14 @@ template <>
 std::string
 to_string (amd_dbgapi_shared_library_id_t shared_library_id)
 {
-  return string_printf ("shared_library_%ld", shared_library_id.handle);
+  std::string str
+      = string_printf ("shared_library_%ld", shared_library_id.handle);
+
+  if (shared_library_t *shared_library = find (shared_library_id);
+      shared_library)
+    str += " {\"" + shared_library->name () + "\"}";
+
+  return str;
 }
 
 template <>
