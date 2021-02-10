@@ -145,8 +145,8 @@ amd_dbgapi_report_shared_library (
     amd_dbgapi_shared_library_id_t shared_library_id,
     amd_dbgapi_shared_library_state_t shared_library_state)
 {
+  TRACE_BEGIN (shared_library_id, shared_library_state);
   TRY;
-  TRACE (shared_library_id, shared_library_state);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -164,6 +164,7 @@ amd_dbgapi_report_shared_library (
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
+  TRACE_END ();
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -171,8 +172,8 @@ amd_dbgapi_code_shared_library_get_info (
     amd_dbgapi_shared_library_id_t shared_library_id,
     amd_dbgapi_shared_library_info_t query, size_t value_size, void *value)
 {
+  TRACE_BEGIN (shared_library_id, query, value_size, value);
   TRY;
-  TRACE (shared_library_id, query, value_size, value);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -184,6 +185,7 @@ amd_dbgapi_code_shared_library_get_info (
 
   return shared_library->get_info (query, value_size, value);
   CATCH;
+  TRACE_END (make_query_ref (query, value));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -192,8 +194,8 @@ amd_dbgapi_report_breakpoint_hit (
     amd_dbgapi_client_thread_id_t client_thread_id,
     amd_dbgapi_breakpoint_action_t *breakpoint_action)
 {
+  TRACE_BEGIN (breakpoint_id, client_thread_id, breakpoint_action);
   TRY;
-  TRACE (breakpoint_id, client_thread_id);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -209,6 +211,7 @@ amd_dbgapi_report_breakpoint_hit (
   return breakpoint->action () (*breakpoint, client_thread_id,
                                 breakpoint_action);
   CATCH;
+  TRACE_END (make_ref (breakpoint_action));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -216,8 +219,8 @@ amd_dbgapi_breakpoint_get_info (amd_dbgapi_breakpoint_id_t breakpoint_id,
                                 amd_dbgapi_breakpoint_info_t query,
                                 size_t value_size, void *value)
 {
+  TRACE_BEGIN (breakpoint_id, query, value_size, value);
   TRY;
-  TRACE (breakpoint_id, query, value_size, value);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -229,4 +232,5 @@ amd_dbgapi_breakpoint_get_info (amd_dbgapi_breakpoint_id_t breakpoint_id,
 
   return breakpoint->get_info (query, value_size, value);
   CATCH;
+  TRACE_END (make_query_ref (query, value));
 }

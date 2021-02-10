@@ -23,14 +23,14 @@
 #include "utils.h"
 
 #include <cstdarg>
+#include <optional>
 #include <string>
 
 namespace amd::dbgapi
 {
 
 amd_dbgapi_log_level_t log_level = AMD_DBGAPI_LOG_LEVEL_NONE;
-
-size_t tracer::s_call_depth = 0;
+size_t detail::log_indent_depth = 0;
 
 void
 vlog (amd_dbgapi_log_level_t level, const char *format, va_list va)
@@ -44,6 +44,8 @@ vlog (amd_dbgapi_log_level_t level, const char *format, va_list va)
     message.append ("fatal error: ");
   else if (level == AMD_DBGAPI_LOG_LEVEL_WARNING)
     message.append ("warning: ");
+  else if (detail::log_indent_depth)
+    message.append (std::string (detail::log_indent_depth * 3, ' '));
 
   message.append (string_vprintf (format, va));
 
@@ -68,6 +70,9 @@ template <>
 std::string
 to_string (amd_dbgapi_architecture_id_t architecture_id)
 {
+  if (architecture_id == AMD_DBGAPI_ARCHITECTURE_NONE)
+    return "ARCHITECTURE_NONE";
+
   std::string str = string_printf ("architecture_%ld", architecture_id.handle);
 
   if (const architecture_t *architecture = find (architecture_id);
@@ -81,6 +86,9 @@ template <>
 std::string
 to_string (amd_dbgapi_process_id_t process_id)
 {
+  if (process_id == AMD_DBGAPI_PROCESS_NONE)
+    return "PROCESS_NONE";
+
   return string_printf ("process_%ld", process_id.handle);
 }
 
@@ -88,6 +96,9 @@ template <>
 std::string
 to_string (amd_dbgapi_code_object_id_t code_object_id)
 {
+  if (code_object_id == AMD_DBGAPI_CODE_OBJECT_NONE)
+    return "CODE_OBJECT_NONE";
+
   std::string str = string_printf ("code_object_%ld", code_object_id.handle);
 
   if (code_object_t *code_object = find (code_object_id); code_object)
@@ -100,6 +111,9 @@ template <>
 std::string
 to_string (amd_dbgapi_agent_id_t agent_id)
 {
+  if (agent_id == AMD_DBGAPI_AGENT_NONE)
+    return "AGENT_NONE";
+
   return string_printf ("agent_%ld", agent_id.handle);
 }
 
@@ -107,6 +121,9 @@ template <>
 std::string
 to_string (amd_dbgapi_queue_id_t queue_id)
 {
+  if (queue_id == AMD_DBGAPI_QUEUE_NONE)
+    return "QUEUE_NONE";
+
   return string_printf ("queue_%ld", queue_id.handle);
 }
 
@@ -114,6 +131,9 @@ template <>
 std::string
 to_string (amd_dbgapi_dispatch_id_t dispatch_id)
 {
+  if (dispatch_id == AMD_DBGAPI_DISPATCH_NONE)
+    return "DISPATCH_NONE";
+
   return string_printf ("dispatch_%ld", dispatch_id.handle);
 }
 
@@ -121,6 +141,9 @@ template <>
 std::string
 to_string (amd_dbgapi_wave_id_t wave_id)
 {
+  if (wave_id == AMD_DBGAPI_WAVE_NONE)
+    return "WAVE_NONE";
+
   return string_printf ("wave_%ld", wave_id.handle);
 }
 
@@ -128,6 +151,9 @@ template <>
 std::string
 to_string (amd_dbgapi_displaced_stepping_id_t displaced_stepping_id)
 {
+  if (displaced_stepping_id == AMD_DBGAPI_DISPLACED_STEPPING_NONE)
+    return "DISPLACED_STEPPING_NONE";
+
   return string_printf ("displaced_stepping_%ld",
                         displaced_stepping_id.handle);
 }
@@ -136,6 +162,9 @@ template <>
 std::string
 to_string (amd_dbgapi_register_class_id_t register_class_id)
 {
+  if (register_class_id == AMD_DBGAPI_REGISTER_CLASS_NONE)
+    return "REGISTER_CLASS_NONE";
+
   std::string str
       = string_printf ("register_class_%ld", register_class_id.handle);
 
@@ -151,6 +180,9 @@ template <>
 std::string
 to_string (amd_dbgapi_register_id_t register_id)
 {
+  if (register_id == AMD_DBGAPI_REGISTER_NONE)
+    return "REGISTER_NONE";
+
   auto regnum = architecture_t::register_id_to_regnum (register_id);
 
   const architecture_t *architecture
@@ -172,6 +204,9 @@ template <>
 std::string
 to_string (amd_dbgapi_address_class_id_t address_class_id)
 {
+  if (address_class_id == AMD_DBGAPI_ADDRESS_CLASS_NONE)
+    return "ADDRESS_CLASS_NONE";
+
   std::string str
       = string_printf ("address_class_%ld", address_class_id.handle);
 
@@ -187,6 +222,9 @@ template <>
 std::string
 to_string (amd_dbgapi_address_space_id_t address_space_id)
 {
+  if (address_space_id == AMD_DBGAPI_ADDRESS_SPACE_NONE)
+    return "ADDRESS_SPACE_NONE";
+
   std::string str
       = string_printf ("address_space_%ld", address_space_id.handle);
 
@@ -202,6 +240,9 @@ template <>
 std::string
 to_string (amd_dbgapi_event_id_t event_id)
 {
+  if (event_id == AMD_DBGAPI_EVENT_NONE)
+    return "EVENT_NONE";
+
   return string_printf ("event_%ld", event_id.handle);
 }
 
@@ -209,6 +250,9 @@ template <>
 std::string
 to_string (amd_dbgapi_shared_library_id_t shared_library_id)
 {
+  if (shared_library_id == AMD_DBGAPI_SHARED_LIBRARY_NONE)
+    return "SHARED_LIBRARY_NONE";
+
   std::string str
       = string_printf ("shared_library_%ld", shared_library_id.handle);
 
@@ -223,6 +267,9 @@ template <>
 std::string
 to_string (amd_dbgapi_breakpoint_id_t breakpoint_id)
 {
+  if (breakpoint_id == AMD_DBGAPI_BREAKPOINT_NONE)
+    return "BREAKPOINT_NONE";
+
   return string_printf ("breakpoint_%ld", breakpoint_id.handle);
 }
 
@@ -318,6 +365,34 @@ to_string (amd_dbgapi_architecture_info_t architecture_info)
 
 template <>
 std::string
+to_string (detail::query_ref<amd_dbgapi_architecture_info_t> ref)
+{
+  auto [query, value] = ref;
+  switch (query)
+    {
+    case AMD_DBGAPI_ARCHITECTURE_INFO_NAME:
+      return to_string (make_ref (static_cast<char *const *> (value)));
+    case AMD_DBGAPI_ARCHITECTURE_INFO_ELF_AMDGPU_MACHINE:
+      return to_string (make_ref (static_cast<const uint32_t *> (value)));
+    case AMD_DBGAPI_ARCHITECTURE_INFO_LARGEST_INSTRUCTION_SIZE:
+    case AMD_DBGAPI_ARCHITECTURE_INFO_MINIMUM_INSTRUCTION_ALIGNMENT:
+    case AMD_DBGAPI_ARCHITECTURE_INFO_BREAKPOINT_INSTRUCTION_SIZE:
+    case AMD_DBGAPI_ARCHITECTURE_INFO_BREAKPOINT_INSTRUCTION_PC_ADJUST:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_size_t *> (value)));
+    case AMD_DBGAPI_ARCHITECTURE_INFO_BREAKPOINT_INSTRUCTION:
+      return to_string (make_hex (
+          make_ref (make_ref (static_cast<uint8_t *const *> (value)), 4)));
+    case AMD_DBGAPI_ARCHITECTURE_INFO_PC_REGISTER:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_register_id_t *> (value)));
+    }
+  error ("unhandled amd_dbgapi_architecture_info_t query (%s)",
+         to_string (query).c_str ());
+}
+
+template <>
+std::string
 to_string (amd_dbgapi_instruction_kind_t instruction_kind)
 {
   switch (instruction_kind)
@@ -352,6 +427,32 @@ to_string (amd_dbgapi_process_info_t process_info)
       CASE (PROCESS_INFO_OS_ID);
     }
   return to_string (make_hex (process_info));
+}
+
+template <>
+std::string
+to_string (detail::query_ref<amd_dbgapi_process_info_t> ref)
+{
+  auto [query, value] = ref;
+  switch (query)
+    {
+    case AMD_DBGAPI_PROCESS_INFO_NOTIFIER:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_notifier_t *> (value)));
+    case AMD_DBGAPI_PROCESS_INFO_WATCHPOINT_COUNT:
+      return to_string (make_ref (static_cast<const size_t *> (value)));
+    case AMD_DBGAPI_PROCESS_INFO_WATCHPOINT_SHARE:
+      return to_string (make_ref (
+          static_cast<const amd_dbgapi_watchpoint_share_kind_t *> (value)));
+    case AMD_DBGAPI_PROCESS_INFO_PRECISE_MEMORY_SUPPORTED:
+      return to_string (make_ref (
+          static_cast<const amd_dbgapi_memory_precision_t *> (value)));
+    case AMD_DBGAPI_PROCESS_INFO_OS_ID:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_os_process_id_t *> (value)));
+    }
+  error ("unhandled amd_dbgapi_process_info_t query (%s)",
+         to_string (query).c_str ());
 }
 
 template <>
@@ -391,6 +492,21 @@ to_string (amd_dbgapi_watchpoint_info_t watchpoint_info)
 
 template <>
 std::string
+to_string (detail::query_ref<amd_dbgapi_watchpoint_info_t> ref)
+{
+  auto [query, value] = ref;
+  switch (query)
+    {
+    case AMD_DBGAPI_WATCHPOINT_INFO_PROCESS:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_process_id_t *> (value)));
+    }
+  error ("unhandled amd_dbgapi_watchpoint_info_t query (%s)",
+         to_string (query).c_str ());
+}
+
+template <>
+std::string
 to_string (amd_dbgapi_code_object_info_t code_object_info)
 {
   switch (code_object_info)
@@ -400,6 +516,25 @@ to_string (amd_dbgapi_code_object_info_t code_object_info)
       CASE (CODE_OBJECT_INFO_LOAD_ADDRESS);
     }
   return to_string (make_hex (code_object_info));
+}
+
+template <>
+std::string
+to_string (detail::query_ref<amd_dbgapi_code_object_info_t> ref)
+{
+  auto [query, value] = ref;
+  switch (query)
+    {
+    case AMD_DBGAPI_CODE_OBJECT_INFO_PROCESS:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_process_id_t *> (value)));
+    case AMD_DBGAPI_CODE_OBJECT_INFO_URI_NAME:
+      return to_string (make_ref (static_cast<char *const *> (value)));
+    case AMD_DBGAPI_CODE_OBJECT_INFO_LOAD_ADDRESS:
+      return to_string (make_ref (static_cast<const ptrdiff_t *> (value)));
+    }
+  error ("unhandled amd_dbgapi_code_object_info_t query (%s)",
+         to_string (query).c_str ());
 }
 
 template <>
@@ -416,6 +551,24 @@ to_string (amd_dbgapi_breakpoint_info_t breakpoint_info)
 
 template <>
 std::string
+to_string (detail::query_ref<amd_dbgapi_breakpoint_info_t> ref)
+{
+  auto [query, value] = ref;
+  switch (query)
+    {
+    case AMD_DBGAPI_BREAKPOINT_INFO_SHARED_LIBRARY:
+      return to_string (make_ref (
+          static_cast<const amd_dbgapi_shared_library_id_t *> (value)));
+    case AMD_DBGAPI_BREAKPOINT_INFO_PROCESS:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_process_id_t *> (value)));
+    }
+  error ("unhandled amd_dbgapi_breakpoint_info_t query (%s)",
+         to_string (query).c_str ());
+}
+
+template <>
+std::string
 to_string (amd_dbgapi_shared_library_info_t shared_library_info)
 {
   switch (shared_library_info)
@@ -427,6 +580,21 @@ to_string (amd_dbgapi_shared_library_info_t shared_library_info)
 
 template <>
 std::string
+to_string (detail::query_ref<amd_dbgapi_shared_library_info_t> ref)
+{
+  auto [query, value] = ref;
+  switch (query)
+    {
+    case AMD_DBGAPI_SHARED_LIBRARY_INFO_PROCESS:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_process_id_t *> (value)));
+    }
+  error ("unhandled amd_dbgapi_shared_library_info_t query (%s)",
+         to_string (query).c_str ());
+}
+
+template <>
+std::string
 to_string (amd_dbgapi_displaced_stepping_info_t displaced_stepping_info)
 {
   switch (displaced_stepping_info)
@@ -434,6 +602,21 @@ to_string (amd_dbgapi_displaced_stepping_info_t displaced_stepping_info)
       CASE (DISPLACED_STEPPING_INFO_PROCESS);
     }
   return to_string (make_hex (displaced_stepping_info));
+}
+
+template <>
+std::string
+to_string (detail::query_ref<amd_dbgapi_displaced_stepping_info_t> ref)
+{
+  auto [query, value] = ref;
+  switch (query)
+    {
+    case AMD_DBGAPI_DISPLACED_STEPPING_INFO_PROCESS:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_process_id_t *> (value)));
+    }
+  error ("unhandled amd_dbgapi_displaced_stepping_info_t query (%s)",
+         to_string (query).c_str ());
 }
 
 template <>
@@ -457,6 +640,39 @@ to_string (amd_dbgapi_agent_info_t agent_info)
 
 template <>
 std::string
+to_string (detail::query_ref<amd_dbgapi_agent_info_t> ref)
+{
+  auto [query, value] = ref;
+  switch (query)
+    {
+    case AMD_DBGAPI_AGENT_INFO_PROCESS:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_process_id_t *> (value)));
+    case AMD_DBGAPI_AGENT_INFO_NAME:
+      return to_string (make_ref (static_cast<char *const *> (value)));
+    case AMD_DBGAPI_AGENT_INFO_ARCHITECTURE:
+      return to_string (make_ref (
+          static_cast<const amd_dbgapi_architecture_id_t *> (value)));
+    case AMD_DBGAPI_AGENT_INFO_PCI_SLOT:
+      return to_string (
+          make_hex (make_ref (static_cast<const uint16_t *> (value))));
+    case AMD_DBGAPI_AGENT_INFO_PCI_VENDOR_ID:
+    case AMD_DBGAPI_AGENT_INFO_PCI_DEVICE_ID:
+      return to_string (
+          make_hex (make_ref (static_cast<const uint32_t *> (value))));
+    case AMD_DBGAPI_AGENT_INFO_EXECUTION_UNIT_COUNT:
+    case AMD_DBGAPI_AGENT_INFO_MAX_WAVES_PER_EXECUTION_UNIT:
+      return to_string (make_ref (static_cast<const size_t *> (value)));
+    case AMD_DBGAPI_AGENT_INFO_OS_ID:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_os_agent_id_t *> (value)));
+    }
+  error ("unhandled amd_dbgapi_agent_info_t query (%s)",
+         to_string (query).c_str ());
+}
+
+template <>
+std::string
 to_string (amd_dbgapi_queue_info_t queue_info)
 {
   switch (queue_info)
@@ -472,6 +688,45 @@ to_string (amd_dbgapi_queue_info_t queue_info)
       CASE (QUEUE_INFO_OS_ID);
     }
   return to_string (make_hex (queue_info));
+}
+
+template <>
+std::string
+to_string (detail::query_ref<amd_dbgapi_queue_info_t> ref)
+{
+  auto [query, value] = ref;
+  switch (query)
+    {
+    case AMD_DBGAPI_QUEUE_INFO_AGENT:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_agent_id_t *> (value)));
+    case AMD_DBGAPI_QUEUE_INFO_PROCESS:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_process_id_t *> (value)));
+    case AMD_DBGAPI_QUEUE_INFO_ARCHITECTURE:
+      return to_string (make_ref (
+          static_cast<const amd_dbgapi_architecture_id_t *> (value)));
+    case AMD_DBGAPI_QUEUE_INFO_TYPE:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_os_queue_type_t *> (value)));
+    case AMD_DBGAPI_QUEUE_INFO_STATE:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_queue_state_t *> (value)));
+    case AMD_DBGAPI_QUEUE_INFO_ERROR_REASON:
+      return to_string (make_ref (
+          static_cast<const amd_dbgapi_queue_error_reason_t *> (value)));
+    case AMD_DBGAPI_QUEUE_INFO_ADDRESS:
+      return to_string (make_hex (make_ref (
+          static_cast<const amd_dbgapi_global_address_t *> (value))));
+    case AMD_DBGAPI_QUEUE_INFO_SIZE:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_size_t *> (value)));
+    case AMD_DBGAPI_QUEUE_INFO_OS_ID:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_os_queue_id_t *> (value)));
+    }
+  error ("unhandled amd_dbgapi_queue_info_t query (%s)",
+         to_string (query).c_str ());
 }
 
 template <>
@@ -578,6 +833,56 @@ to_string (amd_dbgapi_dispatch_info_t dispatch_info)
 
 template <>
 std::string
+to_string (detail::query_ref<amd_dbgapi_dispatch_info_t> ref)
+{
+  auto [query, value] = ref;
+  switch (query)
+    {
+    case AMD_DBGAPI_DISPATCH_INFO_QUEUE:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_queue_id_t *> (value)));
+    case AMD_DBGAPI_DISPATCH_INFO_AGENT:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_agent_id_t *> (value)));
+    case AMD_DBGAPI_DISPATCH_INFO_PROCESS:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_process_id_t *> (value)));
+    case AMD_DBGAPI_DISPATCH_INFO_ARCHITECTURE:
+      return to_string (make_ref (
+          static_cast<const amd_dbgapi_architecture_id_t *> (value)));
+    case AMD_DBGAPI_DISPATCH_INFO_OS_QUEUE_PACKET_ID:
+      return to_string (make_ref (
+          static_cast<const amd_dbgapi_os_queue_packet_id_t *> (value)));
+    case AMD_DBGAPI_DISPATCH_INFO_BARRIER:
+      return to_string (make_ref (
+          static_cast<const amd_dbgapi_dispatch_barrier_t *> (value)));
+    case AMD_DBGAPI_DISPATCH_INFO_ACQUIRE_FENCE:
+    case AMD_DBGAPI_DISPATCH_INFO_RELEASE_FENCE:
+      return to_string (make_ref (
+          static_cast<const amd_dbgapi_dispatch_fence_scope_t *> (value)));
+    case AMD_DBGAPI_DISPATCH_INFO_GRID_DIMENSIONS:
+      return to_string (make_ref (static_cast<const uint32_t *> (value)));
+    case AMD_DBGAPI_DISPATCH_INFO_WORK_GROUP_SIZES:
+      return to_string (make_ref (static_cast<const uint16_t *> (value), 3));
+    case AMD_DBGAPI_DISPATCH_INFO_GRID_SIZES:
+      return to_string (make_ref (static_cast<const uint32_t *> (value), 3));
+    case AMD_DBGAPI_DISPATCH_INFO_PRIVATE_SEGMENT_SIZE:
+    case AMD_DBGAPI_DISPATCH_INFO_GROUP_SEGMENT_SIZE:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_size_t *> (value)));
+    case AMD_DBGAPI_DISPATCH_INFO_KERNEL_ARGUMENT_SEGMENT_ADDRESS:
+    case AMD_DBGAPI_DISPATCH_INFO_KERNEL_DESCRIPTOR_ADDRESS:
+    case AMD_DBGAPI_DISPATCH_INFO_KERNEL_CODE_ENTRY_ADDRESS:
+    case AMD_DBGAPI_DISPATCH_INFO_KERNEL_COMPLETION_ADDRESS:
+      return to_string (make_hex (make_ref (
+          static_cast<const amd_dbgapi_global_address_t *> (value))));
+    }
+  error ("unhandled amd_dbgapi_dispatch_info_t query (%s)",
+         to_string (query).c_str ());
+}
+
+template <>
+std::string
 to_string (amd_dbgapi_dispatch_barrier_t dispatch_barrier)
 {
   switch (dispatch_barrier)
@@ -622,6 +927,59 @@ to_string (amd_dbgapi_wave_info_t wave_info)
       CASE (WAVE_INFO_LANE_COUNT);
     }
   return to_string (make_hex (wave_info));
+}
+
+template <>
+std::string
+to_string (detail::query_ref<amd_dbgapi_wave_info_t> ref)
+{
+  auto [query, value] = ref;
+  switch (query)
+    {
+    case AMD_DBGAPI_WAVE_INFO_STATE:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_wave_state_t *> (value)));
+    case AMD_DBGAPI_WAVE_INFO_STOP_REASON:
+      return to_string (make_ref (
+          static_cast<const amd_dbgapi_wave_stop_reason_t *> (value)));
+    case AMD_DBGAPI_WAVE_INFO_WATCHPOINTS:
+      {
+        const auto *list
+            = static_cast<const amd_dbgapi_watchpoint_list_t *> (value);
+        return string_printf (
+            "*%p={%zu,%s}", list, list->count,
+            to_string (make_ref (list->watchpoint_ids, list->count)).c_str ());
+      }
+    case AMD_DBGAPI_WAVE_INFO_DISPATCH:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_dispatch_id_t *> (value)));
+    case AMD_DBGAPI_WAVE_INFO_QUEUE:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_queue_id_t *> (value)));
+    case AMD_DBGAPI_WAVE_INFO_AGENT:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_agent_id_t *> (value)));
+    case AMD_DBGAPI_WAVE_INFO_PROCESS:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_process_id_t *> (value)));
+    case AMD_DBGAPI_WAVE_INFO_ARCHITECTURE:
+      return to_string (make_ref (
+          static_cast<const amd_dbgapi_architecture_id_t *> (value)));
+    case AMD_DBGAPI_WAVE_INFO_PC:
+      return to_string (make_hex (make_ref (
+          static_cast<const amd_dbgapi_global_address_t *> (value))));
+    case AMD_DBGAPI_WAVE_INFO_EXEC_MASK:
+      return to_string (
+          make_hex (make_ref (static_cast<const uint64_t *> (value))));
+    case AMD_DBGAPI_WAVE_INFO_WORK_GROUP_COORD:
+      return to_string (make_ref (static_cast<const uint32_t *> (value), 3));
+    case AMD_DBGAPI_WAVE_INFO_WAVE_NUMBER_IN_WORK_GROUP:
+      return to_string (make_ref (static_cast<const uint32_t *> (value)));
+    case AMD_DBGAPI_WAVE_INFO_LANE_COUNT:
+      return to_string (make_ref (static_cast<const size_t *> (value)));
+    }
+  error ("unhandled amd_dbgapi_wave_info_t query (%s)",
+         to_string (query).c_str ());
 }
 
 template <>
@@ -756,6 +1114,23 @@ to_string (amd_dbgapi_register_class_info_t register_class_info)
 
 template <>
 std::string
+to_string (detail::query_ref<amd_dbgapi_register_class_info_t> ref)
+{
+  auto [query, value] = ref;
+  switch (query)
+    {
+    case AMD_DBGAPI_REGISTER_CLASS_INFO_ARCHITECTURE:
+      return to_string (make_ref (
+          static_cast<const amd_dbgapi_architecture_id_t *> (value)));
+    case AMD_DBGAPI_REGISTER_CLASS_INFO_NAME:
+      return to_string (make_ref (static_cast<char *const *> (value)));
+    }
+  error ("unhandled amd_dbgapi_register_class_info_t query (%s)",
+         to_string (query).c_str ());
+}
+
+template <>
+std::string
 to_string (amd_dbgapi_register_info_t register_info)
 {
   switch (register_info)
@@ -767,6 +1142,29 @@ to_string (amd_dbgapi_register_info_t register_info)
       CASE (REGISTER_INFO_DWARF);
     }
   return to_string (make_hex (register_info));
+}
+
+template <>
+std::string
+to_string (detail::query_ref<amd_dbgapi_register_info_t> ref)
+{
+  auto [query, value] = ref;
+  switch (query)
+    {
+    case AMD_DBGAPI_REGISTER_INFO_ARCHITECTURE:
+      return to_string (make_ref (
+          static_cast<const amd_dbgapi_architecture_id_t *> (value)));
+    case AMD_DBGAPI_REGISTER_INFO_NAME:
+    case AMD_DBGAPI_REGISTER_INFO_TYPE:
+      return to_string (make_ref (static_cast<char *const *> (value)));
+    case AMD_DBGAPI_REGISTER_INFO_SIZE:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_size_t *> (value)));
+    case AMD_DBGAPI_REGISTER_INFO_DWARF:
+      return to_string (make_ref (static_cast<const uint64_t *> (value)));
+    }
+  error ("unhandled amd_dbgapi_register_info_t query (%s)",
+         to_string (query).c_str ());
 }
 
 template <>
@@ -809,6 +1207,28 @@ to_string (amd_dbgapi_address_class_info_t address_class_info)
 
 template <>
 std::string
+to_string (detail::query_ref<amd_dbgapi_address_class_info_t> ref)
+{
+  auto [query, value] = ref;
+  switch (query)
+    {
+    case AMD_DBGAPI_ADDRESS_CLASS_INFO_ARCHITECTURE:
+      return to_string (make_ref (
+          static_cast<const amd_dbgapi_architecture_id_t *> (value)));
+    case AMD_DBGAPI_ADDRESS_CLASS_INFO_NAME:
+      return to_string (make_ref (static_cast<char *const *> (value)));
+    case AMD_DBGAPI_ADDRESS_CLASS_INFO_ADDRESS_SPACE:
+      return to_string (make_ref (
+          static_cast<const amd_dbgapi_address_space_id_t *> (value)));
+    case AMD_DBGAPI_ADDRESS_CLASS_INFO_DWARF:
+      return to_string (make_ref (static_cast<const uint64_t *> (value)));
+    }
+  error ("unhandled amd_dbgapi_address_class_info_t query (%s)",
+         to_string (query).c_str ());
+}
+
+template <>
+std::string
 to_string (amd_dbgapi_address_space_access_t address_space_access)
 {
   switch (address_space_access)
@@ -834,6 +1254,34 @@ to_string (amd_dbgapi_address_space_info_t address_space_info)
       CASE (ADDRESS_SPACE_INFO_DWARF);
     }
   return to_string (make_hex (address_space_info));
+}
+
+template <>
+std::string
+to_string (detail::query_ref<amd_dbgapi_address_space_info_t> ref)
+{
+  auto [query, value] = ref;
+  switch (query)
+    {
+    case AMD_DBGAPI_ADDRESS_SPACE_INFO_ARCHITECTURE:
+      return to_string (make_ref (
+          static_cast<const amd_dbgapi_architecture_id_t *> (value)));
+    case AMD_DBGAPI_ADDRESS_SPACE_INFO_NAME:
+      return to_string (make_ref (static_cast<char *const *> (value)));
+    case AMD_DBGAPI_ADDRESS_SPACE_INFO_ADDRESS_SIZE:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_size_t *> (value)));
+    case AMD_DBGAPI_ADDRESS_SPACE_INFO_NULL_ADDRESS:
+      return to_string (make_hex (make_ref (
+          static_cast<const amd_dbgapi_segment_address_t *> (value))));
+    case AMD_DBGAPI_ADDRESS_SPACE_INFO_ACCESS:
+      return to_string (make_ref (
+          static_cast<const amd_dbgapi_address_space_access_t *> (value)));
+    case AMD_DBGAPI_ADDRESS_SPACE_INFO_DWARF:
+      return to_string (make_ref (static_cast<const uint64_t *> (value)));
+    }
+  error ("unhandled amd_dbgapi_address_space_info_t query (%s)",
+         to_string (query).c_str ());
 }
 
 template <>
@@ -920,6 +1368,36 @@ to_string (amd_dbgapi_event_info_t event_info)
 
 template <>
 std::string
+to_string (detail::query_ref<amd_dbgapi_event_info_t> ref)
+{
+  auto [query, value] = ref;
+  switch (query)
+    {
+    case AMD_DBGAPI_EVENT_INFO_PROCESS:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_process_id_t *> (value)));
+    case AMD_DBGAPI_EVENT_INFO_KIND:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_event_kind_t *> (value)));
+    case AMD_DBGAPI_EVENT_INFO_WAVE:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_wave_id_t *> (value)));
+    case AMD_DBGAPI_EVENT_INFO_BREAKPOINT:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_breakpoint_id_t *> (value)));
+    case AMD_DBGAPI_EVENT_INFO_CLIENT_THREAD:
+      return to_string (
+          make_hex (make_ref (static_cast<const uintptr_t *> (value))));
+    case AMD_DBGAPI_EVENT_INFO_RUNTIME_STATE:
+      return to_string (
+          make_ref (static_cast<const amd_dbgapi_runtime_state_t *> (value)));
+    }
+  error ("unhandled amd_dbgapi_event_info_t query (%s)",
+         to_string (query).c_str ());
+}
+
+template <>
+std::string
 to_string (amd_dbgapi_log_level_t log_level)
 {
   switch (log_level)
@@ -964,6 +1442,8 @@ to_string (amd_dbgapi_breakpoint_action_t breakpoint_action)
 void AMD_DBGAPI
 amd_dbgapi_set_log_level (amd_dbgapi_log_level_t level)
 {
-  TRACE (level);
   amd::dbgapi::log_level = level;
+
+  TRACE_BEGIN (level);
+  TRACE_END ();
 }

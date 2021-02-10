@@ -39,6 +39,7 @@
 #include <sstream>
 #include <string>
 #include <sys/types.h>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -3228,8 +3229,8 @@ amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_get_architecture (uint32_t elf_amdgpu_machine,
                              amd_dbgapi_architecture_id_t *architecture_id)
 {
+  TRACE_BEGIN (elf_amdgpu_machine, architecture_id);
   TRY;
-  TRACE (elf_amdgpu_machine);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -3247,6 +3248,7 @@ amd_dbgapi_get_architecture (uint32_t elf_amdgpu_machine,
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
+  TRACE_END (make_ref (architecture_id));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -3254,8 +3256,8 @@ amd_dbgapi_architecture_get_info (amd_dbgapi_architecture_id_t architecture_id,
                                   amd_dbgapi_architecture_info_t query,
                                   size_t value_size, void *value)
 {
+  TRACE_BEGIN (architecture_id, query, value_size, value);
   TRY;
-  TRACE (architecture_id, query, value_size, value);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -3267,6 +3269,7 @@ amd_dbgapi_architecture_get_info (amd_dbgapi_architecture_id_t architecture_id,
 
   return architecture->get_info (query, value_size, value);
   CATCH;
+  TRACE_END (make_query_ref (query, value));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -3279,8 +3282,12 @@ amd_dbgapi_disassemble_instruction (
         amd_dbgapi_symbolizer_id_t symbolizer_id,
         amd_dbgapi_global_address_t address, char **symbol_text))
 {
+  TRACE_BEGIN (architecture_id, make_hex (address), make_ref (size),
+               make_hex (make_ref (static_cast<const uint8_t *> (memory),
+                                   size ? *size : 0)),
+               instruction_text, symbolizer_id,
+               reinterpret_cast<const void *> (symbolizer));
   TRY;
-  TRACE (architecture_id, address, size);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -3346,6 +3353,7 @@ amd_dbgapi_disassemble_instruction (
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
+  TRACE_END (make_ref (size), make_ref (instruction_text));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -3355,8 +3363,11 @@ amd_dbgapi_classify_instruction (
     const void *memory, amd_dbgapi_instruction_kind_t *instruction_kind_p,
     void **instruction_properties_p)
 {
+  TRACE_BEGIN (architecture_id, make_hex (address), make_ref (size_p),
+               make_hex (make_ref (static_cast<const uint8_t *> (memory),
+                                   size_p ? *size_p : 0)),
+               instruction_kind_p, instruction_properties_p);
   TRY;
-  TRACE (architecture_id, address);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -3401,4 +3412,5 @@ amd_dbgapi_classify_instruction (
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
+  TRACE_END (make_ref (size_p), make_ref (instruction_kind_p));
 }

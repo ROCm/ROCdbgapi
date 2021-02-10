@@ -52,9 +52,6 @@
 #include <utility>
 #include <vector>
 
-#define TRACE_CALLBACK(...)                                                   \
-  tracer __tracer__##__COUNTER__ { "[callback]", __FUNCTION__, ##__VA_ARGS__ }
-
 namespace amd::dbgapi
 {
 
@@ -266,8 +263,9 @@ public:
 
   amd_dbgapi_status_t get_os_pid (amd_dbgapi_os_process_id_t *pid) const
   {
-    TRACE_CALLBACK ();
+    TRACE_CALLBACK_BEGIN (pid);
     return (*detail::process_callbacks.get_os_pid) (m_client_process_id, pid);
+    TRACE_CALLBACK_END (make_ref (pid));
   }
 
   amd_dbgapi_status_t
@@ -275,26 +273,29 @@ public:
                       const char *symbol_name,
                       amd_dbgapi_global_address_t *address) const
   {
-    TRACE_CALLBACK (library_id, symbol_name, address);
+    TRACE_CALLBACK_BEGIN (library_id, symbol_name, address);
     return (*detail::process_callbacks.get_symbol_address) (
         m_client_process_id, library_id, symbol_name, address);
+    TRACE_CALLBACK_END (make_hex (make_ref (address)));
   }
 
   amd_dbgapi_status_t enable_notify_shared_library (
       const char *library_name, amd_dbgapi_shared_library_id_t library_id,
       amd_dbgapi_shared_library_state_t *library_state)
   {
-    TRACE_CALLBACK (library_name, library_id);
+    TRACE_CALLBACK_BEGIN (library_name, library_id, library_state);
     return (*detail::process_callbacks.enable_notify_shared_library) (
         m_client_process_id, library_name, library_id, library_state);
+    TRACE_CALLBACK_END (make_ref (library_state));
   }
 
   amd_dbgapi_status_t
   disable_notify_shared_library (amd_dbgapi_shared_library_id_t library_id)
   {
-    TRACE_CALLBACK (library_id);
+    TRACE_CALLBACK_BEGIN (library_id);
     return (*detail::process_callbacks.disable_notify_shared_library) (
         m_client_process_id, library_id);
+    TRACE_CALLBACK_END ();
   }
 
   amd_dbgapi_status_t
@@ -302,17 +303,19 @@ public:
                      amd_dbgapi_global_address_t address,
                      amd_dbgapi_breakpoint_id_t breakpoint_id)
   {
-    TRACE_CALLBACK (address, breakpoint_id);
+    TRACE_CALLBACK_BEGIN (make_hex (address), breakpoint_id);
     return (*detail::process_callbacks.insert_breakpoint) (
         m_client_process_id, shared_library_id, address, breakpoint_id);
+    TRACE_CALLBACK_END ();
   }
 
   amd_dbgapi_status_t
   remove_breakpoint (amd_dbgapi_breakpoint_id_t breakpoint_id)
   {
-    TRACE_CALLBACK (breakpoint_id);
+    TRACE_CALLBACK_BEGIN (breakpoint_id);
     return (*detail::process_callbacks.remove_breakpoint) (m_client_process_id,
                                                            breakpoint_id);
+    TRACE_CALLBACK_END ();
   }
 
   template <typename Object, typename... Args> auto &create (Args &&... args)
@@ -462,15 +465,17 @@ process_t::is_flag_set (flag_t flag) const
 inline void *
 allocate_memory (size_t byte_size)
 {
-  TRACE_CALLBACK (byte_size);
+  TRACE_CALLBACK_BEGIN (byte_size);
   return (*detail::process_callbacks.allocate_memory) (byte_size);
+  TRACE_CALLBACK_END ();
 }
 
 inline void
 deallocate_memory (void *data)
 {
-  TRACE_CALLBACK (data);
+  TRACE_CALLBACK_BEGIN (data);
   (*detail::process_callbacks.deallocate_memory) (data);
+  TRACE_CALLBACK_END ();
 }
 
 inline void
@@ -478,8 +483,6 @@ log_message (amd_dbgapi_log_level_t level, const char *message)
 {
   return (*detail::process_callbacks.log_message) (level, message);
 }
-
-#undef TRACE_CALLBACK
 
 } /* namespace amd::dbgapi */
 

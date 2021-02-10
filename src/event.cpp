@@ -216,8 +216,8 @@ amd_dbgapi_process_next_pending_event (amd_dbgapi_process_id_t process_id,
                                        amd_dbgapi_event_id_t *event_id,
                                        amd_dbgapi_event_kind_t *kind)
 {
+  TRACE_BEGIN (process_id, event_id, kind);
   TRY;
-  TRACE (process_id);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -257,6 +257,7 @@ amd_dbgapi_process_next_pending_event (amd_dbgapi_process_id_t process_id,
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
+  TRACE_END (make_ref (event_id), make_ref (kind));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -264,8 +265,8 @@ amd_dbgapi_event_get_info (amd_dbgapi_event_id_t event_id,
                            amd_dbgapi_event_info_t query, size_t value_size,
                            void *value)
 {
+  TRACE_BEGIN (event_id, query, value_size, value);
   TRY;
-  TRACE (event_id, query, value_size);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -277,13 +278,14 @@ amd_dbgapi_event_get_info (amd_dbgapi_event_id_t event_id,
 
   return event->get_info (query, value_size, value);
   CATCH;
+  TRACE_END (make_query_ref (query, value));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_event_processed (amd_dbgapi_event_id_t event_id)
 {
+  TRACE_BEGIN (event_id);
   TRY;
-  TRACE (event_id);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -300,4 +302,5 @@ amd_dbgapi_event_processed (amd_dbgapi_event_id_t event_id)
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
+  TRACE_END ();
 }

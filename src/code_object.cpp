@@ -57,8 +57,8 @@ amd_dbgapi_code_object_get_info (amd_dbgapi_code_object_id_t code_object_id,
                                  amd_dbgapi_code_object_info_t query,
                                  size_t value_size, void *value)
 {
+  TRACE_BEGIN (code_object_id, query, value_size, value);
   TRY;
-  TRACE (code_object_id, query, value_size, value);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -70,6 +70,7 @@ amd_dbgapi_code_object_get_info (amd_dbgapi_code_object_id_t code_object_id,
 
   return code_object->get_info (query, value_size, value);
   CATCH;
+  TRACE_END (make_query_ref (query, value));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -77,8 +78,8 @@ amd_dbgapi_process_code_object_list (
     amd_dbgapi_process_id_t process_id, size_t *code_object_count,
     amd_dbgapi_code_object_id_t **code_objects, amd_dbgapi_changed_t *changed)
 {
+  TRACE_BEGIN (process_id, code_object_count, code_objects, changed);
   TRY;
-  TRACE (process_id);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -102,4 +103,7 @@ amd_dbgapi_process_code_object_list (
   return utils::get_handle_list<code_object_t> (processes, code_object_count,
                                                 code_objects, changed);
   CATCH;
+  TRACE_END (make_ref (code_object_count),
+             make_ref (make_ref (code_objects), *code_object_count),
+             make_ref (changed));
 }

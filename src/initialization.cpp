@@ -40,8 +40,6 @@ using namespace amd::dbgapi;
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_initialize (struct amd_dbgapi_callbacks_s *callbacks)
 {
-  TRY;
-
   if (detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_ALREADY_INITIALIZED;
 
@@ -52,20 +50,33 @@ amd_dbgapi_initialize (struct amd_dbgapi_callbacks_s *callbacks)
 
   detail::process_callbacks = *callbacks;
 
-  TRACE (callbacks);
+  TRACE_BEGIN (callbacks);
+  TRY;
 
   process_t::reset_all_ids ();
   detail::is_initialized = true;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
+  TRACE_END ();
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_finalize ()
 {
+  /* Reset the callbacks only after the tracer is done logging.  */
+  struct on_exit
+  {
+    ~on_exit ()
+    {
+      detail::process_callbacks = {};
+      detail::is_initialized = false;
+    }
+  };
+  std::optional<on_exit> reset_callbacks;
+
+  TRACE_BEGIN ();
   TRY;
-  TRACE ();
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -77,9 +88,9 @@ amd_dbgapi_finalize ()
       process_t::destroy_process (&process);
     }
 
-  detail::process_callbacks = {};
-  detail::is_initialized = false;
+  reset_callbacks.emplace ();
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
+  TRACE_END ();
 }

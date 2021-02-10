@@ -55,8 +55,9 @@ amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
                            amd_dbgapi_global_address_t *watchpoint_address,
                            amd_dbgapi_size_t *watchpoint_size)
 {
+  TRACE_BEGIN (process_id, make_hex (address), size, kind, watchpoint_id,
+               watchpoint_address, watchpoint_size);
   TRY;
-  TRACE (process_id, address, size, kind);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -95,14 +96,17 @@ amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
   *watchpoint_id = watchpoint.id ();
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
+  TRACE_END (make_ref (watchpoint_id),
+             make_hex (make_ref (watchpoint_address)),
+             make_ref (watchpoint_size));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_remove_watchpoint (amd_dbgapi_process_id_t process_id,
                               amd_dbgapi_watchpoint_id_t watchpoint_id)
 {
+  TRACE_BEGIN (process_id, watchpoint_id);
   TRY;
-  TRACE (process_id, watchpoint_id);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -122,6 +126,7 @@ amd_dbgapi_remove_watchpoint (amd_dbgapi_process_id_t process_id,
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
+  TRACE_END ();
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -129,8 +134,8 @@ amd_dbgapi_watchpoint_get_info (amd_dbgapi_watchpoint_id_t watchpoint_id,
                                 amd_dbgapi_watchpoint_info_t query,
                                 size_t value_size, void *value)
 {
+  TRACE_BEGIN (watchpoint_id, query, value_size, value);
   TRY;
-  TRACE (watchpoint_id, query, value_size, value);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -142,4 +147,5 @@ amd_dbgapi_watchpoint_get_info (amd_dbgapi_watchpoint_id_t watchpoint_id,
 
   return watchpoint->get_info (query, value_size, value);
   CATCH;
+  TRACE_END (make_query_ref (query, value));
 }

@@ -961,8 +961,8 @@ using namespace amd::dbgapi;
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_wave_stop (amd_dbgapi_wave_id_t wave_id)
 {
+  TRACE_BEGIN (wave_id);
   TRY;
-  TRACE (wave_id);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -988,14 +988,15 @@ amd_dbgapi_wave_stop (amd_dbgapi_wave_id_t wave_id)
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
+  TRACE_END ();
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
                         amd_dbgapi_resume_mode_t resume_mode)
 {
+  TRACE_BEGIN (wave_id, resume_mode);
   TRY;
-  TRACE (wave_id, resume_mode);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -1039,6 +1040,7 @@ amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
+  TRACE_END ();
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -1046,8 +1048,8 @@ amd_dbgapi_wave_get_info (amd_dbgapi_wave_id_t wave_id,
                           amd_dbgapi_wave_info_t query, size_t value_size,
                           void *value)
 {
+  TRACE_BEGIN (wave_id, query, value_size, value);
   TRY;
-  TRACE (wave_id, query, value_size, value);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -1071,6 +1073,7 @@ amd_dbgapi_wave_get_info (amd_dbgapi_wave_id_t wave_id,
 
   return wave->get_info (query, value_size, value);
   CATCH;
+  TRACE_END (make_query_ref (query, value));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -1078,8 +1081,8 @@ amd_dbgapi_process_wave_list (amd_dbgapi_process_id_t process_id,
                               size_t *wave_count, amd_dbgapi_wave_id_t **waves,
                               amd_dbgapi_changed_t *changed)
 {
+  TRACE_BEGIN (process_id, wave_count, waves, changed);
   TRY;
-  TRACE (process_id);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -1135,4 +1138,6 @@ amd_dbgapi_process_wave_list (amd_dbgapi_process_id_t process_id,
 
   return status;
   CATCH;
+  TRACE_END (make_ref (wave_count), make_ref (make_ref (waves), *wave_count),
+             make_ref (changed));
 }

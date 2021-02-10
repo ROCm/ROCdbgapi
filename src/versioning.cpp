@@ -24,18 +24,22 @@
 
 #include <cstdint>
 
+using namespace amd::dbgapi;
+
 const char AMD_DBGAPI *
 amd_dbgapi_get_build_name ()
 {
-  TRACE ();
+  TRACE_BEGIN ();
 
   return AMD_DBGAPI_BUILD_INFO;
+
+  TRACE_END ();
 }
 
 void AMD_DBGAPI
 amd_dbgapi_get_version (uint32_t *major, uint32_t *minor, uint32_t *patch)
 {
-  TRACE ();
+  TRACE_BEGIN (major, minor, patch);
 
   if (major)
     *major = AMD_DBGAPI_VERSION_MAJOR;
@@ -43,14 +47,16 @@ amd_dbgapi_get_version (uint32_t *major, uint32_t *minor, uint32_t *patch)
     *minor = AMD_DBGAPI_VERSION_MINOR;
   if (patch)
     *patch = AMD_DBGAPI_VERSION_PATCH;
+
+  TRACE_END (make_ref (major), make_ref (minor), make_ref (patch));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
                               const char **status_string)
 {
+  TRACE_BEGIN (status, status_string);
   TRY;
-  TRACE (status);
 
   const char *string = nullptr;
   switch (status)
@@ -208,4 +214,5 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
   *status_string = string;
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
+  TRACE_END (make_ref (status_string));
 }

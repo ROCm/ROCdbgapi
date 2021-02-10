@@ -1795,8 +1795,8 @@ amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_process_set_progress (amd_dbgapi_process_id_t process_id,
                                  amd_dbgapi_progress_t progress)
 {
+  TRACE_BEGIN (process_id, progress);
   TRY;
-  TRACE (process_id, progress);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -1820,14 +1820,15 @@ amd_dbgapi_process_set_progress (amd_dbgapi_process_id_t process_id,
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
+  TRACE_END ();
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_process_set_wave_creation (amd_dbgapi_process_id_t process_id,
                                       amd_dbgapi_wave_creation_t creation)
 {
+  TRACE_BEGIN (process_id, creation);
   TRY;
-  TRACE (process_id, creation);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -1857,14 +1858,15 @@ amd_dbgapi_process_set_wave_creation (amd_dbgapi_process_id_t process_id,
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
+  TRACE_END ();
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
                            amd_dbgapi_process_id_t *process_id)
 {
+  TRACE_BEGIN (client_process_id, process_id);
   TRY;
-  TRACE (client_process_id, process_id);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -1905,13 +1907,14 @@ amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
+  TRACE_END (make_ref (process_id));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_process_detach (amd_dbgapi_process_id_t process_id)
 {
+  TRACE_BEGIN (process_id);
   TRY;
-  TRACE (process_id);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -1926,6 +1929,7 @@ amd_dbgapi_process_detach (amd_dbgapi_process_id_t process_id)
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
+  TRACE_END ();
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -1933,8 +1937,8 @@ amd_dbgapi_process_get_info (amd_dbgapi_process_id_t process_id,
                              amd_dbgapi_process_info_t query,
                              size_t value_size, void *value)
 {
+  TRACE_BEGIN (process_id, query, value_size, value);
   TRY;
-  TRACE (process_id, query, value_size, value);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -1946,4 +1950,5 @@ amd_dbgapi_process_get_info (amd_dbgapi_process_id_t process_id,
 
   return process->get_info (query, value_size, value);
   CATCH;
+  TRACE_END (make_query_ref (query, value));
 }

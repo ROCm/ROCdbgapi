@@ -933,8 +933,8 @@ amd_dbgapi_queue_get_info (amd_dbgapi_queue_id_t queue_id,
                            amd_dbgapi_queue_info_t query, size_t value_size,
                            void *value)
 {
+  TRACE_BEGIN (queue_id, query, value_size, value);
   TRY;
-  TRACE (queue_id, query, value_size, value);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -946,6 +946,7 @@ amd_dbgapi_queue_get_info (amd_dbgapi_queue_id_t queue_id,
 
   return queue->get_info (query, value_size, value);
   CATCH;
+  TRACE_END (make_query_ref (query, value));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -954,8 +955,8 @@ amd_dbgapi_process_queue_list (amd_dbgapi_process_id_t process_id,
                                amd_dbgapi_queue_id_t **queues,
                                amd_dbgapi_changed_t *changed)
 {
+  TRACE_BEGIN (process_id, queue_count, queues, changed);
   TRY;
-  TRACE (process_id);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -989,6 +990,8 @@ amd_dbgapi_process_queue_list (amd_dbgapi_process_id_t process_id,
   return utils::get_handle_list<queue_t> (processes, queue_count, queues,
                                           changed);
   CATCH;
+  TRACE_END (make_ref (queue_count),
+             make_ref (make_ref (queues), *queue_count), make_ref (changed));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -998,8 +1001,9 @@ amd_dbgapi_queue_packet_list (
     amd_dbgapi_os_queue_packet_id_t *write_packet_id_p,
     amd_dbgapi_size_t *packets_byte_size_p, void **packets_bytes_p)
 {
+  TRACE_BEGIN (queue_id, read_packet_id_p, write_packet_id_p,
+               packets_byte_size_p, packets_bytes_p);
   TRY;
-  TRACE (queue_id);
 
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
@@ -1046,4 +1050,10 @@ amd_dbgapi_queue_packet_list (
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
+  TRACE_END (make_hex (make_ref (read_packet_id_p)),
+             make_hex (make_ref (write_packet_id_p)),
+             make_ref (packets_byte_size_p),
+             make_hex (make_ref (
+                 make_ref (reinterpret_cast<uint8_t **> (packets_bytes_p)),
+                 *packets_byte_size_p)));
 }
