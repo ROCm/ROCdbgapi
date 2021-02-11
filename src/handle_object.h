@@ -190,6 +190,7 @@ public:
   public:
     using self_type = iterator;
     using value_type = Object;
+    using difference_type = size_t;
     using reference = Object &;
     using pointer = Object *;
     using iterator_category = std::forward_iterator_tag;
@@ -221,6 +222,7 @@ public:
   public:
     using self_type = const_iterator;
     using value_type = Object;
+    using difference_type = size_t;
     using const_reference = const Object &;
     using const_pointer = const Object *;
     using iterator_category = std::forward_iterator_tag;
