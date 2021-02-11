@@ -62,6 +62,11 @@ if(BACKTRACE_LIB)
   target_link_libraries(amd-dbgapi PRIVATE ${BACKTRACE_LIB})
 endif()
 
+option(API_TRACING "Enable API tracing" ON)
+if(API_TRACING)
+  add_definitions(-DWITH_API_TRACING)
+endif()
+
 find_package(amd_comgr REQUIRED CONFIG
   PATHS
     /opt/rocm/

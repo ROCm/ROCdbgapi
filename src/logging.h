@@ -445,6 +445,8 @@ tracer::leave (std::tuple<Args...> out_args,
   return closure ();
 }
 
+#if defined(WITH_API_TRACING)
+
 #define _TRACE_BEGIN(prefix, ...)                                             \
   amd::dbgapi::tracer _tracer (prefix, __FUNCTION__);                         \
   auto _closure = _tracer.enter (std::make_tuple (__VA_ARGS__), [&] () {
@@ -458,6 +460,16 @@ tracer::leave (std::tuple<Args...> out_args,
 
 #define TRACE_CALLBACK_BEGIN(...) _TRACE_BEGIN ("[callback] ", __VA_ARGS__)
 #define TRACE_CALLBACK_END(...) _TRACE_END (__VA_ARGS__)
+
+#else /* !defined (WITH_API_TRACING) */
+
+#define TRACE_BEGIN(...)
+#define TRACE_END(...)
+
+#define TRACE_CALLBACK_BEGIN(...)
+#define TRACE_CALLBACK_END(...)
+
+#endif /* !defined (WITH_API_TRACING) */
 
 } /* namespace amd::dbgapi */
 
