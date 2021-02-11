@@ -1092,7 +1092,7 @@ typedef struct
 /**
  * The NULL architecture handle.
  */
-#define AMD_DBGAPI_ARCHITECTURE_NONE (amd_dbgapi_architecture_id_t{ 0 })
+#define AMD_DBGAPI_ARCHITECTURE_NONE ((amd_dbgapi_architecture_id_t){ 0 })
 
 /**
  * Architecture queries that are supported by
@@ -1554,7 +1554,7 @@ typedef struct
 /**
  * The NULL process handle.
  */
-#define AMD_DBGAPI_PROCESS_NONE (amd_dbgapi_process_id_t{ 0 })
+#define AMD_DBGAPI_PROCESS_NONE ((amd_dbgapi_process_id_t){ 0 })
 
 /**
  * Process queries that are supported by ::amd_dbgapi_process_get_info.
@@ -1932,7 +1932,7 @@ typedef struct
 /**
  * The NULL code object handle.
  */
-#define AMD_DBGAPI_CODE_OBJECT_NONE (amd_dbgapi_code_object_id_t{ 0 })
+#define AMD_DBGAPI_CODE_OBJECT_NONE ((amd_dbgapi_code_object_id_t){ 0 })
 
 /**
  * Code object queries that are supported by ::amd_dbgapi_code_object_get_info.
@@ -2125,7 +2125,7 @@ typedef struct
 /**
  * The NULL agent handle.
  */
-#define AMD_DBGAPI_AGENT_NONE (amd_dbgapi_agent_id_t{ 0 })
+#define AMD_DBGAPI_AGENT_NONE ((amd_dbgapi_agent_id_t){ 0 })
 
 /**
  * Agent queries that are supported by ::amd_dbgapi_agent_get_info.
@@ -2303,7 +2303,7 @@ typedef struct
 /**
  * The NULL queue handle.
  */
-#define AMD_DBGAPI_QUEUE_NONE (amd_dbgapi_queue_id_t{ 0 })
+#define AMD_DBGAPI_QUEUE_NONE ((amd_dbgapi_queue_id_t){ 0 })
 
 /**
  * Queue queries that are supported by ::amd_dbgapi_queue_get_info.
@@ -2604,7 +2604,7 @@ typedef struct
 /**
  * The NULL dispatch handle.
  */
-#define AMD_DBGAPI_DISPATCH_NONE (amd_dbgapi_dispatch_id_t{ 0 })
+#define AMD_DBGAPI_DISPATCH_NONE ((amd_dbgapi_dispatch_id_t){ 0 })
 
 /**
  * Dispatch queries that are supported by ::amd_dbgapi_dispatch_get_info.
@@ -2865,7 +2865,7 @@ typedef struct
 /**
  * The NULL wave handle.
  */
-#define AMD_DBGAPI_WAVE_NONE (amd_dbgapi_wave_id_t{ 0 })
+#define AMD_DBGAPI_WAVE_NONE ((amd_dbgapi_wave_id_t){ 0 })
 
 /**
  * Wave queries that are supported by ::amd_dbgapi_wave_get_info.
@@ -3846,7 +3846,7 @@ typedef struct
 /**
  * The NULL hardware data watchpoint handle.
  */
-#define AMD_DBGAPI_WATCHPOINT_NONE (amd_dbgapi_watchpoint_id_t{ 0 })
+#define AMD_DBGAPI_WATCHPOINT_NONE ((amd_dbgapi_watchpoint_id_t){ 0 })
 
 /**
  * Watchpoint queries that are supported by ::amd_dbgapi_watchpoint_get_info.
@@ -4111,7 +4111,7 @@ typedef struct
 /**
  * The NULL register class handle.
  */
-#define AMD_DBGAPI_REGISTER_CLASS_NONE (amd_dbgapi_register_class_id_t{ 0 })
+#define AMD_DBGAPI_REGISTER_CLASS_NONE ((amd_dbgapi_register_class_id_t){ 0 })
 
 /**
  * Register class queries that are supported by
@@ -4240,7 +4240,7 @@ typedef struct
 /**
  * The NULL register handle.
  */
-#define AMD_DBGAPI_REGISTER_NONE (amd_dbgapi_register_id_t{ 0 })
+#define AMD_DBGAPI_REGISTER_NONE ((amd_dbgapi_register_id_t){ 0 })
 
 /**
  * Register queries that are supported by ::amd_dbgapi_register_get_info.
@@ -4827,7 +4827,7 @@ typedef struct
 /**
  * The NULL address class handle.
  */
-#define AMD_DBGAPI_ADDRESS_CLASS_NONE (amd_dbgapi_address_class_id_t{ 0 })
+#define AMD_DBGAPI_ADDRESS_CLASS_NONE ((amd_dbgapi_address_class_id_t){ 0 })
 
 /**
  * Source language address class queries that are supported by
@@ -5016,7 +5016,7 @@ typedef struct
 /**
  * The NULL address space handle.
  */
-#define AMD_DBGAPI_ADDRESS_SPACE_NONE (amd_dbgapi_address_space_id_t{ 0 })
+#define AMD_DBGAPI_ADDRESS_SPACE_NONE ((amd_dbgapi_address_space_id_t){ 0 })
 
 /**
  * The global address space handle.
@@ -5024,7 +5024,7 @@ typedef struct
  * Every architecture supports a global address space that uses the same
  * address space ID.
  */
-#define AMD_DBGAPI_ADDRESS_SPACE_GLOBAL (amd_dbgapi_address_space_id_t{ 1 })
+#define AMD_DBGAPI_ADDRESS_SPACE_GLOBAL ((amd_dbgapi_address_space_id_t){ 1 })
 
 /**
  * Indication of how the address space is accessed.
@@ -5773,7 +5773,7 @@ typedef struct
 /**
  * The NULL event handle.
  */
-#define AMD_DBGAPI_EVENT_NONE (amd_dbgapi_event_id_t{ 0 })
+#define AMD_DBGAPI_EVENT_NONE ((amd_dbgapi_event_id_t){ 0 })
 
 /**
  * The event kinds.
@@ -6168,7 +6168,7 @@ typedef enum
 /**
  * The NULL shared library handle.
  */
-#define AMD_DBGAPI_SHARED_LIBRARY_NONE (amd_dbgapi_shared_library_id_t{ 0 })
+#define AMD_DBGAPI_SHARED_LIBRARY_NONE ((amd_dbgapi_shared_library_id_t){ 0 })
 
 /**
  * Shared library queries that are supported by
@@ -6291,7 +6291,7 @@ typedef struct
 /**
  * The NULL breakpoint handle.
  */
-#define AMD_DBGAPI_BREAKPOINT_NONE ((amd_dbgapi_breakpoint_id_t) (0))
+#define AMD_DBGAPI_BREAKPOINT_NONE ((amd_dbgapi_breakpoint_id_t){ 0 })
 
 /**
  * Breakpoint queries that are supported by ::amd_dbgapi_breakpoint_get_info.
