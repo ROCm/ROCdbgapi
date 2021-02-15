@@ -502,6 +502,13 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
           != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not write the hwregs cache back to memory");
     }
+
+  /* A wave resumed in normal mode could terminate before the next call to
+     queue_t::update_waves.  Since new wave_t`s are created before old (stale)
+     wave_t`s are deleted, the queue_t could run out of instruction buffers if
+     this wave's instruction buffer is not released now.  */
+  if (state == AMD_DBGAPI_WAVE_STATE_RUN)
+    m_instruction_buffer.reset ();
 }
 
 bool
