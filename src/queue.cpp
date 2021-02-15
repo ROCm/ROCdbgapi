@@ -35,8 +35,8 @@
 
 #include <array>
 #include <cstdint>
+#include <limits>
 #include <memory>
-#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -123,19 +123,19 @@ private:
      instruction buffers.  Instruction buffers are lazily allocated from the
      reserved memory, and when freed, their index is returned to a free list.
      Each wave is guaranteed its own unique instruction buffer.  */
-  amd_dbgapi_global_address_t m_debugger_memory_base;
+  amd_dbgapi_global_address_t m_debugger_memory_base{};
 
-  uint16_t m_debugger_memory_chunk_count;
+  uint16_t m_debugger_memory_chunk_count{ 0 };
   uint16_t m_debugger_memory_next_chunk{ 0 };
-  std::vector<uint16_t> m_debugger_memory_free_chunks;
+  std::vector<uint16_t> m_debugger_memory_free_chunks{};
 
   /* Value used to mark waves that are found in the context save area. When
      sweeping, any wave found with a mark less than the current mark will be
      deleted, as these waves are no longer active.  */
-  monotonic_counter_t<epoch_t, 1> m_next_wave_mark;
+  monotonic_counter_t<epoch_t, 1> m_next_wave_mark{};
 
-  wave_t::callbacks_t m_callbacks;
-  hsa_queue_t m_hsa_queue;
+  wave_t::callbacks_t m_callbacks{};
+  hsa_queue_t m_hsa_queue{};
 
   amd_dbgapi_status_t update_waves ();
 
@@ -325,9 +325,8 @@ aql_queue_impl_t::update_waves ()
 
   wave_t *group_leader = nullptr;
 
-  auto callback = [=, &group_leader] (auto cwsr_record) {
+  auto callback = [=, &process, &group_leader] (auto cwsr_record) {
     dbgapi_assert (m_queue == cwsr_record->queue ());
-    process_t &process = m_queue.process ();
 
     amd_dbgapi_wave_id_t wave_id;
     wave_t::visibility_t visibility{ wave_t::visibility_t::visible };
@@ -755,18 +754,19 @@ public:
       }
   }
 
-  virtual amd_dbgapi_status_t
-  active_packets_info (amd_dbgapi_os_queue_packet_id_t *read_packet_id_p,
-                       amd_dbgapi_os_queue_packet_id_t *write_packet_id_p,
-                       size_t *packets_byte_size_p) const override
+  virtual amd_dbgapi_status_t active_packets_info (
+      amd_dbgapi_os_queue_packet_id_t * /* read_packet_id_p  */,
+      amd_dbgapi_os_queue_packet_id_t * /* write_packet_id_p  */,
+      size_t * /* packets_byte_size_p  */) const override
   {
     return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
   }
 
   virtual amd_dbgapi_status_t
-  active_packets_bytes (amd_dbgapi_os_queue_packet_id_t read_packet_id,
-                        amd_dbgapi_os_queue_packet_id_t write_packet_id,
-                        void *memory, size_t memory_size) const override
+  active_packets_bytes (amd_dbgapi_os_queue_packet_id_t /* read_packet_id  */,
+                        amd_dbgapi_os_queue_packet_id_t /* write_packet_id  */,
+                        void * /* memory  */,
+                        size_t /* memory_size  */) const override
   {
     return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
   }

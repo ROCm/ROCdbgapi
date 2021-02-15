@@ -92,7 +92,7 @@ private:
   std::tuple<handle_object_set_t<address_space_t>,
              handle_object_set_t<address_class_t>,
              handle_object_set_t<register_class_t>>
-      m_handle_object_sets;
+      m_handle_object_sets{};
 
   amd_comgr_disassembly_info_t disassembly_info () const;
 
@@ -318,13 +318,19 @@ public:
                                       size_t offset, size_t value_size,
                                       const void *value) const = 0;
 
-  amd_dbgapi_status_t instruction_size (const void *memory,
-                                        size_t *size) const;
-  size_t instruction_size (const std::vector<uint8_t> &bytes) const;
-  amd_dbgapi_status_t disassemble_instruction (
-      amd_dbgapi_global_address_t address, amd_dbgapi_size_t *size,
-      const void *instruction_bytes, std::string &instruction_text,
-      std::vector<amd_dbgapi_global_address_t> &address_operands) const;
+  amd_dbgapi_size_t instruction_size (const void *instruction_bytes,
+                                      size_t size) const;
+
+  amd_dbgapi_size_t instruction_size (const std::vector<uint8_t> &bytes) const
+  {
+    return instruction_size (bytes.data (), bytes.size ());
+  }
+
+  std::tuple<amd_dbgapi_size_t /* instruction_size  */,
+             std::string /* instruction_text  */,
+             std::vector<amd_dbgapi_global_address_t> /* address_operands  */>
+  disassemble_instruction (amd_dbgapi_global_address_t address,
+                           const void *instruction_bytes, size_t size) const;
 
   amd_dbgapi_status_t get_info (amd_dbgapi_architecture_info_t query,
                                 size_t value_size, void *value) const;

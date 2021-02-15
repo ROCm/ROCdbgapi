@@ -101,10 +101,10 @@ private:
   static handle_object_set_t<process_t> s_process_map;
 
   amd_dbgapi_client_process_id_t const m_client_process_id;
-  amd_dbgapi_os_process_id_t m_os_process_id;
+  amd_dbgapi_os_process_id_t m_os_process_id{};
   amd_dbgapi_global_address_t m_r_debug_address{ 0 };
 
-  std::unique_ptr<const os_driver_t> m_os_driver;
+  std::unique_ptr<const os_driver_t> m_os_driver{};
   flag_t m_flags{};
 
   os_wave_launch_mode_t m_wave_launch_mode{ os_wave_launch_mode_t::normal };
@@ -114,22 +114,22 @@ private:
   bool m_forward_progress_needed{ true };
 
   std::thread *m_event_thread{ nullptr };
-  std::future<void> m_event_thread_exception;
+  std::future<void> m_event_thread_exception{};
 
-  pipe_t m_client_notifier_pipe;
-  pipe_t m_event_thread_exit_pipe;
+  pipe_t m_client_notifier_pipe{};
+  pipe_t m_event_thread_exit_pipe{};
 
-  std::queue<event_t *> m_pending_events;
+  std::queue<event_t *> m_pending_events{};
 
   /* Value used to mark queues that are reported by KFD. When sweeping, any
      queue found with a mark less than the current mark will be deleted, as
      these queues are no longer active.  */
-  monotonic_counter_t<epoch_t, 1> m_next_queue_mark;
+  monotonic_counter_t<epoch_t, 1> m_next_queue_mark{};
 
   /* Value used to mark code objects that are reported by the ROCR. When
      sweeping, any code object found with a mark less than the current mark
      will be deleted, as these code objects are not longer loaded.  */
-  monotonic_counter_t<epoch_t, 1> m_next_code_object_mark;
+  monotonic_counter_t<epoch_t, 1> m_next_code_object_mark{};
 
   std::tuple<
       handle_object_set_t<agent_t>, handle_object_set_t<breakpoint_t>,
@@ -137,7 +137,7 @@ private:
       handle_object_set_t<displaced_stepping_t>, handle_object_set_t<event_t>,
       handle_object_set_t<queue_t>, handle_object_set_t<shared_library_t>,
       handle_object_set_t<watchpoint_t>, handle_object_set_t<wave_t>>
-      m_handle_object_sets;
+      m_handle_object_sets{};
 
 public:
   process_t (amd_dbgapi_process_id_t process_id,
@@ -264,7 +264,7 @@ public:
   amd_dbgapi_status_t get_os_pid (amd_dbgapi_os_process_id_t *pid) const
   {
     TRACE_CALLBACK_BEGIN (pid);
-    return (*detail::process_callbacks.get_os_pid) (m_client_process_id, pid);
+    return detail::process_callbacks.get_os_pid (m_client_process_id, pid);
     TRACE_CALLBACK_END (make_ref (pid));
   }
 
@@ -274,7 +274,7 @@ public:
                       amd_dbgapi_global_address_t *address) const
   {
     TRACE_CALLBACK_BEGIN (library_id, symbol_name, address);
-    return (*detail::process_callbacks.get_symbol_address) (
+    return detail::process_callbacks.get_symbol_address (
         m_client_process_id, library_id, symbol_name, address);
     TRACE_CALLBACK_END (make_hex (make_ref (address)));
   }
@@ -284,7 +284,7 @@ public:
       amd_dbgapi_shared_library_state_t *library_state)
   {
     TRACE_CALLBACK_BEGIN (library_name, library_id, library_state);
-    return (*detail::process_callbacks.enable_notify_shared_library) (
+    return detail::process_callbacks.enable_notify_shared_library (
         m_client_process_id, library_name, library_id, library_state);
     TRACE_CALLBACK_END (make_ref (library_state));
   }
@@ -293,7 +293,7 @@ public:
   disable_notify_shared_library (amd_dbgapi_shared_library_id_t library_id)
   {
     TRACE_CALLBACK_BEGIN (library_id);
-    return (*detail::process_callbacks.disable_notify_shared_library) (
+    return detail::process_callbacks.disable_notify_shared_library (
         m_client_process_id, library_id);
     TRACE_CALLBACK_END ();
   }
@@ -304,7 +304,7 @@ public:
                      amd_dbgapi_breakpoint_id_t breakpoint_id)
   {
     TRACE_CALLBACK_BEGIN (make_hex (address), breakpoint_id);
-    return (*detail::process_callbacks.insert_breakpoint) (
+    return detail::process_callbacks.insert_breakpoint (
         m_client_process_id, shared_library_id, address, breakpoint_id);
     TRACE_CALLBACK_END ();
   }
@@ -313,8 +313,8 @@ public:
   remove_breakpoint (amd_dbgapi_breakpoint_id_t breakpoint_id)
   {
     TRACE_CALLBACK_BEGIN (breakpoint_id);
-    return (*detail::process_callbacks.remove_breakpoint) (m_client_process_id,
-                                                           breakpoint_id);
+    return detail::process_callbacks.remove_breakpoint (m_client_process_id,
+                                                        breakpoint_id);
     TRACE_CALLBACK_END ();
   }
 
@@ -371,10 +371,10 @@ public:
   /* Set the flag that indicates whether the Objects have changed. Return its
      previous value. The flag is set whenever objects are created, or
      destroyed, or invalidated.  */
-  template <typename Object> bool set_changed (bool changed)
+  template <typename Object> bool set_changed (bool has_changed)
   {
     return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
-        .set_changed (changed);
+        .set_changed (has_changed);
   }
 
   /* Find an object with the given handle.  */
@@ -466,22 +466,33 @@ inline void *
 allocate_memory (size_t byte_size)
 {
   TRACE_CALLBACK_BEGIN (byte_size);
-  return (*detail::process_callbacks.allocate_memory) (byte_size);
+  return detail::process_callbacks.allocate_memory (byte_size);
   TRACE_CALLBACK_END ();
 }
 
+template <typename T>
 inline void
-deallocate_memory (void *data)
+deallocate_memory (T *&&data)
 {
   TRACE_CALLBACK_BEGIN (data);
-  (*detail::process_callbacks.deallocate_memory) (data);
+  detail::process_callbacks.deallocate_memory (data);
+  TRACE_CALLBACK_END ();
+}
+
+template <typename T>
+inline void
+deallocate_memory (T *&data)
+{
+  TRACE_CALLBACK_BEGIN (data);
+  detail::process_callbacks.deallocate_memory (data);
+  data = nullptr;
   TRACE_CALLBACK_END ();
 }
 
 inline void
 log_message (amd_dbgapi_log_level_t level, const char *message)
 {
-  return (*detail::process_callbacks.log_message) (level, message);
+  return detail::process_callbacks.log_message (level, message);
 }
 
 } /* namespace amd::dbgapi */

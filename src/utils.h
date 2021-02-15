@@ -465,7 +465,12 @@ private:
 
 class pipe_t
 {
+private:
+  std::optional<std::array<file_desc_t, 2>> m_pipe_fd{};
+
 public:
+  pipe_t () = default;
+
   bool open ();
   void close ();
 
@@ -493,9 +498,6 @@ public:
   /* Consume all the data in the pipe.  Return 0 if successful, errno
      otherwise.  */
   int flush ();
-
-private:
-  std::optional<std::array<file_desc_t, 2>> m_pipe_fd;
 };
 
 } /* namespace amd::dbgapi */

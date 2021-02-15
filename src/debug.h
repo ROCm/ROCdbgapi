@@ -25,6 +25,7 @@
 
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 #if defined(NDEBUG)
 #define dbgapi_assert(expr) ((void)0)

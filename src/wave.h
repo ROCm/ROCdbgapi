@@ -147,11 +147,11 @@ public:
   struct callbacks_t
   {
     /* Return the current scratch backing memory address.  */
-    std::function<amd_dbgapi_global_address_t ()> scratch_memory_base;
+    std::function<amd_dbgapi_global_address_t ()> scratch_memory_base{};
     /* Return the current scratch backing memory size.  */
-    std::function<amd_dbgapi_size_t ()> scratch_memory_size;
+    std::function<amd_dbgapi_size_t ()> scratch_memory_size{};
     /* Return a new wave buffer instance in this queue.  */
-    std::function<instruction_buffer_ref_t ()> get_instruction_buffer;
+    std::function<instruction_buffer_ref_t ()> get_instruction_buffer{};
   };
 
 private:
@@ -166,11 +166,11 @@ private:
   bool m_is_parked{ false };
 
   amd_dbgapi_size_t m_scratch_offset{ 0 };
-  std::array<uint32_t, 3> m_group_ids;
-  uint32_t m_wave_in_group;
+  std::array<uint32_t, 3> m_group_ids{ 0, 0, 0 };
+  uint32_t m_wave_in_group{ 0 };
 
-  std::unique_ptr<architecture_t::cwsr_record_t> m_cwsr_record;
-  std::optional<instruction_buffer_ref_t> m_instruction_buffer;
+  std::unique_ptr<architecture_t::cwsr_record_t> m_cwsr_record{};
+  std::optional<instruction_buffer_ref_t> m_instruction_buffer{};
   uint32_t m_hwregs_cache[amdgpu_regnum_t::last_hwreg
                           - amdgpu_regnum_t::first_hwreg + 1];
 
@@ -205,6 +205,10 @@ public:
   wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t &dispatch,
           const callbacks_t &callbacks);
   ~wave_t ();
+
+  /* Disable copies.  */
+  wave_t (const wave_t &) = delete;
+  wave_t &operator= (const wave_t &) = delete;
 
   visibility_t visibility () const { return m_visibility; }
   void set_visibility (visibility_t visibility);

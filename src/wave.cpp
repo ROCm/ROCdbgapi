@@ -662,7 +662,7 @@ wave_t::xfer_private_memory_swizzled (
 
       if ((offset + xfer_size) > limit)
         {
-          size_t xfer_size = offset < limit ? limit - offset : 0;
+          xfer_size = offset < limit ? limit - offset : 0;
           if (xfer_size == 0)
             return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
         }

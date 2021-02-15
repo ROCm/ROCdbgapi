@@ -289,18 +289,15 @@
  * 2.  On a AMD_DBGAPI_STATUS_FATAL error the library does fully reset the
  *     internal state and so subsequent functions may not operate correctly.
  *
- * 3.  Detaching from a process does not currently generate events for
- *     outstanding wave requests.
- *
- * 4.  The AMD_DBGAPI_MEMORY_PRECISION_PRECISE memory precision is not
+ * 3.  The AMD_DBGAPI_MEMORY_PRECISION_PRECISE memory precision is not
  *     supported. The default memory precision is
  *     AMD_DBGAPI_MEMORY_PRECISION_NONE.
  *
- * 5.  amd_dbgapi_process_next_pending_event returns
+ * 4.  amd_dbgapi_process_next_pending_event returns
  *     AMD_DBGAPI_EVENT_KIND_WAVE_STOP events only for AQL queues.  PM4 queues
  *     that launch wavefronts are not supported.
  *
- * 6.  amd_dbgapi_queue_packet_list returns packets only for AQL queues.
+ * 5.  amd_dbgapi_queue_packet_list returns packets only for AQL queues.
  *
  * \section references References
  *
@@ -1310,7 +1307,7 @@ typedef struct amd_dbgapi_symbolizer_id_s *amd_dbgapi_symbolizer_id_t;
  * is invalid.  \p size and \p instruction_text are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p size or \p memory are
- * NULL; or \p size is 0.  \p size and \p instruction_text are unaltered.
+ * NULL; or \p *size is 0.  \p size and \p instruction_text are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR Encountered an error disassembling the
  * instruction, a \p symbolizer callback returned ::AMD_DBGAPI_STATUS_SUCCESS

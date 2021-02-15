@@ -27,17 +27,16 @@
 
 #include <cstdarg>
 #include <cstddef>
-#include <optional>
 #include <sstream>
 #include <string>
 #include <tuple>
+#include <type_traits>
 #include <utility>
-#include <vector>
 
 #define dbgapi_log(level, format, ...)                                        \
   do                                                                          \
     {                                                                         \
-      if (level <= amd::dbgapi::log_level)                                    \
+      if ((level) <= amd::dbgapi::log_level)                                  \
         amd::dbgapi::detail::log (level, format, ##__VA_ARGS__);              \
     }                                                                         \
   while (0)
@@ -69,7 +68,7 @@ to_string (T v)
   std::ostringstream ss;
   ss << v;
   return ss.str ();
-};
+}
 
 template <>
 inline std::string
@@ -78,7 +77,7 @@ to_string (char *v)
   std::ostringstream ss;
   ss << '"' << v << '"';
   return ss.str ();
-};
+}
 
 template <>
 inline std::string
@@ -87,7 +86,7 @@ to_string (const char *v)
   std::ostringstream ss;
   ss << '"' << v << '"';
   return ss.str ();
-};
+}
 
 namespace detail
 {
@@ -122,7 +121,7 @@ template <typename T> struct ref
   T m_reference;
   size_t m_element_count;
 
-  auto value () const
+  auto *value () const
   {
     if constexpr (is_ref_v<T>)
       return m_reference.value ();
@@ -209,7 +208,8 @@ to_string (detail::ref<T> ref)
   if (!ref.value ())
     return "null";
 
-  std::string str = string_printf ("*%p=", ref.value ());
+  std::string str
+      = string_printf ("*%p=", static_cast<const void *> (ref.value ()));
   const size_t count = ref.count ();
 
   if (count != 1)
@@ -318,7 +318,7 @@ to_string (detail::hex<detail::ref<T>> hex)
 
 #define EXPLICIT_SPECIALIZATION(...)                                          \
   template <> std::string to_string (__VA_ARGS__);
-AMD_DBGAPI_TYPES_DO (EXPLICIT_SPECIALIZATION);
+AMD_DBGAPI_TYPES_DO (EXPLICIT_SPECIALIZATION)
 
 #undef EXPLICIT_SPECIALIZATION
 #undef AMD_DBGAPI_TYPES_DO

@@ -152,14 +152,15 @@ agent_t::next_os_event (amd_dbgapi_queue_id_t *queue_id,
            */
           if (queue)
             {
-              amd_dbgapi_queue_id_t queue_id = queue->id ();
-              os_queue_id_t os_queue_id = queue->os_queue_id ();
+              amd_dbgapi_queue_id_t stale_queue_id = queue->id ();
+              os_queue_id_t stale_os_queue_id = queue->os_queue_id ();
 
               process.destroy (queue);
 
               dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
                           "destroyed stale %s (os_queue_id=%d)",
-                          to_string (queue_id).c_str (), os_queue_id);
+                          to_string (stale_queue_id).c_str (),
+                          stale_os_queue_id);
             }
 
           /* Create a temporary queue instance to reserve the unique queue_id,

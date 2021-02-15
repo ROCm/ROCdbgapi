@@ -29,6 +29,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <utility>
 
 namespace amd::dbgapi
 {

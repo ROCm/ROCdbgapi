@@ -84,7 +84,7 @@ public:
    handle value reaches ~0 as it is reserved for a mark object.  */
 template <typename Type> struct handle_has_wrapped_around
 {
-  bool operator() (const Type &old_value, const Type &new_value) const
+  bool operator() (const Type &, const Type &new_value) const
   {
     return new_value == ~Type{ HANDLE_SENTINEL_COUNT - 1 };
   }
@@ -179,7 +179,7 @@ private:
   bool m_changed{ false };
 
   /* Map holding the objects, keyed by object::id ()'s return type. */
-  map_type m_map;
+  map_type m_map{};
 
 public:
   class iterator
@@ -197,7 +197,7 @@ public:
 
     iterator (typename map_type::iterator it) : m_it (it) {}
     typename map_type::iterator get () const { return m_it; }
-    self_type operator++ ()
+    self_type &operator++ ()
     {
       ++m_it;
       return *this;
@@ -229,7 +229,7 @@ public:
 
     const_iterator (typename map_type::const_iterator it) : m_it (it) {}
     typename map_type::const_iterator get () const { return m_it; }
-    self_type operator++ ()
+    self_type &operator++ ()
     {
       ++m_it;
       return *this;

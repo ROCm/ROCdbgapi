@@ -19,7 +19,13 @@
  THE SOFTWARE. */
 
 #include "logging.h"
+#include "architecture.h"
+#include "callbacks.h"
+#include "code_object.h"
+#include "debug.h"
+#include "memory.h"
 #include "process.h"
+#include "register.h"
 #include "utils.h"
 
 #include <cstdarg>
@@ -947,7 +953,7 @@ to_string (detail::query_ref<amd_dbgapi_wave_info_t> ref)
         const auto *list
             = static_cast<const amd_dbgapi_watchpoint_list_t *> (value);
         return string_printf (
-            "*%p={%zu,%s}", list, list->count,
+            "*%p={%zu,%s}", static_cast<const void *> (list), list->count,
             to_string (make_ref (list->watchpoint_ids, list->count)).c_str ());
       }
     case AMD_DBGAPI_WAVE_INFO_DISPATCH:
@@ -1398,9 +1404,9 @@ to_string (detail::query_ref<amd_dbgapi_event_info_t> ref)
 
 template <>
 std::string
-to_string (amd_dbgapi_log_level_t log_level)
+to_string (amd_dbgapi_log_level_t level)
 {
-  switch (log_level)
+  switch (level)
     {
       CASE (LOG_LEVEL_NONE);
       CASE (LOG_LEVEL_FATAL_ERROR);
@@ -1408,7 +1414,7 @@ to_string (amd_dbgapi_log_level_t log_level)
       CASE (LOG_LEVEL_INFO);
       CASE (LOG_LEVEL_VERBOSE);
     }
-  return to_string (make_hex (log_level));
+  return to_string (make_hex (level));
 }
 
 template <>

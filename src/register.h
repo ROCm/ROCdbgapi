@@ -177,7 +177,7 @@ operator| (amdgpu_regnum_t lhs, int rhs)
       static_cast<std::underlying_type_t<decltype (lhs)>> (lhs) | rhs);
 }
 
-constexpr amdgpu_regnum_t
+constexpr amdgpu_regnum_t &
 operator++ (amdgpu_regnum_t &regnum)
 {
   regnum = regnum + 1;

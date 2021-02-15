@@ -49,7 +49,7 @@ set_target_properties(amd-dbgapi PROPERTIES
   VERSION ${AMD_DBGAPI_VERSION}
   SOVERSION ${AMD_DBGAPI_VERSION_MAJOR})
 
-target_compile_options(amd-dbgapi PRIVATE -Werror -Wall)
+target_compile_options(amd-dbgapi PRIVATE -Werror -Wall -Wextra -Wshadow) #-pedantic)
 
 check_include_file(backtrace.h BACKTRACE_H)
 if(BACKTRACE_H)

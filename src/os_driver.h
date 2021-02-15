@@ -29,7 +29,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
 #include <type_traits>
 
@@ -57,9 +56,9 @@ using os_agent_id_t = uint32_t;
 struct os_agent_snapshot_entry_t
 {
   /* Agent Id assigned by the driver.  */
-  os_agent_id_t os_agent_id;
+  os_agent_id_t os_agent_id{};
   /* Public name of the "device".  */
-  std::string name;
+  std::string name{};
   /* BDF - Identifies the device location in the overall system.  */
   uint16_t location_id{ 0 };
   /* Number of FCompute cores.  */

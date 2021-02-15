@@ -25,7 +25,6 @@
 #include "utils.h"
 
 #include <cstddef>
-#include <list>
 
 namespace amd::dbgapi::detail
 {
@@ -88,6 +87,7 @@ amd_dbgapi_finalize ()
       process_t::destroy_process (&process);
     }
 
+  /* Reset the callbacks only after the tracer is done logging.  */
   reset_callbacks.emplace ();
 
   return AMD_DBGAPI_STATUS_SUCCESS;

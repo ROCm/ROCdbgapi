@@ -141,17 +141,18 @@ dispatch_t::get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
                   + HSA_KERNEL_DISPATCH_PACKET_SETUP_WIDTH_DIMENSIONS - 1)));
 
     case AMD_DBGAPI_DISPATCH_INFO_WORK_GROUP_SIZES:
-      return utils::get_info (value_size, value,
-                              (uint16_t[3]){ m_packet.workgroup_size_x,
-                                             m_packet.workgroup_size_y,
-                                             m_packet.workgroup_size_z });
-
+      {
+        uint16_t workgroup_sizes[3]
+            = { m_packet.workgroup_size_x, m_packet.workgroup_size_y,
+                m_packet.workgroup_size_z };
+        return utils::get_info (value_size, value, workgroup_sizes);
+      }
     case AMD_DBGAPI_DISPATCH_INFO_GRID_SIZES:
-      return utils::get_info (value_size, value,
-                              (uint32_t[3]){ m_packet.grid_size_x,
-                                             m_packet.grid_size_y,
-                                             m_packet.grid_size_z });
-
+      {
+        uint32_t grid_sizes[3] = { m_packet.grid_size_x, m_packet.grid_size_y,
+                                   m_packet.grid_size_z };
+        return utils::get_info (value_size, value, grid_sizes);
+      }
     case AMD_DBGAPI_DISPATCH_INFO_PRIVATE_SEGMENT_SIZE:
       return utils::get_info (
           value_size, value,

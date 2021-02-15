@@ -42,7 +42,7 @@ namespace detail
 struct backtrace_info
 {
   struct backtrace_state *state = nullptr;
-  std::stringstream sstream;
+  std::stringstream sstream{};
   int depth = 0;
   int error = 0;
 };
@@ -56,8 +56,8 @@ error_callback (void *data, const char *message, int errnum)
 }
 
 static void
-syminfo_callback (void *data, uintptr_t pc, const char *symname,
-                  uintptr_t symval, uintptr_t symsize)
+syminfo_callback (void *data, uintptr_t /* pc  */, const char *symname,
+                  uintptr_t /* symval  */, uintptr_t /* symsize  */)
 {
   backtrace_info *info = static_cast<backtrace_info *> (data);
   int status;

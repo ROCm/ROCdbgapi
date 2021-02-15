@@ -21,7 +21,6 @@
 #include "architecture.h"
 #include "agent.h"
 #include "debug.h"
-#include "displaced_stepping.h"
 #include "initialization.h"
 #include "logging.h"
 #include "memory.h"
@@ -33,10 +32,8 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
-#include <iomanip>
 #include <optional>
 #include <set>
-#include <sstream>
 #include <string>
 #include <sys/types.h>
 #include <tuple>
@@ -506,7 +503,7 @@ generic_address_for_address_space (
 
 amd_dbgapi_status_t
 amdgcn_architecture_t::convert_address_space (
-    const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
+    const wave_t &wave, amd_dbgapi_lane_id_t /* lane_id  */,
     const address_space_t &from_address_space,
     const address_space_t &to_address_space,
     amd_dbgapi_segment_address_t from_address,
@@ -839,7 +836,7 @@ amdgcn_architecture_t::classify_instruction (
 
   size_t size = instruction_size (instruction);
   if (!size)
-    return { AMD_DBGAPI_INSTRUCTION_KIND_UNKNOWN, 0, {} };
+    throw AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION;
 
   if (is_branch (instruction))
     {
@@ -1056,19 +1053,12 @@ amdgcn_architecture_t::simulate_instruction (
 
   wave.write_register (amdgpu_regnum_t::pc, &new_pc);
 
-  dbgapi_log (
-      AMD_DBGAPI_LOG_LEVEL_INFO, "%s simulated \"%s\" (pc=%#lx)",
-      to_string (wave.id ()).c_str (),
-      [&] () {
-        std::string instruction_string;
-        std::vector<uint64_t> operands;
-        size_t size = instruction.size ();
-        wave.architecture ().disassemble_instruction (
-            pc, &size, instruction.data (), instruction_string, operands);
-        return instruction_string;
-      }()
-          .c_str (),
-      pc);
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "%s simulated \"%s\" (pc=%#lx)",
+              to_string (wave.id ()).c_str (),
+              std::get<1> (wave.architecture ().disassemble_instruction (
+                               pc, instruction.data (), instruction.size ()))
+                  .c_str (),
+              pc);
 
   return true;
 }
@@ -1520,7 +1510,8 @@ amdgcn_architecture_t::is_sleep (const std::vector<uint8_t> &bytes) const
 }
 
 bool
-amdgcn_architecture_t::is_code_end (const std::vector<uint8_t> &bytes) const
+amdgcn_architecture_t::is_code_end (
+    const std::vector<uint8_t> & /* bytes  */) const
 {
   return false;
 }
@@ -2666,7 +2657,7 @@ architecture_t::name () const
 }
 
 const architecture_t *
-architecture_t::find (amd_dbgapi_architecture_id_t architecture_id, int ignore)
+architecture_t::find (amd_dbgapi_architecture_id_t architecture_id, int)
 {
   if (detail::last_found_architecture
       && detail::last_found_architecture->id () == architecture_id)
@@ -3046,8 +3037,8 @@ namespace detail
 struct disassembly_user_data_t
 {
   const void *memory;
-  amd_dbgapi_size_t offset;
-  amd_dbgapi_size_t size;
+  size_t offset;
+  size_t size;
   std::string *instruction;
   std::vector<amd_dbgapi_global_address_t> *operands;
 };
@@ -3105,55 +3096,51 @@ architecture_t::disassembly_info () const
   return *m_disassembly_info;
 }
 
-size_t
-architecture_t::instruction_size (const std::vector<uint8_t> &bytes) const
+amd_dbgapi_size_t
+architecture_t::instruction_size (const void *instruction_bytes,
+                                  size_t size) const
 {
-  size_t size = bytes.size ();
+  struct detail::disassembly_user_data_t user_data
+      = { /* .memory =  */ instruction_bytes,
+          /* .offset =  */ 0,
+          /* .size =  */ size,
+          /* .instruction =  */ nullptr,
+          /* .operands =  */ nullptr };
 
-  if (instruction_size (bytes.data (), &size) != AMD_DBGAPI_STATUS_SUCCESS)
+  /* Disassemble one instruction.  */
+  if (amd_comgr_disassemble_instruction (disassembly_info (), 0, &user_data,
+                                         &size)
+      != AMD_COMGR_STATUS_SUCCESS)
     return 0;
 
   return size;
 }
 
-amd_dbgapi_status_t
-architecture_t::instruction_size (const void *memory, size_t *size) const
+std::tuple<amd_dbgapi_size_t /* instruction_size  */,
+           std::string /* instruction_text  */,
+           std::vector<amd_dbgapi_global_address_t> /* address_operands  */>
+architecture_t::disassemble_instruction (amd_dbgapi_global_address_t address,
+                                         const void *instruction_bytes,
+                                         size_t size) const
 {
-  struct detail::disassembly_user_data_t user_data = { .memory = memory,
-                                                       .offset = 0,
-                                                       .size = *size,
-                                                       .instruction = nullptr,
-                                                       .operands = nullptr };
-
-  /* Disassemble one instruction.  */
-  return (amd_comgr_disassemble_instruction (disassembly_info (), 0,
-                                             &user_data, size))
-             ? AMD_DBGAPI_STATUS_ERROR
-             : AMD_DBGAPI_STATUS_SUCCESS;
-}
-
-amd_dbgapi_status_t
-architecture_t::disassemble_instruction (
-    amd_dbgapi_global_address_t address, amd_dbgapi_size_t *size,
-    const void *instruction_bytes, std::string &instruction_text,
-    std::vector<amd_dbgapi_global_address_t> &address_operands) const
-{
-  instruction_text.clear ();
-  address_operands.clear ();
+  std::string instruction_text;
+  std::vector<uint64_t> address_operands;
 
   struct detail::disassembly_user_data_t user_data
-      = { .memory = instruction_bytes,
-          .offset = address,
-          .size = *size,
-          .instruction = &instruction_text,
-          .operands = &address_operands };
+      = { /* .memory =  */ instruction_bytes,
+          /* .offset =  */ address,
+          /* .size =  */ size,
+          /* .instruction =  */ &instruction_text,
+          /* .operands =  */ &address_operands };
 
   /* Disassemble one instruction.  */
-  return amd_comgr_disassemble_instruction (disassembly_info (),
-                                            static_cast<uint64_t> (address),
-                                            &user_data, size)
-             ? AMD_DBGAPI_STATUS_ERROR
-             : AMD_DBGAPI_STATUS_SUCCESS;
+  if (amd_comgr_disassemble_instruction (disassembly_info (),
+                                         static_cast<uint64_t> (address),
+                                         &user_data, &size)
+      != AMD_COMGR_STATUS_SUCCESS)
+    throw exception_t (AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION);
+
+  return std::make_tuple (size, instruction_text, address_operands);
 }
 
 amd_dbgapi_status_t
@@ -3244,7 +3231,7 @@ amd_dbgapi_get_architecture (uint32_t elf_amdgpu_machine,
   if (!architecture)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ELF_AMDGPU_MACHINE;
 
-  *architecture_id = { architecture->id () };
+  *architecture_id = architecture->id ();
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
@@ -3292,7 +3279,7 @@ amd_dbgapi_disassemble_instruction (
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
-  if (!memory || !size)
+  if (!memory || !size || !*size)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   const architecture_t *architecture = architecture_t::find (architecture_id);
@@ -3301,55 +3288,58 @@ amd_dbgapi_disassemble_instruction (
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID;
 
   if (!instruction_text)
-    return architecture->instruction_size (memory, size);
-
-  std::string instruction_str;
-  std::vector<amd_dbgapi_global_address_t> operands_vec;
-
-  amd_dbgapi_status_t status = architecture->disassemble_instruction (
-      address, size, memory, instruction_str, operands_vec);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
-
-  std::string operand_str;
-  for (auto addr : operands_vec)
     {
-      operand_str += operand_str.empty () ? "  # " : ", ";
+      *size = architecture->instruction_size (memory, *size);
+      return AMD_DBGAPI_STATUS_SUCCESS;
+    }
+
+  auto [instruction_size, instruction_str, address_operands]
+      = architecture->disassemble_instruction (address, memory, *size);
+
+  std::string address_operands_str;
+  for (auto &&operand : address_operands)
+    {
+      address_operands_str += address_operands_str.empty () ? "  # " : ", ";
 
       if (symbolizer)
         {
-          char *symbol_text = nullptr;
-          status = (*symbolizer) (symbolizer_id, addr, &symbol_text);
+          char *symbol_text{};
+
+          amd_dbgapi_status_t status
+              = symbolizer (symbolizer_id, operand, &symbol_text);
+
           if (status == AMD_DBGAPI_STATUS_SUCCESS)
             {
               if (!symbol_text)
                 return AMD_DBGAPI_STATUS_ERROR;
-              std::string symbol_string = symbol_text;
+
+              const bool empty = !symbol_text[0];
+              address_operands_str += symbol_text;
               deallocate_memory (symbol_text);
-              if (symbol_string.empty ())
+
+              if (empty)
                 return AMD_DBGAPI_STATUS_ERROR;
-              operand_str += symbol_string;
+
               continue;
             }
           else if (status != AMD_DBGAPI_STATUS_ERROR_SYMBOL_NOT_FOUND)
             return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
         }
 
-      std::stringstream sstream;
-      sstream << "0x" << std::hex << std::setfill ('0')
-              << std::setw (sizeof (addr) * 2) << addr;
-      operand_str += sstream.str ();
+      address_operands_str += string_printf ("%#lx", operand);
     }
-  instruction_str += operand_str;
+
+  instruction_str += address_operands_str;
 
   /* Return the instruction text in client allocated memory.  */
-  size_t mem_size = instruction_str.length () + 1;
+  size_t mem_size = instruction_str.size () + 1;
   void *mem = allocate_memory (mem_size);
   if (!mem)
     return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
 
   memcpy (mem, instruction_str.c_str (), mem_size);
   *instruction_text = static_cast<char *> (mem);
+  *size = instruction_size;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;

@@ -97,6 +97,9 @@ get_info (size_t value_size, void *ret, const std::string &value)
 {
   char *retval;
 
+  if (!ret)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
   if (value_size != sizeof (retval))
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
 
@@ -117,6 +120,9 @@ amd_dbgapi_status_t
 get_info (size_t value_size, void *ret, const std::vector<T> &value)
 {
   T *retval;
+
+  if (!ret)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   if (value_size != sizeof (retval))
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;

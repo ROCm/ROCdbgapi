@@ -26,6 +26,7 @@
 
 #include <cstddef>
 #include <functional>
+#include <optional>
 #include <string>
 
 namespace amd::dbgapi
@@ -42,7 +43,7 @@ private:
   std::string const m_name;
   notify_callback_t const m_on_load;
   notify_callback_t const m_on_unload;
-  std::optional<amd_dbgapi_shared_library_state_t> m_state;
+  std::optional<amd_dbgapi_shared_library_state_t> m_state{};
 
   process_t &m_process;
 

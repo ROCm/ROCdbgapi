@@ -41,7 +41,6 @@
 #include <future>
 #include <iterator>
 #include <limits>
-#include <list>
 #include <memory>
 #include <optional>
 #include <string>
@@ -620,12 +619,13 @@ process_t::watchpoint_count () const
 
   /* Return lowest watchpoint count amongst all the agents.  */
 
-  size_t count = std::numeric_limits<size_t>::max ();
+  size_t max_watchpoint_count = std::numeric_limits<size_t>::max ();
 
   for (auto &&agent : range<agent_t> ())
-    count = std::min (count, agent.architecture ().watchpoint_count ());
+    max_watchpoint_count = std::min (
+        max_watchpoint_count, agent.architecture ().watchpoint_count ());
 
-  return count;
+  return max_watchpoint_count;
 }
 
 amd_dbgapi_watchpoint_share_kind_t
