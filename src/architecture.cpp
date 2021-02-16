@@ -92,7 +92,7 @@ protected:
 
   static constexpr uint32_t ttmp11_wave_in_group_mask = 0x003f;
   static constexpr uint32_t ttmp11_wave_stopped_mask = 1 << 7;
-  static constexpr uint32_t ttmp11_halted_at_s_endpgm_mask = 1 << 8;
+  static constexpr uint32_t ttmp11_modified_pc_mask = 1 << 8;
   static constexpr uint32_t ttmp11_saved_status_halt_mask = 1 << 9;
   static constexpr uint32_t ttmp11_saved_trap_id_mask
       = utils::bit_mask (10, 17);
@@ -1140,7 +1140,7 @@ amdgcn_architecture_t::get_wave_state (
 
       amd_dbgapi_global_address_t pc = wave.pc ();
 
-      if ((ttmp11 & ttmp11_halted_at_s_endpgm_mask)
+      if ((ttmp11 & ttmp11_modified_pc_mask)
           || ((trapsts & sq_wave_trapsts_excp_mem_viol_mask
                || trapsts & sq_wave_trapsts_illegal_inst_mask)
               /* FIXME: If the wave was single-stepping when the exception
@@ -1278,7 +1278,7 @@ amdgcn_architecture_t::set_wave_state (wave_t &wave,
          status.halt in ttm11.saved_status_halt, and halt the wave
          (status.halt=1).  */
       ttmp11 &= ~(ttmp11_wave_stopped_mask | ttmp11_saved_status_halt_mask
-                  | ttmp11_saved_trap_id_mask);
+                  | ttmp11_saved_trap_id_mask | ttmp11_modified_pc_mask);
 
       if (status_reg & sq_wave_status_halt_mask)
         ttmp11 |= ttmp11_saved_status_halt_mask;
@@ -1299,7 +1299,7 @@ amdgcn_architecture_t::set_wave_state (wave_t &wave,
         status_reg |= sq_wave_status_halt_mask;
 
       ttmp11 &= ~(ttmp11_wave_stopped_mask | ttmp11_saved_status_halt_mask
-                  | ttmp11_saved_trap_id_mask);
+                  | ttmp11_saved_trap_id_mask | ttmp11_modified_pc_mask);
       break;
 
     case AMD_DBGAPI_WAVE_STATE_SINGLE_STEP:
@@ -1312,7 +1312,7 @@ amdgcn_architecture_t::set_wave_state (wave_t &wave,
         status_reg |= sq_wave_status_halt_mask;
 
       ttmp11 &= ~(ttmp11_wave_stopped_mask | ttmp11_saved_status_halt_mask
-                  | ttmp11_saved_trap_id_mask);
+                  | ttmp11_saved_trap_id_mask | ttmp11_modified_pc_mask);
       break;
 
     default:
