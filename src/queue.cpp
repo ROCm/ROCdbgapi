@@ -930,24 +930,17 @@ instruction_buffer_t::instruction_buffer_t (
     : m_data{ buffer_address, 0, capacity }, m_deleter (deleter)
 {
 }
+
 instruction_buffer_t::instruction_buffer_t (instruction_buffer_t &&other)
     : m_data (other.m_data), m_deleter (other.m_deleter)
 {
   other.release ();
 }
-instruction_buffer_t::~instruction_buffer_t ()
-{
-  if (m_data.m_buffer_address)
-    m_deleter (m_data.m_buffer_address);
-  m_data = {};
-}
 
 instruction_buffer_t &
 instruction_buffer_t::operator= (instruction_buffer_t &&other)
 {
-  if (m_data.m_buffer_address)
-    m_deleter (m_data.m_buffer_address);
-
+  reset ();
   m_data = other.m_data;
   m_deleter = other.m_deleter;
 
@@ -955,11 +948,24 @@ instruction_buffer_t::operator= (instruction_buffer_t &&other)
   return *this;
 }
 
-amd_dbgapi_global_address_t
+void
+instruction_buffer_t::reset ()
+{
+  if (m_data.m_buffer_address)
+    {
+      dbgapi_assert (m_deleter);
+      m_deleter (*m_data.m_buffer_address);
+    }
+  m_data = {};
+  m_deleter = {};
+}
+
+std::optional<amd_dbgapi_global_address_t>
 instruction_buffer_t::release ()
 {
-  amd_dbgapi_global_address_t buffer_address = m_data.m_buffer_address;
+  auto buffer_address = m_data.m_buffer_address;
   m_data = {};
+  m_deleter = {};
   return buffer_address;
 }
 

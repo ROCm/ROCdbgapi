@@ -267,8 +267,8 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
 
       displaced_stepping = &process ().create<displaced_stepping_t> (
           queue (), pc (), std::move (original_instruction), simulate,
-          simulate ? std::nullopt
-                   : std::make_optional (std::move (instruction_buffer ())));
+          simulate ? instruction_buffer_t{}
+                   : std::move (instruction_buffer ()));
     }
 
   if (!displaced_stepping->is_simulated ())

@@ -48,7 +48,7 @@ private:
   size_t m_reference_count{ 1 };
 
   amd_dbgapi_global_address_t const m_from;
-  std::optional<instruction_buffer_t> m_instruction_buffer;
+  instruction_buffer_t m_instruction_buffer;
   std::vector<uint8_t> m_original_instruction;
   queue_t &m_queue;
 
@@ -57,7 +57,7 @@ public:
       amd_dbgapi_displaced_stepping_id_t displaced_stepping_id, queue_t &queue,
       amd_dbgapi_global_address_t original_pc,
       std::vector<uint8_t> original_instruction, bool simulate,
-      std::optional<instruction_buffer_t> instruction_buffer);
+      instruction_buffer_t instruction_buffer);
 
   ~displaced_stepping_t ();
 
@@ -67,7 +67,7 @@ public:
   /* The address of the displaced stepping buffer is this object's id.  */
   amd_dbgapi_global_address_t to () const
   {
-    return m_instruction_buffer ? (*m_instruction_buffer)->begin ()
+    return m_instruction_buffer ? m_instruction_buffer->begin ()
                                 : amd_dbgapi_global_address_t{};
   }
 
@@ -76,7 +76,7 @@ public:
     return m_original_instruction;
   }
 
-  const std::optional<instruction_buffer_t> &instruction_buffer () const
+  const instruction_buffer_t &instruction_buffer () const
   {
     return m_instruction_buffer;
   }

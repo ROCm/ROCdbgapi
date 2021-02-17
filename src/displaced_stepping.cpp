@@ -38,11 +38,10 @@ displaced_stepping_t::displaced_stepping_t (
     amd_dbgapi_displaced_stepping_id_t displaced_stepping_id, queue_t &queue,
     amd_dbgapi_global_address_t original_pc,
     std::vector<uint8_t> original_instruction, bool simulate,
-    std::optional<instruction_buffer_t> instruction_buffer)
+    instruction_buffer_t instruction_buffer)
     : handle_object (displaced_stepping_id), m_is_simulated (simulate),
       m_from (original_pc),
-      m_instruction_buffer (instruction_buffer ? std::move (instruction_buffer)
-                                               : std::nullopt),
+      m_instruction_buffer (std::move (instruction_buffer)),
       m_original_instruction (std::move (original_instruction)),
       m_queue (queue)
 {
@@ -50,7 +49,7 @@ displaced_stepping_t::displaced_stepping_t (
               to_string (id ()).c_str (), from (),
               m_is_simulated ? "simulated"
                              : string_printf ("to=[%#lx..%#lx[", to (),
-                                              (*m_instruction_buffer)->end ())
+                                              m_instruction_buffer->end ())
                                    .c_str ());
 }
 
