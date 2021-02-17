@@ -1150,8 +1150,6 @@ amdgcn_architecture_t::get_wave_state (
           wave.write_register (amdgpu_regnum_t::pc, &pc);
         }
 
-      auto instruction = wave.instruction_at_pc ();
-
       uint8_t trap_id = ttmp11_saved_trap_id (ttmp11);
 
       /* Check for spurious single-step events. A context save/restore before
@@ -1163,27 +1161,29 @@ amdgcn_architecture_t::get_wave_state (
           = prev_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
             && wave.saved_pc () == pc && trap_id == 0;
 
-      if (instruction && ignore_single_step_event)
-        {
-          /* Trim to size of instruction, simulate_instruction needs the exact
-           * instruction bytes.  */
-          size_t size = instruction_size (*instruction);
-          dbgapi_assert (size != 0 && "Invalid instruction");
-          instruction->resize (size);
+      if (ignore_single_step_event)
+        if (auto instruction = wave.instruction_at_pc (); instruction)
+          {
+            /* Trim to size of instruction, simulate_instruction needs the
+             * exact instruction bytes.  */
+            size_t size = instruction_size (*instruction);
+            dbgapi_assert (size != 0 && "Invalid instruction");
+            instruction->resize (size);
 
-          /* Branch instructions should be simulated, and the event reported,
-             as we cannot tell if a branch to self instruction has executed. */
-          if (can_simulate (*instruction)
-              && simulate_instruction (wave, pc, *instruction))
-            {
-              /* We successfully simulated the instruction, report the
-                 single-step event.  */
-              ignore_single_step_event = false;
+            /* Branch instructions should be simulated, and the event reported,
+               as we cannot tell if a branch to self instruction has executed.
+             */
+            if (can_simulate (*instruction)
+                && simulate_instruction (wave, pc, *instruction))
+              {
+                /* We successfully simulated the instruction, report the
+                   single-step event.  */
+                ignore_single_step_event = false;
 
-              /* Reload the instruction since the pc may have changed.  */
-              instruction = wave.instruction_at_pc ();
-            }
-        }
+                /* Reload the instruction since the pc may have changed.  */
+                instruction = wave.instruction_at_pc ();
+              }
+          }
 
       if (ignore_single_step_event)
         {
@@ -1245,9 +1245,6 @@ amdgcn_architecture_t::get_wave_state (
         reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT;
 
       *stop_reason = reason_mask;
-
-      if (!can_halt_at (instruction))
-        wave.park ();
     }
 }
 
@@ -2695,19 +2692,6 @@ architecture_t::find (elf_amdgpu_machine_t elf_amdgpu_machine)
     }
 
   return nullptr;
-}
-
-bool
-architecture_t::can_halt_at (
-    const std::optional<std::vector<uint8_t>> &instruction) const
-{
-  /* A wave cannot halt at an s_endpgm instruction. An s_trap may be used as a
-     breakpoint instruction, and since it could be removed and the original
-     instruction restored, which could reveal an s_endpgm, we also cannot halt
-     at an s_strap. */
-  return can_halt_at_endpgm ()
-         || (instruction && !is_endpgm (*instruction)
-             && !is_breakpoint (*instruction));
 }
 
 std::set<amdgpu_regnum_t>

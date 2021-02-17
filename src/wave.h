@@ -142,6 +142,9 @@ private:
 
   void raise_event (amd_dbgapi_event_kind_t event_kind);
 
+  void park ();
+  void unpark ();
+
 public:
   wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t &dispatch,
           const callbacks_t &callbacks);
@@ -181,10 +184,7 @@ public:
   amd_dbgapi_global_address_t saved_pc () const { return m_saved_pc; }
   std::optional<std::vector<uint8_t>> instruction_at_pc () const;
 
-  void park ();
-  void unpark ();
   void terminate ();
-
   void displaced_stepping_start (const void *saved_instruction_bytes);
   void displaced_stepping_complete ();
   const displaced_stepping_t *displaced_stepping () const

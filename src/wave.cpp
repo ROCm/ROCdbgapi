@@ -123,8 +123,7 @@ wave_t::park ()
   dbgapi_assert (state () == AMD_DBGAPI_WAVE_STATE_STOP
                  && "Cannot park a running wave");
 
-  if (m_is_parked)
-    return;
+  dbgapi_assert (!m_is_parked && "already parked");
 
   /* When a wave hits a breakpoint, we change its pc to point to an immutable
      breakpoint instruction.  This guarantees that the wave will never be
@@ -137,11 +136,17 @@ wave_t::park ()
   write_register (amdgpu_regnum_t::pc, &parked_pc);
 
   m_is_parked = true;
+
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "parked %s (pc=%#lx)",
+              to_string (id ()).c_str (), pc ());
 }
 
 void
 wave_t::unpark ()
 {
+  dbgapi_assert (state () != AMD_DBGAPI_WAVE_STATE_STOP
+                 && "Cannot unpark a stopped wave");
+
   dbgapi_assert (m_is_parked && "not parked");
 
   /* Restore the original pc if the wave was parked.  */
@@ -149,14 +154,14 @@ wave_t::unpark ()
 
   m_is_parked = false;
   write_register (amdgpu_regnum_t::pc, &saved_pc);
+
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "unparked %s (pc=%#lx)",
+              to_string (id ()).c_str (), pc ());
 }
 
 void
 wave_t::terminate ()
 {
-  if (m_is_parked)
-    unpark ();
-
   if (m_displaced_stepping)
     {
       displaced_stepping_t::release (m_displaced_stepping);
@@ -260,9 +265,6 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
 
   if (!displaced_stepping->is_simulated ())
     {
-      if (m_is_parked)
-        unpark ();
-
       amd_dbgapi_global_address_t displaced_pc = displaced_stepping->to ();
       dbgapi_assert (displaced_pc != amd_dbgapi_global_address_t{});
 
@@ -302,12 +304,6 @@ wave_t::displaced_stepping_complete ()
 
   displaced_stepping_t::release (m_displaced_stepping);
   m_displaced_stepping = nullptr;
-
-  /* Park after releasing the displaced stepping buffer to ensure a buffer will
-     be available for parking.  */
-  if (state () == AMD_DBGAPI_WAVE_STATE_STOP
-      && !architecture ().can_halt_at (instruction_at_pc ()))
-    park ();
 }
 
 void
@@ -352,6 +348,10 @@ wave_t::update (const wave_t &group_leader,
         error ("Could not reload the hwregs cache");
 
       architecture ().get_wave_state (*this, &m_state, &m_stop_reason);
+
+      if (m_state == AMD_DBGAPI_WAVE_STATE_STOP
+          && !architecture ().can_halt_at_endpgm ())
+        park ();
 
       if (visibility () == visibility_t::visible
           && m_state == AMD_DBGAPI_WAVE_STATE_STOP
@@ -414,21 +414,14 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
   if (state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP && m_displaced_stepping
       && m_displaced_stepping->is_simulated ())
     {
-      if (m_is_parked)
-        unpark ();
-
       if (architecture ().simulate_instruction (
               *this, m_displaced_stepping->from (),
               m_displaced_stepping->original_instruction ()))
         {
           m_state = AMD_DBGAPI_WAVE_STATE_STOP;
           m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP;
-          raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
 
-          /* We don't know where the PC may have landed after simulating the
-             instruction, so park now since the wave is halted.  */
-          if (!architecture ().can_halt_at (instruction_at_pc ()))
-            park ();
+          raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
 
           /* No need to flush the register cache, the wave is still halted.  */
           return;
@@ -438,14 +431,18 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
   architecture ().set_wave_state (*this, state);
   m_state = state;
 
+  if (!architecture ().can_halt_at_endpgm ())
+    {
+      if (state == AMD_DBGAPI_WAVE_STATE_STOP)
+        park ();
+      else
+        unpark ();
+    }
+
   if (state != AMD_DBGAPI_WAVE_STATE_STOP)
     {
       dbgapi_assert (prev_state == AMD_DBGAPI_WAVE_STATE_STOP
                      && "cannot resume an already running wave");
-
-      /* Restore the original pc if the wave was parked.  */
-      if (m_is_parked)
-        unpark ();
 
       /* Clear the stop reason.  */
       m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
@@ -454,10 +451,6 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
     {
       /* We requested the wave be stopped, and the wave wasn't already stopped,
          report an event to acknowledge that the wave has stopped.  */
-
-      /* We have to park the wave if we cannot halt at the current pc.  */
-      if (!m_is_parked && !architecture ().can_halt_at (instruction_at_pc ()))
-        park ();
 
       m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
 
