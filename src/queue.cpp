@@ -129,6 +129,9 @@ private:
   uint16_t m_debugger_memory_next_chunk{ 0 };
   std::vector<uint16_t> m_debugger_memory_free_chunks{};
 
+  instruction_buffer_t m_park_instruction_buffer{};
+  instruction_buffer_t m_endpgm_instruction_buffer{};
+
   /* Value used to mark waves that are found in the context save area. When
      sweeping, any wave found with a mark less than the current mark will be
      deleted, as these waves are no longer active.  */
@@ -138,6 +141,7 @@ private:
   hsa_queue_t m_hsa_queue{};
 
   amd_dbgapi_status_t update_waves ();
+  instruction_buffer_t allocate_instruction_buffer ();
 
 public:
   aql_queue_impl_t (queue_t &queue,
@@ -195,6 +199,18 @@ aql_queue_impl_t::aql_queue_impl_t (
 
   m_debugger_memory_free_chunks.reserve (m_debugger_memory_chunk_count);
 
+  /* Reserve 2 instruction buffers for parking, and terminating waves.  */
+  m_park_instruction_buffer = allocate_instruction_buffer ();
+  m_endpgm_instruction_buffer = allocate_instruction_buffer ();
+
+  auto &endpgm_instruction = architecture.endpgm_instruction ();
+  m_endpgm_instruction_buffer->resize (endpgm_instruction.size ());
+  if (process.write_global_memory (m_endpgm_instruction_buffer->begin (),
+                                   endpgm_instruction.data (),
+                                   endpgm_instruction.size ())
+      != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not write the endpgm instruction to the debugger memory");
+
   /* Read the hsa_queue_t at the top of the amd_queue_t. Since the amd_queue_t
     structure could change, it can only be accessed by calculating its address
     from the address of the read_dispatch_id by subtracting
@@ -233,50 +249,11 @@ aql_queue_impl_t::aql_queue_impl_t (
     /* Return the current scratch backing memory size.  */
     [&] () { return m_scratch_backing_memory_size; },
     /* Return a new instruction buffer instance in this queue.  */
-    [&] () {
-      auto &assert_instruction = architecture.assert_instruction ();
-      amd_dbgapi_global_address_t instruction_buffer_address;
-
-      if (!m_debugger_memory_free_chunks.empty ())
-        {
-          auto index = m_debugger_memory_free_chunks.back ();
-          m_debugger_memory_free_chunks.pop_back ();
-          instruction_buffer_address
-              = m_debugger_memory_base + index * debugger_memory_chunk_size;
-        }
-      else if (m_debugger_memory_next_chunk < m_debugger_memory_chunk_count)
-        {
-          instruction_buffer_address
-              = m_debugger_memory_base
-                + m_debugger_memory_next_chunk++ * debugger_memory_chunk_size;
-
-          /* An instruction buffer is always terminated by a valid instruction
-             so that it can be used to "park" a wave by setting its pc at the
-             end of the buffer.  We use a trap instruction to prevent runaway
-             waves from executing from unmapped memory. Copy the instruction
-             now before handing the buffer to the instruction_buffer_t. */
-          if (process.write_global_memory (
-                  instruction_buffer_address + debugger_memory_chunk_size
-                      - assert_instruction.size (),
-                  assert_instruction.data (), assert_instruction.size ())
-              != AMD_DBGAPI_STATUS_SUCCESS)
-            error ("Could not write to the debugger memory");
-        }
-      else
-        error ("could not allocate debugger memory");
-
-      auto deleter = [this] (amd_dbgapi_global_address_t ptr) {
-        size_t index
-            = (ptr - m_debugger_memory_base) / debugger_memory_chunk_size;
-
-        dbgapi_assert (index < m_debugger_memory_chunk_count);
-        m_debugger_memory_free_chunks.emplace_back (index);
-      };
-
-      return instruction_buffer_t (
-          instruction_buffer_address,
-          debugger_memory_chunk_size - assert_instruction.size (), deleter);
-    },
+    [&] () { return allocate_instruction_buffer (); },
+    /* Return the address of a park instruction.  */
+    [&] () { return m_park_instruction_buffer->begin (); },
+    /* Return the address of an endpgm instruction.  */
+    [&] () { return m_endpgm_instruction_buffer->begin (); },
   };
 }
 
@@ -298,6 +275,52 @@ aql_queue_impl_t::~aql_queue_impl_t ()
   auto &&dispatch_range = process.range<dispatch_t> ();
   for (auto it = dispatch_range.begin (); it != dispatch_range.end ();)
     it = (it->queue () == m_queue) ? process.destroy (it) : ++it;
+}
+
+instruction_buffer_t
+aql_queue_impl_t::allocate_instruction_buffer ()
+{
+  auto &assert_instruction = m_queue.architecture ().assert_instruction ();
+  amd_dbgapi_global_address_t instruction_buffer_address;
+
+  if (!m_debugger_memory_free_chunks.empty ())
+    {
+      auto index = m_debugger_memory_free_chunks.back ();
+      m_debugger_memory_free_chunks.pop_back ();
+      instruction_buffer_address
+          = m_debugger_memory_base + index * debugger_memory_chunk_size;
+    }
+  else if (m_debugger_memory_next_chunk < m_debugger_memory_chunk_count)
+    {
+      instruction_buffer_address
+          = m_debugger_memory_base
+            + m_debugger_memory_next_chunk++ * debugger_memory_chunk_size;
+
+      /* An instruction buffer is always terminated by a valid instruction
+         so that it can be used to "park" a wave by setting its pc at the
+         end of the buffer.  We use a trap instruction to prevent runaway
+         waves from executing from unmapped memory. Copy the instruction
+         now before handing the buffer to the instruction_buffer_t. */
+      if (m_queue.process ().write_global_memory (
+              instruction_buffer_address + debugger_memory_chunk_size
+                  - assert_instruction.size (),
+              assert_instruction.data (), assert_instruction.size ())
+          != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("Could not write to the debugger memory");
+    }
+  else
+    error ("could not allocate debugger memory");
+
+  auto deleter = [this] (amd_dbgapi_global_address_t ptr) {
+    size_t index = (ptr - m_debugger_memory_base) / debugger_memory_chunk_size;
+
+    dbgapi_assert (index < m_debugger_memory_chunk_count);
+    m_debugger_memory_free_chunks.emplace_back (index);
+  };
+
+  return instruction_buffer_t (
+      instruction_buffer_address,
+      debugger_memory_chunk_size - assert_instruction.size (), deleter);
 }
 
 amd_dbgapi_status_t

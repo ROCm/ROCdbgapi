@@ -96,7 +96,11 @@ public:
     /* Return the current scratch backing memory size.  */
     std::function<amd_dbgapi_size_t ()> scratch_memory_size{};
     /* Return a new wave buffer instance in this queue.  */
-    std::function<instruction_buffer_t ()> get_instruction_buffer{};
+    std::function<instruction_buffer_t ()> allocate_instruction_buffer{};
+    /* Return the address of a park instruction.  */
+    std::function<amd_dbgapi_global_address_t ()> park_instruction_address{};
+    /* Return the address of an endpgm instruction.  */
+    std::function<amd_dbgapi_global_address_t ()> endpgm_instruction_address{};
   };
 
 private:
@@ -127,7 +131,7 @@ private:
   instruction_buffer_t &instruction_buffer ()
   {
     if (!m_instruction_buffer)
-      m_instruction_buffer = m_callbacks.get_instruction_buffer ();
+      m_instruction_buffer = m_callbacks.allocate_instruction_buffer ();
     return m_instruction_buffer;
   }
 

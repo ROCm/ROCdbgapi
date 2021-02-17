@@ -135,7 +135,8 @@ wave_t::park ()
      instruction restored.  */
   m_saved_pc = pc ();
 
-  amd_dbgapi_global_address_t parked_pc = instruction_buffer ()->end ();
+  amd_dbgapi_global_address_t parked_pc
+      = m_callbacks.park_instruction_address ();
   write_register (amdgpu_regnum_t::pc, &parked_pc);
 
   m_is_parked = true;
@@ -169,15 +170,8 @@ wave_t::terminate ()
      allows the hardware to terminate the wave, while ensuring that the wave is
      never reported to the client as existing.  */
 
-  auto &endpgm_instruction = architecture ().endpgm_instruction ();
-
-  instruction_buffer ()->resize (endpgm_instruction.size ());
-  amd_dbgapi_global_address_t terminate_pc = instruction_buffer ()->begin ();
-
-  if (process ().write_global_memory (terminate_pc, endpgm_instruction.data (),
-                                      endpgm_instruction.size ())
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not write the endpgm instruction");
+  amd_dbgapi_global_address_t terminate_pc
+      = m_callbacks.endpgm_instruction_address ();
 
   /* Make the PC point to an immutable s_endpgm instruction.  */
   write_register (amdgpu_regnum_t::pc, &terminate_pc);
