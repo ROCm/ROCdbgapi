@@ -254,7 +254,7 @@ aql_queue_impl_t::aql_queue_impl_t (
              so that it can be used to "park" a wave by setting its pc at the
              end of the buffer.  We use a trap instruction to prevent runaway
              waves from executing from unmapped memory. Copy the instruction
-             now before handing the buffer to the instruction_buffer_ref_t. */
+             now before handing the buffer to the instruction_buffer_t. */
           if (process.write_global_memory (
                   instruction_buffer_address + debugger_memory_chunk_size
                       - assert_instruction.size (),
@@ -273,7 +273,7 @@ aql_queue_impl_t::aql_queue_impl_t (
         m_debugger_memory_free_chunks.emplace_back (index);
       };
 
-      return wave_t::instruction_buffer_ref_t (
+      return instruction_buffer_t (
           instruction_buffer_address,
           debugger_memory_chunk_size - assert_instruction.size (), deleter);
     },
@@ -922,6 +922,45 @@ scoped_queue_suspend_t::~scoped_queue_suspend_t ()
   if (m_queue->process ().resume_queues ({ m_queue }, m_reason) != 1
       && m_queue->is_valid ())
     error ("process::resume_queues failed");
+}
+
+instruction_buffer_t::instruction_buffer_t (
+    amd_dbgapi_global_address_t buffer_address, uint32_t capacity,
+    deleter_type deleter)
+    : m_data{ buffer_address, 0, capacity }, m_deleter (deleter)
+{
+}
+instruction_buffer_t::instruction_buffer_t (instruction_buffer_t &&other)
+    : m_data (other.m_data), m_deleter (other.m_deleter)
+{
+  other.release ();
+}
+instruction_buffer_t::~instruction_buffer_t ()
+{
+  if (m_data.m_buffer_address)
+    m_deleter (m_data.m_buffer_address);
+  m_data = {};
+}
+
+instruction_buffer_t &
+instruction_buffer_t::operator= (instruction_buffer_t &&other)
+{
+  if (m_data.m_buffer_address)
+    m_deleter (m_data.m_buffer_address);
+
+  m_data = other.m_data;
+  m_deleter = other.m_deleter;
+
+  other.release ();
+  return *this;
+}
+
+amd_dbgapi_global_address_t
+instruction_buffer_t::release ()
+{
+  amd_dbgapi_global_address_t buffer_address = m_data.m_buffer_address;
+  m_data = {};
+  return buffer_address;
 }
 
 } /* namespace amd::dbgapi */
