@@ -120,9 +120,6 @@ wave_t::instruction_at_pc () const
 void
 wave_t::park ()
 {
-  dbgapi_assert (
-      (!m_displaced_stepping || !m_displaced_stepping->instruction_buffer ())
-      && "Cannot park a wave with a displaced stepping buffer");
   dbgapi_assert (state () == AMD_DBGAPI_WAVE_STATE_STOP
                  && "Cannot park a running wave");
 
@@ -240,17 +237,14 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
       original_instruction.resize (instruction_size);
 
       bool simulate = architecture ().can_simulate (original_instruction);
+      instruction_buffer_t instruction_buffer{};
 
       if (!simulate)
         {
-          /* Copy a single instruction to the displaced stepping buffer.  */
-          instruction_buffer ()->resize (original_instruction.size ());
+          instruction_buffer = m_callbacks.allocate_instruction_buffer ();
+          instruction_buffer->resize (original_instruction.size ());
           amd_dbgapi_global_address_t instruction_addr
-              = instruction_buffer ()->begin ();
-
-          /* Make sure we don't copy an instruction in the displaced stepping
-             buffer that would require the wave to be parked.  */
-          dbgapi_assert (architecture ().can_halt_at (original_instruction));
+              = instruction_buffer->begin ();
 
           if (process ().write_global_memory (instruction_addr,
                                               original_instruction.data (),
@@ -261,19 +255,13 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
 
       displaced_stepping = &process ().create<displaced_stepping_t> (
           queue (), pc (), std::move (original_instruction), simulate,
-          simulate ? instruction_buffer_t{}
-                   : std::move (instruction_buffer ()));
+          std::move (instruction_buffer));
     }
 
   if (!displaced_stepping->is_simulated ())
     {
       if (m_is_parked)
         unpark ();
-
-      /* A wave should only hold one instruction buffer reference, either
-         through the displaced_stepping_t or its own buffer.  This guarantees
-         that all waves can get an instruction buffer.  */
-      m_instruction_buffer.reset ();
 
       amd_dbgapi_global_address_t displaced_pc = displaced_stepping->to ();
       dbgapi_assert (displaced_pc != amd_dbgapi_global_address_t{});
@@ -496,13 +484,6 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
           != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not write the hwregs cache back to memory");
     }
-
-  /* A wave resumed in normal mode could terminate before the next call to
-     queue_t::update_waves.  Since new wave_t`s are created before old (stale)
-     wave_t`s are deleted, the queue_t could run out of instruction buffers if
-     this wave's instruction buffer is not released now.  */
-  if (state == AMD_DBGAPI_WAVE_STATE_RUN)
-    m_instruction_buffer.reset ();
 }
 
 bool

@@ -119,7 +119,6 @@ private:
   uint32_t m_wave_in_group{ 0 };
 
   std::unique_ptr<architecture_t::cwsr_record_t> m_cwsr_record{};
-  instruction_buffer_t m_instruction_buffer{};
   uint32_t m_hwregs_cache[amdgpu_regnum_t::last_hwreg
                           - amdgpu_regnum_t::first_hwreg + 1];
 
@@ -127,13 +126,6 @@ private:
   const wave_t *m_group_leader{ nullptr };
   const callbacks_t &m_callbacks;
   dispatch_t &m_dispatch;
-
-  instruction_buffer_t &instruction_buffer ()
-  {
-    if (!m_instruction_buffer)
-      m_instruction_buffer = m_callbacks.allocate_instruction_buffer ();
-    return m_instruction_buffer;
-  }
 
   amd_dbgapi_status_t
   xfer_private_memory_swizzled (amd_dbgapi_segment_address_t segment_address,
