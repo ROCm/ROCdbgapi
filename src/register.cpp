@@ -211,7 +211,7 @@ dwarf_register_to_amdgpu_regnum (uint64_t dwarf_register)
   return {};
 }
 
-}
+} /* anonymous namespace */
 
 } /* namespace amd::dbgapi */
 
@@ -557,11 +557,10 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
 
   std::optional<scoped_queue_suspend_t> suspend;
 
-  if (!wave->is_register_cached (*regnum)
-      /* Write-through needs to update the memory as well as the cache, so we
-         always need to suspend the queue.  */
-      || wave_t::register_cache_policy
-             == wave_t::register_cache_policy_t::write_through)
+  if (wave->register_cache_policy (*regnum)
+      != memory_cache_t::policy_t::write_back)
+    /* Registers that are cached with a write-back policy do not need the queue
+       to be suspended.  */
     {
       suspend.emplace (wave->queue (), "write register");
 

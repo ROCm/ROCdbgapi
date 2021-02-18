@@ -23,6 +23,7 @@
 
 #include "amd-dbgapi.h"
 #include "handle_object.h"
+#include "utils.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -34,6 +35,7 @@ namespace amd::dbgapi
 {
 
 class architecture_t;
+class process_t;
 
 /* AMDGPU DWARF Address Class Mapping
    See https://llvm.org/docs/AMDGPUUsage.html#address-class-identifier
@@ -144,6 +146,68 @@ private:
   uint64_t const m_dwarf_value;
   const address_space_t &m_address_space;
   const architecture_t &m_architecture;
+};
+
+class memory_cache_t
+    : public utils::doubly_linked_list_t<memory_cache_t>::entry_type
+{
+public:
+  enum class policy_t
+  {
+    /* If uncached is used, data is immediately written to global memory, and
+       is not written to the cache.  */
+    uncached = 0,
+    /* If write-through is used, data is written both to global memory and to
+       the cache.  */
+    write_through,
+    /* If write-back is used, data is immediately updated in the cache, and
+       later updated in memory when the cache is flushed.  */
+    write_back
+  };
+
+private:
+  std::vector<uint8_t> m_cached_bytes{};
+  amd_dbgapi_global_address_t m_address{};
+
+  uint64_t m_dirty_bytes{ 0 };
+  static_assert (sizeof (m_cached_bytes) <= sizeof (m_dirty_bytes) * 8);
+
+  policy_t m_policy;
+  process_t &m_process;
+
+public:
+  memory_cache_t (process_t &process, policy_t policy = policy_t::write_back)
+      : m_policy (policy), m_process (process)
+  {
+  }
+
+  size_t size () const { return m_cached_bytes.size (); }
+  policy_t policy () const { return m_policy; }
+
+  bool is_dirty () const { return m_dirty_bytes != 0; }
+
+  /* Returns true if the given memory region is cached in this instance.  The
+     region must either be completely contained by the cache, or completely not
+     contained by the cache.  */
+  bool contains (amd_dbgapi_global_address_t address,
+                 amd_dbgapi_size_t value_size) const;
+
+  /* Changes the address of this cached region without affecting the data
+     present in the cache.  The cached region may be dirty.  */
+  void relocate (amd_dbgapi_global_address_t address);
+
+  /* Invalidate the cache.  The cached region must not be dirty.  */
+  void reset (amd_dbgapi_global_address_t address,
+              amd_dbgapi_size_t cache_size);
+
+  /* Make changes to the cached data visible in global memory.  */
+  void flush ();
+
+  /* The region must be completely contained by the cache.  */
+  amd_dbgapi_status_t read (amd_dbgapi_global_address_t from, void *value,
+                            size_t value_size) const;
+  amd_dbgapi_status_t write (amd_dbgapi_global_address_t to, const void *value,
+                             size_t value_size);
 };
 
 } /* namespace amd::dbgapi */

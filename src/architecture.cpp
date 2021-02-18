@@ -1096,21 +1096,24 @@ amdgcn_architecture_t::get_wave_state (
 
   amd_dbgapi_wave_state_t prev_state = wave.state ();
 
-  *state = (ttmp11 & ttmp11_wave_stopped_mask)
-               ? AMD_DBGAPI_WAVE_STATE_STOP
-               : ((mode_reg & sq_wave_mode_debug_en_mask)
-                      ? AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
-                      : AMD_DBGAPI_WAVE_STATE_RUN);
+  amd_dbgapi_wave_state_t new_state
+      = (ttmp11 & ttmp11_wave_stopped_mask)
+            ? AMD_DBGAPI_WAVE_STATE_STOP
+            : ((mode_reg & sq_wave_mode_debug_en_mask)
+                   ? AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
+                   : AMD_DBGAPI_WAVE_STATE_RUN);
 
-  if (*state != AMD_DBGAPI_WAVE_STATE_STOP)
+  if (new_state != AMD_DBGAPI_WAVE_STATE_STOP)
     {
       /* The wave is running, there is no stop reason.  */
+      *state = new_state;
       *stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
     }
   else if (prev_state == AMD_DBGAPI_WAVE_STATE_STOP)
     {
       /* The wave was previously stopped, and it still is stopped, the stop
          reason is unchanged.  */
+      *state = new_state;
       *stop_reason = wave.stop_reason ();
     }
   else
@@ -1162,28 +1165,34 @@ amdgcn_architecture_t::get_wave_state (
             && wave.saved_pc () == pc && trap_id == 0;
 
       if (ignore_single_step_event)
-        if (auto instruction = wave.instruction_at_pc (); instruction)
-          {
-            /* Trim to size of instruction, simulate_instruction needs the
-             * exact instruction bytes.  */
-            size_t size = instruction_size (*instruction);
-            dbgapi_assert (size != 0 && "Invalid instruction");
-            instruction->resize (size);
+        {
+          *state = AMD_DBGAPI_WAVE_STATE_STOP;
+          *stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
 
-            /* Branch instructions should be simulated, and the event reported,
-               as we cannot tell if a branch to self instruction has executed.
-             */
-            if (can_simulate (*instruction)
-                && simulate_instruction (wave, pc, *instruction))
-              {
-                /* We successfully simulated the instruction, report the
-                   single-step event.  */
-                ignore_single_step_event = false;
+          if (auto instruction = wave.instruction_at_pc (); instruction)
+            {
+              /* Trim to size of instruction, simulate_instruction needs the
+               * exact instruction bytes.  */
+              size_t size = instruction_size (*instruction);
+              dbgapi_assert (size != 0 && "Invalid instruction");
+              instruction->resize (size);
 
-                /* Reload the instruction since the pc may have changed.  */
-                instruction = wave.instruction_at_pc ();
-              }
-          }
+              /* Branch instructions should be simulated, and the event
+                 reported, as we cannot tell if a branch to self instruction
+                 has executed.
+               */
+              if (can_simulate (*instruction)
+                  && simulate_instruction (wave, pc, *instruction))
+                {
+                  /* We successfully simulated the instruction, report the
+                     single-step event.  */
+                  ignore_single_step_event = false;
+
+                  /* Reload the instruction since the pc may have changed.  */
+                  instruction = wave.instruction_at_pc ();
+                }
+            }
+        }
 
       if (ignore_single_step_event)
         {
@@ -1192,11 +1201,10 @@ amdgcn_architecture_t::get_wave_state (
                       to_string (wave.id ()).c_str (), pc);
 
           /* Place the wave back into single-stepping state.  */
-          wave.set_state (AMD_DBGAPI_WAVE_STATE_SINGLE_STEP);
+          set_wave_state (wave, AMD_DBGAPI_WAVE_STATE_SINGLE_STEP);
 
-          *state = wave.state ();
+          *state = AMD_DBGAPI_WAVE_STATE_SINGLE_STEP;
           *stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
-
           return;
         }
       else if (trap_id != 0)
@@ -1244,6 +1252,7 @@ amdgcn_architecture_t::get_wave_state (
              | sq_wave_trapsts_excp_hi_addr_watch3_mask))
         reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT;
 
+      *state = new_state;
       *stop_reason = reason_mask;
     }
 }

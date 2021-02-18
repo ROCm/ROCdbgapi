@@ -76,19 +76,6 @@ public:
     hidden_at_endpgm
   };
 
-  enum class register_cache_policy_t
-  {
-    /* If write-through is used, the cached registers are written immediately
-       both in the cache and in memory.  */
-    write_through,
-    /* If write-back is used, the cached registers are immediately updated in
-       the cache, and later updated in memory when the wave is un-halted.  */
-    write_back
-  };
-
-  static constexpr register_cache_policy_t register_cache_policy
-      = register_cache_policy_t::write_back;
-
   struct callbacks_t
   {
     /* Return the current scratch backing memory address.  */
@@ -101,6 +88,8 @@ public:
     std::function<amd_dbgapi_global_address_t ()> park_instruction_address{};
     /* Return the address of an endpgm instruction.  */
     std::function<amd_dbgapi_global_address_t ()> endpgm_instruction_address{};
+    /* Insert the given cache into the queue's dirty cache list.  */
+    std::function<void (memory_cache_t &)> register_dirty_cache{};
   };
 
 private:
@@ -119,8 +108,7 @@ private:
   uint32_t m_wave_in_group{ 0 };
 
   std::unique_ptr<architecture_t::cwsr_record_t> m_cwsr_record{};
-  uint32_t m_hwregs_cache[amdgpu_regnum_t::last_hwreg
-                          - amdgpu_regnum_t::first_hwreg + 1];
+  memory_cache_t m_hwregs_cache;
 
   displaced_stepping_t *m_displaced_stepping{ nullptr };
   const wave_t *m_group_leader{ nullptr };
@@ -210,8 +198,15 @@ public:
     return m_stop_reason;
   }
 
-  bool is_register_cached (amdgpu_regnum_t regnum) const;
+  memory_cache_t::policy_t
+  register_cache_policy (amdgpu_regnum_t regnum) const;
+
   bool is_register_available (amdgpu_regnum_t regnum) const;
+  bool is_register_cached (amdgpu_regnum_t regnum) const
+  {
+    return register_cache_policy (regnum)
+           != memory_cache_t::policy_t::uncached;
+  }
 
   std::optional<amd_dbgapi_global_address_t>
   register_address (amdgpu_regnum_t regnum) const

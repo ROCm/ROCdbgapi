@@ -132,6 +132,8 @@ private:
   instruction_buffer_t m_park_instruction_buffer{};
   instruction_buffer_t m_endpgm_instruction_buffer{};
 
+  utils::doubly_linked_list_t<memory_cache_t> m_dirty_caches{};
+
   /* Value used to mark waves that are found in the context save area. When
      sweeping, any wave found with a mark less than the current mark will be
      deleted, as these waves are no longer active.  */
@@ -254,6 +256,11 @@ aql_queue_impl_t::aql_queue_impl_t (
     [&] () { return m_park_instruction_buffer->begin (); },
     /* Return the address of an endpgm instruction.  */
     [&] () { return m_endpgm_instruction_buffer->begin (); },
+    /* Insert the given register cache into the queue's dirty cache list.  */
+    [&] (memory_cache_t &cache) {
+      if (!cache.is_inserted ())
+        m_dirty_caches.insert (cache);
+    },
   };
 }
 
@@ -701,6 +708,12 @@ aql_queue_impl_t::type () const
 void
 aql_queue_impl_t::state_changed (queue_t::state_t state)
 {
+  if (state == queue_t::state_t::running)
+    {
+      for (auto it = m_dirty_caches.begin (); it != m_dirty_caches.end ();
+           it = m_dirty_caches.remove (*it))
+        it->flush ();
+    }
   if (state == queue_t::state_t::suspended)
     {
       process_t &process = m_queue.process ();

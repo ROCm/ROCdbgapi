@@ -303,12 +303,19 @@ private:
   entry_type m_head{};
 
 public:
-  doubly_linked_list_t () { clear (); }
+  doubly_linked_list_t ()
+  {
+    m_head.m_prev = &m_head;
+    m_head.m_next = &m_head;
+  }
   doubly_linked_list_t (const doubly_linked_list_t &) = delete;
   doubly_linked_list_t (doubly_linked_list_t &&rhs)
   {
     if (rhs.empty ())
-      clear ();
+      {
+        m_head.m_prev = &m_head;
+        m_head.m_next = &m_head;
+      }
     else
       {
         m_head = rhs.m_head;
@@ -322,7 +329,10 @@ public:
   doubly_linked_list_t &operator= (doubly_linked_list_t &&rhs)
   {
     if (rhs.empty ())
-      clear ();
+      {
+        m_head.m_prev = &m_head;
+        m_head.m_next = &m_head;
+      }
     else
       {
         m_head = rhs.m_head;
@@ -368,8 +378,9 @@ public:
 
   void clear ()
   {
-    m_head.m_prev = &m_head;
-    m_head.m_next = &m_head;
+    for (auto it = begin (); it != end ();)
+      it = remove (*it);
+    dbgapi_assert (m_head.m_prev == &m_head && m_head.m_next == &m_head);
   }
 };
 
