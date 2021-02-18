@@ -214,6 +214,168 @@ align_up (Integral x, int alignment)
 namespace detail
 {
 
+template <typename T, typename Tag> struct doubly_linked_entry_t
+{
+  doubly_linked_entry_t<T, Tag> *m_prev{ nullptr };
+  doubly_linked_entry_t<T, Tag> *m_next{ nullptr };
+
+  doubly_linked_entry_t (const doubly_linked_entry_t &) = delete;
+  doubly_linked_entry_t (doubly_linked_entry_t &&rhs)
+  {
+    m_next = rhs.m_next;
+    m_prev = rhs.m_prev;
+    m_next->m_prev = this;
+    m_prev->n_next = this;
+    rhs.m_next = rhs.m_prev = nullptr;
+  }
+  doubly_linked_entry_t &operator= (const doubly_linked_entry_t &) = delete;
+  doubly_linked_entry_t &operator= (doubly_linked_entry_t &&rhs)
+  {
+    m_next = rhs.m_next;
+    m_prev = rhs.m_prev;
+    m_next->m_prev = this;
+    m_prev->n_next = this;
+    rhs.m_next = rhs.m_prev = nullptr;
+  }
+
+  doubly_linked_entry_t () = default;
+  bool is_inserted () const { return m_prev != nullptr; }
+};
+
+} /* namespace detail */
+
+template <typename T, typename Tag = void> class doubly_linked_list_t
+{
+public:
+  /* T must be derived from entry_type.  */
+  using entry_type = detail::doubly_linked_entry_t<T, Tag>;
+
+  struct iterator
+  {
+  private:
+    entry_type *m_current;
+
+  public:
+    using self_type = iterator;
+    using value_type = T;
+    using difference_type = size_t;
+    using reference = T &;
+    using pointer = T *;
+    using iterator_category = std::bidirectional_iterator_tag;
+
+    iterator (entry_type *current) : m_current (current) {}
+    self_type &operator++ ()
+    {
+      m_current = m_current->m_next;
+      return *this;
+    }
+    self_type operator++ (int)
+    {
+      self_type i = *this;
+      m_current = m_current->m_next;
+      return i;
+    }
+    self_type &operator-- ()
+    {
+      m_current = m_current->m_prev;
+      return *this;
+    }
+    self_type operator-- (int)
+    {
+      self_type i = *this;
+      m_current = m_current->m_prev;
+      return i;
+    }
+    reference operator* () { return static_cast<reference> (*m_current); }
+    pointer operator-> () { return static_cast<pointer> (m_current); }
+    bool operator== (const self_type &rhs)
+    {
+      return m_current == rhs.m_current;
+    }
+    bool operator!= (const self_type &rhs)
+    {
+      return m_current != rhs.m_current;
+    }
+  };
+
+private:
+  size_t m_element_count{ 0 };
+  entry_type m_head{};
+
+public:
+  doubly_linked_list_t () { clear (); }
+  doubly_linked_list_t (const doubly_linked_list_t &) = delete;
+  doubly_linked_list_t (doubly_linked_list_t &&rhs)
+  {
+    if (rhs.empty ())
+      clear ();
+    else
+      {
+        m_head = rhs.m_head;
+        m_head.m_next->m_prev = &m_head;
+        m_head.m_prev->m_next = &m_head;
+        m_element_count = rhs.m_element_count;
+      }
+  }
+
+  doubly_linked_list_t &operator= (const doubly_linked_list_t &) = delete;
+  doubly_linked_list_t &operator= (doubly_linked_list_t &&rhs)
+  {
+    if (rhs.empty ())
+      clear ();
+    else
+      {
+        m_head = rhs.m_head;
+        m_head.m_next->m_prev = &m_head;
+        m_head.m_prev->m_next = &m_head;
+        m_element_count = rhs.m_element_count;
+      }
+  }
+
+  size_t size () const { return m_element_count; }
+  bool empty () const { return size () == 0; }
+
+  iterator begin () { return iterator{ m_head.m_next }; }
+  iterator end () { return iterator{ &m_head }; }
+
+  iterator insert (T &value)
+  {
+    entry_type &entry = static_cast<entry_type &> (value);
+    dbgapi_assert (!entry.is_inserted () && "already inserted");
+
+    entry.m_next = m_head.m_next;
+    entry.m_prev = &m_head;
+    m_head.m_next->m_prev = &entry;
+    m_head.m_next = &entry;
+
+    ++m_element_count;
+    return iterator{ &entry };
+  }
+
+  iterator remove (T &value)
+  {
+    entry_type &entry = static_cast<entry_type &> (value);
+    dbgapi_assert (entry.is_inserted () && "not inserted");
+
+    auto next = entry.m_next;
+    entry.m_prev->m_next = next;
+    next->m_prev = entry.m_prev;
+    entry.m_next = entry.m_prev = nullptr;
+
+    --m_element_count;
+    return iterator{ next };
+  }
+
+  void clear ()
+  {
+    m_head.m_prev = &m_head;
+    m_head.m_next = &m_head;
+  }
+};
+
+namespace detail
+{
+
 template <typename Functor, typename Return, typename First, typename... Rest>
 First first_argument_of_helper_t (Return (Functor::*) (First, Rest...));
 
