@@ -902,7 +902,7 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
     error ("os_driver::suspend_queues failed (rc=%d)", ret);
 
   size_t num_suspended_queues = ret;
-  [[maybe_unused]] bool invalid_queue_seen = false;
+  size_t num_invalid_queues = 0;
   for (size_t i = 0; i < queue_ids.size (); ++i)
     {
       /* Some queues may have failed to suspend because they are the
@@ -918,16 +918,20 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
       else if (queue_ids[i] & os_queue_invalid_mask)
         {
           queues[i]->set_state (queue_t::state_t::invalid);
-          invalid_queue_seen = true;
+          ++num_invalid_queues;
         }
       else
         {
+          /* The queue state is published last so that listeners may
+             act on the state right after the queue is unscheduled.  */
           queues[i]->set_state (queue_t::state_t::suspended);
         }
     }
+
   dbgapi_assert (
-      (num_suspended_queues == queue_ids.size () || invalid_queue_seen)
-      && "should have seen an invalid queue");
+      (num_suspended_queues + num_invalid_queues) == queue_ids.size ()
+      && "number of suspended queues does not match number requested queue "
+         "less number of invalid queues");
 
   return num_suspended_queues;
 }
@@ -938,6 +942,21 @@ process_t::resume_queues (const std::vector<queue_t *> &queues,
 {
   if (queues.empty ())
     return 0;
+
+  std::vector<os_queue_id_t> queue_ids;
+  queue_ids.reserve (queues.size ());
+
+  /* The queue state is published first to give a chance to the listeners to
+     act on the state before the hardware is updated.  */
+  for (auto *queue : queues)
+    {
+      dbgapi_assert (queue && queue->state () != queue_t::state_t::running
+                     && "queue is null or not suspended");
+
+      /* Note that invalid queues will return the os_invalid_queueid.  */
+      queue_ids.emplace_back (queue->os_queue_id ());
+      queue->set_state (queue_t::state_t::running);
+    }
 
   dbgapi_log (
       AMD_DBGAPI_LOG_LEVEL_INFO, "resuming %s (%s)",
@@ -954,18 +973,6 @@ process_t::resume_queues (const std::vector<queue_t *> &queues,
           .c_str (),
       reason);
 
-  std::vector<os_queue_id_t> queue_ids;
-  queue_ids.reserve (queues.size ());
-
-  for (auto *queue : queues)
-    {
-      dbgapi_assert (queue && queue->state () != queue_t::state_t::running
-                     && "queue is null or not suspended");
-
-      /* Note that invalid queues will return the os_invalid_queueid.  */
-      queue_ids.emplace_back (queue->os_queue_id ());
-    }
-
   int ret = os_driver ().resume_queues (queue_ids.data (), queue_ids.size ());
   if (ret == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
     {
@@ -977,7 +984,7 @@ process_t::resume_queues (const std::vector<queue_t *> &queues,
     error ("os_driver::resume_queues failed (rc=%d)", ret);
 
   size_t num_resumed_queues = ret;
-  [[maybe_unused]] bool invalid_queue_seen = false;
+  size_t num_invalid_queues = 0;
   for (size_t i = 0; i < queue_ids.size (); ++i)
     {
       /* Some queues may have failed to resume because they are the
@@ -993,16 +1000,14 @@ process_t::resume_queues (const std::vector<queue_t *> &queues,
       else if (queue_ids[i] & os_queue_invalid_mask)
         {
           queues[i]->set_state (queue_t::state_t::invalid);
-          invalid_queue_seen = true;
-        }
-      else
-        {
-          queues[i]->set_state (queue_t::state_t::running);
+          ++num_invalid_queues;
         }
     }
+
   dbgapi_assert (
-      (num_resumed_queues == queue_ids.size () || invalid_queue_seen)
-      && "should have seen an invalid queue");
+      (num_resumed_queues + num_invalid_queues) == queue_ids.size ()
+      && "number of resumed queues does not match number requested queue less "
+         "number of invalid queues");
 
   return num_resumed_queues;
 }
