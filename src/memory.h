@@ -167,7 +167,7 @@ public:
 
 private:
   std::vector<uint8_t> m_cached_bytes{};
-  amd_dbgapi_global_address_t m_address{};
+  std::optional<amd_dbgapi_global_address_t> m_address{};
 
   uint64_t m_dirty_bytes{ 0 };
   static_assert (sizeof (m_cached_bytes) <= sizeof (m_dirty_bytes) * 8);
@@ -194,7 +194,7 @@ public:
 
   /* Changes the address of this cached region without affecting the data
      present in the cache.  The cached region may be dirty.  */
-  void relocate (amd_dbgapi_global_address_t address);
+  void relocate (std::optional<amd_dbgapi_global_address_t> address);
 
   /* Invalidate the cache.  The cached region must not be dirty.  */
   void reset (amd_dbgapi_global_address_t address,

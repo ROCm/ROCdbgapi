@@ -314,11 +314,57 @@ wave_t::update (const wave_t &group_leader,
                 std::unique_ptr<architecture_t::cwsr_record_t> cwsr_record)
 {
   dbgapi_assert (queue ().is_suspended ());
-
   const bool first_update = !m_cwsr_record;
+
   m_cwsr_record = std::move (cwsr_record);
   m_group_leader = &group_leader;
 
+  auto first_hwreg_address = register_address (amdgpu_regnum_t::first_hwreg);
+  dbgapi_assert (first_hwreg_address);
+
+  /* The address of this cwsr_record may have changed since the last context
+     save, relocate the hwregs cache.  */
+  m_hwregs_cache.relocate (*first_hwreg_address);
+
+  /* Update the wave's state if this is a new wave, or if the wave was running
+     the last time the queue it belongs to was resumed.  */
+  if (m_state != AMD_DBGAPI_WAVE_STATE_STOP)
+    {
+      if (!first_update)
+        {
+          /* Save the previous pc before invalidating the hwregs cache.  */
+          dbgapi_assert (register_cache_policy (amdgpu_regnum_t::pc)
+                             != memory_cache_t::policy_t::uncached
+                         && "this code relies on the pc being cached");
+          m_saved_pc = pc ();
+        }
+
+      auto last_hwreg_address = register_address (amdgpu_regnum_t::last_hwreg);
+      auto last_hwreg_size
+          = architecture ().register_size (amdgpu_regnum_t::last_hwreg);
+      dbgapi_assert (last_hwreg_address && last_hwreg_size);
+
+      /* The content of the hwregs may have changed, invalidate the cache.  */
+      m_hwregs_cache.reset (*first_hwreg_address, *last_hwreg_address
+                                                      - *first_hwreg_address
+                                                      + *last_hwreg_size);
+
+      architecture ().get_wave_state (*this, &m_state, &m_stop_reason);
+
+      /* The wave was running, and it is now stopped. Park it.  */
+      if (m_state == AMD_DBGAPI_WAVE_STATE_STOP
+          && !architecture ().can_halt_at_endpgm ())
+        park ();
+
+      if (visibility () == visibility_t::visible
+          && m_state == AMD_DBGAPI_WAVE_STATE_STOP
+          && m_stop_reason != AMD_DBGAPI_WAVE_STOP_REASON_NONE)
+        raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
+    }
+
+  /* If this is the first time we update this wave, store the wave_id, and load
+     the immutable state from the ttmp registers (group_ids, wave_in_group,
+     scratch_offset).  */
   if (first_update)
     {
       /* Write the wave_id register.  */
@@ -334,43 +380,6 @@ wave_t::update (const wave_t &group_leader,
           m_scratch_offset = scratch_offset;
         }
     }
-
-  auto first_hwreg_address = register_address (amdgpu_regnum_t::first_hwreg);
-  dbgapi_assert (first_hwreg_address);
-
-  /* Update the wave's state if this is a new wave, or if the wave was running
-     the last time the queue it belongs to was resumed.  */
-  if (m_state != AMD_DBGAPI_WAVE_STATE_STOP)
-    {
-      /* Save the previous pc before updating the hwregs cache.  */
-      if (!first_update)
-        m_saved_pc = pc ();
-
-      auto last_hwreg_address = register_address (amdgpu_regnum_t::last_hwreg);
-      auto last_hwreg_size
-          = architecture ().register_size (amdgpu_regnum_t::last_hwreg);
-      dbgapi_assert (last_hwreg_address && last_hwreg_size);
-
-      /* The content of the hwregs may have changed, invalidate the cache.  */
-      m_hwregs_cache.reset (*first_hwreg_address, *last_hwreg_address
-                                                      - *first_hwreg_address
-                                                      + *last_hwreg_size);
-
-      architecture ().get_wave_state (*this, &m_state, &m_stop_reason);
-
-      if (m_state == AMD_DBGAPI_WAVE_STATE_STOP
-          && !architecture ().can_halt_at_endpgm ())
-        park ();
-
-      if (visibility () == visibility_t::visible
-          && m_state == AMD_DBGAPI_WAVE_STATE_STOP
-          && m_stop_reason != AMD_DBGAPI_WAVE_STOP_REASON_NONE)
-        raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
-    }
-
-  /* The address of this cwsr_record may have changed since the last context
-     save, relocate the hwregs cache.  */
-  m_hwregs_cache.relocate (*first_hwreg_address);
 }
 
 void

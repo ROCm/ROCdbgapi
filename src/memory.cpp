@@ -82,14 +82,20 @@ address_space_t::get_info (amd_dbgapi_address_space_info_t query,
 }
 
 void
-memory_cache_t::relocate (amd_dbgapi_global_address_t address)
+memory_cache_t::relocate (std::optional<amd_dbgapi_global_address_t> address)
 {
   if (address == m_address)
     return;
 
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE,
-              "relocated cache [%#lx..%#lx[ -> [%#lx..%#lx[", m_address,
-              m_address + size (), address, address + size ());
+  dbgapi_log (
+      AMD_DBGAPI_LOG_LEVEL_VERBOSE, "relocated cache %s -> %s",
+      m_address
+          ? string_printf ("[%#lx..%#lx[", *m_address, *m_address + size ())
+                .c_str ()
+          : "inaccessible",
+      address ? string_printf ("[%#lx..%#lx[", *address, *address + size ())
+                    .c_str ()
+              : "inaccessible");
 
   m_address = address;
 }
@@ -104,28 +110,30 @@ memory_cache_t::reset (amd_dbgapi_global_address_t address,
   m_cached_bytes.resize (cache_size);
 
   /* Reload the cache from memory.  */
-  if (m_process.read_global_memory (m_address, &m_cached_bytes[0], size ())
+  if (m_process.read_global_memory (*m_address, &m_cached_bytes[0], size ())
       != AMD_DBGAPI_STATUS_SUCCESS)
     error ("Could not reload the hwregs cache");
 
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "reloaded cache [%#lx..%#lx[",
-              m_address, m_address + size ());
+              *m_address, *m_address + size ());
 }
 
 void
 memory_cache_t::flush ()
 {
+  dbgapi_assert (m_address && "cache is not accessible");
+
   if (is_dirty () && policy () == policy_t::write_back)
     {
       /* Write back the cache in memory.  */
-      if (m_process.write_global_memory (m_address, &m_cached_bytes[0],
+      if (m_process.write_global_memory (*m_address, &m_cached_bytes[0],
                                          size ())
           != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not write the hwregs cache back to memory");
 
       dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE,
-                  "flushed cache [%#lx..%#lx[ dirty=%016lx", m_address,
-                  m_address + size (), m_dirty_bytes);
+                  "flushed cache [%#lx..%#lx[ dirty=%016lx", *m_address,
+                  *m_address + size (), m_dirty_bytes);
     }
 
   m_dirty_bytes = 0;
@@ -135,14 +143,16 @@ bool
 memory_cache_t::contains (amd_dbgapi_global_address_t address,
                           amd_dbgapi_size_t value_size) const
 {
+  dbgapi_assert (m_address && "cache is not accessible");
+
   bool start_in_range
-      = address >= m_address && address < (m_address + size ());
-  bool end_in_range = (address + value_size) > m_address
-                      && (address + value_size) <= (m_address + size ());
+      = address >= m_address && address < (*m_address + size ());
+  bool end_in_range = (address + value_size) > *m_address
+                      && (address + value_size) <= (*m_address + size ());
 
   dbgapi_assert (start_in_range == end_in_range
-                 && ((address >= m_address)
-                     || (address + value_size) <= (m_address + size ()))
+                 && ((address >= *m_address)
+                     || (address + value_size) <= (*m_address + size ()))
                  && "cannot be partially contained");
 
   return start_in_range && end_in_range;
@@ -157,7 +167,7 @@ memory_cache_t::read (amd_dbgapi_global_address_t from, void *value,
   if (policy () == policy_t::uncached)
     return m_process.read_global_memory (from, value, value_size);
 
-  memcpy (value, &m_cached_bytes[0] + from - m_address, value_size);
+  memcpy (value, &m_cached_bytes[0] + from - *m_address, value_size);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
@@ -178,9 +188,9 @@ memory_cache_t::write (amd_dbgapi_global_address_t to, const void *value,
 
   if (policy () != policy_t::uncached)
     {
-      memcpy (&m_cached_bytes[0] + to - m_address, value, value_size);
-      m_dirty_bytes
-          |= utils::bit_mask (to - m_address, to - m_address + value_size - 1);
+      memcpy (&m_cached_bytes[0] + to - *m_address, value, value_size);
+      m_dirty_bytes |= utils::bit_mask (to - *m_address,
+                                        to - *m_address + value_size - 1);
     }
 
   return AMD_DBGAPI_STATUS_SUCCESS;
