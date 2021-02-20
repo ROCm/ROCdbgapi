@@ -211,6 +211,40 @@ align_up (Integral x, int alignment)
   return (x + alignment - 1) & -alignment;
 }
 
+class scope_exit
+{
+private:
+  std::function<void ()> m_func;
+  bool m_is_released{ false };
+
+public:
+  explicit scope_exit (std::function<void ()> func) : m_func (std::move (func))
+  {
+  }
+  scope_exit (scope_exit &&other) : m_func ()
+  {
+    if (!other.m_is_released)
+      {
+        m_func = std::move (other.m_func);
+        other.release ();
+      }
+  }
+  scope_exit (const scope_exit &) = delete;
+  scope_exit &operator= (const scope_exit &) = delete;
+  scope_exit &operator= (scope_exit &&) = delete;
+
+  ~scope_exit ()
+  {
+    if (!m_is_released)
+      {
+        m_is_released = true;
+        m_func ();
+      }
+  }
+
+  void release () { m_is_released = true; }
+};
+
 namespace detail
 {
 
