@@ -1162,7 +1162,7 @@ amdgcn_architecture_t::get_wave_state (
          the instruction is executed.  */
       bool ignore_single_step_event
           = prev_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
-            && wave.saved_pc () == pc && trap_id == 0;
+            && wave.last_stopped_pc () == pc && trap_id == 0;
 
       if (ignore_single_step_event)
         {

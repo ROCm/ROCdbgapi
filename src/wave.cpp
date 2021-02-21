@@ -128,17 +128,19 @@ wave_t::park ()
 
   dbgapi_assert (!m_is_parked && "already parked");
 
-  /* When a wave hits a breakpoint, we change its pc to point to an immutable
-     breakpoint instruction.  This guarantees that the wave will never be
-     halted at an s_endpgm if the breakpoint is removed and the original
-     instruction restored.  */
-  m_saved_pc = pc ();
+  /* On architectures that do not support halting at an s_endpgm instruction,
+     when a wave is stopped, we change its pc to point to an immutable trap
+     instruction.  This guarantees that the wave will never be halted at an
+     s_endpgm.  */
+  m_parked_pc = pc ();
 
   amd_dbgapi_global_address_t parked_pc
       = m_callbacks.park_instruction_address ();
   write_register (amdgpu_regnum_t::pc, &parked_pc);
 
   m_is_parked = true;
+  /* From now on, every read/write to the pc register will be from/to
+     m_parked_pc.  The real pc in the context save area will be untouched.  */
 
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "parked %s (pc=%#lx)",
               to_string (id ()).c_str (), pc ());
@@ -152,10 +154,12 @@ wave_t::unpark ()
 
   dbgapi_assert (m_is_parked && "not parked");
 
-  /* Restore the original pc if the wave was parked.  */
   amd_dbgapi_global_address_t saved_pc = pc ();
 
   m_is_parked = false;
+  /* From now on, every read/write to the pc register will be from/to the
+     context save area.  */
+
   write_register (amdgpu_regnum_t::pc, &saved_pc);
 
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "unparked %s (pc=%#lx)",
@@ -330,19 +334,21 @@ wave_t::update (const wave_t &group_leader,
      the last time the queue it belongs to was resumed.  */
   if (m_state != AMD_DBGAPI_WAVE_STATE_STOP)
     {
-      if (!first_update)
-        {
-          /* Save the previous pc before invalidating the hwregs cache.  */
-          dbgapi_assert (register_cache_policy (amdgpu_regnum_t::pc)
-                             != memory_cache_t::policy_t::uncached
-                         && "this code relies on the pc being cached");
-          m_saved_pc = pc ();
-        }
-
       auto last_hwreg_address = register_address (amdgpu_regnum_t::last_hwreg);
       auto last_hwreg_size
           = architecture ().register_size (amdgpu_regnum_t::last_hwreg);
       dbgapi_assert (last_hwreg_address && last_hwreg_size);
+
+      /* FIXME: Remove this assertion
+
+         Check that the pc before the wave was last resumed in single-step mode
+         (saved_pc) is the same as the pc in the cache before it is refreshed
+         from the new context save area.
+
+         If this assertion triggers, it means the pc was updated after the
+         wave was resumed in single-step mode.  */
+      dbgapi_assert (m_state != AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
+                     || m_last_stopped_pc == pc ());
 
       /* The content of the hwregs may have changed, invalidate the cache.  */
       m_hwregs_cache.reset (*first_hwreg_address, *last_hwreg_address
@@ -464,6 +470,12 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
       dbgapi_assert (prev_state == AMD_DBGAPI_WAVE_STATE_STOP
                      && "cannot resume an already running wave");
 
+      /* m_last_stopped_pc is used to detect spurious single-step events
+         (entered the trap handler with mode.debug_en=1 but pc ==
+         m_last_stopped_pc).  Save the pc here as this is the last known
+         pc before the wave is unhalted.  */
+      m_last_stopped_pc = pc ();
+
       /* Clear the stop reason.  */
       m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
     }
@@ -522,7 +534,7 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
   if (m_is_parked && regnum == amdgpu_regnum_t::pc)
     {
       memcpy (static_cast<char *> (value) + offset,
-              reinterpret_cast<const char *> (&m_saved_pc) + offset,
+              reinterpret_cast<const char *> (&m_parked_pc) + offset,
               value_size);
       return;
     }
@@ -569,7 +581,7 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
 
   if (m_is_parked && regnum == amdgpu_regnum_t::pc)
     {
-      memcpy (reinterpret_cast<char *> (&m_saved_pc) + offset,
+      memcpy (reinterpret_cast<char *> (&m_parked_pc) + offset,
               static_cast<const char *> (value) + offset, value_size);
       return;
     }

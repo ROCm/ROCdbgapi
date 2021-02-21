@@ -96,7 +96,8 @@ private:
   amd_dbgapi_wave_state_t m_state{ AMD_DBGAPI_WAVE_STATE_RUN };
   bool m_stop_requested{ false };
   amd_dbgapi_wave_stop_reason_t m_stop_reason{};
-  amd_dbgapi_global_address_t m_saved_pc{ 0 };
+  amd_dbgapi_global_address_t m_parked_pc{ 0 };
+  amd_dbgapi_global_address_t m_last_stopped_pc{ 0 };
   epoch_t m_mark{ 0 };
 
   amd_dbgapi_event_id_t m_last_stop_event_id{ AMD_DBGAPI_EVENT_NONE };
@@ -169,7 +170,13 @@ public:
 
   uint64_t exec_mask () const;
   amd_dbgapi_global_address_t pc () const;
-  amd_dbgapi_global_address_t saved_pc () const { return m_saved_pc; }
+  amd_dbgapi_global_address_t last_stopped_pc () const
+  {
+    /* Return the last known pc before the wave was resumed. It is only valid
+       while the wave is running.  */
+    dbgapi_assert (state () != AMD_DBGAPI_WAVE_STATE_STOP && "not running");
+    return m_last_stopped_pc;
+  }
   std::optional<std::vector<uint8_t>> instruction_at_pc () const;
 
   void terminate ();
