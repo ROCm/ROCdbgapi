@@ -132,6 +132,7 @@ private:
           { "vega12", EF_AMDGPU_MACH_AMDGCN_GFX904, 0 },
           { "vega20", EF_AMDGPU_MACH_AMDGCN_GFX906, 438 },
           { "arcturus", EF_AMDGPU_MACH_AMDGCN_GFX908, 48 },
+          { "aldebaran", EF_AMDGPU_MACH_AMDGCN_GFX90A, 0 },
           { "navi10", EF_AMDGPU_MACH_AMDGCN_GFX1010, 0 },
           { "navi12", EF_AMDGPU_MACH_AMDGCN_GFX1011, 0 },
           { "navi14", EF_AMDGPU_MACH_AMDGCN_GFX1012, 0 },

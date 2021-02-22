@@ -2289,6 +2289,76 @@ public:
   bool has_acc_vgprs () const override { return true; }
 };
 
+class gfx90a_t final : public gfx9_base_t
+{
+protected:
+  class cwsr_record_t final : public gfx9_base_t::cwsr_record_t
+  {
+  private:
+    static constexpr uint32_t compute_relaunch_payload_lds_size (uint32_t x)
+    {
+      return utils::bit_extract ((x), 9, 16);
+    }
+    static constexpr uint32_t
+    compute_relaunch_payload_accum_offset (uint32_t x)
+    {
+      return utils::bit_extract ((x), 24, 29);
+    }
+
+  public:
+    cwsr_record_t (queue_t &queue, uint32_t compute_relaunch_wave,
+                   uint32_t compute_relaunch_state,
+                   amd_dbgapi_global_address_t context_save_address)
+        : gfx9_base_t::cwsr_record_t (queue, compute_relaunch_wave,
+                                      compute_relaunch_state,
+                                      context_save_address)
+    {
+    }
+
+    virtual uint64_t get_info (query_kind_t query) const override
+    {
+      uint32_t state = m_compute_relaunch_state;
+
+      switch (query)
+        {
+        case query_kind_t::vgprs:
+          return (1 + compute_relaunch_payload_accum_offset (state)) * 4;
+
+        case query_kind_t::acc_vgprs:
+          return (1 + compute_relaunch_payload_vgprs (state)) * 8
+                 - (1 + compute_relaunch_payload_accum_offset (state)) * 4;
+
+        case query_kind_t::lds_size:
+          return compute_relaunch_payload_lds_size (state) * 128
+                 * sizeof (uint32_t);
+
+        default:
+          return gfx9_base_t::cwsr_record_t::get_info (query);
+        }
+    }
+  };
+
+  virtual std::unique_ptr<architecture_t::cwsr_record_t>
+  make_gfx9_cwsr_record (
+      queue_t &queue, uint32_t compute_relaunch_wave,
+      uint32_t compute_relaunch_state,
+      amd_dbgapi_global_address_t context_save_address) const override
+  {
+    return std::make_unique<cwsr_record_t> (queue, compute_relaunch_wave,
+                                            compute_relaunch_state,
+                                            context_save_address);
+  }
+
+public:
+  gfx90a_t ()
+      : gfx9_base_t (EF_AMDGPU_MACH_AMDGCN_GFX90A, "amdgcn-amd-amdhsa--gfx90a")
+  {
+  }
+
+  bool has_acc_vgprs () const override { return true; }
+  bool can_halt_at_endpgm () const override { return true; }
+};
+
 class gfx10_base_t : public gfx9_base_t
 {
 protected:
@@ -3192,6 +3262,7 @@ decltype (
     map.emplace (create_architecture<gfx900_t> ());
     map.emplace (create_architecture<gfx906_t> ());
     map.emplace (create_architecture<gfx908_t> ());
+    map.emplace (create_architecture<gfx90a_t> ());
     map.emplace (create_architecture<gfx1010_t> ());
     map.emplace (create_architecture<gfx1011_t> ());
     map.emplace (create_architecture<gfx1012_t> ());
