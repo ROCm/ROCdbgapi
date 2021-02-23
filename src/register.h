@@ -73,9 +73,9 @@ enum class amdgpu_regnum_t : uint32_t
 
   /* 32-bit Scalar registers (sgprs).  */
   s0 = first_sgpr,
-  s105 = s0 + 105,
+  s127 = s0 + 127,
 
-  last_sgpr = s105,
+  last_sgpr = s127,
 
   /* Hardware registers (hwregs).  */
   first_hwreg = last_sgpr + 1,

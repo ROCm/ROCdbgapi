@@ -234,6 +234,8 @@ protected:
 
   /* Return the regnum for a scalar register operand.  */
   virtual amdgpu_regnum_t scalar_operand_to_regnum (int operand) const = 0;
+  /* Return the maximum number of scalar registers  */
+  virtual size_t scalar_register_count () const = 0;
   /* Return the number of aliased scalar registers (e.g. vcc, flat_scratch)  */
   virtual size_t scalar_alias_count () const = 0;
 
@@ -349,10 +351,11 @@ amdgcn_architecture_t::initialize ()
 
   /* Create register classes.  */
 
-  /* Scalar registers: [s0-s111]  */
+  /* Scalar registers: [s0-sN] (sN depends on the gfxip).  */
   register_class_t::register_map_t scalar_registers;
   scalar_registers.emplace (amdgpu_regnum_t::first_sgpr,
-                            amdgpu_regnum_t::last_sgpr);
+                            amdgpu_regnum_t::first_sgpr
+                                + scalar_register_count () - 1);
   create<register_class_t> (*this, "scalar", scalar_registers);
 
   /* Vector registers: [v0-v255, a0-a255]  */
@@ -1846,6 +1849,7 @@ protected:
   {
   }
 
+  virtual size_t scalar_register_count () const override { return 102; }
   virtual size_t scalar_alias_count () const override { return 6; }
 
 public:
@@ -1982,12 +1986,23 @@ gfx9_base_t::scalar_operand_to_regnum (int operand) const
 std::optional<amd_dbgapi_global_address_t>
 gfx9_base_t::cwsr_record_t::register_address (amdgpu_regnum_t regnum) const
 {
-  if (regnum >= amdgpu_regnum_t::first_pseudo
-      && regnum <= amdgpu_regnum_t::last_pseudo)
-    return amd_dbgapi_global_address_t{};
+  const auto &architecture
+      = static_cast<const gfx9_base_t &> (queue ().architecture ());
 
   size_t lane_count = get_info (query_kind_t::lane_count);
   amd_dbgapi_global_address_t save_area_addr = m_context_save_address;
+
+  if (((regnum == amdgpu_regnum_t::pseudo_exec_32
+        || regnum == amdgpu_regnum_t::pseudo_vcc_32)
+       && lane_count != 32)
+      || ((regnum == amdgpu_regnum_t::pseudo_exec_64
+           || regnum == amdgpu_regnum_t::pseudo_vcc_64)
+          && lane_count != 64))
+    return std::nullopt;
+
+  if (regnum >= amdgpu_regnum_t::first_pseudo
+      && regnum <= amdgpu_regnum_t::last_pseudo)
+    return m_context_save_address;
 
   if (get_info (query_kind_t::first_wave))
     {
@@ -2092,43 +2107,44 @@ gfx9_base_t::cwsr_record_t::register_address (amdgpu_regnum_t regnum) const
   size_t sgpr_size = sizeof (int32_t);
   size_t sgprs_addr = hwregs_addr - sgpr_count * sgpr_size;
 
+  amdgpu_regnum_t aliased_sgpr_end
+      = amdgpu_regnum_t::first_sgpr
+        + std::min (architecture.scalar_register_count ()
+                        + architecture.scalar_alias_count (),
+                    sgpr_count);
+
   /* Exclude the aliased sgprs.  */
-  if (regnum >= amdgpu_regnum_t::first_sgpr
-      && regnum <= amdgpu_regnum_t::last_sgpr
-      && (regnum - amdgpu_regnum_t::s0)
-             >= (std::min (108ul, sgpr_count)
-                 - static_cast<const gfx9_base_t &> (queue ().architecture ())
-                       .scalar_alias_count ()))
+  if (regnum >= (aliased_sgpr_end - architecture.scalar_alias_count ())
+      && regnum < aliased_sgpr_end)
+    return std::nullopt;
+
+  if ((regnum == amdgpu_regnum_t::vcc_32 && lane_count != 32)
+      || (regnum == amdgpu_regnum_t::vcc_64 && lane_count != 64))
     return std::nullopt;
 
   /* Rename registers that alias to sgprs.  */
-  if ((lane_count == 32 && regnum == amdgpu_regnum_t::vcc_32)
-      || (lane_count == 64 && regnum == amdgpu_regnum_t::vcc_64)
-      || regnum == amdgpu_regnum_t::vcc_lo)
+  switch (regnum)
     {
-      regnum = amdgpu_regnum_t::s0 + std::min (108ul, sgpr_count) - 2;
-    }
-  if (regnum == amdgpu_regnum_t::vcc_hi)
-    {
-      regnum = amdgpu_regnum_t::s0 + std::min (108ul, sgpr_count) - 1;
-    }
-
-  /* Note: While EXEC_32 and EXEC_64 alias to sgpr_count - 2, the CWSR
-     handler saves them in the hwreg block.  */
-
-  if (regnum == amdgpu_regnum_t::flat_scratch
-      || regnum == amdgpu_regnum_t::flat_scratch_lo)
-    {
-      regnum = amdgpu_regnum_t::s0 + std::min (108ul, sgpr_count) - 6;
-    }
-  if (regnum == amdgpu_regnum_t::flat_scratch_hi)
-    {
-      regnum = amdgpu_regnum_t::s0 + std::min (108ul, sgpr_count) - 5;
+    case amdgpu_regnum_t::vcc_32:
+    case amdgpu_regnum_t::vcc_64:
+    case amdgpu_regnum_t::vcc_lo:
+      regnum = aliased_sgpr_end - 2;
+      break;
+    case amdgpu_regnum_t::vcc_hi:
+      regnum = aliased_sgpr_end - 1;
+      break;
+    case amdgpu_regnum_t::flat_scratch:
+    case amdgpu_regnum_t::flat_scratch_lo:
+      regnum = aliased_sgpr_end - 6;
+      break;
+    case amdgpu_regnum_t::flat_scratch_hi:
+      regnum = aliased_sgpr_end - 5;
+      break;
+    default:
+      break;
     }
 
-  if (regnum >= amdgpu_regnum_t::first_sgpr
-      && regnum <= amdgpu_regnum_t::last_sgpr
-      && (regnum - amdgpu_regnum_t::s0) < std::min (108ul, sgpr_count))
+  if (regnum >= amdgpu_regnum_t::first_sgpr && regnum < aliased_sgpr_end)
     {
       return sgprs_addr + (regnum - amdgpu_regnum_t::s0) * sgpr_size;
     }
@@ -2422,6 +2438,7 @@ protected:
   {
   }
 
+  virtual size_t scalar_register_count () const override { return 106; }
   virtual size_t scalar_alias_count () const override { return 2; }
 
 public:
@@ -2791,7 +2808,7 @@ std::optional<std::string>
 architecture_t::register_name (amdgpu_regnum_t regnum) const
 {
   if (regnum >= amdgpu_regnum_t::first_sgpr
-      && regnum <= amdgpu_regnum_t::last_sgpr)
+      && regnum < (amdgpu_regnum_t::first_sgpr + scalar_register_count ()))
     {
       return string_printf ("s%ld", regnum - amdgpu_regnum_t::first_sgpr);
     }
@@ -2942,7 +2959,7 @@ architecture_t::register_type (amdgpu_regnum_t regnum) const
     }
   /* Scalar registers.  */
   if (regnum >= amdgpu_regnum_t::first_sgpr
-      && regnum <= amdgpu_regnum_t::last_sgpr)
+      && regnum < (amdgpu_regnum_t::first_sgpr + scalar_register_count ()))
     {
       return "int32_t";
     }
@@ -3029,7 +3046,7 @@ architecture_t::register_size (amdgpu_regnum_t regnum) const
     }
   /* Scalar registers.  */
   if (regnum >= amdgpu_regnum_t::first_sgpr
-      && regnum <= amdgpu_regnum_t::last_sgpr)
+      && regnum < (amdgpu_regnum_t::first_sgpr + scalar_register_count ()))
     {
       return sizeof (int32_t);
     }

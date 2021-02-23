@@ -163,6 +163,8 @@ public:
 
   /* FIXME: add SQ prefetch instruction bytes size.  */
 
+  /* Return the maximum number of scalar registers  */
+  virtual size_t scalar_register_count () const = 0;
   virtual bool has_wave32_vgprs () const = 0;
   virtual bool has_wave64_vgprs () const = 0;
   virtual bool has_acc_vgprs () const = 0;
