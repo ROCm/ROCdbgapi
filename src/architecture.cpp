@@ -393,7 +393,6 @@ amdgcn_architecture_t::initialize ()
   /* System registers: [hwregs, flat_scratch, xnack_mask, vcc]  */
   register_class_t::register_map_t system_registers;
 
-  system_registers.emplace (amdgpu_regnum_t::m0, amdgpu_regnum_t::m0);
   system_registers.emplace (amdgpu_regnum_t::pseudo_status,
                             amdgpu_regnum_t::pseudo_status);
   system_registers.emplace (amdgpu_regnum_t::mode, amdgpu_regnum_t::mode);
@@ -402,23 +401,11 @@ amdgcn_architecture_t::initialize ()
   system_registers.emplace (amdgpu_regnum_t::flat_scratch,
                             amdgpu_regnum_t::flat_scratch);
   if (has_wave32_vgprs ())
-    {
-      system_registers.emplace (amdgpu_regnum_t::pseudo_exec_32,
-                                amdgpu_regnum_t::pseudo_exec_32);
-      system_registers.emplace (amdgpu_regnum_t::xnack_mask_32,
-                                amdgpu_regnum_t::xnack_mask_32);
-      system_registers.emplace (amdgpu_regnum_t::pseudo_vcc_32,
-                                amdgpu_regnum_t::pseudo_vcc_32);
-    }
+    system_registers.emplace (amdgpu_regnum_t::xnack_mask_32,
+                              amdgpu_regnum_t::xnack_mask_32);
   if (has_wave64_vgprs ())
-    {
-      system_registers.emplace (amdgpu_regnum_t::pseudo_exec_64,
-                                amdgpu_regnum_t::pseudo_exec_64);
-      system_registers.emplace (amdgpu_regnum_t::xnack_mask_64,
-                                amdgpu_regnum_t::xnack_mask_64);
-      system_registers.emplace (amdgpu_regnum_t::pseudo_vcc_64,
-                                amdgpu_regnum_t::pseudo_vcc_64);
-    }
+    system_registers.emplace (amdgpu_regnum_t::xnack_mask_64,
+                              amdgpu_regnum_t::xnack_mask_64);
   create<register_class_t> (*this, "system", system_registers);
 
   /* General registers: [{scalar}, {vector}, pc, exec, vcc]  */
@@ -427,6 +414,7 @@ amdgcn_architecture_t::initialize ()
                             scalar_registers.end ());
   general_registers.insert (vector_registers.begin (),
                             vector_registers.end ());
+  general_registers.emplace (amdgpu_regnum_t::m0, amdgpu_regnum_t::m0);
   general_registers.emplace (amdgpu_regnum_t::pc, amdgpu_regnum_t::pc);
   if (has_wave32_vgprs ())
     {
