@@ -181,6 +181,10 @@ public:
   virtual std::vector<os_watch_id_t>
   triggered_watchpoints (const wave_t &wave) const override;
 
+  virtual bool
+  is_pseudo_register_available (const wave_t &wave,
+                                amdgpu_regnum_t regnum) const override;
+
   virtual void read_pseudo_register (const wave_t &wave,
                                      amdgpu_regnum_t regnum, size_t offset,
                                      size_t value_size,
@@ -681,7 +685,8 @@ amdgcn_architecture_t::triggered_watchpoints (const wave_t &wave) const
     return {};
 
   /* We don't have to suspend the queue because trapsts is a cached hwreg.  */
-  dbgapi_assert (wave.is_register_cached (amdgpu_regnum_t::trapsts));
+  dbgapi_assert (wave.register_cache_policy (amdgpu_regnum_t::trapsts)
+                 != memory_cache_t::policy_t::uncached);
 
   uint32_t trapsts;
   wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
@@ -1611,14 +1616,44 @@ amdgcn_architecture_t::watchpoint_mode (
   return {};
 }
 
+bool
+amdgcn_architecture_t::is_pseudo_register_available (
+    const wave_t &wave, amdgpu_regnum_t regnum) const
+{
+  dbgapi_assert (is_pseudo_register (regnum));
+
+  size_t lane_count = wave.lane_count ();
+
+  if ((regnum == amdgpu_regnum_t::pseudo_exec_32
+       || regnum == amdgpu_regnum_t::pseudo_vcc_32)
+      && lane_count != 32)
+    return false;
+
+  if ((regnum == amdgpu_regnum_t::pseudo_exec_64
+       || regnum == amdgpu_regnum_t::pseudo_vcc_64)
+      && lane_count != 64)
+    return false;
+
+  return true;
+}
+
 void
 amdgcn_architecture_t::read_pseudo_register (const wave_t &wave,
                                              amdgpu_regnum_t regnum,
                                              size_t offset, size_t value_size,
                                              void *value) const
 {
-  dbgapi_assert (regnum >= amdgpu_regnum_t::first_pseudo
-                 && regnum <= amdgpu_regnum_t::last_pseudo);
+  dbgapi_assert (is_pseudo_register (regnum));
+
+  auto reg_size = register_size (regnum);
+
+  if (!reg_size)
+    throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID);
+
+  if (!value_size || (offset + value_size) > *reg_size)
+    throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+
+  size_t lane_count = wave.lane_count ();
 
   if (regnum == amdgpu_regnum_t::null)
     {
@@ -1626,25 +1661,25 @@ amdgcn_architecture_t::read_pseudo_register (const wave_t &wave,
       return;
     }
 
-  if (regnum == amdgpu_regnum_t::pseudo_exec_32)
+  if (regnum == amdgpu_regnum_t::pseudo_exec_32 && lane_count == 32)
     {
       wave.read_register (amdgpu_regnum_t::exec_32, offset, value_size, value);
       return;
     }
 
-  if (regnum == amdgpu_regnum_t::pseudo_exec_64)
+  if (regnum == amdgpu_regnum_t::pseudo_exec_64 && lane_count == 64)
     {
       wave.read_register (amdgpu_regnum_t::exec_64, offset, value_size, value);
       return;
     }
 
-  if (regnum == amdgpu_regnum_t::pseudo_vcc_32)
+  if (regnum == amdgpu_regnum_t::pseudo_vcc_32 && lane_count == 32)
     {
       wave.read_register (amdgpu_regnum_t::vcc_32, offset, value_size, value);
       return;
     }
 
-  if (regnum == amdgpu_regnum_t::pseudo_vcc_64)
+  if (regnum == amdgpu_regnum_t::pseudo_vcc_64 && lane_count == 64)
     {
       wave.read_register (amdgpu_regnum_t::vcc_64, offset, value_size, value);
       return;
@@ -1670,8 +1705,7 @@ amdgcn_architecture_t::read_pseudo_register (const wave_t &wave,
       return;
     }
 
-  error ("unhandled pseudo register %s",
-         register_name (regnum).value ().c_str ());
+  throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID);
 }
 
 void
@@ -1680,15 +1714,25 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
                                               size_t offset, size_t value_size,
                                               const void *value) const
 {
-  dbgapi_assert (regnum >= amdgpu_regnum_t::first_pseudo
-                 && regnum <= amdgpu_regnum_t::last_pseudo);
+  dbgapi_assert (is_pseudo_register (regnum));
+
+  auto reg_size = register_size (regnum);
+
+  if (!reg_size)
+    throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID);
+
+  if (!value_size || (offset + value_size) > *reg_size)
+    throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+
+  size_t lane_count = wave.lane_count ();
 
   if (regnum == amdgpu_regnum_t::null)
     /* Writing to null is a no-op.  */
     return;
 
-  if (regnum == amdgpu_regnum_t::pseudo_exec_32
-      || regnum == amdgpu_regnum_t::pseudo_vcc_32)
+  if ((regnum == amdgpu_regnum_t::pseudo_exec_32
+       || regnum == amdgpu_regnum_t::pseudo_vcc_32)
+      && lane_count == 32)
     {
       uint32_t base_reg, status_reg;
 
@@ -1713,8 +1757,9 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
       return;
     }
 
-  if (regnum == amdgpu_regnum_t::pseudo_exec_64
-      || regnum == amdgpu_regnum_t::pseudo_vcc_64)
+  if ((regnum == amdgpu_regnum_t::pseudo_exec_64
+       || regnum == amdgpu_regnum_t::pseudo_vcc_64)
+      && lane_count == 64)
     {
       uint64_t base_reg;
       uint32_t status_reg;
@@ -1776,8 +1821,7 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
       return;
     }
 
-  error ("unhandled pseudo register %s",
-         register_name (regnum).value ().c_str ());
+  throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID);
 }
 
 /* Base class for all GFX9 architectures.  */
@@ -1991,18 +2035,6 @@ gfx9_base_t::cwsr_record_t::register_address (amdgpu_regnum_t regnum) const
 
   size_t lane_count = get_info (query_kind_t::lane_count);
   amd_dbgapi_global_address_t save_area_addr = m_context_save_address;
-
-  if (((regnum == amdgpu_regnum_t::pseudo_exec_32
-        || regnum == amdgpu_regnum_t::pseudo_vcc_32)
-       && lane_count != 32)
-      || ((regnum == amdgpu_regnum_t::pseudo_exec_64
-           || regnum == amdgpu_regnum_t::pseudo_vcc_64)
-          && lane_count != 64))
-    return std::nullopt;
-
-  if (regnum >= amdgpu_regnum_t::first_pseudo
-      && regnum <= amdgpu_regnum_t::last_pseudo)
-    return m_context_save_address;
 
   if (get_info (query_kind_t::first_wave))
     {
@@ -2853,7 +2885,7 @@ architecture_t::register_name (amdgpu_regnum_t regnum) const
           return string_printf ("ttmp%ld",
                                 regnum - amdgpu_regnum_t::first_ttmp);
         default:
-          return {};
+          return std::nullopt;
         }
     }
   if (regnum >= amdgpu_regnum_t::first_hwreg
@@ -2934,7 +2966,7 @@ architecture_t::register_name (amdgpu_regnum_t regnum) const
     default:
       break;
     }
-  return {};
+  return std::nullopt;
 }
 
 std::optional<std::string>
@@ -3020,7 +3052,7 @@ architecture_t::register_type (amdgpu_regnum_t regnum) const
       return "uint64_t";
 
     default:
-      return {};
+      return std::nullopt;
     }
 }
 
@@ -3107,7 +3139,7 @@ architecture_t::register_size (amdgpu_regnum_t regnum) const
       return sizeof (uint64_t);
 
     default:
-      return {};
+      return std::nullopt;
     }
 }
 

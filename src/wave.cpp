@@ -498,6 +498,9 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
 memory_cache_t::policy_t
 wave_t::register_cache_policy (amdgpu_regnum_t regnum) const
 {
+  dbgapi_assert (!is_pseudo_register (regnum)
+                 && "pseudo registers do not have a cache policy");
+
   auto reg_addr = register_address (regnum);
   auto reg_size = architecture ().register_size (regnum);
   dbgapi_assert (reg_addr && reg_size && "invalid register");
@@ -511,6 +514,9 @@ wave_t::register_cache_policy (amdgpu_regnum_t regnum) const
 bool
 wave_t::is_register_available (amdgpu_regnum_t regnum) const
 {
+  if (is_pseudo_register (regnum))
+    return architecture ().is_pseudo_register_available (*this, regnum);
+
   return register_address (regnum).has_value ();
 }
 
@@ -518,6 +524,10 @@ void
 wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
                        size_t value_size, void *value) const
 {
+  if (is_pseudo_register (regnum))
+    return architecture ().read_pseudo_register (*this, regnum, offset,
+                                                 value_size, value);
+
   auto reg_addr = register_address (regnum);
   auto reg_size = architecture ().register_size (regnum);
 
@@ -526,10 +536,6 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
 
   if (!value_size || (offset + value_size) > *reg_size)
     throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
-
-  if (regnum >= amdgpu_regnum_t::first_pseudo
-      && regnum <= amdgpu_regnum_t::last_pseudo)
-    return read_pseudo_register (regnum, offset, value_size, value);
 
   if (m_is_parked && regnum == amdgpu_regnum_t::pc)
     {
@@ -566,18 +572,18 @@ void
 wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
                         size_t value_size, const void *value)
 {
+  if (is_pseudo_register (regnum))
+    return architecture ().write_pseudo_register (*this, regnum, offset,
+                                                  value_size, value);
+
   auto reg_addr = register_address (regnum);
   auto reg_size = architecture ().register_size (regnum);
 
-  if (!reg_addr)
+  if (!reg_addr || !reg_size)
     throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID);
 
   if (!value_size || (offset + value_size) > *reg_size)
     throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
-
-  if (regnum >= amdgpu_regnum_t::first_pseudo
-      && regnum <= amdgpu_regnum_t::last_pseudo)
-    return write_pseudo_register (regnum, offset, value_size, value);
 
   if (m_is_parked && regnum == amdgpu_regnum_t::pc)
     {

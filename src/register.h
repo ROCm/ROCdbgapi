@@ -192,6 +192,13 @@ operator++ (amdgpu_regnum_t &regnum, int)
   return prev;
 }
 
+constexpr bool
+is_pseudo_register (amdgpu_regnum_t regnum)
+{
+  return regnum >= amdgpu_regnum_t::first_pseudo
+         && regnum <= amdgpu_regnum_t::last_pseudo;
+}
+
 constexpr size_t amdgpu_vgprs_32_count
     = amdgpu_regnum_t::last_vgpr_32 - amdgpu_regnum_t::first_vgpr_32 + 1;
 constexpr size_t amdgpu_vgprs_64_count

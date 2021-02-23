@@ -497,7 +497,11 @@ amd_dbgapi_read_register (amd_dbgapi_wave_id_t wave_id,
 
   std::optional<scoped_queue_suspend_t> suspend;
 
-  if (!wave->is_register_cached (*regnum))
+  /* Pseudo registers require the queue to be suspended as they may be
+     accessing uncached registers.  */
+  if (is_pseudo_register (*regnum)
+      || wave->register_cache_policy (*regnum)
+             == memory_cache_t::policy_t::uncached)
     {
       suspend.emplace (wave->queue (), "read register");
 
@@ -557,10 +561,13 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
 
   std::optional<scoped_queue_suspend_t> suspend;
 
-  if (wave->register_cache_policy (*regnum)
-      != memory_cache_t::policy_t::write_back)
-    /* Registers that are cached with a write-back policy do not need the queue
-       to be suspended.  */
+  /* Pseudo registers require the queue to be suspended as they may be
+     accessing uncached registers.  */
+  if (is_pseudo_register (*regnum)
+      /* Register that are uncached or have a write-through policy also require
+         the queue to be suspended.  */
+      || wave->register_cache_policy (*regnum)
+             != memory_cache_t::policy_t::write_back)
     {
       suspend.emplace (wave->queue (), "write register");
 

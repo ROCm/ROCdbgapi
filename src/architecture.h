@@ -309,6 +309,9 @@ public:
   std::optional<amd_dbgapi_size_t>
   register_size (amdgpu_regnum_t regnum) const;
 
+  virtual bool is_pseudo_register_available (const wave_t &wave,
+                                             amdgpu_regnum_t regnum) const = 0;
+
   virtual void read_pseudo_register (const wave_t &wave,
                                      amdgpu_regnum_t regnum, size_t offset,
                                      size_t value_size, void *value) const = 0;

@@ -209,30 +209,11 @@ public:
   register_cache_policy (amdgpu_regnum_t regnum) const;
 
   bool is_register_available (amdgpu_regnum_t regnum) const;
-  bool is_register_cached (amdgpu_regnum_t regnum) const
-  {
-    return register_cache_policy (regnum)
-           != memory_cache_t::policy_t::uncached;
-  }
 
   std::optional<amd_dbgapi_global_address_t>
   register_address (amdgpu_regnum_t regnum) const
   {
     return m_cwsr_record->register_address (regnum);
-  }
-
-  void read_pseudo_register (amdgpu_regnum_t regnum, size_t offset,
-                             size_t value_size, void *value) const
-  {
-    return architecture ().read_pseudo_register (*this, regnum, offset,
-                                                 value_size, value);
-  }
-
-  void write_pseudo_register (amdgpu_regnum_t regnum, size_t offset,
-                              size_t value_size, const void *value)
-  {
-    return architecture ().write_pseudo_register (*this, regnum, offset,
-                                                  value_size, value);
   }
 
   void read_register (amdgpu_regnum_t regnum, size_t offset, size_t value_size,
