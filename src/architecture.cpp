@@ -168,6 +168,8 @@ public:
     const address_space_t &address_space1,
     const address_space_t &address_space2) const override;
 
+  bool supports_precise_memory () const override { return false; }
+
   amd_dbgapi_watchpoint_share_kind_t watchpoint_share_kind () const override
   {
     return AMD_DBGAPI_WATCHPOINT_SHARE_KIND_SHARED;
@@ -2686,6 +2688,7 @@ public:
   {
   }
 
+  bool supports_precise_memory () const override { return true; }
   bool has_acc_vgprs () const override { return true; }
   bool can_halt_at_endpgm () const override { return false; }
 };

@@ -132,6 +132,9 @@ process_t::detach ()
          state.  */
       set_forward_progress_needed (false);
 
+      /* Return precise memory reporting to its default off state.  */
+      set_precise_memory (false);
+
       /* Resume all the waves halted at launch.  */
       set_wave_launch_mode (os_wave_launch_mode_t::normal);
 
@@ -426,6 +429,29 @@ process_t::set_wave_launch_trap_override (os_wave_launch_trap_mask_t value,
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
+amd_dbgapi_status_t
+process_t::set_precise_memory (bool enabled)
+{
+  if (!m_supports_precise_memory)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
+
+  if (m_precise_memory == enabled)
+    return AMD_DBGAPI_STATUS_SUCCESS;
+
+  if (os_driver ().is_debug_enabled ())
+    {
+      amd_dbgapi_status_t status = os_driver ().set_precise_memory (enabled);
+
+      if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+        return status;
+      else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("os_driver::set_precise_memory failed (rc=%d)", status);
+    }
+
+  m_precise_memory = enabled;
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
 process_t *
 process_t::find (amd_dbgapi_process_id_t process_id)
 {
@@ -480,6 +506,8 @@ process_t::update_agents ()
   while (agent_infos.size () < agent_count);
   agent_infos.resize (agent_count);
 
+  m_supports_precise_memory = true;
+
   /* Add new agents to the process.  */
   for (auto &&agent_info : agent_infos)
     {
@@ -488,7 +516,11 @@ process_t::update_agents ()
       });
 
       if (agent)
-        continue;
+        {
+          m_supports_precise_memory
+            &= agent->architecture ().supports_precise_memory ();
+          continue;
+        }
 
       const architecture_t *architecture
         = architecture_t::find (agent_info.e_machine);
@@ -521,6 +553,8 @@ process_t::update_agents ()
       create<agent_t> (*this,         /* process  */
                        *architecture, /* architecture  */
                        agent_info);   /* os_agent_info  */
+
+      m_supports_precise_memory &= architecture->supports_precise_memory ();
     }
 
   return AMD_DBGAPI_STATUS_SUCCESS;
@@ -1269,6 +1303,15 @@ process_t::attach ()
       error ("Could not set the wave launch trap override for %s (rc=%d).",
              to_string (id ()).c_str (), status);
 
+    if (m_supports_precise_memory)
+      {
+        status = os_driver ().set_precise_memory (m_precise_memory);
+        if (status != AMD_DBGAPI_STATUS_SUCCESS
+            && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+          error ("Could not set precise memory for %s (rc=%d).",
+                 to_string (id ()).c_str (), status);
+      }
+
     status = update_queues ();
     if (status != AMD_DBGAPI_STATUS_SUCCESS)
       error ("update_queues failed (rc=%d)", status);
@@ -1430,7 +1473,9 @@ process_t::get_info (amd_dbgapi_process_info_t query, size_t value_size,
 
     case AMD_DBGAPI_PROCESS_INFO_PRECISE_MEMORY_SUPPORTED:
       return utils::get_info (value_size, value,
-                              AMD_DBGAPI_MEMORY_PRECISION_NONE);
+                              m_supports_precise_memory
+                                ? AMD_DBGAPI_MEMORY_PRECISION_PRECISE
+                                : AMD_DBGAPI_MEMORY_PRECISION_NONE);
 
     case AMD_DBGAPI_PROCESS_INFO_OS_ID:
       return utils::get_info (value_size, value, m_os_process_id);

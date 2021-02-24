@@ -671,14 +671,12 @@ amd_dbgapi_set_memory_precision (
   if (!process)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-  switch (memory_precision)
-    {
-    case AMD_DBGAPI_MEMORY_PRECISION_NONE:
-      return AMD_DBGAPI_STATUS_SUCCESS;
-    case AMD_DBGAPI_MEMORY_PRECISION_PRECISE:
-      return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
-    }
-  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+  if (memory_precision != AMD_DBGAPI_MEMORY_PRECISION_NONE
+      && memory_precision != AMD_DBGAPI_MEMORY_PRECISION_PRECISE)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
+  return process->set_precise_memory (memory_precision
+                                      == AMD_DBGAPI_MEMORY_PRECISION_PRECISE);
   CATCH;
   TRACE_END ();
 }

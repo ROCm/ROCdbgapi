@@ -233,6 +233,8 @@ public:
     os_wave_launch_trap_mask_t requested_bits,
     os_wave_launch_trap_mask_t *previous_mask,
     os_wave_launch_trap_mask_t *supported_mask) const override;
+
+  amd_dbgapi_status_t set_precise_memory (bool enabled) const override;
 };
 
 size_t kfd_driver_t::s_kfd_open_count{ 0 };
@@ -788,6 +790,24 @@ kfd_driver_t::set_wave_launch_trap_override (
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
+amd_dbgapi_status_t
+kfd_driver_t::set_precise_memory (bool enabled) const
+{
+  /* KFD_IOC_DBG_TRAP_SET_PRECISE_MEM_OPS (#11)
+     data1: 0=disable, 1=enable  */
+
+  kfd_ioctl_dbg_trap_args args{};
+  args.data1 = enabled ? 1 : 0;
+
+  int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_PRECISE_MEM_OPS, &args);
+  if (err == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err < 0)
+    return AMD_DBGAPI_STATUS_ERROR;
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
 void
 kfd_driver_t::event_loop (std::promise<void> thread_exception/*
     std::vector<std::pair<file_desc_t, std::function<void ()>>> input,
@@ -1050,6 +1070,11 @@ public:
     os_wave_launch_trap_mask_t * /* supported_mask  */) const override
   {
     return AMD_DBGAPI_STATUS_ERROR;
+  }
+
+  amd_dbgapi_status_t set_precise_memory (bool /* enabled  */) const override
+  {
+    return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
   }
 };
 

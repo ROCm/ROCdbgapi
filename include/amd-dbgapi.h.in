@@ -290,15 +290,11 @@
  * 2.  On a AMD_DBGAPI_STATUS_FATAL error the library does fully reset the
  *     internal state and so subsequent functions may not operate correctly.
  *
- * 3.  The AMD_DBGAPI_MEMORY_PRECISION_PRECISE memory precision is not
- *     supported. The default memory precision is
- *     AMD_DBGAPI_MEMORY_PRECISION_NONE.
- *
- * 4.  amd_dbgapi_process_next_pending_event returns
+ * 3.  amd_dbgapi_process_next_pending_event returns
  *     AMD_DBGAPI_EVENT_KIND_WAVE_STOP events only for AQL queues.  PM4 queues
  *     that launch wavefronts are not supported.
  *
- * 5.  amd_dbgapi_queue_packet_list returns packets only for AQL queues.
+ * 4.  amd_dbgapi_queue_packet_list returns packets only for AQL queues.
  *
  * \section references References
  *

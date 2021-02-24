@@ -274,6 +274,8 @@ public:
     os_wave_launch_trap_mask_t *previous_value = nullptr,
     os_wave_launch_trap_mask_t *supported_mask = nullptr) const = 0;
 
+  virtual amd_dbgapi_status_t set_precise_memory (bool enabled) const = 0;
+
   virtual amd_dbgapi_status_t
   xfer_global_memory_partial (amd_dbgapi_global_address_t address, void *read,
                               const void *write, size_t *size) const = 0;

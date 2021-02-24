@@ -212,6 +212,9 @@ public:
   address_spaces_may_alias (const address_space_t &address_space1,
                             const address_space_t &address_space2) const = 0;
 
+  /* Return true if this architecture supports setting precise memory.  */
+  virtual bool supports_precise_memory () const = 0;
+
   /* Return the bits that can be programmed in the address watch mask.  */
   virtual size_t watchpoint_mask_bits () const = 0;
 
