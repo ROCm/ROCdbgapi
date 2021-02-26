@@ -41,7 +41,12 @@ class architecture_t;
 
 enum class amdgpu_regnum_t : uint32_t
 {
-  first_vgpr_32 = 0,
+  first_regnum = 0,
+  first_raw = first_regnum,
+
+  /* Raw registers.  */
+
+  first_vgpr_32 = first_raw,
 
   /* 32-bit Vector registers (vgprs) for wave32 wavefronts.  */
   v0_32 = first_vgpr_32,
@@ -76,11 +81,11 @@ enum class amdgpu_regnum_t : uint32_t
   s127 = s0 + 127,
 
   last_sgpr = s127,
+  first_hwreg = last_sgpr + 1,
 
   /* Hardware registers (hwregs).  */
-  first_hwreg = last_sgpr + 1,
-  last_hwreg = first_hwreg + 15,
 
+  last_hwreg = first_hwreg + 15,
   first_ttmp = last_hwreg + 1,
 
   /* Trap temporary registers (ttmps).  */
@@ -96,8 +101,17 @@ enum class amdgpu_regnum_t : uint32_t
 
   last_ttmp = ttmp13 + 2,
 
-  /* Register aliases.  */
-  m0 = last_ttmp + 1, /* Memory Descriptor.  */
+  lds_0, /* First dword of the LDS backing store.  */
+
+  last_raw = lds_0,
+  first_aliased = last_raw + 1,
+
+  /* Aliased registers:  Registers whose index depends on the wave
+     configuration or on the architecture.  For example, vcc is the last
+     register pair of the wave's scalar registers allocation.  For a wave with
+     32 scalar registers, vcc aliases to [s30,s31].  */
+
+  m0 = first_aliased, /* Memory Descriptor.  */
   pc,                 /* Program counter.  */
   status,             /* Status register.  */
   mode,               /* Mode register.  */
@@ -126,9 +140,13 @@ enum class amdgpu_regnum_t : uint32_t
   dispatch_grid_z, /* Dispatch grid Z.  */
   scratch_offset,  /* Scracth memory offset from the scratch base.  */
 
-  lds_0, /* First dword of the LDS backing store.  */
+  last_aliased = scratch_offset,
+  first_pseudo = last_aliased + 1,
 
-  first_pseudo = lds_0 + 1,
+  /* Pseudo registers.  Registers that are computed from other registers. They
+     cannot be directly loaded from or stored to the context save area.  For
+     example, pseudo_vcc is a composite of vcc and status.vccz (when vcc is
+     written, status.vccz is set to 1 if vcc == 0, and 0 otherwise).  */
 
   pseudo_status = first_pseudo, /* The client visible status register.  */
 
