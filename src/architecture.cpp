@@ -1160,15 +1160,17 @@ amdgcn_architecture_t::get_wave_state (
           = prev_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
             && wave.last_stopped_pc () == pc && trap_id == 0;
 
+      /* FIXME: Is this worth it?  */
       if (ignore_single_step_event)
         {
           *state = AMD_DBGAPI_WAVE_STATE_STOP;
           *stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
 
-          if (auto instruction = wave.instruction_at_pc (); instruction)
+          if (auto instruction = wave.instruction_at_pc ();
+              instruction && can_simulate (*instruction))
             {
               /* Trim to size of instruction, simulate_instruction needs the
-               * exact instruction bytes.  */
+                 exact instruction bytes.  */
               size_t size = instruction_size (*instruction);
               dbgapi_assert (size != 0 && "Invalid instruction");
               instruction->resize (size);
@@ -1177,15 +1179,11 @@ amdgcn_architecture_t::get_wave_state (
                  reported, as we cannot tell if a branch to self instruction
                  has executed.
                */
-              if (can_simulate (*instruction)
-                  && simulate_instruction (wave, pc, *instruction))
+              if (simulate_instruction (wave, pc, *instruction))
                 {
                   /* We successfully simulated the instruction, report the
                      single-step event.  */
                   ignore_single_step_event = false;
-
-                  /* Reload the instruction since the pc may have changed.  */
-                  instruction = wave.instruction_at_pc ();
                 }
             }
         }
