@@ -662,9 +662,9 @@ amd_dbgapi_wave_register_list (amd_dbgapi_wave_id_t wave_id,
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_prefetch_register (amd_dbgapi_wave_id_t wave_id,
-                              amd_dbgapi_register_id_t register_id,
-                              amd_dbgapi_size_t register_count)
+amd_dbgapi_prefetch_register (
+    amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
+    [[maybe_unused]] amd_dbgapi_size_t register_count)
 {
   TRACE_BEGIN (wave_id, register_id, register_count);
   TRY;

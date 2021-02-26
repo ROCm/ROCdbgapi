@@ -109,7 +109,7 @@ private:
   uint32_t m_wave_in_group{ 0 };
 
   std::unique_ptr<architecture_t::cwsr_record_t> m_cwsr_record{};
-  memory_cache_t m_hwregs_cache;
+  memory_cache_t m_register_cache;
 
   displaced_stepping_t *m_displaced_stepping{ nullptr };
   const wave_t *m_group_leader{ nullptr };

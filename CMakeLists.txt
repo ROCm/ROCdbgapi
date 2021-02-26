@@ -20,7 +20,7 @@
 
 cmake_minimum_required(VERSION 3.8)
 
-project(AMD_DBGAPI VERSION 0.44.7)
+project(AMD_DBGAPI VERSION 0.44.8)
 
 # The project command does not set the <PROJECT-NAME>_NAME variable so must set
 # it explicitly.

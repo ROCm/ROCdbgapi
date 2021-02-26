@@ -45,8 +45,8 @@ namespace amd::dbgapi
 wave_t::wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t &dispatch,
                 const callbacks_t &callbacks)
     : handle_object (wave_id),
-      m_hwregs_cache (dispatch.process (),
-                      memory_cache_t::policy_t::write_back),
+      m_register_cache (dispatch.process (),
+                        memory_cache_t::policy_t::write_back),
       m_callbacks (callbacks), m_dispatch (dispatch)
 {
 }
@@ -323,37 +323,31 @@ wave_t::update (const wave_t &group_leader,
   m_cwsr_record = std::move (cwsr_record);
   m_group_leader = &group_leader;
 
-  auto first_hwreg_address = register_address (amdgpu_regnum_t::first_hwreg);
-  dbgapi_assert (first_hwreg_address);
+  constexpr auto first_cached_register = amdgpu_regnum_t::first_hwreg;
+  constexpr auto last_cached_register = amdgpu_regnum_t::last_ttmp;
 
-  /* The address of this cwsr_record may have changed since the last context
-     save, relocate the hwregs cache.  */
-  m_hwregs_cache.relocate (*first_hwreg_address);
+  auto register_cache_begin = register_address (first_cached_register);
+  dbgapi_assert (register_cache_begin);
 
   /* Update the wave's state if this is a new wave, or if the wave was running
      the last time the queue it belongs to was resumed.  */
   if (m_state != AMD_DBGAPI_WAVE_STATE_STOP)
     {
-      auto last_hwreg_address = register_address (amdgpu_regnum_t::last_hwreg);
-      auto last_hwreg_size
-          = architecture ().register_size (amdgpu_regnum_t::last_hwreg);
-      dbgapi_assert (last_hwreg_address && last_hwreg_size);
+      auto last_cached_register_address
+          = register_address (last_cached_register);
+      auto last_cached_register_size
+          = architecture ().register_size (last_cached_register);
+      dbgapi_assert (last_cached_register_address
+                     && last_cached_register_size);
 
-      /* FIXME: Remove this assertion
+      amd_dbgapi_global_address_t register_cache_end
+          = *last_cached_register_address + *last_cached_register_size;
+      dbgapi_assert (register_cache_end > *register_cache_begin);
 
-         Check that the pc before the wave was last resumed in single-step mode
-         (saved_pc) is the same as the pc in the cache before it is refreshed
-         from the new context save area.
-
-         If this assertion triggers, it means the pc was updated after the
-         wave was resumed in single-step mode.  */
-      dbgapi_assert (m_state != AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
-                     || m_last_stopped_pc == pc ());
-
-      /* The content of the hwregs may have changed, invalidate the cache.  */
-      m_hwregs_cache.reset (*first_hwreg_address, *last_hwreg_address
-                                                      - *first_hwreg_address
-                                                      + *last_hwreg_size);
+      /* Since the wave was previously running, the content of the cached
+         registers may have changed.  */
+      m_register_cache.reset (*register_cache_begin,
+                              register_cache_end - *register_cache_begin);
 
       architecture ().get_wave_state (*this, &m_state, &m_stop_reason);
 
@@ -366,6 +360,12 @@ wave_t::update (const wave_t &group_leader,
           && m_state == AMD_DBGAPI_WAVE_STATE_STOP
           && m_stop_reason != AMD_DBGAPI_WAVE_STOP_REASON_NONE)
         raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
+    }
+  else
+    {
+      /* The address of this cwsr_record may have changed since the last
+       context save, relocate the hwregs cache.  */
+      m_register_cache.relocate (*register_cache_begin);
     }
 
   /* If this is the first time we update this wave, store the wave_id, and load
@@ -505,8 +505,8 @@ wave_t::register_cache_policy (amdgpu_regnum_t regnum) const
   auto reg_size = architecture ().register_size (regnum);
   dbgapi_assert (reg_addr && reg_size && "invalid register");
 
-  if (m_hwregs_cache.contains (*reg_addr, *reg_size))
-    return m_hwregs_cache.policy ();
+  if (m_register_cache.contains (*reg_addr, *reg_size))
+    return m_register_cache.policy ();
 
   return memory_cache_t::policy_t::uncached;
 }
@@ -546,11 +546,11 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
     }
 
   /* hwregs are cached, so return the value from the cache.  */
-  if (m_hwregs_cache.contains (*reg_addr + offset, value_size))
+  if (m_register_cache.contains (*reg_addr + offset, value_size))
     {
-      if (m_hwregs_cache.read (*reg_addr + offset,
-                               static_cast<char *> (value) + offset,
-                               value_size)
+      if (m_register_cache.read (*reg_addr + offset,
+                                 static_cast<char *> (value) + offset,
+                                 value_size)
           != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not read '%s' from the register cache",
                architecture ().register_name (regnum)->c_str ());
@@ -592,19 +592,19 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
       return;
     }
 
-  if (m_hwregs_cache.contains (*reg_addr + offset, value_size))
+  if (m_register_cache.contains (*reg_addr + offset, value_size))
     {
-      if (m_hwregs_cache.write (*reg_addr + offset,
-                                static_cast<const char *> (value) + offset,
-                                value_size)
+      if (m_register_cache.write (*reg_addr + offset,
+                                  static_cast<const char *> (value) + offset,
+                                  value_size)
           != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not write '%s' to the register cache",
                architecture ().register_name (regnum)->c_str ());
 
       /* If the cache is dirty, register it with the queue, it will be flushed
          when the queue is resumed.  */
-      if (m_hwregs_cache.is_dirty ())
-        m_callbacks.register_dirty_cache (m_hwregs_cache);
+      if (m_register_cache.is_dirty ())
+        m_callbacks.register_dirty_cache (m_register_cache);
     }
   else
     {

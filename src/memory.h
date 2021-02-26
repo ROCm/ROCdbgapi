@@ -169,8 +169,7 @@ private:
   std::vector<uint8_t> m_cached_bytes{};
   std::optional<amd_dbgapi_global_address_t> m_address{};
 
-  uint64_t m_dirty_bytes{ 0 };
-  static_assert (sizeof (m_cached_bytes) <= sizeof (m_dirty_bytes) * 8);
+  bool m_dirty{ false };
 
   policy_t m_policy;
   process_t &m_process;
@@ -184,7 +183,7 @@ public:
   size_t size () const { return m_cached_bytes.size (); }
   policy_t policy () const { return m_policy; }
 
-  bool is_dirty () const { return m_dirty_bytes != 0; }
+  bool is_dirty () const { return m_dirty; }
 
   /* Returns true if the given memory region is cached in this instance.  The
      region must either be completely contained by the cache, or completely not

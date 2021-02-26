@@ -104,7 +104,7 @@ void
 memory_cache_t::reset (amd_dbgapi_global_address_t address,
                        amd_dbgapi_size_t cache_size)
 {
-  dbgapi_assert (!m_dirty_bytes && "cannot reset a dirty cache");
+  dbgapi_assert (!is_dirty () && "cannot reset a dirty cache");
 
   m_address = address;
   m_cached_bytes.resize (cache_size);
@@ -131,12 +131,11 @@ memory_cache_t::flush ()
           != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not write the hwregs cache back to memory");
 
-      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE,
-                  "flushed cache [%#lx..%#lx[ dirty=%016lx", *m_address,
-                  *m_address + size (), m_dirty_bytes);
+      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "flushed cache [%#lx..%#lx[",
+                  *m_address, *m_address + size ());
     }
 
-  m_dirty_bytes = 0;
+  m_dirty = false;
 }
 
 bool
@@ -189,8 +188,7 @@ memory_cache_t::write (amd_dbgapi_global_address_t to, const void *value,
   if (policy () != policy_t::uncached)
     {
       memcpy (&m_cached_bytes[0] + to - *m_address, value, value_size);
-      m_dirty_bytes |= utils::bit_mask (to - *m_address,
-                                        to - *m_address + value_size - 1);
+      m_dirty = true;
     }
 
   return AMD_DBGAPI_STATUS_SUCCESS;
