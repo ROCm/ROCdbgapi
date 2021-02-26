@@ -1619,7 +1619,8 @@ process_t::check_event_thread ()
   /* Check for exceptions in the event thread, and rethrow in the
      application thread.  */
   if (m_event_thread_exception.valid ()
-      && m_event_thread_exception.wait_for (std::chrono::seconds (0))
+      && m_event_thread_exception.wait_until (
+             std::chrono::steady_clock::time_point::min ())
              == std::future_status::ready)
     m_event_thread_exception.get ();
 }
