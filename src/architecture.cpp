@@ -141,85 +141,81 @@ protected:
   }
 
 public:
-  virtual void initialize () override;
+  void initialize () override;
 
-  virtual amd_dbgapi_status_t convert_address_space (
+  amd_dbgapi_status_t convert_address_space (
       const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
       const address_space_t &from_address_space,
       const address_space_t &to_address_space,
       amd_dbgapi_segment_address_t from_address,
       amd_dbgapi_segment_address_t *to_address) const override;
 
-  virtual void lower_address_space (
+  void lower_address_space (
       const wave_t &wave, amd_dbgapi_lane_id_t *lane_id,
       const address_space_t &original_address_space,
       const address_space_t **lowered_address_space,
       amd_dbgapi_segment_address_t original_address,
       amd_dbgapi_segment_address_t *lowered_address) const override;
 
-  virtual bool address_is_in_address_class (
+  bool address_is_in_address_class (
       const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
       const address_space_t &address_space,
       amd_dbgapi_segment_address_t segment_address,
       const address_class_t &address_class) const override;
 
-  virtual bool address_spaces_may_alias (
+  bool address_spaces_may_alias (
       const address_space_t &address_space1,
       const address_space_t &address_space2) const override;
 
-  virtual amd_dbgapi_watchpoint_share_kind_t
-  watchpoint_share_kind () const override
+  amd_dbgapi_watchpoint_share_kind_t watchpoint_share_kind () const override
   {
     return AMD_DBGAPI_WATCHPOINT_SHARE_KIND_SHARED;
   };
 
-  virtual size_t watchpoint_count () const override { return 4; };
+  size_t watchpoint_count () const override { return 4; };
 
   std::optional<os_watch_mode_t>
   watchpoint_mode (amd_dbgapi_watchpoint_kind_t kind) const override;
 
-  virtual std::vector<os_watch_id_t>
+  std::vector<os_watch_id_t>
   triggered_watchpoints (const wave_t &wave) const override;
 
-  virtual bool
-  is_pseudo_register_available (const wave_t &wave,
-                                amdgpu_regnum_t regnum) const override;
+  bool is_pseudo_register_available (const wave_t &wave,
+                                     amdgpu_regnum_t regnum) const override;
 
-  virtual void read_pseudo_register (const wave_t &wave,
-                                     amdgpu_regnum_t regnum, size_t offset,
-                                     size_t value_size,
-                                     void *value) const override;
+  void read_pseudo_register (const wave_t &wave, amdgpu_regnum_t regnum,
+                             size_t offset, size_t value_size,
+                             void *value) const override;
 
-  virtual void write_pseudo_register (wave_t &wave, amdgpu_regnum_t regnum,
-                                      size_t offset, size_t value_size,
-                                      const void *value) const override;
+  void write_pseudo_register (wave_t &wave, amdgpu_regnum_t regnum,
+                              size_t offset, size_t value_size,
+                              const void *value) const override;
 
-  virtual void get_wave_coords (wave_t &wave,
-                                std::array<uint32_t, 3> &group_ids,
-                                uint32_t *wave_in_group) const override;
+  void get_wave_coords (wave_t &wave, std::array<uint32_t, 3> &group_ids,
+                        uint32_t *wave_in_group) const override;
 
-  virtual void
+  void
   get_wave_state (wave_t &wave, amd_dbgapi_wave_state_t *state,
                   amd_dbgapi_wave_stop_reason_t *stop_reason) const override;
-  virtual void set_wave_state (wave_t &wave,
-                               amd_dbgapi_wave_state_t state) const override;
+  void set_wave_state (wave_t &wave,
+                       amd_dbgapi_wave_state_t state) const override;
 
   virtual uint32_t os_wave_launch_trap_mask_to_wave_mode (
       os_wave_launch_trap_mask_t mask) const;
 
-  virtual void
+  void
   enable_wave_traps (wave_t &wave,
                      os_wave_launch_trap_mask_t mask) const override final;
-  virtual void
+  void
   disable_wave_traps (wave_t &wave,
                       os_wave_launch_trap_mask_t mask) const override final;
 
-  virtual size_t minimum_instruction_alignment () const override;
-  virtual const std::vector<uint8_t> &nop_instruction () const override;
-  virtual const std::vector<uint8_t> &breakpoint_instruction () const override;
-  virtual const std::vector<uint8_t> &assert_instruction () const override;
-  virtual const std::vector<uint8_t> &endpgm_instruction () const override;
-  virtual size_t breakpoint_instruction_pc_adjust () const override;
+  size_t minimum_instruction_alignment () const override;
+  const std::vector<uint8_t> &nop_instruction () const override;
+  const std::vector<uint8_t> &breakpoint_instruction () const override;
+  const std::vector<uint8_t> &assert_instruction () const override;
+  const std::vector<uint8_t> &endpgm_instruction () const override;
+  size_t breakpoint_instruction_pc_adjust () const override;
 
 protected:
   /* See https://llvm.org/docs/AMDGPUUsage.html#trap-handler-abi  */
@@ -238,8 +234,6 @@ protected:
 
   /* Return the regnum for a scalar register operand.  */
   virtual amdgpu_regnum_t scalar_operand_to_regnum (int operand) const = 0;
-  /* Return the maximum number of scalar registers  */
-  virtual size_t scalar_register_count () const = 0;
   /* Return the number of aliased scalar registers (e.g. vcc, flat_scratch)  */
   virtual size_t scalar_alias_count () const = 0;
 
@@ -257,18 +251,17 @@ protected:
   virtual bool is_nop (const std::vector<uint8_t> &bytes) const;
   virtual bool is_trap (const std::vector<uint8_t> &bytes,
                         uint8_t *trap_id = nullptr) const;
-  virtual bool is_endpgm (const std::vector<uint8_t> &bytes) const override;
-  virtual bool
-  is_breakpoint (const std::vector<uint8_t> &bytes) const override;
 
-  virtual bool
-  can_execute_displaced (const std::vector<uint8_t> &bytes) const override
+  bool is_endpgm (const std::vector<uint8_t> &bytes) const override;
+  bool is_breakpoint (const std::vector<uint8_t> &bytes) const override;
+
+  bool can_execute_displaced (const std::vector<uint8_t> &bytes) const override
   {
     /* Displace stepping over a cbranch_i_fork is not supported.  */
     return !is_cbranch_i_fork (bytes);
   }
 
-  virtual bool can_simulate (const std::vector<uint8_t> &bytes) const override
+  bool can_simulate (const std::vector<uint8_t> &bytes) const override
   {
     return is_branch (bytes) || is_cbranch (bytes) || is_call (bytes)
            || is_getpc (bytes) || is_setpc (bytes) || is_swappc (bytes)
@@ -279,13 +272,13 @@ protected:
   branch_target (wave_t &wave, amd_dbgapi_global_address_t pc,
                  const std::vector<uint8_t> &instruction) const;
 
-  virtual std::tuple<amd_dbgapi_instruction_kind_t, /* instruction_kind  */
-                     size_t,                        /* instruction_size  */
-                     std::vector<uint64_t> /* instruction_properties  */>
+  std::tuple<amd_dbgapi_instruction_kind_t, /* instruction_kind  */
+             size_t,                        /* instruction_size  */
+             std::vector<uint64_t> /* instruction_properties  */>
   classify_instruction (const std::vector<uint8_t> &instruction,
                         amd_dbgapi_global_address_t address) const override;
 
-  virtual bool simulate_instruction (
+  bool simulate_instruction (
       wave_t &wave, amd_dbgapi_global_address_t pc,
       const std::vector<uint8_t> &instruction) const override;
 };
@@ -1854,9 +1847,9 @@ protected:
     {
     }
 
-    virtual uint64_t get_info (query_kind_t query) const override;
+    uint64_t get_info (query_kind_t query) const override;
 
-    virtual std::optional<amd_dbgapi_global_address_t>
+    std::optional<amd_dbgapi_global_address_t>
     register_address (amdgpu_regnum_t regnum) const override;
   };
 
@@ -1871,16 +1864,15 @@ protected:
                                             context_save_address);
   }
 
-  virtual amdgpu_regnum_t
-  scalar_operand_to_regnum (int operand) const override;
+  amdgpu_regnum_t scalar_operand_to_regnum (int operand) const override;
 
   gfx9_base_t (elf_amdgpu_machine_t e_machine, std::string target_triple)
       : amdgcn_architecture_t (e_machine, std::move (target_triple))
   {
   }
 
-  virtual size_t scalar_register_count () const override { return 102; }
-  virtual size_t scalar_alias_count () const override { return 6; }
+  size_t scalar_register_count () const override { return 102; }
+  size_t scalar_alias_count () const override { return 6; }
 
 public:
   bool has_wave32_vgprs () const override { return false; }
@@ -1890,7 +1882,7 @@ public:
   bool can_halt_at_endpgm () const override { return false; }
   size_t largest_instruction_size () const override { return 8; }
 
-  virtual void
+  void
   control_stack_iterate (queue_t &queue, const uint32_t *control_stack,
                          size_t control_stack_words,
                          amd_dbgapi_global_address_t wave_area_address,
@@ -1899,7 +1891,7 @@ public:
                              std::unique_ptr<architecture_t::cwsr_record_t>)>
                              &wave_callback) const override;
 
-  virtual size_t watchpoint_mask_bits () const override
+  size_t watchpoint_mask_bits () const override
   {
     return utils::bit_mask (6, 29);
   }
@@ -2290,7 +2282,7 @@ protected:
     {
     }
 
-    virtual uint64_t get_info (query_kind_t query) const override
+    uint64_t get_info (query_kind_t query) const override
     {
       switch (query)
         {
@@ -2303,8 +2295,7 @@ protected:
     }
   };
 
-  virtual std::unique_ptr<architecture_t::cwsr_record_t>
-  make_gfx9_cwsr_record (
+  std::unique_ptr<architecture_t::cwsr_record_t> make_gfx9_cwsr_record (
       queue_t &queue, uint32_t compute_relaunch_wave,
       uint32_t compute_relaunch_state,
       amd_dbgapi_global_address_t context_save_address) const override
@@ -2349,7 +2340,7 @@ protected:
     {
     }
 
-    virtual uint64_t get_info (query_kind_t query) const override
+    uint64_t get_info (query_kind_t query) const override
     {
       uint32_t state = m_compute_relaunch_state;
 
@@ -2372,8 +2363,7 @@ protected:
     }
   };
 
-  virtual std::unique_ptr<architecture_t::cwsr_record_t>
-  make_gfx9_cwsr_record (
+  std::unique_ptr<architecture_t::cwsr_record_t> make_gfx9_cwsr_record (
       queue_t &queue, uint32_t compute_relaunch_wave,
       uint32_t compute_relaunch_state,
       amd_dbgapi_global_address_t context_save_address) const override
@@ -2431,9 +2421,9 @@ protected:
     {
     }
 
-    virtual uint64_t get_info (query_kind_t query) const override;
+    uint64_t get_info (query_kind_t query) const override;
 
-    virtual std::optional<amd_dbgapi_global_address_t>
+    std::optional<amd_dbgapi_global_address_t>
     register_address (amdgpu_regnum_t regnum) const override;
   };
 
@@ -2448,16 +2438,15 @@ protected:
         compute_relaunch2_state, context_save_address);
   }
 
-  virtual amdgpu_regnum_t
-  scalar_operand_to_regnum (int operand) const override;
+  amdgpu_regnum_t scalar_operand_to_regnum (int operand) const override;
 
   gfx10_base_t (elf_amdgpu_machine_t e_machine, std::string target_triple)
       : gfx9_base_t (e_machine, std::move (target_triple))
   {
   }
 
-  virtual size_t scalar_register_count () const override { return 106; }
-  virtual size_t scalar_alias_count () const override { return 2; }
+  size_t scalar_register_count () const override { return 106; }
+  size_t scalar_alias_count () const override { return 2; }
 
 public:
   bool has_wave32_vgprs () const override { return true; }
@@ -2470,7 +2459,7 @@ public:
   bool is_setpc (const std::vector<uint8_t> &bytes) const override;
   bool is_swappc (const std::vector<uint8_t> &bytes) const override;
 
-  virtual void
+  void
   control_stack_iterate (queue_t &queue, const uint32_t *control_stack,
                          size_t control_stack_words,
                          amd_dbgapi_global_address_t wave_area_address,
@@ -2482,7 +2471,7 @@ public:
   bool can_halt_at_endpgm () const override { return false; }
   size_t largest_instruction_size () const override { return 20; }
 
-  virtual size_t watchpoint_mask_bits () const override
+  size_t watchpoint_mask_bits () const override
   {
     return utils::bit_mask (7, 29);
   }
@@ -2721,7 +2710,7 @@ protected:
   }
 
 public:
-  virtual bool can_halt_at_endpgm () const override { return true; }
+  bool can_halt_at_endpgm () const override { return true; }
 };
 
 class gfx1030_t final : public gfx10_3_t

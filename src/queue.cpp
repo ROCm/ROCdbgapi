@@ -148,21 +148,21 @@ private:
 public:
   aql_queue_impl_t (queue_t &queue,
                     const os_queue_snapshot_entry_t &os_queue_info);
-  virtual ~aql_queue_impl_t () override;
+  ~aql_queue_impl_t () override;
 
-  virtual amd_dbgapi_status_t
+  amd_dbgapi_status_t
   active_packets_info (amd_dbgapi_os_queue_packet_id_t *read_packet_id_p,
                        amd_dbgapi_os_queue_packet_id_t *write_packet_id_p,
                        size_t *packets_byte_size_p) const override;
 
-  virtual amd_dbgapi_status_t
+  amd_dbgapi_status_t
   active_packets_bytes (amd_dbgapi_os_queue_packet_id_t read_packet_id,
                         amd_dbgapi_os_queue_packet_id_t write_packet_id,
                         void *memory, size_t memory_size) const override;
 
-  virtual amd_dbgapi_os_queue_type_t type () const override;
+  amd_dbgapi_os_queue_type_t type () const override;
 
-  virtual void state_changed (queue_t::state_t state) override;
+  void state_changed (queue_t::state_t state) override;
 };
 
 aql_queue_impl_t::aql_queue_impl_t (
@@ -769,7 +769,7 @@ public:
   {
   }
 
-  virtual amd_dbgapi_os_queue_type_t type () const override
+  amd_dbgapi_os_queue_type_t type () const override
   {
     switch (os_queue_type (m_os_queue_info))
       {
@@ -790,7 +790,7 @@ public:
       }
   }
 
-  virtual amd_dbgapi_status_t active_packets_info (
+  amd_dbgapi_status_t active_packets_info (
       amd_dbgapi_os_queue_packet_id_t * /* read_packet_id_p  */,
       amd_dbgapi_os_queue_packet_id_t * /* write_packet_id_p  */,
       size_t * /* packets_byte_size_p  */) const override
@@ -798,7 +798,7 @@ public:
     return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
   }
 
-  virtual amd_dbgapi_status_t
+  amd_dbgapi_status_t
   active_packets_bytes (amd_dbgapi_os_queue_packet_id_t /* read_packet_id  */,
                         amd_dbgapi_os_queue_packet_id_t /* write_packet_id  */,
                         void * /* memory  */,

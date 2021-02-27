@@ -43,9 +43,6 @@ using namespace std::string_literals;
 namespace amd::dbgapi
 {
 
-namespace
-{
-
 /* OS driver base class that only implements memory accesses on Linux.  */
 
 class linux_driver_t : public os_driver_t
@@ -55,14 +52,11 @@ private:
 
 public:
   linux_driver_t (amd_dbgapi_os_process_id_t os_pid);
-  virtual ~linux_driver_t ();
+  ~linux_driver_t () override;
 
-  virtual bool is_valid () const override
-  {
-    return m_proc_mem_fd.has_value ();
-  }
+  bool is_valid () const override { return m_proc_mem_fd.has_value (); }
 
-  virtual amd_dbgapi_status_t
+  amd_dbgapi_status_t
   xfer_global_memory_partial (amd_dbgapi_global_address_t address, void *read,
                               const void *write, size_t *size) const override;
 };
@@ -157,52 +151,51 @@ public:
        handled.  */
   }
 
-  virtual ~kfd_driver_t () { close_kfd (); }
+  ~kfd_driver_t () override { close_kfd (); }
 
-  virtual bool is_valid () const override
+  bool is_valid () const override
   {
     return linux_driver_t::is_valid () && s_kfd_fd.has_value ();
   }
 
-  virtual amd_dbgapi_status_t check_version () const override;
+  amd_dbgapi_status_t check_version () const override;
 
-  virtual amd_dbgapi_status_t
-  agent_snapshot (os_agent_snapshot_entry_t *snapshots, size_t snapshot_count,
-                  size_t *agent_count) const override;
+  amd_dbgapi_status_t agent_snapshot (os_agent_snapshot_entry_t *snapshots,
+                                      size_t snapshot_count,
+                                      size_t *agent_count) const override;
 
-  virtual amd_dbgapi_status_t
-  enable_debug_trap (os_agent_id_t os_agent_id,
-                     file_desc_t *poll_fd) const override;
-  virtual amd_dbgapi_status_t
+  amd_dbgapi_status_t enable_debug_trap (os_agent_id_t os_agent_id,
+                                         file_desc_t *poll_fd) const override;
+  amd_dbgapi_status_t
   disable_debug_trap (os_agent_id_t os_agent_id) const override;
 
-  virtual amd_dbgapi_status_t
+  amd_dbgapi_status_t
   query_debug_event (os_agent_id_t os_agent_id, os_queue_id_t *os_queue_id,
                      os_queue_status_t *os_queue_status) const override;
 
-  virtual size_t suspend_queues (os_queue_id_t *queues,
-                                 size_t queue_count) const override;
-  virtual size_t resume_queues (os_queue_id_t *queues,
-                                size_t queue_count) const override;
+  size_t suspend_queues (os_queue_id_t *queues,
+                         size_t queue_count) const override;
+  size_t resume_queues (os_queue_id_t *queues,
+                        size_t queue_count) const override;
 
-  virtual amd_dbgapi_status_t
-  queue_snapshot (os_queue_snapshot_entry_t *snapshots, size_t snapshot_count,
-                  size_t *queue_count) const override;
+  amd_dbgapi_status_t queue_snapshot (os_queue_snapshot_entry_t *snapshots,
+                                      size_t snapshot_count,
+                                      size_t *queue_count) const override;
 
-  virtual amd_dbgapi_status_t set_address_watch (
+  amd_dbgapi_status_t set_address_watch (
       os_agent_id_t os_agent_id, amd_dbgapi_global_address_t address,
       amd_dbgapi_global_address_t mask, os_watch_mode_t os_watch_mode,
       os_watch_id_t *os_watch_id) const override;
 
-  virtual amd_dbgapi_status_t
+  amd_dbgapi_status_t
   clear_address_watch (os_agent_id_t os_agent_id,
                        os_watch_id_t os_watch_id) const override;
 
-  virtual amd_dbgapi_status_t
+  amd_dbgapi_status_t
   set_wave_launch_mode (os_agent_id_t os_agent_id,
                         os_wave_launch_mode_t mode) const override;
 
-  virtual amd_dbgapi_status_t set_wave_launch_trap_override (
+  amd_dbgapi_status_t set_wave_launch_trap_override (
       os_agent_id_t os_agent_id, os_wave_launch_trap_override_t override,
       os_wave_launch_trap_mask_t trap_mask,
       os_wave_launch_trap_mask_t requested_bits,
@@ -764,14 +757,14 @@ public:
       : linux_driver_t (os_pid)
   {
   }
-  virtual ~no_agents_driver_t () = default;
+  ~no_agents_driver_t () override = default;
 
-  virtual amd_dbgapi_status_t check_version () const override
+  amd_dbgapi_status_t check_version () const override
   {
     return AMD_DBGAPI_STATUS_SUCCESS;
   }
 
-  virtual amd_dbgapi_status_t
+  amd_dbgapi_status_t
   agent_snapshot (os_agent_snapshot_entry_t * /* snapshots  */,
                   size_t /* snapshot_count  */,
                   size_t *agent_count) const override
@@ -780,20 +773,20 @@ public:
     return AMD_DBGAPI_STATUS_SUCCESS;
   }
 
-  virtual amd_dbgapi_status_t
+  amd_dbgapi_status_t
   enable_debug_trap (os_agent_id_t /* os_agent_id  */,
                      file_desc_t * /* poll_fd  */) const override
   {
     error ("should not call this, null_driver does not have any agents");
   }
 
-  virtual amd_dbgapi_status_t
+  amd_dbgapi_status_t
       disable_debug_trap (os_agent_id_t /* os_agent_id  */) const override
   {
     error ("should not call this, null_driver does not have any agents");
   }
 
-  virtual amd_dbgapi_status_t
+  amd_dbgapi_status_t
   query_debug_event (os_agent_id_t /* os_agent_id  */,
                      os_queue_id_t * /* os_queue_id  */,
                      os_queue_status_t * /* os_queue_status  */) const override
@@ -801,23 +794,23 @@ public:
     error ("should not call this, null_driver does not have any agents");
   }
 
-  virtual size_t suspend_queues (os_queue_id_t * /* queues  */,
-                                 size_t queue_count) const override
+  size_t suspend_queues (os_queue_id_t * /* queues  */,
+                         size_t queue_count) const override
   {
     if (queue_count > 0)
       error ("should not call this, null_driver does not have any queues");
     return AMD_DBGAPI_STATUS_SUCCESS;
   }
 
-  virtual size_t resume_queues (os_queue_id_t * /* queues  */,
-                                size_t queue_count) const override
+  size_t resume_queues (os_queue_id_t * /* queues  */,
+                        size_t queue_count) const override
   {
     if (queue_count > 0)
       error ("should not call this, null_driver does not have any queues");
     return AMD_DBGAPI_STATUS_SUCCESS;
   }
 
-  virtual amd_dbgapi_status_t
+  amd_dbgapi_status_t
   queue_snapshot (os_queue_snapshot_entry_t * /* snapshots  */,
                   size_t /* snapshot_count  */,
                   size_t *queue_count) const override
@@ -826,7 +819,7 @@ public:
     return AMD_DBGAPI_STATUS_SUCCESS;
   }
 
-  virtual amd_dbgapi_status_t
+  amd_dbgapi_status_t
   set_address_watch (os_agent_id_t /* os_agent_id  */,
                      amd_dbgapi_global_address_t /* address  */,
                      amd_dbgapi_global_address_t /* mask  */,
@@ -836,21 +829,21 @@ public:
     error ("should not call this, null_driver does not have any agents");
   }
 
-  virtual amd_dbgapi_status_t
+  amd_dbgapi_status_t
       clear_address_watch (os_agent_id_t /* os_agent_id  */,
                            os_watch_id_t /* os_watch_id  */) const override
   {
     error ("should not call this, null_driver does not have any agents");
   }
 
-  virtual amd_dbgapi_status_t
+  amd_dbgapi_status_t
       set_wave_launch_mode (os_agent_id_t /* os_agent_id  */,
                             os_wave_launch_mode_t /* mode  */) const override
   {
     error ("should not call this, null_driver does not have any agents");
   }
 
-  virtual amd_dbgapi_status_t set_wave_launch_trap_override (
+  amd_dbgapi_status_t set_wave_launch_trap_override (
       os_agent_id_t /* os_agent_id  */,
       os_wave_launch_trap_override_t /* override  */,
       os_wave_launch_trap_mask_t /* trap_mask  */,
@@ -861,8 +854,6 @@ public:
     error ("should not call this, null_driver does not have any agents");
   }
 };
-
-} /* namespace */
 
 std::unique_ptr<const os_driver_t>
 os_driver_t::create (amd_dbgapi_os_process_id_t os_pid)
