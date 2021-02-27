@@ -268,6 +268,7 @@ to_string (detail::hex<detail::ref<T>> hex)
   F (amd_dbgapi_event_info_t)                                                 \
   F (amd_dbgapi_event_kind_t)                                                 \
   F (amd_dbgapi_instruction_kind_t)                                           \
+  F (amd_dbgapi_instruction_properties_t)                                     \
   F (amd_dbgapi_log_level_t)                                                  \
   F (amd_dbgapi_memory_precision_t)                                           \
   F (amd_dbgapi_os_queue_type_t)                                              \
@@ -308,6 +309,7 @@ to_string (detail::hex<detail::ref<T>> hex)
   F (detail::query_ref<amd_dbgapi_dispatch_info_t>)                           \
   F (detail::query_ref<amd_dbgapi_displaced_stepping_info_t>)                 \
   F (detail::query_ref<amd_dbgapi_event_info_t>)                              \
+  F (detail::query_ref<amd_dbgapi_instruction_kind_t>)                        \
   F (detail::query_ref<amd_dbgapi_process_info_t>)                            \
   F (detail::query_ref<amd_dbgapi_queue_info_t>)                              \
   F (detail::query_ref<amd_dbgapi_register_info_t>)                           \

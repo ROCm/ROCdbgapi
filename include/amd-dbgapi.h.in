@@ -471,10 +471,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_42
 
 /**
- * The function was introduced in version 0.44 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.43"``.
+ * The function was introduced in version 0.45 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.45"``.
  */
-#define AMD_DBGAPI_VERSION_0_44
+#define AMD_DBGAPI_VERSION_0_45
 
 /** @} */
 
@@ -492,12 +492,12 @@ typedef struct amd_dbgapi_callbacks_s amd_dbgapi_callbacks_t;
  * functions using pointers.  The C language does not define the underlying
  * type used for enumeration types.  This interface requires that:
  *
- * - For all enumeration types except \p amd_dbgapi_wave_stop_reason_t and \p
- *   amd_dbgapi_queue_error_reason_t, the underlying type used by the client
- *   will be \p int with a size of 32 bits.
- * - For the enumeration types \p amd_dbgapi_wave_stop_reason_t and \p
+ * - For the enumeration types \p amd_dbgapi_wave_stop_reason_t, \p
+ *   amd_dbgapi_instruction_properties_t, and \p
  *   amd_dbgapi_queue_error_reason_t, the  underlying type used by the client
  *   will be \p unsigned \p long \p long with a size of 64 bits.
+ * - For all other enumeration types the underlying type used by the client
+ *   will be \p int with a size of 32 bits.
  *
  * In addition, it requires that enumeration types passed by value to
  * functions, or returned as values from functions, will have the platform
@@ -1344,31 +1344,31 @@ typedef enum
 {
   /**
    * The instruction classification is unknown.  The instruction has no
-   * properties.
+   * information.
    */
   AMD_DBGAPI_INSTRUCTION_KIND_UNKNOWN = 0,
   /**
    * The instruction executes sequentially.  It performs no control flow and
    * the next instruction executed is the following one.  The instruction has
-   * no properties.
+   * no information.
    */
   AMD_DBGAPI_INSTRUCTION_KIND_SEQUENTIAL = 1,
   /**
    * The instruction unconditionally branches to a literal address.  The
-   * instruction properties is of type ::amd_dbgapi_global_address_t with the
+   * instruction information is of type ::amd_dbgapi_global_address_t with the
    * value of the target address of the branch.
    */
   AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_BRANCH = 2,
   /**
    * The instruction conditionally branches to a literal address.  If the
    * condition is not satisfied then the next instruction is the following one.
-   * The instruction properties is of type ::amd_dbgapi_global_address_t with
+   * The instruction information is of type ::amd_dbgapi_global_address_t with
    * the value of the target address of the branch if taken.
    */
   AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_BRANCH_CONDITIONAL = 3,
   /**
    * The instruction unconditionally branches to an address held in a pair of
-   * registers.  The instruction properties is of type
+   * registers.  The instruction information is of type
    * ::amd_dbgapi_register_id_t[2] with the value of the register IDs for the
    * registers.  The first register holds the least significant address bits,
    * and the second register holds the most significant address bits.
@@ -1377,7 +1377,7 @@ typedef enum
   /**
    * The instruction unconditionally branches to a literal address and the
    * address of the following instruction is saved in a pair of registers.  The
-   * instruction properties is of type ::amd_dbgapi_register_id_t[2] with the
+   * instruction information is of type ::amd_dbgapi_register_id_t[2] with the
    * value of the register IDs for the registers.  The register with index 0
    * holds the least significant address bits, and the register with index 1
    * holds the most significant address bits.
@@ -1386,7 +1386,7 @@ typedef enum
   /**
    * The instruction unconditionally branches to an address held in a pair of
    * source registers and the address of the following instruction is saved in
-   * a pair of destintion registers.  The instruction properties is of type
+   * a pair of destintion registers.  The instruction information is of type
    * ::amd_dbgapi_register_id_t[4] with the source register IDs in indicies 0
    * and 1, and the destination register IDs in indicies 2 and 3. The registers
    * with indicies 0 and 2 hold the least significant address bits, and the
@@ -1395,7 +1395,7 @@ typedef enum
   AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_CALL_REGISTER_PAIRS = 6,
   /**
    * The instruction terminates the wave execution.  The instruction has no
-   * properties.
+   * information.
    */
   AMD_DBGAPI_INSTRUCTION_KIND_TERMINATE = 7,
   /**
@@ -1408,26 +1408,26 @@ typedef enum
    * will be at the instruction following the trap instruction, it will not be
    * at the first instruction of the trap handler. It is undefined to set a
    * breakpoint in the trap handler, and will likely cause the inferior to
-   * report errors and stop executing correctly.  The instruction properties is
+   * report errors and stop executing correctly.  The instruction information is
    * of type \p uint64_t with the value of the trap code.
    */
   AMD_DBGAPI_INSTRUCTION_KIND_TRAP = 8,
   /**
    * The instruction unconditionally halts the wave.  The instruction has no
-   * properties.
+   * information.
    */
   AMD_DBGAPI_INSTRUCTION_KIND_HALT = 9,
   /**
    * The instruction performs some kind of execution barrier which may result
    * in the wave being halted until other waves allow it to continue.  Such
    * instructions include wave execution barriers, wave synchronization
-   * barriers, and wave semephores.  The instruction has no properties.
+   * barriers, and wave semephores.  The instruction has no information.
    */
   AMD_DBGAPI_INSTRUCTION_KIND_BARRIER = 10,
   /**
    * The instruction causes the wave to stop executing for some period of time,
    * before continuing execution with the next instruction.  The instruction
-   * has no properties.
+   * has no information.
    */
   AMD_DBGAPI_INSTRUCTION_KIND_SLEEP = 11,
   /**
@@ -1436,10 +1436,30 @@ typedef enum
    * will execute sequentially.  This may include instructions that can affect
    * the execution of other waves waiting at wave synchronization barriers,
    * that may send interrupts, and so forth.  The instruction has no
-   * properties.
+   * information.
    */
   AMD_DBGAPI_INSTRUCTION_KIND_SPECIAL = 12
 } amd_dbgapi_instruction_kind_t;
+
+/**
+ * A bit mask of the properties of an instruction.
+ */
+typedef enum
+{
+  /**
+   * The instruction has no properties.
+   */
+  AMD_DBGAPI_INSTRUCTION_PROPERTY_NONE = 0ULL,
+  /**
+   * A breakpoint must not be placed on the instruction.
+   */
+  AMD_DBGAPI_INSTRUCTION_PROPERTY_NO_BREAKPOINT =  (1ULL << 0),
+  /**
+   * A reserved value only present to ensure that the underlying representation
+   * of this enumeration type is \p uint64_t.
+   */
+  AMD_DBGAPI_INSTRUCTION_PROPERTY_RESERVED = (1ULL << 63)
+} amd_dbgapi_instruction_properties_t;
 
 /**
  * Classify a single instruction.
@@ -1463,53 +1483,61 @@ typedef enum
  *
  * \param[out] instruction_kind The classification kind of the instruction.
  *
- * \param[out] instruction_properties Pointer to the instruction properties
+ * \param[out] instruction_properties Pointer to the instruction properties.
+ * ::amd_dbgapi_instruction_properties_t defines the type of the instruction
+ * properties.  If NULL, no value is returned.
+ *
+ * \param[out] instruction_information Pointer to the instruction information
  * that corresponds to the value of \p instruction_kind.
  * ::amd_dbgapi_instruction_kind_t defines the type of the instruction
- * properties for each instruction kind value.  If the instruction has no
- * properties then NULL is returned.  The memory is allocated using the
+ * information for each instruction kind value.  If the instruction has no
+ * information then NULL is returned.  The memory is allocated using the
  * amd_dbgapi_callbacks_s::allocate_memory callback and is owned by the client.
  * If NULL, no value is returned.
  *
  * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
- * successfully; and the result is stored in \p instruction_kind, and \p
- * instruction_properties.
+ * successfully; and the result is stored in \p instruction_kind, \p
+ * instruction_properties, and \p instruction_information.
  *
  * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
- * left uninitialized; and \p size, \p instruction_kind, and \p
- * instruction_properties are unaltered.
+ * left uninitialized; and \p size, \p instruction_kind, \p
+ * instruction_properties, and \p instruction_information are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
- * initialized.  The library is left uninitialized; and \p size and \p
- * classification are unaltered.
+ * initialized.  The library is left uninitialized; and \p size, \p
+ * instruction_kind, \p instruction_properties, and \p instruction_information
+ * are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID \p architecture_id
- * is invalid.  \p size, \p instruction_kind, and \p instruction_properties are
- * unaltered.
+ * is invalid.  \p size, \p instruction_kind, \p instruction_properties, and \p
+ * instruction_information are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p size, \p memory, or \p
  * instruction_kind are NULL; or \p size is 0.  \p size, \p instruction_kind,
- * and \p instruction_properties are unaltered.
+ * \p instruction_properties, and \p instruction_information are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR Encountered an error disassembling the
- * instruction.  The bytes may or may not be a legal instruction.  \p size and
- * \p classification are unaltered.
+ * instruction.  The bytes may or may not be a legal instruction.  \p size, \p
+ * instruction_kind, \p instruction_properties, and \p instruction_information
+ * are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION The bytes starting at
  * \p address, when up to \p size bytes are available, are not a legal
- * instruction for the architecture.  \p size, \p instruction_kind, and \p
- * instruction_properties are unaltered.
+ * instruction for the architecture.  \p size, \p instruction_kind, \p
+ * instruction_properties, and \p instruction_information are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be reported if
  * the amd_dbgapi_callbacks_s::allocate_memory callback used to allocate \p
- * instruction_text and \p address_operands returns NULL.  \p size and \p
- * classification are unaltered.
+ * instruction_text and \p address_operands returns NULL.  \p size, \p
+ * instruction_kind, \p instruction_properties, and \p instruction_information
+ * are unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_classify_instruction (
     amd_dbgapi_architecture_id_t architecture_id,
     amd_dbgapi_global_address_t address, amd_dbgapi_size_t *size,
     const void *memory, amd_dbgapi_instruction_kind_t *instruction_kind,
-    void **instruction_properties) AMD_DBGAPI_VERSION_0_24;
+    amd_dbgapi_instruction_properties_t *instruction_properties,
+    void **instruction_information) AMD_DBGAPI_VERSION_0_45;
 
 /** @} */
 
@@ -3489,7 +3517,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_resume (
     amd_dbgapi_wave_id_t wave_id,
-    amd_dbgapi_resume_mode_t resume_mode) AMD_DBGAPI_VERSION_0_44;
+    amd_dbgapi_resume_mode_t resume_mode) AMD_DBGAPI_VERSION_0_45;
 
 /** @} */
 
@@ -3746,7 +3774,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_get_info (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_start (
     amd_dbgapi_wave_id_t wave_id, const void *saved_instruction_bytes,
     amd_dbgapi_displaced_stepping_id_t *displaced_stepping)
-    AMD_DBGAPI_VERSION_0_44;
+    AMD_DBGAPI_VERSION_0_45;
 
 /**
  * Complete a displaced stepping buffer for a wave.
@@ -4335,7 +4363,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_get_info (
     amd_dbgapi_register_id_t register_id, amd_dbgapi_register_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_44;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_45;
 
 /**
  * Indication of if a wave has a register.
@@ -4906,7 +4934,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_class_get_info (
     amd_dbgapi_address_class_id_t address_class_id,
     amd_dbgapi_address_class_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_44;
+    void *value) AMD_DBGAPI_VERSION_0_45;
 
 /**
  * Report the list of source language address classes supported by the
@@ -5130,7 +5158,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_space_get_info (
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_address_space_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_44;
+    void *value) AMD_DBGAPI_VERSION_0_45;
 
 /**
  * Report the list of address spaces supported by the architecture.

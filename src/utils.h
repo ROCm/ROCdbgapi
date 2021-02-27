@@ -646,6 +646,12 @@ template <> struct is_flag<amd_dbgapi_wave_stop_reason_t> : std::true_type
 {
 };
 
+/* Enable bitwise operations for amd_dbgapi_instruction_properties_t.  */
+template <>
+struct is_flag<amd_dbgapi_instruction_properties_t> : std::true_type
+{
+};
+
 /* Enable bitwise operations for amd_dbgapi_queue_error_reason_t.  */
 template <> struct is_flag<amd_dbgapi_queue_error_reason_t> : std::true_type
 {

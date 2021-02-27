@@ -420,6 +420,86 @@ to_string (amd_dbgapi_instruction_kind_t instruction_kind)
   return to_string (make_hex (instruction_kind));
 }
 
+namespace
+{
+
+inline std::string
+one_instruction_property_to_string (
+    amd_dbgapi_instruction_properties_t instruction_property)
+{
+  switch (instruction_property)
+    {
+      CASE (INSTRUCTION_PROPERTY_NONE);
+      CASE (INSTRUCTION_PROPERTY_NO_BREAKPOINT);
+      CASE (INSTRUCTION_PROPERTY_RESERVED);
+    }
+  return to_string (make_hex (instruction_property));
+}
+
+} /* namespace */
+
+template <>
+std::string
+to_string (amd_dbgapi_instruction_properties_t instruction_properties)
+{
+  std::string str;
+
+  if (!instruction_properties)
+    return one_instruction_property_to_string (instruction_properties);
+
+  while (instruction_properties)
+    {
+      amd_dbgapi_instruction_properties_t one_bit
+          = instruction_properties
+            ^ (instruction_properties & (instruction_properties - 1));
+
+      if (!str.empty ())
+        str += " | ";
+      str += one_instruction_property_to_string (one_bit);
+
+      instruction_properties ^= one_bit;
+    }
+
+  return str;
+}
+
+template <>
+std::string
+to_string (detail::query_ref<amd_dbgapi_instruction_kind_t> ref)
+{
+  auto [kind, information] = ref;
+  switch (kind)
+    {
+    case AMD_DBGAPI_INSTRUCTION_KIND_UNKNOWN:
+    case AMD_DBGAPI_INSTRUCTION_KIND_SEQUENTIAL:
+    case AMD_DBGAPI_INSTRUCTION_KIND_TERMINATE:
+    case AMD_DBGAPI_INSTRUCTION_KIND_HALT:
+    case AMD_DBGAPI_INSTRUCTION_KIND_BARRIER:
+    case AMD_DBGAPI_INSTRUCTION_KIND_SLEEP:
+    case AMD_DBGAPI_INSTRUCTION_KIND_SPECIAL:
+      return "";
+    case AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_BRANCH:
+    case AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_BRANCH_CONDITIONAL:
+      return to_string (make_hex (make_ref (
+          make_ref (static_cast<const amd_dbgapi_global_address_t *const *> (
+              information)))));
+    case AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_BRANCH_REGISTER_PAIR:
+    case AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_CALL_REGISTER_PAIR:
+      return to_string (make_ref (make_ref (
+          static_cast<const amd_dbgapi_register_id_t *const *> (information),
+          2)));
+    case AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_CALL_REGISTER_PAIRS:
+      return to_string (make_ref (make_ref (
+          static_cast<const amd_dbgapi_register_id_t *const *> (information),
+          4)));
+    case AMD_DBGAPI_INSTRUCTION_KIND_TRAP:
+      return to_string (make_ref (
+          make_ref (static_cast<const uint64_t *const *> (information))));
+    }
+  error ("unhandled amd_dbgapi_instruction_kind_t kind (%s)",
+         to_string (kind).c_str ());
+}
+
 template <>
 std::string
 to_string (amd_dbgapi_process_info_t process_info)

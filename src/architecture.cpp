@@ -272,9 +272,10 @@ protected:
   branch_target (wave_t &wave, amd_dbgapi_global_address_t pc,
                  const std::vector<uint8_t> &instruction) const;
 
-  std::tuple<amd_dbgapi_instruction_kind_t, /* instruction_kind  */
-             size_t,                        /* instruction_size  */
-             std::vector<uint64_t> /* instruction_properties  */>
+  std::tuple<amd_dbgapi_instruction_kind_t,       /* instruction_kind  */
+             amd_dbgapi_instruction_properties_t, /* instruction_properties  */
+             size_t,                              /* instruction_size  */
+             std::vector<uint64_t> /* instruction_information  */>
   classify_instruction (const std::vector<uint8_t> &instruction,
                         amd_dbgapi_global_address_t address) const override;
 
@@ -808,20 +809,23 @@ amdgcn_architecture_t::branch_target (
   return new_pc;
 }
 
-std::tuple<amd_dbgapi_instruction_kind_t, size_t, std::vector<uint64_t>>
+std::tuple<amd_dbgapi_instruction_kind_t, amd_dbgapi_instruction_properties_t,
+           size_t, std::vector<uint64_t>>
 amdgcn_architecture_t::classify_instruction (
     const std::vector<uint8_t> &instruction,
     amd_dbgapi_global_address_t address) const
 {
-  enum class properties_kind_t
+  enum class information_kind_t
   {
     none = 0,
     pc_direct,
     pc_indirect,
     uint8,
-  } properties_kind;
+  } information_kind;
 
   amd_dbgapi_instruction_kind_t instruction_kind;
+  amd_dbgapi_instruction_properties_t instruction_properties
+      = AMD_DBGAPI_INSTRUCTION_PROPERTY_NONE;
 
   size_t size = instruction_size (instruction);
   if (!size)
@@ -830,79 +834,82 @@ amdgcn_architecture_t::classify_instruction (
   if (is_branch (instruction))
     {
       instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_BRANCH;
-      properties_kind = properties_kind_t::pc_direct;
+      information_kind = information_kind_t::pc_direct;
     }
   else if (is_cbranch (instruction))
     {
       instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_BRANCH_CONDITIONAL;
-      properties_kind = properties_kind_t::pc_direct;
+      information_kind = information_kind_t::pc_direct;
     }
   else if (is_setpc (instruction))
     {
       instruction_kind
           = AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_BRANCH_REGISTER_PAIR;
-      properties_kind = properties_kind_t::pc_indirect;
+      information_kind = information_kind_t::pc_indirect;
     }
   else if (is_call (instruction))
     {
       instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_CALL_REGISTER_PAIR;
-      properties_kind = properties_kind_t::pc_direct;
+      information_kind = information_kind_t::pc_direct;
     }
   else if (is_swappc (instruction))
     {
       instruction_kind
           = AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_CALL_REGISTER_PAIRS;
-      properties_kind = properties_kind_t::pc_indirect;
+      information_kind = information_kind_t::pc_indirect;
     }
   else if (is_endpgm (instruction))
     {
       instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_TERMINATE;
-      properties_kind = properties_kind_t::none;
+      information_kind = information_kind_t::none;
+      if (!can_halt_at_endpgm ())
+        instruction_properties
+            |= AMD_DBGAPI_INSTRUCTION_PROPERTY_NO_BREAKPOINT;
     }
   else if (is_trap (instruction))
     {
       instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_TRAP;
-      properties_kind = properties_kind_t::uint8;
+      information_kind = information_kind_t::uint8;
     }
   else if (is_sethalt (instruction) && (encoding_simm16 (instruction) & 0x1))
     {
       instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_HALT;
-      properties_kind = properties_kind_t::none;
+      information_kind = information_kind_t::none;
     }
   else if (is_barrier (instruction))
     {
       instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_BARRIER;
-      properties_kind = properties_kind_t::none;
+      information_kind = information_kind_t::none;
     }
   else if (is_sleep (instruction))
     {
       instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_SLEEP;
-      properties_kind = properties_kind_t::none;
+      information_kind = information_kind_t::none;
     }
   else if (is_code_end (instruction))
     {
       instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_UNKNOWN;
-      properties_kind = properties_kind_t::none;
+      information_kind = information_kind_t::none;
     }
   else
     {
       instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_SEQUENTIAL;
-      properties_kind = properties_kind_t::none;
+      information_kind = information_kind_t::none;
     }
 
-  std::vector<uint64_t> properties;
+  std::vector<uint64_t> information;
 
-  if (properties_kind == properties_kind_t::pc_direct)
+  if (information_kind == information_kind_t::pc_direct)
     {
       ssize_t branch_offset = encoding_simm16 (instruction) << 2;
-      properties.emplace_back (address + size + branch_offset);
+      information.emplace_back (address + size + branch_offset);
     }
-  else if (properties_kind == properties_kind_t::pc_indirect)
+  else if (information_kind == information_kind_t::pc_indirect)
     {
       amdgpu_regnum_t ssrc_regnum
           = scalar_operand_to_regnum (encoding_ssrc0 (instruction));
-      properties.emplace_back (static_cast<uint64_t> (ssrc_regnum));
-      properties.emplace_back (static_cast<uint64_t> (ssrc_regnum) + 1);
+      information.emplace_back (static_cast<uint64_t> (ssrc_regnum));
+      information.emplace_back (static_cast<uint64_t> (ssrc_regnum) + 1);
 
       /* Indirect calls also store the return PC in a register pair.  */
       if (instruction_kind
@@ -910,17 +917,18 @@ amdgcn_architecture_t::classify_instruction (
         {
           amdgpu_regnum_t sdst_regnum
               = scalar_operand_to_regnum (encoding_sdst (instruction));
-          properties.emplace_back (static_cast<uint64_t> (sdst_regnum));
-          properties.emplace_back (static_cast<uint64_t> (sdst_regnum) + 1);
+          information.emplace_back (static_cast<uint64_t> (sdst_regnum));
+          information.emplace_back (static_cast<uint64_t> (sdst_regnum) + 1);
         }
     }
-  else if (properties_kind == properties_kind_t::uint8)
+  else if (information_kind == information_kind_t::uint8)
     {
-      properties.emplace_back (
+      information.emplace_back (
           utils::bit_extract (encoding_simm16 (instruction), 0, 7));
     }
 
-  return { instruction_kind, size, std::move (properties) };
+  return { instruction_kind, instruction_properties, size,
+           std::move (information) };
 }
 
 bool
@@ -3439,12 +3447,14 @@ amd_dbgapi_classify_instruction (
     amd_dbgapi_architecture_id_t architecture_id,
     amd_dbgapi_global_address_t address, amd_dbgapi_size_t *size_p,
     const void *memory, amd_dbgapi_instruction_kind_t *instruction_kind_p,
-    void **instruction_properties_p)
+    amd_dbgapi_instruction_properties_t *instruction_properties_p,
+    void **instruction_information_p)
 {
   TRACE_BEGIN (architecture_id, make_hex (address), make_ref (size_p),
                make_hex (make_ref (static_cast<const uint8_t *> (memory),
                                    size_p ? *size_p : 0)),
-               instruction_kind_p, instruction_properties_p);
+               instruction_kind_p, instruction_properties_p,
+               instruction_information_p);
   TRY;
 
   if (!detail::is_initialized)
@@ -3462,17 +3472,17 @@ amd_dbgapi_classify_instruction (
                                     static_cast<const uint8_t *> (memory)
                                         + *size_p);
 
-  auto [kind, size, properties]
+  auto [kind, properties, size, information]
       = architecture->classify_instruction (instruction, address);
 
-  if (instruction_properties_p)
+  if (instruction_information_p)
     {
       size_t mem_size
-          = properties.size () * sizeof (decltype (properties)::value_type);
+          = information.size () * sizeof (decltype (information)::value_type);
 
       if (!mem_size)
         {
-          *instruction_properties_p = nullptr;
+          *instruction_information_p = nullptr;
         }
       else
         {
@@ -3480,15 +3490,23 @@ amd_dbgapi_classify_instruction (
           if (!mem)
             return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
 
-          memcpy (mem, properties.data (), mem_size);
-          *instruction_properties_p = mem;
+          memcpy (mem, information.data (), mem_size);
+          *instruction_information_p = mem;
         }
     }
+
+  if (instruction_properties_p)
+    *instruction_properties_p = properties;
 
   *size_p = size;
   *instruction_kind_p = kind;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
   CATCH;
-  TRACE_END (make_ref (size_p), make_ref (instruction_kind_p));
+  TRACE_END (make_ref (size_p), make_ref (instruction_kind_p),
+             make_ref (instruction_properties_p),
+             make_query_ref (instruction_kind_p
+                                 ? *instruction_kind_p
+                                 : AMD_DBGAPI_INSTRUCTION_KIND_UNKNOWN,
+                             instruction_information_p));
 }

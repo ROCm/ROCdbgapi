@@ -237,9 +237,12 @@ public:
   virtual const std::vector<uint8_t> &assert_instruction () const = 0;
   virtual const std::vector<uint8_t> &endpgm_instruction () const = 0;
 
-  virtual std::tuple<amd_dbgapi_instruction_kind_t, /* instruction_kind  */
-                     size_t,                        /* instruction_size  */
-                     std::vector<uint64_t> /* instruction_properties  */>
+  virtual std::tuple<
+      amd_dbgapi_instruction_kind_t,       /* instruction_kind  */
+      amd_dbgapi_instruction_properties_t, /* instruction_properties
+                                            */
+      size_t,                              /* instruction_size  */
+      std::vector<uint64_t> /* instruction_information  */>
   classify_instruction (const std::vector<uint8_t> &instruction,
                         amd_dbgapi_global_address_t address) const = 0;
 
