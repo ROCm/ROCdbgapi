@@ -133,12 +133,10 @@ enum class amdgpu_regnum_t : uint32_t
   xnack_mask_lo,   /* XNACK mask lower 32 bits.  */
   xnack_mask_hi,   /* XNACK mask higher 32 bits.  */
 
-  wave_id,         /* Debug[0:1].  */
-  dispatch_ptr,    /* Pointer to the dispatch packet.  */
-  dispatch_grid_x, /* Dispatch grid X.  */
-  dispatch_grid_y, /* Dispatch grid Y.  */
-  dispatch_grid_z, /* Dispatch grid Z.  */
-  scratch_offset,  /* Scracth memory offset from the scratch base.  */
+  wave_id,        /* Debug[0:1].  */
+  dispatch_ptr,   /* Pointer to the dispatch packet.  */
+  dispatch_grid,  /* Dispatch grid X, Y, Z  */
+  scratch_offset, /* Scracth memory offset from the scratch base.  */
 
   last_aliased = scratch_offset,
   first_pseudo = last_aliased + 1,
@@ -154,6 +152,8 @@ enum class amdgpu_regnum_t : uint32_t
   pseudo_exec_64, /* Read from exec_64, write to exec_64 and status.execz.  */
   pseudo_vcc_32,  /* Read from vcc_32, write to vcc_32 and status.vccz.  */
   pseudo_vcc_64,  /* Read from vcc_64, write to vcc_64 and status.vccz.  */
+
+  wave_in_group, /* The wave position in the thread group.  */
 
   null, /* Special register: read returns 0, write is ignored.  */
 

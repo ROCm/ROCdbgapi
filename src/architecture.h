@@ -246,10 +246,6 @@ public:
   simulate_instruction (wave_t &wave, amd_dbgapi_global_address_t pc,
                         const std::vector<uint8_t> &instruction) const = 0;
 
-  virtual void get_wave_coords (wave_t &wave,
-                                std::array<uint32_t, 3> &group_ids,
-                                uint32_t *wave_in_group) const = 0;
-
   virtual void
   get_wave_state (wave_t &wave, amd_dbgapi_wave_state_t *state,
                   amd_dbgapi_wave_stop_reason_t *stop_reason) const = 0;

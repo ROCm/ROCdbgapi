@@ -188,9 +188,6 @@ public:
                               size_t offset, size_t value_size,
                               const void *value) const override;
 
-  void get_wave_coords (wave_t &wave, std::array<uint32_t, 3> &group_ids,
-                        uint32_t *wave_in_group) const override;
-
   void
   get_wave_state (wave_t &wave, amd_dbgapi_wave_state_t *state,
                   amd_dbgapi_wave_stop_reason_t *stop_reason) const override;
@@ -1058,26 +1055,6 @@ amdgcn_architecture_t::simulate_instruction (
 }
 
 void
-amdgcn_architecture_t::get_wave_coords (wave_t &wave,
-                                        std::array<uint32_t, 3> &group_ids,
-                                        uint32_t *wave_in_group) const
-{
-  dbgapi_assert (wave_in_group && "Invalid parameter");
-
-  /* Read group_ids[0:3].  */
-  if (wave.process ().read_global_memory (
-          wave.register_address (amdgpu_regnum_t::dispatch_grid_x).value (),
-          &group_ids[0], sizeof (group_ids))
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not read the 'dispatch_grid_*' registers");
-
-  uint32_t ttmp11;
-  wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
-
-  *wave_in_group = ttmp11 & ttmp11_wave_in_group_mask;
-}
-
-void
 amdgcn_architecture_t::get_wave_state (
     wave_t &wave, amd_dbgapi_wave_state_t *state,
     amd_dbgapi_wave_stop_reason_t *stop_reason) const
@@ -1671,6 +1648,18 @@ amdgcn_architecture_t::read_pseudo_register (const wave_t &wave,
       return;
     }
 
+  if (regnum == amdgpu_regnum_t::wave_in_group)
+    {
+      uint32_t ttmp11;
+
+      wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
+      ttmp11 &= ttmp11_wave_in_group_mask;
+
+      memcpy (static_cast<char *> (value) + offset,
+              reinterpret_cast<const char *> (&ttmp11) + offset, value_size);
+      return;
+    }
+
   throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID);
 }
 
@@ -1692,8 +1681,9 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
 
   size_t lane_count = wave.lane_count ();
 
-  if (regnum == amdgpu_regnum_t::null)
-    /* Writing to null is a no-op.  */
+  if (regnum == amdgpu_regnum_t::null
+      || regnum == amdgpu_regnum_t::wave_in_group)
+    /* Writing to these registers is a no-op.  */
     return;
 
   if ((regnum == amdgpu_regnum_t::pseudo_exec_32
@@ -2021,14 +2011,8 @@ gfx9_base_t::cwsr_record_t::register_address (amdgpu_regnum_t regnum) const
     case amdgpu_regnum_t::dispatch_ptr:
       regnum = amdgpu_regnum_t::ttmp6;
       break;
-    case amdgpu_regnum_t::dispatch_grid_x:
+    case amdgpu_regnum_t::dispatch_grid:
       regnum = amdgpu_regnum_t::ttmp8;
-      break;
-    case amdgpu_regnum_t::dispatch_grid_y:
-      regnum = amdgpu_regnum_t::ttmp9;
-      break;
-    case amdgpu_regnum_t::dispatch_grid_z:
-      regnum = amdgpu_regnum_t::ttmp10;
       break;
     case amdgpu_regnum_t::scratch_offset:
       regnum = amdgpu_regnum_t::ttmp13;
@@ -2915,12 +2899,10 @@ architecture_t::register_name (amdgpu_regnum_t regnum) const
       return "wave_id";
     case amdgpu_regnum_t::dispatch_ptr:
       return "dispatch_ptr";
-    case amdgpu_regnum_t::dispatch_grid_x:
-      return "grid_x";
-    case amdgpu_regnum_t::dispatch_grid_y:
-      return "grid_y";
-    case amdgpu_regnum_t::dispatch_grid_z:
-      return "grid_z";
+    case amdgpu_regnum_t::dispatch_grid:
+      return "dispatch_grid";
+    case amdgpu_regnum_t::wave_in_group:
+      return "wave_in_group";
     case amdgpu_regnum_t::scratch_offset:
       return "scratch_offset";
     case amdgpu_regnum_t::null:
@@ -3000,11 +2982,9 @@ architecture_t::register_type (amdgpu_regnum_t regnum) const
     case amdgpu_regnum_t::vcc_hi:
     case amdgpu_regnum_t::xnack_mask_lo:
     case amdgpu_regnum_t::xnack_mask_hi:
-    case amdgpu_regnum_t::dispatch_grid_x:
-    case amdgpu_regnum_t::dispatch_grid_y:
-    case amdgpu_regnum_t::dispatch_grid_z:
     case amdgpu_regnum_t::scratch_offset:
     case amdgpu_regnum_t::pseudo_status:
+    case amdgpu_regnum_t::wave_in_group:
     case amdgpu_regnum_t::null:
       return "uint32_t";
 
@@ -3012,6 +2992,9 @@ architecture_t::register_type (amdgpu_regnum_t regnum) const
     case amdgpu_regnum_t::flat_scratch:
     case amdgpu_regnum_t::dispatch_ptr:
       return "uint64_t";
+
+    case amdgpu_regnum_t::dispatch_grid:
+      return "uint32_t[3]";
 
     default:
       return std::nullopt;
@@ -3087,11 +3070,9 @@ architecture_t::register_size (amdgpu_regnum_t regnum) const
     case amdgpu_regnum_t::vcc_hi:
     case amdgpu_regnum_t::xnack_mask_lo:
     case amdgpu_regnum_t::xnack_mask_hi:
-    case amdgpu_regnum_t::dispatch_grid_x:
-    case amdgpu_regnum_t::dispatch_grid_y:
-    case amdgpu_regnum_t::dispatch_grid_z:
     case amdgpu_regnum_t::scratch_offset:
     case amdgpu_regnum_t::pseudo_status:
+    case amdgpu_regnum_t::wave_in_group:
     case amdgpu_regnum_t::null:
       return sizeof (uint32_t);
 
@@ -3099,6 +3080,9 @@ architecture_t::register_size (amdgpu_regnum_t regnum) const
     case amdgpu_regnum_t::flat_scratch:
     case amdgpu_regnum_t::dispatch_ptr:
       return sizeof (uint64_t);
+
+    case amdgpu_regnum_t::dispatch_grid:
+      return sizeof (uint32_t[3]);
 
     default:
       return std::nullopt;
