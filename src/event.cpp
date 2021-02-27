@@ -152,6 +152,39 @@ event_t::set_state (state_t state)
          callback do not have a breakpoint resume event.  */
       if (event_id != AMD_DBGAPI_EVENT_NONE)
         {
+          process ().update_queues ();
+
+          std::vector<queue_t *> queues;
+          queues.reserve (process ().count<queue_t> ());
+
+          for (auto &&queue : process ().range<queue_t> ())
+            if (!queue.is_suspended ())
+              queues.emplace_back (&queue);
+
+          /* FIXME: A breakpoint may have been inserted by the client prior to
+             reporting this event as processed.
+
+             Currently, KFD only flushes the L2$ and I$ during CWSRs, so simply
+             writting the breakpoint instruction to memory does not guarantee
+             visibility from the device side, stale data could still be in I$
+             or L2$.
+
+             As a workaround, we can force a CWSR, before allowing the host
+             thread to resume execution , by suspending then resuming the
+             queues.  Decoding the control stacks is not necessary.
+
+             The ROCr runtime creates an internal queue to run the blit kernels
+             so, after loading a device code object, we should always have at
+             least one queue on each device.  Suspending that queue to update
+             the wave list causes the caches to be flushed.  */
+
+          process_t::scoped_disable_control_stack_decoding
+              disable_control_stack_decoding (process ());
+
+          process ().suspend_queues (queues, "code object list updated");
+          if (process ().forward_progress_needed ())
+            process ().resume_queues (queues, "code object list updated");
+
           event_t *breakpoint_resume_event = process ().find (event_id);
           dbgapi_assert (breakpoint_resume_event);
           process ().enqueue_event (*breakpoint_resume_event);

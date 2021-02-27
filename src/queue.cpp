@@ -714,13 +714,12 @@ aql_queue_impl_t::state_changed (queue_t::state_t state)
            it = m_dirty_caches.remove (*it))
         it->flush ();
     }
-  if (state == queue_t::state_t::suspended)
+  if (state == queue_t::state_t::suspended
+      && !m_queue.process ().is_flag_set (
+          process_t::flag_t::disable_control_stack_decoding))
     {
-      process_t &process = m_queue.process ();
-      amd_dbgapi_status_t status;
-
       /* Refresh the scratch_backing_memory_location and
-       scratch_backing_memory_size everytime we suspend the queue.  */
+         scratch_backing_memory_size everytime we suspend the queue.  */
 
       /* The scratch backing memory address is stored in the ABI-stable part
          of the amd_queue_t. Since we know the address of the read_dispatch_id
@@ -730,7 +729,7 @@ aql_queue_impl_t::state_changed (queue_t::state_t state)
          it.  We cannot cache this value as the runtime may change the
          allocation dynamically.  */
 
-      status = process.read_global_memory (
+      amd_dbgapi_status_t status = m_queue.process ().read_global_memory (
           m_os_queue_info.read_pointer_address
               + offsetof (amd_queue_t, scratch_backing_memory_location)
               - offsetof (amd_queue_t, read_dispatch_id),
@@ -741,7 +740,7 @@ aql_queue_impl_t::state_changed (queue_t::state_t state)
                "(rc=%d)",
                status);
 
-      status = process.read_global_memory (
+      status = m_queue.process ().read_global_memory (
           m_os_queue_info.read_pointer_address
               + offsetof (amd_queue_t, scratch_backing_memory_byte_size)
               - offsetof (amd_queue_t, read_dispatch_id),

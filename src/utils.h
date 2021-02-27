@@ -211,7 +211,24 @@ align_up (Integral x, int alignment)
   return (x + alignment - 1) & -alignment;
 }
 
-class scope_exit
+namespace detail
+{
+
+class not_copyable
+{
+protected:
+  constexpr not_copyable () = default;
+  ~not_copyable () = default;
+
+  not_copyable (const not_copyable &) = delete;
+  not_copyable &operator= (const not_copyable &) = delete;
+};
+
+} /* namespace detail */
+
+using not_copyable = detail::not_copyable;
+
+class scope_exit : private not_copyable
 {
 private:
   std::function<void ()> m_func;
@@ -248,12 +265,12 @@ public:
 namespace detail
 {
 
-template <typename T, typename Tag> struct doubly_linked_entry_t
+template <typename T, typename Tag>
+struct doubly_linked_entry_t : private not_copyable
 {
   doubly_linked_entry_t<T, Tag> *m_prev{ nullptr };
   doubly_linked_entry_t<T, Tag> *m_next{ nullptr };
 
-  doubly_linked_entry_t (const doubly_linked_entry_t &) = delete;
   doubly_linked_entry_t (doubly_linked_entry_t &&rhs)
   {
     m_next = rhs.m_next;
@@ -262,7 +279,6 @@ template <typename T, typename Tag> struct doubly_linked_entry_t
     m_prev->n_next = this;
     rhs.m_next = rhs.m_prev = nullptr;
   }
-  doubly_linked_entry_t &operator= (const doubly_linked_entry_t &) = delete;
   doubly_linked_entry_t &operator= (doubly_linked_entry_t &&rhs)
   {
     m_next = rhs.m_next;
@@ -278,7 +294,8 @@ template <typename T, typename Tag> struct doubly_linked_entry_t
 
 } /* namespace detail */
 
-template <typename T, typename Tag = void> class doubly_linked_list_t
+template <typename T, typename Tag = void>
+class doubly_linked_list_t : private not_copyable
 {
 public:
   /* T must be derived from entry_type.  */
@@ -342,7 +359,6 @@ public:
     m_head.m_prev = &m_head;
     m_head.m_next = &m_head;
   }
-  doubly_linked_list_t (const doubly_linked_list_t &) = delete;
   doubly_linked_list_t (doubly_linked_list_t &&rhs)
   {
     if (rhs.empty ())
@@ -359,7 +375,6 @@ public:
       }
   }
 
-  doubly_linked_list_t &operator= (const doubly_linked_list_t &) = delete;
   doubly_linked_list_t &operator= (doubly_linked_list_t &&rhs)
   {
     if (rhs.empty ())
