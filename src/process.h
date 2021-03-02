@@ -137,7 +137,6 @@ private:
   std::unordered_map<os_watch_id_t, const watchpoint_t *> m_watchpoint_map{};
 
   std::queue<event_t *> m_pending_events{};
-  std::atomic<bool> m_has_events{ false };
 
   /* Value used to mark queues that are reported by KFD. When sweeping, any
      queue found with a mark less than the current mark will be deleted, as

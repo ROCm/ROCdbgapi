@@ -73,10 +73,8 @@ process_t::process_t (amd_dbgapi_process_id_t process_id,
   else if (status != AMD_DBGAPI_STATUS_SUCCESS)
     error ("get_os_pid () failed (rc=%d)", status);
 
-  m_os_driver = os_driver_t::create_driver (m_os_process_id, [this] () {
-    m_has_events.store (true, std::memory_order_release);
-    m_client_notifier_pipe.mark ();
-  });
+  m_os_driver = os_driver_t::create_driver (
+      m_os_process_id, std::bind (&pipe_t::mark, &m_client_notifier_pipe));
 
   /* See is_valid() for information about how failing to open the files or
      the notifier pipe is handled.  */
@@ -1601,9 +1599,6 @@ process_t::next_pending_event ()
       while (true)
         {
           std::unordered_set<queue_t *> queues_needing_suspend;
-
-          if (!m_has_events.exchange (false, std::memory_order_acquire))
-            break;
 
           while (true)
             {
