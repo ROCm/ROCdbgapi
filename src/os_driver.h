@@ -224,8 +224,7 @@ public:
   virtual ~os_driver_t () = default;
 
   static std::unique_ptr<os_driver_t>
-  create_driver (amd_dbgapi_os_process_id_t os_pid,
-                 std::function<void ()> pending_event_notifier);
+  create_driver (amd_dbgapi_os_process_id_t os_pid);
 
   virtual bool is_valid () const = 0;
 
@@ -236,7 +235,7 @@ public:
                   size_t *agent_count) const = 0;
 
   virtual amd_dbgapi_status_t
-  enable_debug (os_exception_mask_t exceptions_reported)
+  enable_debug (os_exception_mask_t exceptions_reported, file_desc_t notifier)
     = 0;
   virtual amd_dbgapi_status_t disable_debug () = 0;
   virtual bool is_debug_enabled () const = 0;

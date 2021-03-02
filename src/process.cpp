@@ -64,20 +64,33 @@ process_t::process_t (amd_dbgapi_process_id_t process_id,
                       amd_dbgapi_client_process_id_t client_process_id)
   : handle_object (process_id), m_client_process_id (client_process_id)
 {
-  /* Create the notifier pipe.  */
-  m_client_notifier_pipe.open ();
-
   amd_dbgapi_status_t status = get_os_pid (&m_os_process_id);
   if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
     throw exception_t (status);
   else if (status != AMD_DBGAPI_STATUS_SUCCESS)
     error ("get_os_pid () failed (rc=%d)", status);
 
-  m_os_driver = os_driver_t::create_driver (
-    m_os_process_id, std::bind (&pipe_t::mark, &m_client_notifier_pipe));
+  /* Create the notifier pipe.  */
+  m_client_notifier_pipe.open ();
+  if (!m_client_notifier_pipe.is_valid ())
+    error ("Could not create the client notifier pipe");
 
-  /* See is_valid() for information about how failing to open the files or
-     the notifier pipe is handled.  */
+  m_os_driver = os_driver_t::create_driver (m_os_process_id);
+  if (!m_os_driver->is_valid ())
+    error ("Could not create the OS driver");
+}
+
+process_t::~process_t ()
+{
+  /* Destruct the os_driver before closing the notifier pipe.  */
+  m_os_driver.reset ();
+  m_client_notifier_pipe.close ();
+
+  dbgapi_assert (m_watchpoint_map.empty ()
+                 && "there should not be any active watchpoints left");
+
+  if (this == detail::last_found_process)
+    detail::last_found_process = nullptr;
 }
 
 namespace detail
@@ -100,18 +113,6 @@ process_t::reset_all_ids ()
   dbgapi_assert (s_process_map.size () == 0
                  && "some processes are still attached");
   detail::reset_next_ids<decltype (m_handle_object_sets)> ();
-}
-
-bool
-process_t::is_valid () const
-{
-  /* This process is ready if the notifier pipe (used to communicate with the
-     client) is ready, and the os_driver is ready. A process only exists in the
-     not ready state while being created by the factory, and if not ready it
-     will be destructed and never be put in the map of processes.
-   */
-  return (m_os_driver && m_os_driver->is_valid ())
-         && m_client_notifier_pipe.is_valid ();
 }
 
 void
@@ -215,8 +216,6 @@ process_t::detach ()
   std::get<handle_object_set_t<code_object_t>> (m_handle_object_sets).clear ();
   std::get<handle_object_set_t<shared_library_t>> (m_handle_object_sets)
     .clear ();
-
-  m_client_notifier_pipe.close ();
 
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "detached %s",
               to_string (id ()).c_str ());
@@ -1261,7 +1260,8 @@ process_t::attach ()
 
     status
       = os_driver ().enable_debug (os_exception_mask_t::trap_handler
-                                   | os_exception_mask_t::memory_violation);
+                                     | os_exception_mask_t::memory_violation,
+                                   m_client_notifier_pipe.write_fd ());
     if (status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
       {
         enqueue_event (

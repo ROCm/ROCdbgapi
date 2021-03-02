@@ -698,6 +698,7 @@ private:
 
 public:
   pipe_t () = default;
+  ~pipe_t () { close (); }
 
   bool open ();
   void close ();

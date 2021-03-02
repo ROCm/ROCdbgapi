@@ -143,14 +143,7 @@ private:
 public:
   process_t (amd_dbgapi_process_id_t process_id,
              amd_dbgapi_client_process_id_t client_process_id);
-  ~process_t ()
-  {
-    dbgapi_assert (m_watchpoint_map.empty ()
-                   && "there should not be any active watchpoints left");
-
-    if (this == detail::last_found_process)
-      detail::last_found_process = nullptr;
-  }
+  ~process_t ();
 
   /* Disallow copying & moving process instances.  */
   process_t (const process_t &) = delete;
@@ -162,8 +155,6 @@ public:
      identical if they have the same address.  */
   bool operator== (const process_t &other) const { return this == &other; }
   bool operator!= (const process_t &other) const { return this != &other; }
-
-  bool is_valid () const;
 
   amd_dbgapi_client_process_id_t client_id () const
   {

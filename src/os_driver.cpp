@@ -29,7 +29,6 @@
 #include <exception>
 #include <fstream>
 #include <functional>
-#include <future>
 #include <limits>
 #include <optional>
 #include <thread>
@@ -145,30 +144,16 @@ private:
   static size_t s_kfd_open_count;
   static std::optional<file_desc_t> s_kfd_fd;
 
-  pipe_t m_event_pipe{};
-  std::function<void ()> const m_pending_event_notifier;
-
-  std::thread *m_event_thread{ nullptr };
-  std::future<void> m_event_thread_exception{};
-  pipe_t m_event_thread_exit_pipe{};
-
-  void event_loop (std::promise<void> thread_exception);
-
-  amd_dbgapi_status_t start_event_thread ();
-  amd_dbgapi_status_t stop_event_thread ();
-  void check_event_thread ();
-
   static void open_kfd ();
   static void close_kfd ();
+
+  bool m_is_debug_enabled{ false };
 
   int kfd_dbg_trap_ioctl (uint32_t action,
                           kfd_ioctl_dbg_trap_args *args) const;
 
 public:
-  kfd_driver_t (amd_dbgapi_os_process_id_t os_pid,
-                std::function<void ()> pending_event_notifier)
-    : linux_driver_t (os_pid),
-      m_pending_event_notifier (std::move (pending_event_notifier))
+  kfd_driver_t (amd_dbgapi_os_process_id_t os_pid) : linux_driver_t (os_pid)
   {
     open_kfd ();
 
@@ -193,10 +178,10 @@ public:
                                       size_t snapshot_count,
                                       size_t *agent_count) const override;
 
-  amd_dbgapi_status_t
-  enable_debug (os_exception_mask_t exceptions_reported) override;
+  amd_dbgapi_status_t enable_debug (os_exception_mask_t exceptions_reported,
+                                    file_desc_t notifier) override;
   amd_dbgapi_status_t disable_debug () override;
-  bool is_debug_enabled () const override { return m_event_pipe.is_valid (); }
+  bool is_debug_enabled () const override { return m_is_debug_enabled; }
 
   amd_dbgapi_status_t
   query_debug_event (os_exception_mask_t *exceptions_present,
@@ -499,13 +484,10 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
 }
 
 amd_dbgapi_status_t
-kfd_driver_t::enable_debug (os_exception_mask_t exceptions_reported)
+kfd_driver_t::enable_debug (os_exception_mask_t exceptions_reported,
+                            file_desc_t notifier)
 {
   dbgapi_assert (!is_debug_enabled () && "debug is already enabled");
-
-  m_event_pipe.open ();
-  if (!m_event_pipe.is_valid ())
-    error ("Could not create the event pipe");
 
   /* KFD_IOC_DBG_TRAP_ENABLE (#0):
      exception_mask: [in] exceptions to be reported to the debugger
@@ -515,7 +497,7 @@ kfd_driver_t::enable_debug (os_exception_mask_t exceptions_reported)
 
   kfd_ioctl_dbg_trap_args args{};
   args.data1 = 1; /* enable  */
-  args.data2 = m_event_pipe.write_fd ();
+  args.data2 = notifier;
   args.exception_mask = static_cast<uint64_t> (exceptions_reported);
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_ENABLE, &args);
@@ -532,10 +514,7 @@ kfd_driver_t::enable_debug (os_exception_mask_t exceptions_reported)
   else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
-  amd_dbgapi_status_t status = start_event_thread ();
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Cannot start the event thread (rc=%d)", status);
-
+  m_is_debug_enabled = true;
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
@@ -544,12 +523,6 @@ kfd_driver_t::disable_debug ()
 {
   if (!is_debug_enabled ())
     return AMD_DBGAPI_STATUS_SUCCESS;
-
-  amd_dbgapi_status_t status = stop_event_thread ();
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not stop the event thread (rc=%d)", status);
-
-  m_event_pipe.close ();
 
   /* KFD_IOC_DBG_TRAP_ENABLE (#0):
      data1: [in] 0=disable, 1=enable  */
@@ -563,6 +536,7 @@ kfd_driver_t::disable_debug ()
   else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
+  m_is_debug_enabled = false;
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
@@ -579,11 +553,6 @@ kfd_driver_t::query_debug_event (os_exception_mask_t *exceptions_present,
       os_source_id->raw = 0;
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
-
-  /* We get our event notifications from the process event thread, so
-     make sure it is still running, an exception may have caused it to
-     exit.  */
-  check_event_thread ();
 
   /* KFD_IOC_DBG_TRAP_QUERY_DEBUG_EVENT (#6):
 
@@ -820,166 +789,6 @@ kfd_driver_t::set_precise_memory (bool enabled) const
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
-void
-kfd_driver_t::event_loop (std::promise<void> thread_exception/*
-    std::vector<std::pair<file_desc_t, std::function<void ()>>> input,
-    pipe_t event_thread_exit_pipe, std::promise<void> thread_exception*/)
-{
-  bool event_thread_exit{ false };
-
-  dbgapi_assert (m_event_pipe.is_valid ());
-
-  struct pollfd fds[] = {
-    { m_event_pipe.read_fd (), POLLIN, 0 },
-    /* Add the read end of the event_thread_exit_pipe to the monitored
-       fds. This pipe is marked when the event thread needs to terminate.  */
-    { m_event_thread_exit_pipe.read_fd (), POLLIN, 0 }
-  };
-
-  try
-    {
-      do
-        {
-          size_t fd_count = sizeof (fds) / sizeof (fds[0]);
-          int ret = poll (fds, fd_count, -1);
-
-          if (ret == -1 && errno != EINTR)
-            error ("poll: %s", strerror (errno));
-          else if (ret <= 0)
-            continue;
-
-          /* Check the file descriptors for data ready to read.  */
-          for (size_t i = 0; i < fd_count; ++i)
-            {
-              if (!(fds[i].revents & POLLIN))
-                continue;
-
-              file_desc_t fd = fds[i].fd;
-
-              /* flush the event pipe, ...  */
-              do
-                {
-                  char buf;
-                  ret = read (fd, &buf, 1);
-                }
-              while (ret >= 0 || (ret == -1 && errno == EINTR));
-
-              if (ret == -1 && errno != EAGAIN)
-                error ("read: %s", strerror (errno));
-
-              if (fd == m_event_thread_exit_pipe.read_fd ())
-                {
-                  event_thread_exit = true;
-                  continue;
-                }
-
-              /* Notify the process that an event is available.  */
-              m_pending_event_notifier ();
-            }
-        }
-      while (!event_thread_exit);
-    }
-  catch (...)
-    {
-      thread_exception.set_exception (std::current_exception ());
-    }
-}
-
-amd_dbgapi_status_t
-kfd_driver_t::start_event_thread ()
-{
-  sigset_t new_mask;
-  sigset_t orig_mask;
-
-  /* Make sure another thread is not running.  */
-  if (m_event_thread)
-    stop_event_thread ();
-
-  /* We want the event thread to inherit an all-signals-blocked mask.  */
-  sigfillset (&new_mask);
-  if (pthread_sigmask (SIG_SETMASK, &new_mask, &orig_mask))
-    {
-      warning ("pthread_sigmask failed: %s", strerror (errno));
-      return AMD_DBGAPI_STATUS_ERROR;
-    }
-
-  /* Create a pipe that we can use to wake up ::poll, and make the event
-     thread exit.  */
-  if (!m_event_thread_exit_pipe.open ())
-    {
-      warning ("Could not create exit pipe: %s", strerror (errno));
-      return AMD_DBGAPI_STATUS_ERROR;
-    }
-
-  /* TODO: To save resources (threads, file descriptors), we could start only
-     one event thread for the entire host process, and listen on the file
-     descriptors for all the agents in all processes, then individually notify
-     the processes with events.  We would need to notify the event thread when
-     processes are attached or detached so that the list of polled file
-     descriptors is updated.  */
-
-  std::promise<void> event_thread_exception;
-  m_event_thread_exception = event_thread_exception.get_future ();
-
-  /* Start a new event thread. We capture a snapshot of the file descriptors
-     and associated callback. If agents were to be added to or removed from the
-     agent_map, we would stop this thread and start a new event thread with a
-     new set of file descriptors, and notifiers. */
-
-  using namespace std::placeholders;
-  m_event_thread
-    = new std::thread (std::bind (&kfd_driver_t::event_loop, this, _1),
-                       std::move (event_thread_exception));
-
-  if (pthread_sigmask (SIG_SETMASK, &orig_mask, nullptr))
-    {
-      warning ("pthread_sigmask failed: %s", strerror (errno));
-      return AMD_DBGAPI_STATUS_ERROR;
-    }
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
-}
-
-amd_dbgapi_status_t
-kfd_driver_t::stop_event_thread ()
-{
-  int ret;
-
-  if (!m_event_thread)
-    return AMD_DBGAPI_STATUS_SUCCESS;
-
-  if (!m_event_thread_exit_pipe.is_valid ())
-    return AMD_DBGAPI_STATUS_ERROR;
-
-  /* Send a termination request to the event thread.  */
-  if ((ret = m_event_thread_exit_pipe.mark ()))
-    {
-      warning ("exit_pipe mark failed (rc=%d)", ret);
-      return AMD_DBGAPI_STATUS_ERROR;
-    }
-
-  /* Wait for the event thread to terminate.  */
-  m_event_thread->join ();
-
-  delete m_event_thread;
-  m_event_thread = nullptr;
-  m_event_thread_exit_pipe.close ();
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
-}
-
-void
-kfd_driver_t::check_event_thread ()
-{
-  /* Check for exceptions in the event thread, and rethrow in the
-     application thread.  */
-  if (m_event_thread_exception.valid ()
-      && m_event_thread_exception.wait_until (
-           std::chrono::steady_clock::time_point::min ())
-           == std::future_status::ready)
-    m_event_thread_exception.get ();
-}
-
 class no_agents_driver_t : public linux_driver_t
 {
 public:
@@ -1004,7 +813,8 @@ public:
   }
 
   amd_dbgapi_status_t
-    enable_debug (os_exception_mask_t /* exceptions_reported  */) override
+    enable_debug (os_exception_mask_t /* exceptions_reported  */,
+                  file_desc_t /* notifier  */) override
   {
     return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
   }
@@ -1091,11 +901,9 @@ public:
 };
 
 std::unique_ptr<os_driver_t>
-os_driver_t::create_driver (amd_dbgapi_os_process_id_t os_pid,
-                            std::function<void ()> pending_event_notifier)
+os_driver_t::create_driver (amd_dbgapi_os_process_id_t os_pid)
 {
-  std::unique_ptr<os_driver_t> os_driver{ new kfd_driver_t (
-    os_pid, std::move (pending_event_notifier)) };
+  std::unique_ptr<os_driver_t> os_driver{ new kfd_driver_t (os_pid) };
   if (os_driver->is_valid ())
     return os_driver;
 
