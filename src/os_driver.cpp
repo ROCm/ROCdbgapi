@@ -145,7 +145,7 @@ private:
   static size_t s_kfd_open_count;
   static std::optional<file_desc_t> s_kfd_fd;
 
-  std::optional<file_desc_t> m_event_poll_fd{};
+  pipe_t m_event_pipe{};
   std::function<void ()> const m_pending_event_notifier;
 
   std::thread *m_event_thread{ nullptr };
@@ -196,10 +196,7 @@ public:
   amd_dbgapi_status_t
   enable_debug (os_exception_mask_t exceptions_reported) override;
   amd_dbgapi_status_t disable_debug () override;
-  bool is_debug_enabled () const override
-  {
-    return m_event_poll_fd.has_value ();
-  }
+  bool is_debug_enabled () const override { return m_event_pipe.is_valid (); }
 
   amd_dbgapi_status_t
   query_debug_event (os_exception_mask_t *exceptions_present,
@@ -504,7 +501,11 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
 amd_dbgapi_status_t
 kfd_driver_t::enable_debug (os_exception_mask_t exceptions_reported)
 {
-  dbgapi_assert (!m_event_poll_fd && "debug is already enabled");
+  dbgapi_assert (!is_debug_enabled () && "debug is already enabled");
+
+  m_event_pipe.open ();
+  if (!m_event_pipe.is_valid ())
+    error ("Could not create the event pipe");
 
   /* KFD_IOC_DBG_TRAP_ENABLE (#0):
      exception_mask: [in] exceptions to be reported to the debugger
@@ -514,6 +515,7 @@ kfd_driver_t::enable_debug (os_exception_mask_t exceptions_reported)
 
   kfd_ioctl_dbg_trap_args args{};
   args.data1 = 1; /* enable  */
+  args.data2 = m_event_pipe.write_fd ();
   args.exception_mask = static_cast<uint64_t> (exceptions_reported);
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_ENABLE, &args);
@@ -529,8 +531,6 @@ kfd_driver_t::enable_debug (os_exception_mask_t exceptions_reported)
     }
   else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
-
-  m_event_poll_fd.emplace (static_cast<file_desc_t> (args.data2));
 
   amd_dbgapi_status_t status = start_event_thread ();
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -549,8 +549,7 @@ kfd_driver_t::disable_debug ()
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     error ("Could not stop the event thread (rc=%d)", status);
 
-  ::close (*m_event_poll_fd);
-  m_event_poll_fd.reset ();
+  m_event_pipe.close ();
 
   /* KFD_IOC_DBG_TRAP_ENABLE (#0):
      data1: [in] 0=disable, 1=enable  */
@@ -828,10 +827,10 @@ kfd_driver_t::event_loop (std::promise<void> thread_exception/*
 {
   bool event_thread_exit{ false };
 
-  dbgapi_assert (m_event_poll_fd.has_value ());
+  dbgapi_assert (m_event_pipe.is_valid ());
 
   struct pollfd fds[] = {
-    { *m_event_poll_fd, POLLIN, 0 },
+    { m_event_pipe.read_fd (), POLLIN, 0 },
     /* Add the read end of the event_thread_exit_pipe to the monitored
        fds. This pipe is marked when the event thread needs to terminate.  */
     { m_event_thread_exit_pipe.read_fd (), POLLIN, 0 }
