@@ -134,7 +134,6 @@ enum class amdgpu_regnum_t : uint32_t
   xnack_mask_hi,   /* XNACK mask higher 32 bits.  */
 
   wave_id,        /* Debug[0:1].  */
-  dispatch_ptr,   /* Pointer to the dispatch packet.  */
   dispatch_grid,  /* Dispatch grid X, Y, Z  */
   scratch_offset, /* Scracth memory offset from the scratch base.  */
 

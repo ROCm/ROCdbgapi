@@ -177,6 +177,9 @@ public:
       const std::function<void (std::unique_ptr<cwsr_record_t>)>
           &wave_callback) const = 0;
 
+  virtual amd_dbgapi_global_address_t
+  dispatch_packet_address (const cwsr_record_t &cwsr_record) const = 0;
+
   virtual bool can_halt_at_endpgm () const = 0;
   virtual bool is_endpgm (const std::vector<uint8_t> &bytes) const = 0;
   virtual bool is_breakpoint (const std::vector<uint8_t> &bytes) const = 0;

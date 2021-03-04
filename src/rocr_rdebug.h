@@ -31,8 +31,10 @@
 3: New trap handler ABI. A wave halted at S_ENDPGM rewinds its PC by 8 bytes,
    and sets ttmp11[9]=1.
 4: New trap handler ABI. Save the trap id in ttmp11[17:10].
+5: New trap handler ABI. Save the PC in ttmp11[22:7] ttmp6[31:0], and park the
+   wave if stopped.
 */
 
-#define ROCR_RDEBUG_VERSION 4
+#define ROCR_RDEBUG_VERSION 5
 
 #endif /* ROCR_RDEBUG_H */

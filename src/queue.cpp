@@ -414,34 +414,10 @@ aql_queue_impl_t::update_waves ()
 
     if (!wave)
       {
-        const amd_dbgapi_global_address_t dispatch_ptr_address
-            = cwsr_record->register_address (amdgpu_regnum_t::dispatch_ptr)
-                  .value ();
-
-        amd_dbgapi_global_address_t dispatch_ptr;
-        if (process.read_global_memory (dispatch_ptr_address, &dispatch_ptr,
-                                        sizeof (dispatch_ptr))
-            != AMD_DBGAPI_STATUS_SUCCESS)
-          error ("Could not read the 'dispatch_ptr' register");
-
-        if (!dispatch_ptr)
-          /* TODO: See comment above for corrupted wavefronts. This could be
-             attached to a CORRUPT_DISPATCH instance.  */
-          error ("invalid null dispatch_ptr for %s",
-                 to_string (wave_id).c_str ());
-
-        /* SPI only sends us the lower 40 bits of the dispatch_ptr, so we need
-           to reconstitute it using the packets address for the missing upper
-           8 bits.  */
-
-        constexpr uint64_t spi_mask = utils::bit_mask (0, 39);
-        if (dispatch_ptr)
-          dispatch_ptr
-              = (dispatch_ptr & spi_mask) | (packets_address () & ~spi_mask);
+        amd_dbgapi_global_address_t dispatch_ptr
+            = m_queue.architecture ().dispatch_packet_address (*cwsr_record);
 
         if ((dispatch_ptr % aql_packet_size) != 0)
-          /* TODO: See comment above for corrupted wavefronts. This could be
-             attached to a CORRUPT_DISPATCH instance.  */
           error ("dispatch_ptr is not aligned on the packet size");
 
         /* Calculate the monotonic dispatch id for this packet.  It is between

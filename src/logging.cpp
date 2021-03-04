@@ -430,7 +430,6 @@ one_instruction_property_to_string (
   switch (instruction_property)
     {
       CASE (INSTRUCTION_PROPERTY_NONE);
-      CASE (INSTRUCTION_PROPERTY_NO_BREAKPOINT);
       CASE (INSTRUCTION_PROPERTY_RESERVED);
     }
   return to_string (make_hex (instruction_property));

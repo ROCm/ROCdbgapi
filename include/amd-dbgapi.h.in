@@ -1451,10 +1451,6 @@ typedef enum
    */
   AMD_DBGAPI_INSTRUCTION_PROPERTY_NONE = 0ULL,
   /**
-   * A breakpoint must not be placed on the instruction.
-   */
-  AMD_DBGAPI_INSTRUCTION_PROPERTY_NO_BREAKPOINT =  (1ULL << 0),
-  /**
    * A reserved value only present to ensure that the underlying representation
    * of this enumeration type is \p uint64_t.
    */
