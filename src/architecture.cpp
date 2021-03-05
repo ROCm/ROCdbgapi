@@ -2407,7 +2407,7 @@ public:
   }
 
   bool has_acc_vgprs () const override { return true; }
-  bool can_halt_at_endpgm () const override { return true; }
+  bool can_halt_at_endpgm () const override { return false; }
 };
 
 class gfx10_base_t : public gfx9_base_t
