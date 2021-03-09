@@ -690,9 +690,7 @@ aql_queue_impl_t::state_changed (queue_t::state_t state)
            it = m_dirty_caches.remove (*it))
         it->flush ();
     }
-  if (state == queue_t::state_t::suspended
-      && !m_queue.process ().is_flag_set (
-          process_t::flag_t::disable_control_stack_decoding))
+  if (state == queue_t::state_t::suspended)
     {
       /* Refresh the scratch_backing_memory_location and
          scratch_backing_memory_size everytime we suspend the queue.  */

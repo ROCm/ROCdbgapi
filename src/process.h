@@ -89,29 +89,6 @@ public:
        register.  This is needed during attach as waves created before the
        debugger attached to the process may have corrupted wave_ids.  */
     assign_new_ids_to_all_waves = 1 << 1,
-    /* Disable the decoding of the control stack when a queue is suspended.  */
-    disable_control_stack_decoding = 1 << 2,
-  };
-
-  class scoped_disable_control_stack_decoding : private utils::not_copyable
-  {
-  private:
-    bool m_was_already_disabled;
-    process_t &m_process;
-
-  public:
-    scoped_disable_control_stack_decoding (process_t &process)
-        : m_was_already_disabled (
-            process.is_flag_set (flag_t::disable_control_stack_decoding)),
-          m_process (process)
-    {
-      m_process.set_flag (flag_t::disable_control_stack_decoding);
-    }
-    ~scoped_disable_control_stack_decoding ()
-    {
-      if (!m_was_already_disabled)
-        m_process.clear_flag (flag_t::disable_control_stack_decoding);
-    }
   };
 
 private:
