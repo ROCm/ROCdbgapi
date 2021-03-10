@@ -831,10 +831,13 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
 
   for (auto *queue : queues)
     {
-      dbgapi_assert (queue && queue->state () != queue_t::state_t::suspended
+      dbgapi_assert (queue && !queue->is_suspended ()
                      && "queue is null or already suspended");
 
-      /* Note that invalid queues will return the os_invalid_queueid.  */
+      /* Invalid queues are allowed, but they are simply ignored.  */
+      if (!queue->is_valid ())
+        continue;
+
       queue_ids.emplace_back (queue->os_queue_id ());
     }
 
@@ -900,10 +903,15 @@ process_t::resume_queues (const std::vector<queue_t *> &queues,
      act on the state before the hardware is updated.  */
   for (auto *queue : queues)
     {
-      dbgapi_assert (queue && queue->state () != queue_t::state_t::running
-                     && "queue is null or not suspended");
+      dbgapi_assert (queue && !queue->is_running ()
+                     && "queue is null or already running");
 
-      /* Note that invalid queues will return the os_invalid_queueid.  */
+      /* The same queue vector may be passed to suspend_queues () and
+         resume_queues (), so ignore queues that may have been invalidated by
+         suspend_queues ().  */
+      if (!queue->is_valid ())
+        continue;
+
       queue_ids.emplace_back (queue->os_queue_id ());
       queue->set_state (queue_t::state_t::running);
     }
