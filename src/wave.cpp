@@ -950,6 +950,7 @@ amd_dbgapi_wave_stop (amd_dbgapi_wave_id_t wave_id)
   wave->set_state (AMD_DBGAPI_WAVE_STATE_STOP);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END ();
 }
@@ -999,6 +1000,7 @@ amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
                      : AMD_DBGAPI_WAVE_STATE_RUN);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END ();
 }
@@ -1032,6 +1034,7 @@ amd_dbgapi_wave_get_info (amd_dbgapi_wave_id_t wave_id,
     };
 
   return wave->get_info (query, value_size, value);
+
   CATCH;
   TRACE_END (make_query_ref (query, value));
 }
@@ -1097,6 +1100,7 @@ amd_dbgapi_process_wave_list (amd_dbgapi_process_id_t process_id,
     process->resume_queues (queues, "refresh wave list");
 
   return status;
+
   CATCH;
   TRACE_END (make_ref (wave_count), make_ref (make_ref (waves), *wave_count),
              make_ref (changed));

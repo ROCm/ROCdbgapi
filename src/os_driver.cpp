@@ -21,17 +21,11 @@
 #include "os_driver.h"
 #include "debug.h"
 #include "logging.h"
-#include "process.h"
 #include "utils.h"
 
 #include <algorithm>
-#include <chrono>
-#include <exception>
 #include <fstream>
-#include <functional>
-#include <limits>
 #include <optional>
-#include <thread>
 #include <type_traits>
 #include <unordered_set>
 #include <utility>
@@ -40,8 +34,6 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <poll.h>
-#include <signal.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
@@ -105,7 +97,7 @@ linux_driver_t::xfer_global_memory_partial (
                      : pwrite (*m_proc_mem_fd, write, *size, address);
 
   if (ret < 0 && errno != EIO && errno != EINVAL)
-    warning ("process_t::xfer_memory failed: %s", strerror (errno));
+    warning ("linux_driver_t::xfer_memory failed: %s", strerror (errno));
 
   if (ret < 0 || (ret == 0 && *size != 0))
     return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;

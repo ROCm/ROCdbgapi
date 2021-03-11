@@ -199,6 +199,7 @@ amd_dbgapi_dispatch_get_info (amd_dbgapi_dispatch_id_t dispatch_id,
     return AMD_DBGAPI_STATUS_ERROR_INVALID_DISPATCH_ID;
 
   return dispatch->get_info (query, value_size, value);
+
   CATCH;
   TRACE_END (make_query_ref (query, value));
 }
@@ -265,6 +266,7 @@ amd_dbgapi_process_dispatch_list (amd_dbgapi_process_id_t process_id,
     process->resume_queues (queues, "refresh dispatch list");
 
   return status;
+
   CATCH;
   TRACE_END (make_ref (dispatch_count),
              make_ref (make_ref (dispatches), *dispatch_count),

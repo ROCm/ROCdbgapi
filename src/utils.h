@@ -29,9 +29,11 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #define TRY                                                                   \

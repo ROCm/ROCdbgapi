@@ -28,6 +28,7 @@
 #include "utils.h"
 #include "wave.h"
 
+#include <cstring>
 #include <optional>
 
 namespace amd::dbgapi
@@ -218,6 +219,7 @@ amd_dbgapi_address_class_get_info (
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   return address_class->get_info (query, value_size, value);
+
   CATCH;
   TRACE_END (make_query_ref (query, value));
 }
@@ -257,6 +259,7 @@ amd_dbgapi_architecture_address_class_list (
     *class_ids++ = address_class.id ();
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END (make_ref (address_class_count),
              make_ref (make_ref (address_classes), *address_class_count));
@@ -292,6 +295,7 @@ amd_dbgapi_dwarf_address_class_to_address_class (
   *address_class_id = address_class->id ();
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END (make_ref (address_class_id));
 }
@@ -316,6 +320,7 @@ amd_dbgapi_address_space_get_info (
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   return address_space->get_info (query, value_size, value);
+
   CATCH;
   TRACE_END (make_query_ref (query, value));
 }
@@ -355,6 +360,7 @@ amd_dbgapi_architecture_address_space_list (
     *space_ids++ = address_space.id ();
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END (make_ref (address_space_count),
              make_ref (make_ref (address_spaces), *address_space_count));
@@ -390,6 +396,7 @@ amd_dbgapi_dwarf_address_space_to_address_space (
   *address_space_id = address_space->id ();
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END (make_ref (address_space_id));
 }
@@ -425,6 +432,7 @@ amd_dbgapi_address_spaces_may_alias (
         : AMD_DBGAPI_ADDRESS_SPACE_ALIAS_NONE;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END (make_ref (address_space_alias));
 }
@@ -468,6 +476,7 @@ amd_dbgapi_convert_address_space (
   return architecture.convert_address_space (
     *wave, lane_id, *source_address_space, *destination_address_space,
     source_segment_address, destination_segment_address);
+
   CATCH;
   TRACE_END (make_ref (destination_segment_address));
 }
@@ -517,6 +526,7 @@ amd_dbgapi_address_is_in_address_class (
         : AMD_DBGAPI_ADDRESS_CLASS_STATE_NOT_MEMBER;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END (make_ref (address_class_state));
 }
@@ -581,6 +591,7 @@ amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
 
   return wave->xfer_segment_memory (*address_space, lane_id, segment_address,
                                     value, nullptr, value_size);
+
   CATCH;
   TRACE_END (
     make_ref (value_size),

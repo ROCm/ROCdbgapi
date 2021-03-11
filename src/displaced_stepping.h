@@ -25,11 +25,9 @@
 #include "amd-dbgapi.h"
 #include "handle_object.h"
 #include "queue.h"
-#include "wave.h"
 
 #include <cstddef>
 #include <cstdint>
-#include <optional>
 #include <vector>
 
 namespace amd::dbgapi

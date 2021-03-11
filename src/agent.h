@@ -27,15 +27,12 @@
 #include "os_driver.h"
 
 #include <cstddef>
-#include <optional>
-#include <unordered_map>
 
 namespace amd::dbgapi
 {
 
 class architecture_t;
 class process_t;
-class watchpoint_t;
 
 /* Agent.  */
 

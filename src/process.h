@@ -37,7 +37,6 @@
 #include "watchpoint.h"
 #include "wave.h"
 
-#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -47,6 +46,7 @@
 #include <string>
 #include <tuple>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 #include <variant>
 #include <vector>

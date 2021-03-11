@@ -25,6 +25,7 @@
 #include "handle_object.h"
 #include "initialization.h"
 #include "logging.h"
+#include "memory.h"
 #include "process.h"
 #include "register.h"
 #include "utils.h"
@@ -996,6 +997,7 @@ amd_dbgapi_queue_get_info (amd_dbgapi_queue_id_t queue_id,
     return AMD_DBGAPI_STATUS_ERROR_INVALID_QUEUE_ID;
 
   return queue->get_info (query, value_size, value);
+
   CATCH;
   TRACE_END (make_query_ref (query, value));
 }
@@ -1100,6 +1102,7 @@ amd_dbgapi_queue_packet_list (
   *packets_byte_size_p = memory_size;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END (make_hex (make_ref (read_packet_id_p)),
              make_hex (make_ref (write_packet_id_p)),

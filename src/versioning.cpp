@@ -19,6 +19,7 @@
  THE SOFTWARE. */
 
 #include "amd-dbgapi.h"
+#include "debug.h"
 #include "logging.h"
 #include "utils.h"
 
@@ -213,6 +214,7 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
 
   *status_string = string;
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END (make_ref (status_string));
 }

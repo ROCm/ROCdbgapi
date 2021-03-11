@@ -25,6 +25,7 @@
 #include "utils.h"
 
 #include <cstddef>
+#include <optional>
 
 namespace amd::dbgapi::detail
 {
@@ -56,6 +57,7 @@ amd_dbgapi_initialize (struct amd_dbgapi_callbacks_s *callbacks)
   detail::is_initialized = true;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END ();
 }
@@ -88,6 +90,7 @@ amd_dbgapi_finalize ()
   });
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END ();
 }

@@ -69,6 +69,7 @@ amd_dbgapi_code_object_get_info (amd_dbgapi_code_object_id_t code_object_id,
     return AMD_DBGAPI_STATUS_ERROR_INVALID_CODE_OBJECT_ID;
 
   return code_object->get_info (query, value_size, value);
+
   CATCH;
   TRACE_END (make_query_ref (query, value));
 }

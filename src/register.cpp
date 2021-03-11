@@ -23,6 +23,7 @@
 #include "debug.h"
 #include "initialization.h"
 #include "logging.h"
+#include "memory.h"
 #include "process.h"
 #include "queue.h"
 #include "utils.h"
@@ -234,6 +235,7 @@ amd_dbgapi_architecture_register_class_get_info (
     return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_CLASS_ID;
 
   return register_class->get_info (query, value_size, value);
+
   CATCH;
   TRACE_END (make_query_ref (query, value));
 }
@@ -273,6 +275,7 @@ amd_dbgapi_architecture_register_class_list (
     *class_ids++ = register_class.id ();
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END (make_ref (register_class_count),
              make_ref (make_ref (register_classes), *register_class_count));
@@ -344,6 +347,7 @@ amd_dbgapi_register_get_info (amd_dbgapi_register_id_t register_id,
     default:
       return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
     }
+
   CATCH;
   TRACE_END (make_query_ref (query, value));
 }
@@ -383,6 +387,7 @@ amd_dbgapi_architecture_register_list (
   *registers = retval;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END (make_ref (register_count),
              make_ref (make_ref (registers), *register_count));
@@ -424,6 +429,7 @@ amd_dbgapi_register_is_in_register_class (
                             : AMD_DBGAPI_REGISTER_CLASS_STATE_NOT_MEMBER;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END (make_ref (register_class_state));
 }
@@ -457,6 +463,7 @@ amd_dbgapi_dwarf_register_to_register (
   *register_id = architecture->regnum_to_register_id (*regnum);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END (make_ref (register_id));
 }
@@ -513,6 +520,7 @@ amd_dbgapi_read_register (amd_dbgapi_wave_id_t wave_id,
   wave->read_register (*regnum, offset, value_size, value);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END (
     make_hex (make_ref (static_cast<uint8_t *> (value) + offset, value_size)));
@@ -578,6 +586,7 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
   wave->write_register (*regnum, offset, value_size, value);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END ();
 }
@@ -616,6 +625,7 @@ amd_dbgapi_wave_register_exists (amd_dbgapi_wave_id_t wave_id,
                                                   : AMD_DBGAPI_REGISTER_ABSENT;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END (make_ref (exists));
 }
@@ -655,6 +665,7 @@ amd_dbgapi_wave_register_list (amd_dbgapi_wave_id_t wave_id,
   *registers = retval;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END (make_ref (register_count),
              make_ref (make_ref (registers), *register_count));
@@ -691,6 +702,7 @@ amd_dbgapi_prefetch_register (
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END ();
 }

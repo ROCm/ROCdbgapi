@@ -27,6 +27,7 @@
 #include "debug.h"
 #include "dispatch.h"
 #include "handle_object.h"
+#include "memory.h"
 #include "queue.h"
 #include "register.h"
 #include "utils.h"
@@ -42,8 +43,6 @@
 namespace amd::dbgapi
 {
 
-class architecture_t;
-class address_space_t;
 class event_t;
 class displaced_stepping_t;
 class process_t;

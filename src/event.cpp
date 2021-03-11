@@ -29,6 +29,7 @@
 #include "wave.h"
 
 #include <string>
+#include <vector>
 
 namespace amd::dbgapi
 {
@@ -284,6 +285,7 @@ amd_dbgapi_process_next_pending_event (amd_dbgapi_process_id_t process_id,
     }
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END (make_ref (event_id), make_ref (kind));
 }
@@ -305,6 +307,7 @@ amd_dbgapi_event_get_info (amd_dbgapi_event_id_t event_id,
     return AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID;
 
   return event->get_info (query, value_size, value);
+
   CATCH;
   TRACE_END (make_query_ref (query, value));
 }
@@ -329,6 +332,7 @@ amd_dbgapi_event_processed (amd_dbgapi_event_id_t event_id)
   event->process ().destroy (event);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END ();
 }

@@ -95,6 +95,7 @@ amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
 
   *watchpoint_id = watchpoint.id ();
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END (make_ref (watchpoint_id),
              make_hex (make_ref (watchpoint_address)),
@@ -125,6 +126,7 @@ amd_dbgapi_remove_watchpoint (amd_dbgapi_process_id_t process_id,
   process->destroy (watchpoint);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END ();
 }
@@ -146,6 +148,7 @@ amd_dbgapi_watchpoint_get_info (amd_dbgapi_watchpoint_id_t watchpoint_id,
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID;
 
   return watchpoint->get_info (query, value_size, value);
+
   CATCH;
   TRACE_END (make_query_ref (query, value));
 }

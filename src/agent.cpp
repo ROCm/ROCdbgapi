@@ -26,16 +26,9 @@
 #include "logging.h"
 #include "os_driver.h"
 #include "process.h"
-#include "queue.h"
 #include "utils.h"
-#include "watchpoint.h"
 
-#include <algorithm>
 #include <cstdint>
-#include <optional>
-#include <string>
-#include <unistd.h>
-#include <utility>
 #include <vector>
 
 namespace amd::dbgapi

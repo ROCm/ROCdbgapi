@@ -30,7 +30,6 @@
 #include "register.h"
 #include "utils.h"
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -50,7 +49,6 @@ namespace amd::dbgapi
 {
 
 class architecture_t;
-class displaced_stepping_t;
 class process_t;
 class wave_t;
 

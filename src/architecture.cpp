@@ -3653,6 +3653,7 @@ amd_dbgapi_get_architecture (uint32_t elf_amdgpu_machine,
   *architecture_id = architecture->id ();
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END (make_ref (architecture_id));
 }
@@ -3674,6 +3675,7 @@ amd_dbgapi_architecture_get_info (amd_dbgapi_architecture_id_t architecture_id,
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID;
 
   return architecture->get_info (query, value_size, value);
+
   CATCH;
   TRACE_END (make_query_ref (query, value));
 }
@@ -3761,6 +3763,7 @@ amd_dbgapi_disassemble_instruction (
   *size = instruction_size;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END (make_ref (size), make_ref (instruction_text));
 }
@@ -3825,6 +3828,7 @@ amd_dbgapi_classify_instruction (
   *instruction_kind_p = kind;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END (make_ref (size_p), make_ref (instruction_kind_p),
              make_ref (instruction_properties_p),

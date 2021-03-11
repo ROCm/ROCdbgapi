@@ -23,12 +23,15 @@
 
 #include "agent.h"
 #include "amd-dbgapi.h"
+#include "debug.h"
 #include "handle_object.h"
 #include "os_driver.h"
 #include "utils.h"
 
 #include <cstddef>
+#include <functional>
 #include <memory>
+#include <optional>
 
 namespace amd::dbgapi
 {

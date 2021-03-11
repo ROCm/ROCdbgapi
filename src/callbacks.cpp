@@ -168,6 +168,7 @@ amd_dbgapi_report_shared_library (
   shared_library->set_state (shared_library_state);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END ();
 }
@@ -189,6 +190,7 @@ amd_dbgapi_code_shared_library_get_info (
     return AMD_DBGAPI_STATUS_ERROR_INVALID_SHARED_LIBRARY_ID;
 
   return shared_library->get_info (query, value_size, value);
+
   CATCH;
   TRACE_END (make_query_ref (query, value));
 }
@@ -236,6 +238,7 @@ amd_dbgapi_breakpoint_get_info (amd_dbgapi_breakpoint_id_t breakpoint_id,
     return AMD_DBGAPI_STATUS_ERROR_INVALID_BREAKPOINT_ID;
 
   return breakpoint->get_info (query, value_size, value);
+
   CATCH;
   TRACE_END (make_query_ref (query, value));
 }

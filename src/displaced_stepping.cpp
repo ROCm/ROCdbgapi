@@ -28,7 +28,6 @@
 #include "wave.h"
 
 #include <cstdint>
-#include <cstring>
 #include <utility>
 
 namespace amd::dbgapi
@@ -141,6 +140,7 @@ amd_dbgapi_displaced_stepping_start (
   *displaced_stepping_id = wave->displaced_stepping ()->id ();
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END (make_ref (displaced_stepping_id));
 }
@@ -188,6 +188,7 @@ amd_dbgapi_displaced_stepping_complete (
   wave->displaced_stepping_complete ();
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END ();
 }
@@ -209,6 +210,7 @@ amd_dbgapi_code_displaced_stepping_get_info (
     return AMD_DBGAPI_STATUS_ERROR_INVALID_DISPLACED_STEPPING_ID;
 
   return displaced_stepping->get_info (query, value_size, value);
+
   CATCH;
   TRACE_END (make_query_ref (query, value));
 }

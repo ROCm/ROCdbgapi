@@ -35,7 +35,6 @@
 #include "wave.h"
 
 #include <algorithm>
-#include <atomic>
 #include <exception>
 #include <iterator>
 #include <limits>
@@ -1779,6 +1778,7 @@ amd_dbgapi_process_set_progress (amd_dbgapi_process_id_t process_id,
     }
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END ();
 }
@@ -1817,6 +1817,7 @@ amd_dbgapi_process_set_wave_creation (amd_dbgapi_process_id_t process_id,
            to_string (process_id).c_str (), status);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END ();
 }
@@ -1866,6 +1867,7 @@ amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
   *process_id = amd_dbgapi_process_id_t{ process->id () };
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END (make_ref (process_id));
 }
@@ -1888,6 +1890,7 @@ amd_dbgapi_process_detach (amd_dbgapi_process_id_t process_id)
   process_t::destroy_process (process);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
   CATCH;
   TRACE_END ();
 }
@@ -1909,6 +1912,7 @@ amd_dbgapi_process_get_info (amd_dbgapi_process_id_t process_id,
     return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
   return process->get_info (query, value_size, value);
+
   CATCH;
   TRACE_END (make_query_ref (query, value));
 }
