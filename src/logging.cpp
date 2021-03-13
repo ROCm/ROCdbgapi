@@ -408,6 +408,7 @@ to_string (amd_dbgapi_instruction_kind_t instruction_kind)
       CASE (INSTRUCTION_KIND_DIRECT_BRANCH);
       CASE (INSTRUCTION_KIND_DIRECT_BRANCH_CONDITIONAL);
       CASE (INSTRUCTION_KIND_INDIRECT_BRANCH_REGISTER_PAIR);
+      CASE (INSTRUCTION_KIND_INDIRECT_BRANCH_CONDITIONAL_REGISTER_PAIR);
       CASE (INSTRUCTION_KIND_DIRECT_CALL_REGISTER_PAIR);
       CASE (INSTRUCTION_KIND_INDIRECT_CALL_REGISTER_PAIRS);
       CASE (INSTRUCTION_KIND_TERMINATE);
@@ -464,6 +465,15 @@ to_string (amd_dbgapi_instruction_properties_t instruction_properties)
 
 template <>
 std::string
+to_string (amd_dbgapi_direct_call_register_pair_information_t information)
+{
+  return to_string (make_hex (information.target_address)) + ",["
+         + to_string (information.saved_return_address_register[0]) + ","
+         + to_string (information.saved_return_address_register[1]) + "]";
+}
+
+template <>
+std::string
 to_string (detail::query_ref<amd_dbgapi_instruction_kind_t> ref)
 {
   auto [kind, information] = ref;
@@ -483,10 +493,14 @@ to_string (detail::query_ref<amd_dbgapi_instruction_kind_t> ref)
           make_ref (static_cast<const amd_dbgapi_global_address_t *const *> (
               information)))));
     case AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_BRANCH_REGISTER_PAIR:
-    case AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_CALL_REGISTER_PAIR:
+    case AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_BRANCH_CONDITIONAL_REGISTER_PAIR:
       return to_string (make_ref (make_ref (
           static_cast<const amd_dbgapi_register_id_t *const *> (information),
           2)));
+    case AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_CALL_REGISTER_PAIR:
+      return to_string (make_ref (make_ref (
+          static_cast<const amd_dbgapi_direct_call_register_pair_information_t
+                          *const *> (information))));
     case AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_CALL_REGISTER_PAIRS:
       return to_string (make_ref (make_ref (
           static_cast<const amd_dbgapi_register_id_t *const *> (information),

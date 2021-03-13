@@ -258,6 +258,7 @@ to_string (detail::hex<detail::ref<T>> hex)
   F (amd_dbgapi_changed_t)                                                    \
   F (amd_dbgapi_code_object_id_t)                                             \
   F (amd_dbgapi_code_object_info_t)                                           \
+  F (amd_dbgapi_direct_call_register_pair_information_t)                      \
   F (amd_dbgapi_dispatch_barrier_t)                                           \
   F (amd_dbgapi_dispatch_fence_scope_t)                                       \
   F (amd_dbgapi_dispatch_id_t)                                                \

@@ -222,12 +222,14 @@ protected:
   static constexpr uint8_t breakpoint_trap_id = 0x7;
 
   static uint8_t encoding_ssrc0 (const std::vector<uint8_t> &bytes);
+  static uint8_t encoding_ssrc1 (const std::vector<uint8_t> &bytes);
   static uint8_t encoding_sdst (const std::vector<uint8_t> &bytes);
   static uint8_t encoding_op7 (const std::vector<uint8_t> &bytes);
   static int encoding_simm16 (const std::vector<uint8_t> &bytes);
 
   static bool is_sopk_instruction (const std::vector<uint8_t> &bytes, int op5);
-  static bool is_sop1_instruction (const std::vector<uint8_t> &bytes, int op7);
+  static bool is_sop1_instruction (const std::vector<uint8_t> &bytes, int op8);
+  static bool is_sop2_instruction (const std::vector<uint8_t> &bytes, int op7);
   static bool is_sopp_instruction (const std::vector<uint8_t> &bytes, int op7);
 
   /* Return the regnum for a scalar register operand.  */
@@ -246,6 +248,8 @@ protected:
   virtual bool is_branch (const std::vector<uint8_t> &bytes) const;
   virtual bool is_cbranch (const std::vector<uint8_t> &bytes) const;
   virtual bool is_cbranch_i_fork (const std::vector<uint8_t> &bytes) const;
+  virtual bool is_cbranch_g_fork (const std::vector<uint8_t> &bytes) const;
+  virtual bool is_cbranch_join (const std::vector<uint8_t> &bytes) const;
   virtual bool is_nop (const std::vector<uint8_t> &bytes) const;
   virtual bool is_trap (const std::vector<uint8_t> &bytes,
                         uint8_t *trap_id = nullptr) const;
@@ -255,8 +259,10 @@ protected:
 
   bool can_execute_displaced (const std::vector<uint8_t> &bytes) const override
   {
-    /* Displace stepping over a cbranch_i_fork is not supported.  */
-    return !is_cbranch_i_fork (bytes);
+    /* Displace stepping over a cbranch_i/g_fork or cbranch_join is not
+       supported.  */
+    return !is_cbranch_i_fork (bytes) && !is_cbranch_g_fork (bytes)
+           && !is_cbranch_join (bytes);
   }
 
   bool can_simulate (const std::vector<uint8_t> &bytes) const override
@@ -825,6 +831,8 @@ amdgcn_architecture_t::classify_instruction (
   amd_dbgapi_instruction_properties_t instruction_properties
       = AMD_DBGAPI_INSTRUCTION_PROPERTY_NONE;
 
+  std::optional<amdgpu_regnum_t> ssrc_regnum, sdst_regnum;
+
   size_t size = instruction_size (instruction);
   if (!size)
     throw AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION;
@@ -834,27 +842,43 @@ amdgcn_architecture_t::classify_instruction (
       instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_BRANCH;
       information_kind = information_kind_t::pc_direct;
     }
-  else if (is_cbranch (instruction))
+  else if (is_cbranch (instruction) || is_cbranch_i_fork (instruction))
     {
       instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_BRANCH_CONDITIONAL;
       information_kind = information_kind_t::pc_direct;
+    }
+  else if (is_cbranch_g_fork (instruction))
+    {
+      instruction_kind
+          = AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_BRANCH_CONDITIONAL_REGISTER_PAIR;
+      information_kind = information_kind_t::pc_indirect;
+      ssrc_regnum = scalar_operand_to_regnum (encoding_ssrc1 (instruction));
+    }
+  else if (is_cbranch_join (instruction))
+    {
+      instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_SPECIAL;
+      information_kind = information_kind_t::none;
     }
   else if (is_setpc (instruction))
     {
       instruction_kind
           = AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_BRANCH_REGISTER_PAIR;
       information_kind = information_kind_t::pc_indirect;
+      ssrc_regnum = scalar_operand_to_regnum (encoding_ssrc0 (instruction));
     }
   else if (is_call (instruction))
     {
       instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_CALL_REGISTER_PAIR;
       information_kind = information_kind_t::pc_direct;
+      sdst_regnum = scalar_operand_to_regnum (encoding_sdst (instruction));
     }
   else if (is_swappc (instruction))
     {
       instruction_kind
           = AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_CALL_REGISTER_PAIRS;
       information_kind = information_kind_t::pc_indirect;
+      ssrc_regnum = scalar_operand_to_regnum (encoding_ssrc0 (instruction));
+      sdst_regnum = scalar_operand_to_regnum (encoding_sdst (instruction));
     }
   else if (is_endpgm (instruction))
     {
@@ -898,22 +922,23 @@ amdgcn_architecture_t::classify_instruction (
     {
       ssize_t branch_offset = encoding_simm16 (instruction) << 2;
       information.emplace_back (address + size + branch_offset);
+
+      if (sdst_regnum.has_value ())
+        {
+          information.emplace_back (static_cast<uint64_t> (*sdst_regnum));
+          information.emplace_back (static_cast<uint64_t> (*sdst_regnum) + 1);
+        }
     }
   else if (information_kind == information_kind_t::pc_indirect)
     {
-      amdgpu_regnum_t ssrc_regnum
-          = scalar_operand_to_regnum (encoding_ssrc0 (instruction));
-      information.emplace_back (static_cast<uint64_t> (ssrc_regnum));
-      information.emplace_back (static_cast<uint64_t> (ssrc_regnum) + 1);
+      dbgapi_assert (ssrc_regnum.has_value ());
+      information.emplace_back (static_cast<uint64_t> (*ssrc_regnum));
+      information.emplace_back (static_cast<uint64_t> (*ssrc_regnum) + 1);
 
-      /* Indirect calls also store the return PC in a register pair.  */
-      if (instruction_kind
-          == AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_CALL_REGISTER_PAIRS)
+      if (sdst_regnum.has_value ())
         {
-          amdgpu_regnum_t sdst_regnum
-              = scalar_operand_to_regnum (encoding_sdst (instruction));
-          information.emplace_back (static_cast<uint64_t> (sdst_regnum));
-          information.emplace_back (static_cast<uint64_t> (sdst_regnum) + 1);
+          information.emplace_back (static_cast<uint64_t> (*sdst_regnum));
+          information.emplace_back (static_cast<uint64_t> (*sdst_regnum) + 1);
         }
     }
   else if (information_kind == information_kind_t::uint8)
@@ -1382,6 +1407,13 @@ amdgcn_architecture_t::encoding_ssrc0 (const std::vector<uint8_t> &bytes)
 }
 
 uint8_t
+amdgcn_architecture_t::encoding_ssrc1 (const std::vector<uint8_t> &bytes)
+{
+  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
+  return utils::bit_extract (encoding, 8, 15);
+}
+
+uint8_t
 amdgcn_architecture_t::encoding_sdst (const std::vector<uint8_t> &bytes)
 {
   uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
@@ -1424,8 +1456,21 @@ amdgcn_architecture_t::is_sop1_instruction (const std::vector<uint8_t> &bytes,
 
   uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
 
-  /* SOP1 [10111110 1 SDST7 OP7 SSRC08] */
+  /* SOP1 [10111110 1 SDST7 OP8 SSRC08] */
   return (encoding & 0xFF80FF00) == (0xBE800000 | (op8 & 0xFF) << 8);
+}
+
+bool
+amdgcn_architecture_t::is_sop2_instruction (const std::vector<uint8_t> &bytes,
+                                            int op7)
+{
+  if (bytes.size () < sizeof (uint32_t))
+    return false;
+
+  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
+
+  /* SOP2 [10 OP7 SDST7 SSRC18 SSRC08] */
+  return (encoding & 0xFF800000) == (0x80000000 | (op7 & 0x7F) << 23);
 }
 
 bool
@@ -1571,6 +1616,22 @@ amdgcn_architecture_t::is_cbranch_i_fork (
 {
   /* s_cbranch_i_fork: SOPK Opcode 16  */
   return is_sopk_instruction (bytes, 16);
+}
+
+bool
+amdgcn_architecture_t::is_cbranch_g_fork (
+    const std::vector<uint8_t> &bytes) const
+{
+  /* s_cbranch_g_fork: SOP2 Opcode 41  */
+  return is_sop2_instruction (bytes, 41);
+}
+
+bool
+amdgcn_architecture_t::is_cbranch_join (
+    const std::vector<uint8_t> &bytes) const
+{
+  /* s_cbranch_join: SOP1 Opcode 46  */
+  return is_sop1_instruction (bytes, 46);
 }
 
 bool
@@ -2485,6 +2546,9 @@ public:
   bool is_getpc (const std::vector<uint8_t> &bytes) const override;
   bool is_setpc (const std::vector<uint8_t> &bytes) const override;
   bool is_swappc (const std::vector<uint8_t> &bytes) const override;
+  bool is_cbranch_i_fork (const std::vector<uint8_t> &bytes) const override;
+  bool is_cbranch_g_fork (const std::vector<uint8_t> &bytes) const override;
+  bool is_cbranch_join (const std::vector<uint8_t> &bytes) const override;
 
   void
   control_stack_iterate (queue_t &queue, const uint32_t *control_stack,
@@ -2603,6 +2667,26 @@ gfx10_base_t::is_swappc (const std::vector<uint8_t> &bytes) const
 {
   /* s_swappc: SOP1 Opcode 33  */
   return is_sop1_instruction (bytes, 33);
+}
+
+bool
+gfx10_base_t::is_cbranch_i_fork (
+    const std::vector<uint8_t> & /* bytes  */) const
+{
+  return false;
+}
+
+bool
+gfx10_base_t::is_cbranch_g_fork (
+    const std::vector<uint8_t> & /* bytes  */) const
+{
+  return false;
+}
+
+bool
+gfx10_base_t::is_cbranch_join (const std::vector<uint8_t> & /* bytes  */) const
+{
+  return false;
 }
 
 uint64_t

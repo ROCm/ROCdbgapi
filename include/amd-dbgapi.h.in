@@ -471,10 +471,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_42
 
 /**
- * The function was introduced in version 0.45 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.45"``.
+ * The function was introduced in version 0.46 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.46"``.
  */
-#define AMD_DBGAPI_VERSION_0_45
+#define AMD_DBGAPI_VERSION_0_46
 
 /** @} */
 
@@ -1375,29 +1375,41 @@ typedef enum
    */
   AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_BRANCH_REGISTER_PAIR = 4,
   /**
+   * The instruction conditionally branches to an address held in a pair of
+   * registers.  If the condition is not satisfied then the next instruction
+   * is the following one.  The instruction information is of type
+   * ::amd_dbgapi_register_id_t[2] with the value of the register IDs for the
+   * registers holding the value of the target address of the branch if taken.
+   * The register with index 0 holds the least significant address bits, and
+   * the register with index 1 holds the most significant address bits.
+   */
+  AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_BRANCH_CONDITIONAL_REGISTER_PAIR = 5,
+  /**
    * The instruction unconditionally branches to a literal address and the
    * address of the following instruction is saved in a pair of registers.  The
-   * instruction information is of type ::amd_dbgapi_register_id_t[2] with the
-   * value of the register IDs for the registers.  The register with index 0
+   * instruction information is of type
+   * ::amd_dbgapi_direct_call_register_pair_information_t with the value of the
+   * target address of the call followed by the value of the saved return
+   * address register IDs.  The saved return address register with index 0
    * holds the least significant address bits, and the register with index 1
    * holds the most significant address bits.
    */
-  AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_CALL_REGISTER_PAIR = 5,
+  AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_CALL_REGISTER_PAIR = 6,
   /**
    * The instruction unconditionally branches to an address held in a pair of
    * source registers and the address of the following instruction is saved in
-   * a pair of destintion registers.  The instruction information is of type
-   * ::amd_dbgapi_register_id_t[4] with the source register IDs in indicies 0
-   * and 1, and the destination register IDs in indicies 2 and 3. The registers
-   * with indicies 0 and 2 hold the least significant address bits, and the
-   * registers with indicies 1 and 3 hold the most significant address bits.
+   * a pair of destination registers.  The instruction information is of type
+   * ::amd_dbgapi_register_id_t[4] with the source register IDs in indices 0
+   * and 1, and the destination register IDs in indices 2 and 3. The registers
+   * with indices 0 and 2 hold the least significant address bits, and the
+   * registers with indices 1 and 3 hold the most significant address bits.
    */
-  AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_CALL_REGISTER_PAIRS = 6,
+  AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_CALL_REGISTER_PAIRS = 7,
   /**
    * The instruction terminates the wave execution.  The instruction has no
    * information.
    */
-  AMD_DBGAPI_INSTRUCTION_KIND_TERMINATE = 7,
+  AMD_DBGAPI_INSTRUCTION_KIND_TERMINATE = 8,
   /**
    * The instruction enters the trap handler.  The trap handler may return to
    * resume execution, may halt the wave and create an event for
@@ -1411,25 +1423,25 @@ typedef enum
    * report errors and stop executing correctly.  The instruction information is
    * of type \p uint64_t with the value of the trap code.
    */
-  AMD_DBGAPI_INSTRUCTION_KIND_TRAP = 8,
+  AMD_DBGAPI_INSTRUCTION_KIND_TRAP = 9,
   /**
    * The instruction unconditionally halts the wave.  The instruction has no
    * information.
    */
-  AMD_DBGAPI_INSTRUCTION_KIND_HALT = 9,
+  AMD_DBGAPI_INSTRUCTION_KIND_HALT = 10,
   /**
    * The instruction performs some kind of execution barrier which may result
    * in the wave being halted until other waves allow it to continue.  Such
    * instructions include wave execution barriers, wave synchronization
-   * barriers, and wave semephores.  The instruction has no information.
+   * barriers, and wave semaphores.  The instruction has no information.
    */
-  AMD_DBGAPI_INSTRUCTION_KIND_BARRIER = 10,
+  AMD_DBGAPI_INSTRUCTION_KIND_BARRIER = 11,
   /**
    * The instruction causes the wave to stop executing for some period of time,
    * before continuing execution with the next instruction.  The instruction
    * has no information.
    */
-  AMD_DBGAPI_INSTRUCTION_KIND_SLEEP = 11,
+  AMD_DBGAPI_INSTRUCTION_KIND_SLEEP = 12,
   /**
    * The instruction has some form of special behavior not covered by any of
    * the other instruction kinds.  This likely makes it unsuitable to assume it
@@ -1438,7 +1450,7 @@ typedef enum
    * that may send interrupts, and so forth.  The instruction has no
    * information.
    */
-  AMD_DBGAPI_INSTRUCTION_KIND_SPECIAL = 12
+  AMD_DBGAPI_INSTRUCTION_KIND_SPECIAL = 13
 } amd_dbgapi_instruction_kind_t;
 
 /**
@@ -1533,7 +1545,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_classify_instruction (
     amd_dbgapi_global_address_t address, amd_dbgapi_size_t *size,
     const void *memory, amd_dbgapi_instruction_kind_t *instruction_kind,
     amd_dbgapi_instruction_properties_t *instruction_properties,
-    void **instruction_information) AMD_DBGAPI_VERSION_0_45;
+    void **instruction_information) AMD_DBGAPI_VERSION_0_46;
 
 /** @} */
 
@@ -3513,7 +3525,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_resume (
     amd_dbgapi_wave_id_t wave_id,
-    amd_dbgapi_resume_mode_t resume_mode) AMD_DBGAPI_VERSION_0_45;
+    amd_dbgapi_resume_mode_t resume_mode) AMD_DBGAPI_VERSION_0_46;
 
 /** @} */
 
@@ -3770,7 +3782,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_get_info (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_start (
     amd_dbgapi_wave_id_t wave_id, const void *saved_instruction_bytes,
     amd_dbgapi_displaced_stepping_id_t *displaced_stepping)
-    AMD_DBGAPI_VERSION_0_45;
+    AMD_DBGAPI_VERSION_0_46;
 
 /**
  * Complete a displaced stepping buffer for a wave.
@@ -4359,7 +4371,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_get_info (
     amd_dbgapi_register_id_t register_id, amd_dbgapi_register_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_45;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_46;
 
 /**
  * Indication of if a wave has a register.
@@ -4782,6 +4794,19 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_prefetch_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
     amd_dbgapi_size_t register_count) AMD_DBGAPI_VERSION_0_41;
 
+/**
+ * Instruction information for direct call instructions.
+ *
+ * Used by ::amd_dbgapi_classify_instruction to report the target address and
+ * saved return registers IDs information for instructions of the
+ * ::AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_CALL_REGISTER_PAIR kind.
+ */
+typedef struct
+{
+  amd_dbgapi_global_address_t target_address;
+  amd_dbgapi_register_id_t saved_return_address_register[2];
+} amd_dbgapi_direct_call_register_pair_information_t;
+
 /** @} */
 
 /** \defgroup memory_group Memory
@@ -4930,7 +4955,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_class_get_info (
     amd_dbgapi_address_class_id_t address_class_id,
     amd_dbgapi_address_class_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_45;
+    void *value) AMD_DBGAPI_VERSION_0_46;
 
 /**
  * Report the list of source language address classes supported by the
@@ -5154,7 +5179,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_space_get_info (
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_address_space_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_45;
+    void *value) AMD_DBGAPI_VERSION_0_46;
 
 /**
  * Report the list of address spaces supported by the architecture.

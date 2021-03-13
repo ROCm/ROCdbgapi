@@ -69,7 +69,7 @@ global: amd_dbgapi_displaced_stepping_complete;
         amd_dbgapi_write_register;
 } @AMD_DBGAPI_NAME@_0.41;
 
-@AMD_DBGAPI_NAME@_0.45 {
+@AMD_DBGAPI_NAME@_0.46 {
 global: amd_dbgapi_address_class_get_info;
         amd_dbgapi_address_space_get_info;
         amd_dbgapi_classify_instruction;
