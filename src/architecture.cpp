@@ -1199,7 +1199,7 @@ amdgcn_architecture_t::wave_get_state (wave_t &wave) const
     return { wave.state (), AMD_DBGAPI_WAVE_STOP_REASON_NONE };
 
   if (wave.state () == AMD_DBGAPI_WAVE_STATE_STOP)
-    /* The wave is still is stopped, the stop reason is unchanged.  */
+    /* The wave is still stopped, the stop reason is unchanged.  */
     return { AMD_DBGAPI_WAVE_STATE_STOP, wave.stop_reason () };
 
   /* The wave was previously running, and it is now stopped after executing the
@@ -2664,7 +2664,12 @@ gfx9_architecture_t::cbranch_condition_code (
   const instruction_t &instruction) const
 {
   dbgapi_assert (is_cbranch (instruction));
-  return cbranch_opcodes_map.find (encoding_op7 (instruction))->second;
+
+  auto it = gfx9_architecture_t::cbranch_opcodes_map.find (
+    encoding_op7 (instruction));
+  dbgapi_assert (it != gfx9_architecture_t::cbranch_opcodes_map.end ());
+
+  return it->second;
 }
 
 bool
@@ -4460,6 +4465,542 @@ public:
   }
 };
 
+class gfx11_architecture_t : public gfx10_architecture_t
+{
+private:
+  static const std::unordered_map<uint16_t, cbranch_cond_t>
+    cbranch_opcodes_map;
+
+protected:
+  static constexpr uint32_t sq_wave_mode_trap_after_inst_en_mask = 1 << 11;
+  static constexpr uint32_t sq_wave_mode_trap_wave_end_mask = 1 << 21;
+
+  static constexpr uint32_t sq_wave_trapsts_host_trap_mask = 1 << 16;
+  static constexpr uint32_t sq_wave_trapsts_wave_begin_mask = 1 << 17;
+  static constexpr uint32_t sq_wave_trapsts_wave_end_mask = 1 << 18;
+  static constexpr uint32_t sq_wave_trapsts_perf_snapshot_mask = 1 << 19;
+  static constexpr uint32_t sq_wave_trapsts_trap_after_inst_mask = 1 << 20;
+
+  class cwsr_record_t : public gfx10_architecture_t::cwsr_record_t
+  {
+  public:
+    cwsr_record_t (compute_queue_t &queue, uint32_t compute_relaunch_wave,
+                   uint32_t compute_relaunch_state,
+                   uint32_t compute_relaunch2_state,
+                   amd_dbgapi_global_address_t context_save_address)
+      : gfx10_architecture_t::cwsr_record_t (
+        queue, compute_relaunch_wave, compute_relaunch_state,
+        compute_relaunch2_state, context_save_address)
+    {
+    }
+  };
+
+  virtual std::unique_ptr<architecture_t::cwsr_record_t>
+  make_gfx11_cwsr_record (
+    compute_queue_t &queue, uint32_t compute_relaunch_wave,
+    uint32_t compute_relaunch_state, uint32_t compute_relaunch2_state,
+    amd_dbgapi_global_address_t context_save_address) const
+  {
+    return std::make_unique<cwsr_record_t> (
+      queue, compute_relaunch_wave, compute_relaunch_state,
+      compute_relaunch2_state, context_save_address);
+  }
+
+  gfx11_architecture_t (elf_amdgpu_machine_t e_machine,
+                        std::string target_triple)
+    : gfx10_architecture_t (e_machine, std::move (target_triple))
+  {
+  }
+
+public:
+  std::pair<amd_dbgapi_wave_state_t, amd_dbgapi_wave_stop_reasons_t>
+  wave_get_state (wave_t &wave) const override;
+  void wave_set_state (wave_t &wave,
+                       amd_dbgapi_wave_state_t state) const override;
+
+  std::optional<amd_dbgapi_global_address_t>
+  simulate_instruction (wave_t &wave, amd_dbgapi_global_address_t pc,
+                        const instruction_t &instruction) const override;
+
+  std::string register_type (amdgpu_regnum_t regnum) const override;
+
+  cbranch_cond_t
+  cbranch_condition_code (const instruction_t &instruction) const override;
+
+  instruction_t trap_instruction (std::optional<trap_id_t> trap_id
+                                  = std::nullopt) const override;
+  instruction_t terminating_instruction () const override;
+
+  bool
+  is_subvector_loop_begin (const instruction_t &instruction) const override;
+  bool is_subvector_loop_end (const instruction_t &instruction) const override;
+
+  bool is_sethalt (const instruction_t &instruction) const override;
+  bool is_barrier (const instruction_t &instruction) const override;
+  bool is_sleep (const instruction_t &instruction) const override;
+  bool is_call (const instruction_t &instruction) const override;
+  bool is_getpc (const instruction_t &instruction) const override;
+  bool is_setpc (const instruction_t &instruction) const override;
+  bool is_swappc (const instruction_t &instruction) const override;
+  bool is_branch (const instruction_t &instruction) const override;
+  bool is_cbranch (const instruction_t &instruction) const override;
+  bool is_trap (const instruction_t &instruction,
+                trap_id_t *trap_id = nullptr) const override;
+  bool is_endpgm (const instruction_t &instruction) const override;
+  bool is_sequential (const instruction_t &instruction) const override;
+
+  const void *register_read_only_mask (amdgpu_regnum_t regnum) const override;
+
+  std::pair<amd_dbgapi_size_t /* offset  */, amd_dbgapi_size_t /* size  */>
+  scratch_memory_region (uint32_t compute_tmpring_size_register,
+                         uint32_t shader_engine_count,
+                         uint32_t shader_engine_id,
+                         uint32_t scoreboard_id) const override;
+
+  bool can_halt_at_endpgm () const override { return true; }
+  bool has_architected_flat_scratch () const override { return true; };
+};
+
+std::pair<amd_dbgapi_wave_state_t, amd_dbgapi_wave_stop_reasons_t>
+gfx11_architecture_t::wave_get_state (wave_t &wave) const
+{
+  /* Don't call gfx10_architecture_t::wave_get_state as it tries to deduce
+     single-stepping from the absence of any other reason for the exception.
+     Instead, call amdgcn_architecture_t::wave_get_state as it is the base for
+     all GCN/RDNA/CDNA architectures.  */
+  auto [state, stop_reason] = amdgcn_architecture_t::wave_get_state (wave);
+
+  /* gfx11 precisely reports single-step exception by setting a bit in the
+     trapsts register.  */
+
+  if (wave.state () != AMD_DBGAPI_WAVE_STATE_STOP
+      && state == AMD_DBGAPI_WAVE_STATE_STOP)
+    {
+      uint32_t trapsts;
+      wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
+
+      if (trapsts & sq_wave_trapsts_trap_after_inst_mask)
+        stop_reason |= AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP;
+      if (trapsts
+          & (sq_wave_trapsts_wave_begin_mask | sq_wave_trapsts_wave_end_mask))
+        stop_reason |= AMD_DBGAPI_WAVE_STOP_REASON_TRAP;
+    }
+
+  return { state, stop_reason };
+}
+
+void
+gfx11_architecture_t::wave_set_state (wave_t &wave,
+                                      amd_dbgapi_wave_state_t state) const
+{
+  gfx10_architecture_t::wave_set_state (wave, state);
+
+  /* When resuming a wave, clear the exceptions in the trapsts register that
+     have already been reported by a stop event (stop_reason != 0).  */
+  if (state != AMD_DBGAPI_WAVE_STATE_STOP
+      && wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
+      && wave.stop_reason () != AMD_DBGAPI_WAVE_STOP_REASON_NONE)
+    {
+      amd_dbgapi_wave_stop_reasons_t stop_reason = wave.stop_reason ();
+      uint32_t clear_exceptions
+        = sq_wave_trapsts_wave_begin_mask | sq_wave_trapsts_wave_end_mask;
+
+      if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP)
+        clear_exceptions |= sq_wave_trapsts_trap_after_inst_mask;
+
+      if (clear_exceptions)
+        {
+          uint32_t trapsts;
+          wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
+          trapsts &= ~clear_exceptions;
+          wave.write_register (amdgpu_regnum_t::trapsts, trapsts);
+        }
+    }
+}
+
+std::optional<amd_dbgapi_global_address_t>
+gfx11_architecture_t::simulate_instruction (
+  wave_t &wave, amd_dbgapi_global_address_t pc,
+  const instruction_t &instruction) const
+{
+  auto next_pc
+    = gfx10_architecture_t::simulate_instruction (wave, pc, instruction);
+
+  if (next_pc)
+    {
+      uint32_t mode_reg;
+      wave.read_register (amdgpu_regnum_t::mode, &mode_reg);
+
+      /* If single-stepping, raise the trap_after_inst exception.  */
+      if (mode_reg & sq_wave_mode_trap_after_inst_en_mask)
+        {
+          uint32_t trapsts;
+          wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
+          trapsts |= sq_wave_trapsts_trap_after_inst_mask;
+          wave.write_register (amdgpu_regnum_t::trapsts, trapsts);
+        }
+    }
+
+  return next_pc;
+}
+
+std::string
+gfx11_architecture_t::register_type (amdgpu_regnum_t regnum) const
+{
+  switch (regnum)
+    {
+    case amdgpu_regnum_t::pseudo_status:
+      return "flags32_t status {"
+             "  bool SCC @0;"
+             "  uint32_t SPI_PRIO @1-2;"
+             "  uint32_t USER_PRIO @3-4;"
+             "  bool PRIV @5;"
+             "  bool TRAP_EN @6;"
+             "  bool TTRACE_EN @7;"
+             "  bool EXPORT_RDY @8;"
+             "  bool EXECZ @9;"
+             "  bool VCCZ @10;"
+             "  bool IN_TG @11;"
+             "  bool IN_BARRIER @12;"
+             "  bool HALT @13;"
+             "  bool TRAP @14;"
+             "  bool TTRACE_SIMD_EN @15;"
+             "  bool VALID @16;"
+             "  bool ECC_ERR @17;"
+             "  bool SKIP_EXPORT @18;"
+             "  bool PERF_EN @19;"
+             "  bool COND_DBG_USER @20;"
+             "  bool COND_DBG_SYS @21;"
+             "  bool OREO_CONFLICT @22;"
+             "  bool FATAL_HALT @23;"
+             "  bool NO_VGPRS @24;"
+             "  bool LDS_PARAM_READY @25;"
+             "  bool MUST_GS_ALLOC @26;"
+             "  bool MUST_EXPORT @27;"
+             "  bool IDLE @28;"
+             "  bool SCRATCH_EN @29;"
+             "}";
+
+    case amdgpu_regnum_t::mode:
+      return "flags32_t mode {"
+             "  enum fp_round {"
+             "    NEAREST_EVEN = 0,"
+             "    PLUS_INF  = 1,"
+             "    MINUS_INF = 2,"
+             "    ZERO      = 3"
+             "  } FP_ROUND.32 @0-1;"
+             "  enum fp_round FP_ROUND.64_16 @2-3;"
+             "  enum fp_denorm {"
+             "    FLUSH_SRC_DST = 0,"
+             "    FLUSH_DST     = 1,"
+             "    FLUSH_SRC     = 2,"
+             "    FLUSH_NONE    = 3"
+             "  } FP_DENORM.32 @4-5;"
+             "  enum fp_denorm FP_DENORM.64_16 @6-7;"
+             "  bool DX10_CLAMP @8;"
+             "  bool IEEE @9;"
+             "  bool LOD_CLAMPED @10;"
+             "  bool TRAP_AFTER_INST_EN @11;"
+             "  bool EXCP_EN.INVALID @12;"
+             "  bool EXCP_EN.DENORM @13;"
+             "  bool EXCP_EN.DIV0 @14;"
+             "  bool EXCP_EN.OVERFLOW @15;"
+             "  bool EXCP_EN.UNDERFLOW @16;"
+             "  bool EXCP_EN.INEXACT @17;"
+             "  bool EXCP_EN.INT_DIV0 @18;"
+             "  bool EXCP_EN.ADDR_WATCH @19;"
+             "  bool WAVE_END @21;"
+             "  bool FP16_OVFL @23;"
+             "  bool DISABLE_PERF @27;"
+             "}";
+
+    case amdgpu_regnum_t::trapsts:
+      return "flags32_t trapsts {"
+             "  bool EXCP.INVALID @0;"
+             "  bool EXCP.DENORM @1;"
+             "  bool EXCP.DIV0 @2;"
+             "  bool EXCP.OVERFLOW @3;"
+             "  bool EXCP.UNDERFLOW @4;"
+             "  bool EXCP.INEXACT @5;"
+             "  bool EXCP.INT_DIV0 @6;"
+             "  bool EXCP.ADDR_WATCH @7;"
+             "  bool EXCP.MEM_VIOL @8;"
+             "  bool SAVE_CTX @10;"
+             "  bool ILLEGAL_INST @11;"
+             "  bool EXCP_HI.ADDR_WATCH1 @12;"
+             "  bool EXCP_HI.ADDR_WATCH2 @13;"
+             "  bool EXCP_HI.ADDR_WATCH3 @14;"
+             "  bool BUFFER_OOB @15;"
+             "  bool HOST_TRAP @16;"
+             "  bool WAVE_START @17;"
+             "  bool WAVE_END @18;"
+             "  bool PERF_SNAPSHOT @19;"
+             "  bool TRAP_AFTER_INST @20;"
+             "  bool UTC_ERROR @28;"
+             "}";
+
+    default:
+      return gfx10_architecture_t::register_type (regnum);
+    }
+}
+
+const void *
+gfx11_architecture_t::register_read_only_mask (amdgpu_regnum_t regnum) const
+{
+  switch (regnum)
+    {
+    case amdgpu_regnum_t::trapsts:
+      static uint32_t trapsts_read_only_bits
+        = utils::bit_mask (9, 9) /* 0  */ | utils::bit_mask (21, 27) /* 0  */
+          | utils::bit_mask (29, 31) /* 0  */;
+      return &trapsts_read_only_bits;
+
+    case amdgpu_regnum_t::mode:
+      static uint32_t mode_read_only_bits = utils::bit_mask (22, 22)   /* 0 */
+                                            | utils::bit_mask (24, 26) /* 0 */
+                                            | utils::bit_mask (28, 31) /* 0 */;
+      return &mode_read_only_bits;
+
+    case amdgpu_regnum_t::pseudo_status:
+      static uint32_t status_read_only_bits = utils::bit_mask (0, 31);
+      return &status_read_only_bits;
+
+    default:
+      return gfx10_architecture_t::register_read_only_mask (regnum);
+    }
+}
+
+decltype (gfx11_architecture_t::cbranch_opcodes_map)
+  gfx11_architecture_t::cbranch_opcodes_map{
+    { 33, cbranch_cond_t::scc0 },
+    { 34, cbranch_cond_t::scc1 },
+    { 35, cbranch_cond_t::vccz },
+    { 36, cbranch_cond_t::vccnz },
+    { 37, cbranch_cond_t::execz },
+    { 38, cbranch_cond_t::execnz },
+    { 39, cbranch_cond_t::cdbgsys },
+    { 40, cbranch_cond_t::cdbguser },
+    { 41, cbranch_cond_t::cdbgsys_or_user },
+    { 42, cbranch_cond_t::cdbgsys_and_user },
+  };
+
+instruction_t
+gfx11_architecture_t::trap_instruction (std::optional<trap_id_t> trap_id) const
+{
+  uint8_t imm8 = static_cast<uint8_t> (trap_id.value_or (trap_id_t::reserved));
+  return instruction_t (
+    legal_instruction, *this,
+    std::vector<std::byte> ({ /* s_trap #imm8  */ std::byte{ imm8 },
+                              std::byte{ 0x00 }, std::byte{ 0x90 },
+                              std::byte{ 0xBF } }));
+}
+
+instruction_t
+gfx11_architecture_t::terminating_instruction () const
+{
+  return instruction_t (
+    legal_instruction, *this,
+    std::vector<std::byte> ({ /* s_endpgm 0  */ std::byte{ 0x00 },
+                              std::byte{ 0x00 }, std::byte{ 0xB0 },
+                              std::byte{ 0xBF } }));
+}
+
+bool
+gfx11_architecture_t::is_sethalt (const instruction_t &instruction) const
+{
+  /* s_code_end: SOPP Opcode 2  */
+  return is_sopp_encoding<2> (instruction);
+}
+
+bool
+gfx11_architecture_t::is_barrier (const instruction_t &instruction) const
+{
+  /* s_barrier: SOPP Opcode 61  */
+  return is_sopp_encoding<61> (instruction);
+}
+
+bool
+gfx11_architecture_t::is_sleep (const instruction_t &instruction) const
+{
+  /* s_sleep: SOPP Opcode 3  */
+  return is_sopp_encoding<3> (instruction);
+}
+
+bool
+gfx11_architecture_t::is_call (const instruction_t &instruction) const
+{
+  /* s_call: SOPK Opcode 20  */
+  return is_sopk_encoding<20> (instruction);
+}
+
+bool
+gfx11_architecture_t::is_getpc (const instruction_t &instruction) const
+{
+  /* s_getpc: SOP1 Opcode 71  */
+  return is_sop1_encoding<71> (instruction);
+}
+
+bool
+gfx11_architecture_t::is_setpc (const instruction_t &instruction) const
+{
+  /* s_setpc: SOP1 Opcode 72  */
+  return is_sop1_encoding<72> (instruction);
+}
+
+bool
+gfx11_architecture_t::is_swappc (const instruction_t &instruction) const
+{
+  /* s_swappc: SOP1 Opcode 73  */
+  return is_sop1_encoding<73> (instruction);
+}
+
+bool
+gfx11_architecture_t::is_branch (const instruction_t &instruction) const
+{
+  /* s_branch: SOPP Opcode 32  */
+  return is_sopp_encoding<32> (instruction);
+}
+
+bool
+gfx11_architecture_t::is_cbranch (const instruction_t &instruction) const
+{
+  if (instruction.capacity () < sizeof (instruction.word<0> ()))
+    return false;
+
+  /* s_cbranch_scc0:             SOPP Opcode 33 [10111111 10100001 SIMM16]
+     s_cbranch_scc1:             SOPP Opcode 34 [10111111 10100010 SIMM16]
+     s_cbranch_vccz:             SOPP Opcode 35 [10111111 10100011 SIMM16]
+     s_cbranch_vccnz:            SOPP Opcode 36 [10111111 10100100 SIMM16]
+     s_cbranch_execz:            SOPP Opcode 37 [10111111 10100101 SIMM16]
+     s_cbranch_execnz:           SOPP Opcode 38 [10111111 10100110 SIMM16]
+     s_cbranch_cdbgsys:          SOPP Opcode 39 [10111111 10100111 SIMM16]
+     s_cbranch_cdbguser:         SOPP Opcode 40 [10111111 10101000 SIMM16]
+     s_cbranch_cdbgsys_or_user:  SOPP Opcode 41 [10111111 10101001 SIMM16]
+     s_cbranch_cdbgsys_and_user: SOPP Opcode 42 [10111111 10101010 SIMM16] */
+  if ((instruction.word<0> () & 0xFF800000) != 0xBF800000)
+    return false;
+
+  return gfx11_architecture_t::cbranch_opcodes_map.find (
+           encoding_op7 (instruction))
+         != gfx11_architecture_t::cbranch_opcodes_map.end ();
+}
+
+amdgcn_architecture_t::cbranch_cond_t
+gfx11_architecture_t::cbranch_condition_code (
+  const instruction_t &instruction) const
+{
+  dbgapi_assert (is_cbranch (instruction));
+
+  auto it = gfx11_architecture_t::cbranch_opcodes_map.find (
+    encoding_op7 (instruction));
+
+  dbgapi_assert (it != gfx11_architecture_t::cbranch_opcodes_map.end ());
+  return it->second;
+}
+
+bool
+gfx11_architecture_t::is_trap (const instruction_t &instruction,
+                               trap_id_t *trap_id) const
+{
+  /* s_trap: SOPP Opcode 16  */
+  if (is_sopp_encoding<16> (instruction))
+    {
+      if (trap_id)
+        *trap_id = trap_id_t{ static_cast<std::underlying_type_t<trap_id_t>> (
+          utils::bit_extract (simm16_operand (instruction), 0, 7)) };
+
+      return true;
+    }
+  return false;
+}
+
+bool
+gfx11_architecture_t::is_endpgm (const instruction_t &instruction) const
+{
+  /* s_endpgm: SOPP Opcode 48  */
+  return is_sopp_encoding<48> (instruction);
+}
+
+bool
+gfx11_architecture_t::is_subvector_loop_begin (
+  const instruction_t &instruction) const
+{
+  /* s_subvector_loop_begin: SOPK Opcode 22  */
+  return instruction.is_valid () && is_sopk_encoding<22> (instruction);
+}
+
+bool
+gfx11_architecture_t::is_subvector_loop_end (
+  const instruction_t &instruction) const
+{
+  /* s_subvector_loop_end: SOPK Opcode 23  */
+  return instruction.is_valid () && is_sopk_encoding<23> (instruction);
+}
+
+bool
+gfx11_architecture_t::is_sequential (const instruction_t &instruction) const
+{
+  if (!instruction.is_valid ())
+    return false;
+
+  return /* s_endpgm/s_branch/s_cbranch  */
+    !is_sopp_encoding<48, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42> (
+      instruction)
+    /* s_setpc_b64/s_swappc_b64  */
+    && !is_sop1_encoding<72, 73> (instruction)
+    /* s_call_b64/s_subvector_loop_begin/s_subvector_loop_end  */
+    && !is_sopk_encoding<20, 22, 23> (instruction);
+}
+
+std::pair<amd_dbgapi_size_t /* offset  */, amd_dbgapi_size_t /* size  */>
+gfx11_architecture_t::scratch_memory_region (
+  uint32_t compute_tmpring_size_register, uint32_t /* shader_engine_count  */,
+  uint32_t shader_engine_id, uint32_t scoreboard_id) const
+{
+  /* Total size of allocated scratch memory in number of waves.  */
+  amd_dbgapi_size_t waves
+    = utils::bit_extract (compute_tmpring_size_register, 0, 11);
+  /* Amount of space in bytes used by each wave.  */
+  amd_dbgapi_size_t wavesize
+    = utils::bit_extract (compute_tmpring_size_register, 12, 26) * 256;
+
+  /* For gfx11, the number of waves is per shader engine instead of total.  */
+  amd_dbgapi_size_t offset
+    = (waves * shader_engine_id + scoreboard_id) * wavesize;
+
+  return { offset, wavesize };
+}
+
+class gfx1100_t final : public gfx11_architecture_t
+{
+public:
+  gfx1100_t ()
+    : gfx11_architecture_t (EF_AMDGPU_MACH_AMDGCN_GFX1100,
+                            "amdgcn-amd-amdhsa--gfx1100")
+  {
+  }
+};
+
+class gfx1101_t final : public gfx11_architecture_t
+{
+public:
+  gfx1101_t ()
+    : gfx11_architecture_t (EF_AMDGPU_MACH_AMDGCN_GFX1101,
+                            "amdgcn-amd-amdhsa--gfx1101")
+  {
+  }
+};
+
+class gfx1102_t final : public gfx11_architecture_t
+{
+public:
+  gfx1102_t ()
+    : gfx11_architecture_t (EF_AMDGPU_MACH_AMDGCN_GFX1102,
+                            "amdgcn-amd-amdhsa--gfx1102")
+  {
+  }
+};
+
 architecture_t::architecture_t (elf_amdgpu_machine_t e_machine,
                                 std::string target_triple)
   : m_architecture_id (
@@ -4631,6 +5172,9 @@ decltype (architecture_t::s_architecture_map)
       map.emplace (make_architecture<gfx1030_t> ());
       map.emplace (make_architecture<gfx1031_t> ());
       map.emplace (make_architecture<gfx1032_t> ());
+      map.emplace (make_architecture<gfx1100_t> ());
+      map.emplace (make_architecture<gfx1101_t> ());
+      map.emplace (make_architecture<gfx1102_t> ());
       return map;
     }()
   };
