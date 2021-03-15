@@ -257,20 +257,23 @@ protected:
   bool is_endpgm (const std::vector<uint8_t> &bytes) const override;
   bool is_breakpoint (const std::vector<uint8_t> &bytes) const override;
 
-  bool can_execute_displaced (const std::vector<uint8_t> &bytes) const override
+  bool can_execute_displaced (
+    const std::vector<uint8_t> & /* bytes */) const override
   {
-    /* Displace stepping over a cbranch_i/g_fork or cbranch_join is not
-       supported.  */
-    return !is_cbranch_i_fork (bytes) && !is_cbranch_g_fork (bytes)
-           && !is_cbranch_join (bytes);
+    return true;
   }
 
   bool can_simulate (const std::vector<uint8_t> &bytes) const override
   {
-    return is_branch (bytes) || is_cbranch (bytes) || is_call (bytes)
-           || is_getpc (bytes) || is_setpc (bytes) || is_swappc (bytes)
-           || is_endpgm (bytes) || is_nop (bytes);
+    return is_branch (bytes) || is_cbranch (bytes) || is_cbranch_i_fork (bytes)
+           || is_cbranch_g_fork (bytes) || is_cbranch_join (bytes)
+           || is_call (bytes) || is_getpc (bytes) || is_setpc (bytes)
+           || is_swappc (bytes) || is_endpgm (bytes) || is_nop (bytes);
   }
+
+  virtual bool
+  is_cbranch_taken (wave_t &wave,
+                    const std::vector<uint8_t> &instruction) const;
 
   virtual amd_dbgapi_global_address_t
   branch_target (wave_t &wave, amd_dbgapi_global_address_t pc,
@@ -741,76 +744,131 @@ amdgcn_architecture_t::breakpoint_instruction_pc_adjust () const
   return 0;
 }
 
-amd_dbgapi_global_address_t
-amdgcn_architecture_t::branch_target (
-  wave_t &wave, amd_dbgapi_global_address_t pc,
-  const std::vector<uint8_t> &instruction) const
+bool
+amdgcn_architecture_t::is_cbranch_taken (
+  wave_t &wave, const std::vector<uint8_t> &instruction) const
 {
-  amd_dbgapi_global_address_t new_pc = pc + instruction.size ();
-  ssize_t branch_offset = encoding_simm16 (instruction) << 2;
-
-  if (is_branch (instruction) || is_call (instruction))
-    {
-      /* Unconditional branch is always taken.  */
-      new_pc += branch_offset;
-    }
-  else if (is_cbranch (instruction))
+  if (is_cbranch (instruction))
     {
       uint32_t status_reg;
 
       wave.read_register (amdgpu_regnum_t::status, &status_reg);
 
       /* Evaluate the condition.  */
-      bool branch_taken{};
       switch (cbranch_opcodes_map.find (encoding_op7 (instruction))->second)
         {
         case cbranch_cond_t::scc0:
-          branch_taken = (status_reg & sq_wave_status_scc_mask) == 0;
-          break;
+          return (status_reg & sq_wave_status_scc_mask) == 0;
         case cbranch_cond_t::scc1:
-          branch_taken = (status_reg & sq_wave_status_scc_mask) != 0;
-          break;
+          return (status_reg & sq_wave_status_scc_mask) != 0;
         case cbranch_cond_t::execz:
-          branch_taken = (status_reg & sq_wave_status_execz_mask) != 0;
-          break;
+          return (status_reg & sq_wave_status_execz_mask) != 0;
         case cbranch_cond_t::execnz:
-          branch_taken = (status_reg & sq_wave_status_execz_mask) == 0;
-          break;
+          return (status_reg & sq_wave_status_execz_mask) == 0;
         case cbranch_cond_t::vccz:
-          branch_taken = (status_reg & sq_wave_status_vccz_mask) != 0;
-          break;
+          return (status_reg & sq_wave_status_vccz_mask) != 0;
         case cbranch_cond_t::vccnz:
-          branch_taken = (status_reg & sq_wave_status_vccz_mask) == 0;
-          break;
+          return (status_reg & sq_wave_status_vccz_mask) == 0;
         case cbranch_cond_t::cdbgsys:
-          branch_taken = (status_reg & sq_wave_status_cond_dbg_sys_mask) != 0;
-          break;
+          return (status_reg & sq_wave_status_cond_dbg_sys_mask) != 0;
         case cbranch_cond_t::cdbguser:
-          branch_taken = (status_reg & sq_wave_status_cond_dbg_user_mask) != 0;
-          break;
+          return (status_reg & sq_wave_status_cond_dbg_user_mask) != 0;
         case cbranch_cond_t::cdbgsys_or_user:
           {
             uint32_t mask = sq_wave_status_cond_dbg_sys_mask
                             | sq_wave_status_cond_dbg_user_mask;
-            branch_taken = (status_reg & mask) != 0;
-            break;
+            return (status_reg & mask) != 0;
           }
         case cbranch_cond_t::cdbgsys_and_user:
           {
             uint32_t mask = sq_wave_status_cond_dbg_sys_mask
                             | sq_wave_status_cond_dbg_user_mask;
-            branch_taken = (status_reg & mask) == mask;
-            break;
+            return (status_reg & mask) == mask;
           }
         }
-
-      if (branch_taken)
-        new_pc += branch_offset;
+      error ("should not reach here: invalid cbranch_cond_t");
     }
-  else
-    error ("Invalid instruction");
 
-  return new_pc;
+  if (is_cbranch_i_fork (instruction) || is_cbranch_g_fork (instruction))
+    {
+      dbgapi_assert (wave.lane_count () == 64);
+
+      uint32_t mask_lo, mask_hi;
+
+      amdgpu_regnum_t regnum = scalar_operand_to_regnum (
+        is_cbranch_i_fork (instruction) ? encoding_sdst (instruction)
+                                        : encoding_ssrc0 (instruction));
+
+      /* The hardware requires a 64-bit address register pair to have the lower
+         register number be even.  If it is not, then it is treated as if the
+         lower register number is the preceding even register number.  So mask
+         out lower bit of the register number.  */
+      regnum = regnum & -2;
+
+      wave.read_register (regnum + 0, &mask_lo);
+      wave.read_register (regnum + 1, &mask_hi);
+
+      uint64_t mask, exec, mask_pass, mask_fail;
+      mask = (static_cast<uint64_t> (mask_hi) << 32) | mask_lo;
+
+      wave.read_register (amdgpu_regnum_t::exec_64, &exec);
+
+      mask_pass = mask & exec;
+      mask_fail = ~mask & exec;
+
+      if (mask_pass == exec)
+        return true;
+
+      if (mask_fail == exec)
+        return false;
+
+      return utils::bit_count (mask_fail) >= utils::bit_count (mask_pass);
+    }
+
+  if (is_cbranch_join (instruction))
+    {
+      uint32_t csp, mask;
+
+      wave.read_register (amdgpu_regnum_t::csp, &csp);
+      wave.read_register (
+        scalar_operand_to_regnum (encoding_ssrc0 (instruction)), &mask);
+
+      return csp != mask;
+    }
+
+  error ("Invalid instruction");
+}
+
+amd_dbgapi_global_address_t
+amdgcn_architecture_t::branch_target (
+  wave_t &wave, amd_dbgapi_global_address_t pc,
+  const std::vector<uint8_t> &instruction) const
+{
+  if (is_branch (instruction) || is_call (instruction)
+      || is_cbranch (instruction) || is_cbranch_i_fork (instruction))
+    {
+      return pc + instruction.size () + (encoding_simm16 (instruction) << 2);
+    }
+
+  if (is_cbranch_g_fork (instruction))
+    {
+      amdgpu_regnum_t regnum
+        = scalar_operand_to_regnum (encoding_ssrc1 (instruction));
+
+      /* The hardware requires a 64-bit address register pair to have the lower
+         register number be even.  If it is not, then it is treated as if the
+         lower register number is the preceding even register number.  So mask
+         out lower bit of the register number.  */
+      regnum = regnum & -2;
+
+      uint32_t pc_lo, pc_hi;
+      wave.read_register (regnum + 0, &pc_lo);
+      wave.read_register (regnum + 1, &pc_hi);
+
+      return (static_cast<uint64_t> (pc_hi) << 32) | pc_lo;
+    }
+
+  error ("Invalid instruction");
 }
 
 std::tuple<amd_dbgapi_instruction_kind_t, amd_dbgapi_instruction_properties_t,
@@ -925,19 +983,19 @@ amdgcn_architecture_t::classify_instruction (
 
       if (sdst_regnum.has_value ())
         {
-          information.emplace_back (static_cast<uint64_t> (*sdst_regnum));
+          information.emplace_back (static_cast<uint64_t> (*sdst_regnum) + 0);
           information.emplace_back (static_cast<uint64_t> (*sdst_regnum) + 1);
         }
     }
   else if (information_kind == information_kind_t::pc_indirect)
     {
       dbgapi_assert (ssrc_regnum.has_value ());
-      information.emplace_back (static_cast<uint64_t> (*ssrc_regnum));
+      information.emplace_back (static_cast<uint64_t> (*ssrc_regnum) + 0);
       information.emplace_back (static_cast<uint64_t> (*ssrc_regnum) + 1);
 
       if (sdst_regnum.has_value ())
         {
-          information.emplace_back (static_cast<uint64_t> (*sdst_regnum));
+          information.emplace_back (static_cast<uint64_t> (*sdst_regnum) + 0);
           information.emplace_back (static_cast<uint64_t> (*sdst_regnum) + 1);
         }
     }
@@ -977,9 +1035,103 @@ amdgcn_architecture_t::simulate_instruction (
       wave.terminate ();
       return true;
     }
-  else if (is_branch (instruction) || is_cbranch (instruction))
+  else if (is_branch (instruction))
     {
       new_pc = branch_target (wave, pc, instruction);
+    }
+  else if (is_cbranch (instruction))
+    {
+      new_pc = is_cbranch_taken (wave, instruction)
+                 ? branch_target (wave, pc, instruction)
+                 : pc + instruction.size ();
+    }
+  else if (is_cbranch_i_fork (instruction) || is_cbranch_g_fork (instruction))
+    {
+      dbgapi_assert (wave.lane_count () == 64);
+
+      amdgpu_regnum_t mask_regnum = scalar_operand_to_regnum (
+        is_cbranch_i_fork (instruction) ? encoding_sdst (instruction)
+                                        : encoding_ssrc0 (instruction));
+
+      /* The hardware requires a 64-bit address register pair to have the lower
+         register number be even.  If it is not, then it is treated as if the
+         lower register number is the preceding even register number.  So mask
+         out lower bit of the register number.  */
+      mask_regnum = mask_regnum & -2;
+
+      uint32_t mask_lo, mask_hi;
+      wave.read_register (mask_regnum + 0, &mask_lo);
+      wave.read_register (mask_regnum + 1, &mask_hi);
+
+      uint64_t mask, exec, mask_pass, mask_fail;
+      mask = (static_cast<uint64_t> (mask_hi) << 32) | mask_lo;
+      wave.read_register (amdgpu_regnum_t::exec_64, &exec);
+
+      mask_pass = mask & exec;
+      mask_fail = ~mask & exec;
+
+      if (mask_pass == exec || mask_fail == exec)
+        {
+          new_pc = is_cbranch_taken (wave, instruction)
+                     ? branch_target (wave, pc, instruction)
+                     : pc + instruction.size ();
+        }
+      else
+        {
+          bool taken = is_cbranch_taken (wave, instruction);
+
+          uint64_t saved_pc = taken ? pc + instruction.size ()
+                                    : branch_target (wave, pc, instruction);
+
+          uint32_t saved_exec_lo = taken ? mask_fail : mask_pass;
+          uint32_t saved_exec_hi = (taken ? mask_fail : mask_pass) >> 32;
+          uint32_t saved_pc_lo = saved_pc;
+          uint32_t saved_pc_hi = saved_pc >> 32;
+
+          uint32_t csp;
+          wave.read_register (amdgpu_regnum_t::csp, &csp);
+
+          amdgpu_regnum_t regnum = amdgpu_regnum_t::s0 + csp++ * 4;
+          wave.write_register (regnum + 0, &saved_exec_lo);
+          wave.write_register (regnum + 1, &saved_exec_hi);
+          wave.write_register (regnum + 2, &saved_pc_lo);
+          wave.write_register (regnum + 3, &saved_pc_hi);
+
+          new_pc = taken ? branch_target (wave, pc, instruction)
+                         : pc + instruction.size ();
+
+          wave.write_register (amdgpu_regnum_t::csp, &csp);
+          wave.write_register (amdgpu_regnum_t::exec_64,
+                               taken ? &mask_pass : &mask_fail);
+        }
+    }
+  else if (is_cbranch_join (instruction))
+    {
+      dbgapi_assert (wave.lane_count () == 64);
+
+      if (is_cbranch_taken (wave, instruction))
+        {
+          uint32_t csp;
+          wave.read_register (amdgpu_regnum_t::csp, &csp);
+
+          amdgpu_regnum_t regnum = amdgpu_regnum_t::s0 + --csp * 4;
+
+          uint32_t pc_lo, pc_hi, exec_lo, exec_hi;
+          wave.read_register (regnum + 0, &exec_lo);
+          wave.read_register (regnum + 1, &exec_hi);
+          wave.read_register (regnum + 2, &pc_lo);
+          wave.read_register (regnum + 3, &pc_hi);
+
+          new_pc = (static_cast<uint64_t> (pc_hi) << 32) | pc_lo;
+          uint64_t exec = (static_cast<uint64_t> (exec_hi) << 32) | exec_lo;
+
+          wave.write_register (amdgpu_regnum_t::csp, &csp);
+          wave.write_register (amdgpu_regnum_t::exec_64, &exec);
+        }
+      else
+        {
+          new_pc = pc + instruction.size ();
+        }
     }
   else if (is_call (instruction) || is_getpc (instruction)
            || is_swappc (instruction) || is_setpc (instruction))
@@ -1014,7 +1166,7 @@ amdgcn_architecture_t::simulate_instruction (
 
           if (commit_write)
             {
-              wave.write_register (sdst_regnum, &sdst_lo);
+              wave.write_register (sdst_regnum + 0, &sdst_lo);
               wave.write_register (sdst_regnum + 1, &sdst_hi);
             }
 
@@ -1054,7 +1206,7 @@ amdgcn_architecture_t::simulate_instruction (
 
           if (!ssrc_is_null)
             {
-              wave.read_register (ssrc_regnum, &ssrc_lo);
+              wave.read_register (ssrc_regnum + 0, &ssrc_lo);
               wave.read_register (ssrc_regnum + 1, &ssrc_hi);
             }
 
@@ -1735,6 +1887,19 @@ amdgcn_architecture_t::read_pseudo_register (const wave_t &wave,
       return;
     }
 
+  if (regnum == amdgpu_regnum_t::csp)
+    {
+      uint32_t mode;
+
+      wave.read_register (amdgpu_regnum_t::mode, &mode);
+
+      uint32_t csp = utils::bit_extract (mode, 29, 31);
+
+      memcpy (static_cast<char *> (value) + offset,
+              reinterpret_cast<const char *> (&csp) + offset, value_size);
+      return;
+    }
+
   throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID);
 }
 
@@ -1849,6 +2014,22 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
 
       wave.write_register (amdgpu_regnum_t::status, &status_reg);
       wave.write_register (amdgpu_regnum_t::ttmp7, &ttmp7);
+      return;
+    }
+
+  if (regnum == amdgpu_regnum_t::csp)
+    {
+      uint32_t mode, csp;
+
+      wave.read_register (amdgpu_regnum_t::mode, &mode);
+
+      csp = utils::bit_extract (mode, 29, 31);
+      memcpy (reinterpret_cast<char *> (&csp) + offset,
+              static_cast<const char *> (value) + offset, value_size);
+
+      mode = (mode & ~utils::bit_mask (29, 31)) | (csp << 29);
+
+      wave.write_register (amdgpu_regnum_t::mode, &mode);
       return;
     }
 
@@ -3038,6 +3219,8 @@ architecture_t::register_name (amdgpu_regnum_t regnum) const
       return "wave_in_group";
     case amdgpu_regnum_t::scratch_offset:
       return "scratch_offset";
+    case amdgpu_regnum_t::csp:
+      return "csp";
     case amdgpu_regnum_t::null:
       return "null";
     default:
@@ -3118,6 +3301,7 @@ architecture_t::register_type (amdgpu_regnum_t regnum) const
     case amdgpu_regnum_t::scratch_offset:
     case amdgpu_regnum_t::pseudo_status:
     case amdgpu_regnum_t::wave_in_group:
+    case amdgpu_regnum_t::csp:
     case amdgpu_regnum_t::null:
       return "uint32_t";
 
@@ -3205,6 +3389,7 @@ architecture_t::register_size (amdgpu_regnum_t regnum) const
     case amdgpu_regnum_t::scratch_offset:
     case amdgpu_regnum_t::pseudo_status:
     case amdgpu_regnum_t::wave_in_group:
+    case amdgpu_regnum_t::csp:
     case amdgpu_regnum_t::null:
       return sizeof (uint32_t);
 

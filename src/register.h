@@ -153,6 +153,7 @@ enum class amdgpu_regnum_t : uint32_t
   pseudo_vcc_64,  /* Read from vcc_64, write to vcc_64 and status.vccz.  */
 
   wave_in_group, /* The wave position in the thread group.  */
+  csp,           /* Conditional-branch Stack Pointer.  */
 
   null, /* Special register: read returns 0, write is ignored.  */
 
