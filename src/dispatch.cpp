@@ -39,8 +39,8 @@ namespace amd::dbgapi
 dispatch_t::dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id, queue_t &queue,
                         amd_dbgapi_os_queue_packet_id_t os_queue_packet_id,
                         amd_dbgapi_global_address_t packet_address)
-    : handle_object (dispatch_id), m_os_queue_packet_id (os_queue_packet_id),
-      m_queue (queue)
+  : handle_object (dispatch_id), m_os_queue_packet_id (os_queue_packet_id),
+    m_queue (queue)
 {
   amd_dbgapi_status_t status;
 
@@ -73,8 +73,8 @@ bool
 dispatch_t::is_scratch_enabled () const
 {
   return !!(
-      m_kernel_descriptor.compute_pgm_rsrc2
-      & AMD_COMPUTE_PGM_RSRC_TWO_ENABLE_SGPR_PRIVATE_SEGMENT_WAVE_BYTE_OFFSET);
+    m_kernel_descriptor.compute_pgm_rsrc2
+    & AMD_COMPUTE_PGM_RSRC_TWO_ENABLE_SGPR_PRIVATE_SEGMENT_WAVE_BYTE_OFFSET);
 }
 
 amd_dbgapi_status_t
@@ -103,48 +103,48 @@ dispatch_t::get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
                               utils::bit_extract (m_packet.header,
                                                   HSA_PACKET_HEADER_BARRIER,
                                                   HSA_PACKET_HEADER_BARRIER)
-                                  ? AMD_DBGAPI_DISPATCH_BARRIER_PRESENT
-                                  : AMD_DBGAPI_DISPATCH_BARRIER_NONE);
+                                ? AMD_DBGAPI_DISPATCH_BARRIER_PRESENT
+                                : AMD_DBGAPI_DISPATCH_BARRIER_NONE);
 
     case AMD_DBGAPI_DISPATCH_INFO_ACQUIRE_FENCE:
       static_assert ((int)AMD_DBGAPI_DISPATCH_FENCE_SCOPE_NONE
-                         == (int)HSA_FENCE_SCOPE_NONE,
+                       == (int)HSA_FENCE_SCOPE_NONE,
                      "amd_dbgapi_dispatch_fence_scope_t != hsa_fence_scope_t");
       static_assert ((int)AMD_DBGAPI_DISPATCH_FENCE_SCOPE_AGENT
-                         == (int)HSA_FENCE_SCOPE_AGENT,
+                       == (int)HSA_FENCE_SCOPE_AGENT,
                      "amd_dbgapi_dispatch_fence_scope_t != hsa_fence_scope_t");
       static_assert ((int)AMD_DBGAPI_DISPATCH_FENCE_SCOPE_SYSTEM
-                         == (int)HSA_FENCE_SCOPE_SYSTEM,
+                       == (int)HSA_FENCE_SCOPE_SYSTEM,
                      "amd_dbgapi_dispatch_fence_scope_t != hsa_fence_scope_t");
 
       return utils::get_info (
-          value_size, value,
-          static_cast<amd_dbgapi_dispatch_fence_scope_t> (utils::bit_extract (
-              m_packet.header, HSA_PACKET_HEADER_SCACQUIRE_FENCE_SCOPE,
-              HSA_PACKET_HEADER_SCACQUIRE_FENCE_SCOPE
-                  + HSA_PACKET_HEADER_WIDTH_SCACQUIRE_FENCE_SCOPE - 1)));
+        value_size, value,
+        static_cast<amd_dbgapi_dispatch_fence_scope_t> (utils::bit_extract (
+          m_packet.header, HSA_PACKET_HEADER_SCACQUIRE_FENCE_SCOPE,
+          HSA_PACKET_HEADER_SCACQUIRE_FENCE_SCOPE
+            + HSA_PACKET_HEADER_WIDTH_SCACQUIRE_FENCE_SCOPE - 1)));
 
     case AMD_DBGAPI_DISPATCH_INFO_RELEASE_FENCE:
       return utils::get_info (
-          value_size, value,
-          static_cast<amd_dbgapi_dispatch_fence_scope_t> (utils::bit_extract (
-              m_packet.header, HSA_PACKET_HEADER_SCRELEASE_FENCE_SCOPE,
-              HSA_PACKET_HEADER_SCRELEASE_FENCE_SCOPE
-                  + HSA_PACKET_HEADER_WIDTH_SCRELEASE_FENCE_SCOPE - 1)));
+        value_size, value,
+        static_cast<amd_dbgapi_dispatch_fence_scope_t> (utils::bit_extract (
+          m_packet.header, HSA_PACKET_HEADER_SCRELEASE_FENCE_SCOPE,
+          HSA_PACKET_HEADER_SCRELEASE_FENCE_SCOPE
+            + HSA_PACKET_HEADER_WIDTH_SCRELEASE_FENCE_SCOPE - 1)));
 
     case AMD_DBGAPI_DISPATCH_INFO_GRID_DIMENSIONS:
       return utils::get_info (
-          value_size, value,
-          static_cast<uint32_t> (utils::bit_extract (
-              m_packet.setup, HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS,
-              HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS
-                  + HSA_KERNEL_DISPATCH_PACKET_SETUP_WIDTH_DIMENSIONS - 1)));
+        value_size, value,
+        static_cast<uint32_t> (utils::bit_extract (
+          m_packet.setup, HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS,
+          HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS
+            + HSA_KERNEL_DISPATCH_PACKET_SETUP_WIDTH_DIMENSIONS - 1)));
 
     case AMD_DBGAPI_DISPATCH_INFO_WORK_GROUP_SIZES:
       {
         uint16_t workgroup_sizes[3]
-            = { m_packet.workgroup_size_x, m_packet.workgroup_size_y,
-                m_packet.workgroup_size_z };
+          = { m_packet.workgroup_size_x, m_packet.workgroup_size_y,
+              m_packet.workgroup_size_z };
         return utils::get_info (value_size, value, workgroup_sizes);
       }
     case AMD_DBGAPI_DISPATCH_INFO_GRID_SIZES:
@@ -155,13 +155,13 @@ dispatch_t::get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
       }
     case AMD_DBGAPI_DISPATCH_INFO_PRIVATE_SEGMENT_SIZE:
       return utils::get_info (
-          value_size, value,
-          static_cast<amd_dbgapi_size_t> (m_packet.private_segment_size));
+        value_size, value,
+        static_cast<amd_dbgapi_size_t> (m_packet.private_segment_size));
 
     case AMD_DBGAPI_DISPATCH_INFO_GROUP_SEGMENT_SIZE:
       return utils::get_info (
-          value_size, value,
-          static_cast<amd_dbgapi_size_t> (m_packet.group_segment_size));
+        value_size, value,
+        static_cast<amd_dbgapi_size_t> (m_packet.group_segment_size));
 
     case AMD_DBGAPI_DISPATCH_INFO_KERNEL_ARGUMENT_SEGMENT_ADDRESS:
       return utils::get_info (value_size, value, m_packet.kernarg_address);
@@ -242,7 +242,7 @@ amd_dbgapi_process_dispatch_list (amd_dbgapi_process_id_t process_id,
     }
 
   std::vector<std::pair<process_t *, std::vector<queue_t *>>>
-      queues_needing_resume;
+    queues_needing_resume;
 
   for (auto &&process : processes)
     {
@@ -259,7 +259,7 @@ amd_dbgapi_process_dispatch_list (amd_dbgapi_process_id_t process_id,
     }
 
   amd_dbgapi_status_t status = utils::get_handle_list<dispatch_t> (
-      processes, dispatch_count, dispatches, changed);
+    processes, dispatch_count, dispatches, changed);
 
   for (auto &&[process, queues] : queues_needing_resume)
     process->resume_queues (queues, "refresh dispatch list");

@@ -93,7 +93,7 @@ public:
 
 private:
   using notify_shared_library_callback_t = std::function<void (
-      amd_dbgapi_shared_library_id_t, amd_dbgapi_shared_library_state_t)>;
+    amd_dbgapi_shared_library_id_t, amd_dbgapi_shared_library_state_t)>;
 
   static handle_object_set_t<process_t> s_process_map;
 
@@ -126,12 +126,12 @@ private:
   monotonic_counter_t<epoch_t, 1> m_next_code_object_mark{};
 
   std::tuple<
-      handle_object_set_t<agent_t>, handle_object_set_t<breakpoint_t>,
-      handle_object_set_t<code_object_t>, handle_object_set_t<dispatch_t>,
-      handle_object_set_t<displaced_stepping_t>, handle_object_set_t<event_t>,
-      handle_object_set_t<queue_t>, handle_object_set_t<shared_library_t>,
-      handle_object_set_t<watchpoint_t>, handle_object_set_t<wave_t>>
-      m_handle_object_sets{};
+    handle_object_set_t<agent_t>, handle_object_set_t<breakpoint_t>,
+    handle_object_set_t<code_object_t>, handle_object_set_t<dispatch_t>,
+    handle_object_set_t<displaced_stepping_t>, handle_object_set_t<event_t>,
+    handle_object_set_t<queue_t>, handle_object_set_t<shared_library_t>,
+    handle_object_set_t<watchpoint_t>, handle_object_set_t<wave_t>>
+    m_handle_object_sets{};
 
   std::pair<std::variant<process_t *, agent_t *, queue_t *>,
             os_exception_mask_t>
@@ -278,17 +278,17 @@ public:
   {
     TRACE_CALLBACK_BEGIN (library_id, symbol_name, address);
     return detail::process_callbacks.get_symbol_address (
-        m_client_process_id, library_id, symbol_name, address);
+      m_client_process_id, library_id, symbol_name, address);
     TRACE_CALLBACK_END (make_hex (make_ref (address)));
   }
 
   amd_dbgapi_status_t enable_notify_shared_library (
-      const char *library_name, amd_dbgapi_shared_library_id_t library_id,
-      amd_dbgapi_shared_library_state_t *library_state)
+    const char *library_name, amd_dbgapi_shared_library_id_t library_id,
+    amd_dbgapi_shared_library_state_t *library_state)
   {
     TRACE_CALLBACK_BEGIN (library_name, library_id, library_state);
     return detail::process_callbacks.enable_notify_shared_library (
-        m_client_process_id, library_name, library_id, library_state);
+      m_client_process_id, library_name, library_id, library_state);
     TRACE_CALLBACK_END (make_ref (library_state));
   }
 
@@ -297,7 +297,7 @@ public:
   {
     TRACE_CALLBACK_BEGIN (library_id);
     return detail::process_callbacks.disable_notify_shared_library (
-        m_client_process_id, library_id);
+      m_client_process_id, library_id);
     TRACE_CALLBACK_END ();
   }
 
@@ -308,7 +308,7 @@ public:
   {
     TRACE_CALLBACK_BEGIN (make_hex (address), breakpoint_id);
     return detail::process_callbacks.insert_breakpoint (
-        m_client_process_id, shared_library_id, address, breakpoint_id);
+      m_client_process_id, shared_library_id, address, breakpoint_id);
     TRACE_CALLBACK_END ();
   }
 
@@ -324,14 +324,14 @@ public:
   template <typename Object, typename... Args> auto &create (Args &&... args)
   {
     return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
-        .create_object (std::forward<Args> (args)...);
+      .create_object (std::forward<Args> (args)...);
   }
 
   /* Destroy the given object.  */
   template <typename Object> void destroy (Object *object)
   {
     std::get<handle_object_set_t<Object>> (m_handle_object_sets)
-        .destroy (object);
+      .destroy (object);
   }
 
   /* Destroy the object at object_it.  This should be used instead of
@@ -341,8 +341,8 @@ public:
   ObjectIterator destroy (ObjectIterator object_it)
   {
     return std::get<handle_object_set_t<typename ObjectIterator::value_type>> (
-               m_handle_object_sets)
-        .destroy (object_it);
+             m_handle_object_sets)
+      .destroy (object_it);
   }
 
   /* Return an Object range. A range implements begin () and end (), and
@@ -350,25 +350,25 @@ public:
   template <typename Object> auto range ()
   {
     return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
-        .range ();
+      .range ();
   }
   template <typename Object> auto range () const
   {
     return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
-        .range ();
+      .range ();
   }
 
   /* Return the element count for the sub-Object.  */
   template <typename Object> size_t count () const
   {
     return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
-        .size ();
+      .size ();
   }
 
   template <typename Object> bool changed () const
   {
     return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
-        .changed ();
+      .changed ();
   }
 
   /* Set the flag that indicates whether the Objects have changed. Return its
@@ -377,21 +377,21 @@ public:
   template <typename Object> bool set_changed (bool has_changed)
   {
     return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
-        .set_changed (has_changed);
+      .set_changed (has_changed);
   }
 
   /* Find an object with the given handle.  */
   template <typename Handle,
             std::enable_if_t<!std::is_void_v<object_type_from_handle_t<
-                                 Handle, decltype (m_handle_object_sets)>>,
+                               Handle, decltype (m_handle_object_sets)>>,
                              int> = 0>
   auto *find (Handle id, bool all = false)
   {
     using object_type
-        = object_type_from_handle_t<Handle, decltype (m_handle_object_sets)>;
+      = object_type_from_handle_t<Handle, decltype (m_handle_object_sets)>;
 
     return std::get<handle_object_set_t<object_type>> (m_handle_object_sets)
-        .find (id, all);
+      .find (id, all);
   }
 
   /* Find an object for which the unary predicate f returns true.  */
@@ -401,7 +401,7 @@ public:
     using object_type = std::decay_t<utils::first_argument_of_t<Functor>>;
 
     return std::get<handle_object_set_t<object_type>> (m_handle_object_sets)
-        .find_if (predicate, all);
+      .find_if (predicate, all);
   }
 
   pipe_t &client_notifier_pipe () { return m_client_notifier_pipe; }
@@ -411,13 +411,13 @@ namespace detail
 {
 template <typename Handle>
 using process_find_t
-    = decltype (std::declval<process_t> ().find (std::declval<Handle> ()));
+  = decltype (std::declval<process_t> ().find (std::declval<Handle> ()));
 } /* namespace detail */
 
 /* Find an object with the given handle.  */
 template <typename Handle,
           std::enable_if_t<
-              utils::is_detected_v<detail::process_find_t, Handle>, int> = 0>
+            utils::is_detected_v<detail::process_find_t, Handle>, int> = 0>
 auto *
 find (Handle id)
 {
@@ -459,9 +459,9 @@ process_t::clear_flag (flag_t flags)
 inline bool
 process_t::is_flag_set (flag_t flag) const
 {
-  dbgapi_assert (utils::is_power_of_two (
-                     static_cast<std::underlying_type_t<flag_t>> (flag))
-                 && "can only check one flag at a time");
+  dbgapi_assert (
+    utils::is_power_of_two (static_cast<std::underlying_type_t<flag_t>> (flag))
+    && "can only check one flag at a time");
   return (m_flags & flag) != 0;
 }
 

@@ -75,8 +75,8 @@ amd_dbgapi_code_object_get_info (amd_dbgapi_code_object_id_t code_object_id,
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_process_code_object_list (
-    amd_dbgapi_process_id_t process_id, size_t *code_object_count,
-    amd_dbgapi_code_object_id_t **code_objects, amd_dbgapi_changed_t *changed)
+  amd_dbgapi_process_id_t process_id, size_t *code_object_count,
+  amd_dbgapi_code_object_id_t **code_objects, amd_dbgapi_changed_t *changed)
 {
   TRACE_BEGIN (process_id, code_object_count, code_objects, changed);
   TRY;

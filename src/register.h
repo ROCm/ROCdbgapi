@@ -171,27 +171,27 @@ constexpr amdgpu_regnum_t
 operator+ (amdgpu_regnum_t lhs, int rhs)
 {
   return static_cast<amdgpu_regnum_t> (
-      static_cast<std::underlying_type_t<decltype (lhs)>> (lhs) + rhs);
+    static_cast<std::underlying_type_t<decltype (lhs)>> (lhs) + rhs);
 }
 
 constexpr amdgpu_regnum_t
 operator- (amdgpu_regnum_t lhs, int rhs)
 {
   return static_cast<amdgpu_regnum_t> (
-      static_cast<std::underlying_type_t<decltype (lhs)>> (lhs) - rhs);
+    static_cast<std::underlying_type_t<decltype (lhs)>> (lhs) - rhs);
 }
 
 constexpr amdgpu_regnum_t operator& (amdgpu_regnum_t lhs, int rhs)
 {
   return static_cast<amdgpu_regnum_t> (
-      static_cast<std::underlying_type_t<decltype (lhs)>> (lhs) & rhs);
+    static_cast<std::underlying_type_t<decltype (lhs)>> (lhs) & rhs);
 }
 
 constexpr amdgpu_regnum_t
 operator| (amdgpu_regnum_t lhs, int rhs)
 {
   return static_cast<amdgpu_regnum_t> (
-      static_cast<std::underlying_type_t<decltype (lhs)>> (lhs) | rhs);
+    static_cast<std::underlying_type_t<decltype (lhs)>> (lhs) | rhs);
 }
 
 constexpr amdgpu_regnum_t &
@@ -217,22 +217,22 @@ is_pseudo_register (amdgpu_regnum_t regnum)
 }
 
 constexpr size_t amdgpu_vgprs_32_count
-    = amdgpu_regnum_t::last_vgpr_32 - amdgpu_regnum_t::first_vgpr_32 + 1;
+  = amdgpu_regnum_t::last_vgpr_32 - amdgpu_regnum_t::first_vgpr_32 + 1;
 constexpr size_t amdgpu_vgprs_64_count
-    = amdgpu_regnum_t::last_vgpr_64 - amdgpu_regnum_t::first_vgpr_64 + 1;
+  = amdgpu_regnum_t::last_vgpr_64 - amdgpu_regnum_t::first_vgpr_64 + 1;
 constexpr size_t amdgpu_accvgprs_64_count
-    = amdgpu_regnum_t::last_accvgpr_64 - amdgpu_regnum_t::first_accvgpr_64 + 1;
+  = amdgpu_regnum_t::last_accvgpr_64 - amdgpu_regnum_t::first_accvgpr_64 + 1;
 constexpr size_t amdgpu_sgprs_count
-    = amdgpu_regnum_t::last_sgpr - amdgpu_regnum_t::first_sgpr + 1;
+  = amdgpu_regnum_t::last_sgpr - amdgpu_regnum_t::first_sgpr + 1;
 constexpr size_t amdgpu_hwregs_count
-    = amdgpu_regnum_t::last_hwreg - amdgpu_regnum_t::first_hwreg + 1;
+  = amdgpu_regnum_t::last_hwreg - amdgpu_regnum_t::first_hwreg + 1;
 constexpr size_t amdgpu_ttmps_count
-    = amdgpu_regnum_t::last_ttmp - amdgpu_regnum_t::first_ttmp + 1;
+  = amdgpu_regnum_t::last_ttmp - amdgpu_regnum_t::first_ttmp + 1;
 
 /* Register class.  */
 
 class register_class_t
-    : public detail::handle_object<amd_dbgapi_register_class_id_t>
+  : public detail::handle_object<amd_dbgapi_register_class_id_t>
 {
 public:
   using register_map_t = std::map<amdgpu_regnum_t, amdgpu_regnum_t>;
@@ -240,9 +240,8 @@ public:
   register_class_t (amd_dbgapi_register_class_id_t register_class_id,
                     const architecture_t &architecture, std::string name,
                     register_map_t register_map)
-      : handle_object (register_class_id), m_name (std::move (name)),
-        m_register_map (std::move (register_map)),
-        m_architecture (architecture)
+    : handle_object (register_class_id), m_name (std::move (name)),
+      m_register_map (std::move (register_map)), m_architecture (architecture)
   {
   }
 

@@ -35,22 +35,21 @@ namespace amd::dbgapi
 {
 
 displaced_stepping_t::displaced_stepping_t (
-    amd_dbgapi_displaced_stepping_id_t displaced_stepping_id, queue_t &queue,
-    amd_dbgapi_global_address_t original_pc,
-    std::vector<uint8_t> original_instruction, bool simulate,
-    instruction_buffer_t instruction_buffer)
-    : handle_object (displaced_stepping_id), m_is_simulated (simulate),
-      m_from (original_pc),
-      m_instruction_buffer (std::move (instruction_buffer)),
-      m_original_instruction (std::move (original_instruction)),
-      m_queue (queue)
+  amd_dbgapi_displaced_stepping_id_t displaced_stepping_id, queue_t &queue,
+  amd_dbgapi_global_address_t original_pc,
+  std::vector<uint8_t> original_instruction, bool simulate,
+  instruction_buffer_t instruction_buffer)
+  : handle_object (displaced_stepping_id), m_is_simulated (simulate),
+    m_from (original_pc),
+    m_instruction_buffer (std::move (instruction_buffer)),
+    m_original_instruction (std::move (original_instruction)), m_queue (queue)
 {
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "created new %s (from=%#lx, %s)",
               to_string (id ()).c_str (), from (),
               m_is_simulated ? "simulated"
                              : string_printf ("to=[%#lx..%#lx[", to (),
                                               m_instruction_buffer->end ())
-                                   .c_str ());
+                                 .c_str ());
 }
 
 displaced_stepping_t::~displaced_stepping_t ()
@@ -100,12 +99,12 @@ using namespace amd::dbgapi;
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_displaced_stepping_start (
-    amd_dbgapi_wave_id_t wave_id, const void *saved_instruction_bytes,
-    amd_dbgapi_displaced_stepping_id_t *displaced_stepping_id)
+  amd_dbgapi_wave_id_t wave_id, const void *saved_instruction_bytes,
+  amd_dbgapi_displaced_stepping_id_t *displaced_stepping_id)
 {
   TRACE_BEGIN (wave_id,
                make_hex (make_ref (
-                   static_cast<const uint8_t *> (saved_instruction_bytes), 4)),
+                 static_cast<const uint8_t *> (saved_instruction_bytes), 4)),
                displaced_stepping_id);
   TRY;
 
@@ -148,8 +147,8 @@ amd_dbgapi_displaced_stepping_start (
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_displaced_stepping_complete (
-    amd_dbgapi_wave_id_t wave_id,
-    amd_dbgapi_displaced_stepping_id_t displaced_stepping_id)
+  amd_dbgapi_wave_id_t wave_id,
+  amd_dbgapi_displaced_stepping_id_t displaced_stepping_id)
 {
   TRACE_BEGIN (wave_id, displaced_stepping_id);
   TRY;
@@ -195,8 +194,8 @@ amd_dbgapi_displaced_stepping_complete (
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_code_displaced_stepping_get_info (
-    amd_dbgapi_displaced_stepping_id_t displaced_stepping_id,
-    amd_dbgapi_displaced_stepping_info_t query, size_t value_size, void *value)
+  amd_dbgapi_displaced_stepping_id_t displaced_stepping_id,
+  amd_dbgapi_displaced_stepping_info_t query, size_t value_size, void *value)
 {
   TRACE_BEGIN (displaced_stepping_id, query, value_size, value);
   TRY;

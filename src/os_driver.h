@@ -128,7 +128,7 @@ template <> struct is_flag<os_exception_mask_t> : std::true_type
 };
 
 static constexpr os_exception_mask_t os_queue_exceptions_mask
-    = static_cast<os_exception_mask_t> (KFD_EC_MASK_QUEUE);
+  = static_cast<os_exception_mask_t> (KFD_EC_MASK_QUEUE);
 
 static_assert (os_queue_exceptions_mask
                == (os_exception_mask_t::queue_new
@@ -137,7 +137,7 @@ static_assert (os_queue_exceptions_mask
                    | os_exception_mask_t::hws_preemption_error));
 
 static constexpr os_exception_mask_t os_agent_exceptions_mask
-    = static_cast<os_exception_mask_t> (KFD_EC_MASK_DEVICE);
+  = static_cast<os_exception_mask_t> (KFD_EC_MASK_DEVICE);
 
 static_assert (os_agent_exceptions_mask
                == (os_exception_mask_t::memory_violation
@@ -147,7 +147,7 @@ static_assert (os_agent_exceptions_mask
                    | os_exception_mask_t::gpu_add));
 
 static constexpr os_exception_mask_t os_process_exceptions_mask
-    = static_cast<os_exception_mask_t> (KFD_EC_MASK_PROCESS);
+  = static_cast<os_exception_mask_t> (KFD_EC_MASK_PROCESS);
 
 static_assert (os_process_exceptions_mask
                == (os_exception_mask_t::runtime_enable
@@ -237,7 +237,7 @@ public:
 
   virtual amd_dbgapi_status_t
   enable_debug (os_exception_mask_t exceptions_reported)
-      = 0;
+    = 0;
   virtual amd_dbgapi_status_t disable_debug () = 0;
   virtual bool is_debug_enabled () const = 0;
 
@@ -245,7 +245,7 @@ public:
   query_debug_event (os_exception_mask_t *exceptions_present,
                      os_source_id_t *os_source_id,
                      os_exception_mask_t exceptions_cleared)
-      = 0;
+    = 0;
 
   virtual size_t
   suspend_queues (os_queue_id_t *queues, size_t queue_count,
@@ -259,8 +259,8 @@ public:
                   os_exception_mask_t exceptions_cleared) const = 0;
 
   virtual amd_dbgapi_status_t set_address_watch (
-      amd_dbgapi_global_address_t address, amd_dbgapi_global_address_t mask,
-      os_watch_mode_t os_watch_mode, os_watch_id_t *os_watch_id) const = 0;
+    amd_dbgapi_global_address_t address, amd_dbgapi_global_address_t mask,
+    os_watch_mode_t os_watch_mode, os_watch_id_t *os_watch_id) const = 0;
 
   virtual amd_dbgapi_status_t
   clear_address_watch (os_watch_id_t os_watch_id) const = 0;
@@ -269,10 +269,10 @@ public:
   set_wave_launch_mode (os_wave_launch_mode_t mode) const = 0;
 
   virtual amd_dbgapi_status_t set_wave_launch_trap_override (
-      os_wave_launch_trap_override_t override,
-      os_wave_launch_trap_mask_t value, os_wave_launch_trap_mask_t mask,
-      os_wave_launch_trap_mask_t *previous_value = nullptr,
-      os_wave_launch_trap_mask_t *supported_mask = nullptr) const = 0;
+    os_wave_launch_trap_override_t override, os_wave_launch_trap_mask_t value,
+    os_wave_launch_trap_mask_t mask,
+    os_wave_launch_trap_mask_t *previous_value = nullptr,
+    os_wave_launch_trap_mask_t *supported_mask = nullptr) const = 0;
 
   virtual amd_dbgapi_status_t
   xfer_global_memory_partial (amd_dbgapi_global_address_t address, void *read,

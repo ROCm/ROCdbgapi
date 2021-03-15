@@ -119,8 +119,8 @@ using id_handle_t = decltype (std::declval<Type> ().handle);
 
 template <typename Type>
 inline constexpr bool is_handle_type_v = std::conjunction_v<
-    std::is_integral<utils::detected_t<detail::id_handle_t, Type>>,
-    std::is_unsigned<utils::detected_t<detail::id_handle_t, Type>>>;
+  std::is_integral<utils::detected_t<detail::id_handle_t, Type>>,
+  std::is_unsigned<utils::detected_t<detail::id_handle_t, Type>>>;
 
 /* Hash function for handle types.  */
 template <typename Handle, std::enable_if_t<is_handle_type_v<Handle>, int> = 0>
@@ -146,19 +146,19 @@ using object_id_t = decltype (std::declval<Type> ().id ());
 
 template <typename Type>
 inline constexpr bool is_handle_object_type_v
-    = is_handle_type_v<utils::detected_t<detail::object_id_t, Type>>;
+  = is_handle_type_v<utils::detected_t<detail::object_id_t, Type>>;
 
 /* Specialize this struct to change the initial value of a monotonic counter
    for a given handle_object.  */
 template <typename Type, std::enable_if_t<is_handle_type_v<Type>, int> = 0>
 struct monotonic_counter_start_t
-    : public std::integral_constant<decltype (Type::handle), 1>
+  : public std::integral_constant<decltype (Type::handle), 1>
 {
 };
 
 template <typename Type>
 inline constexpr decltype (Type::handle) monotonic_counter_start_v
-    = monotonic_counter_start_t<Type>::value;
+  = monotonic_counter_start_t<Type>::value;
 
 /* A set container type that holds objects that are referenced using handles.
    If the Object type supports the is_valid concept, then when creating objects
@@ -261,7 +261,7 @@ public:
   {
   public:
     explicit const_range_t (const handle_object_set_t *objects)
-        : m_objects (objects)
+      : m_objects (objects)
     {
     }
     const_iterator begin () { return const_iterator (m_objects->begin ()); }
@@ -332,10 +332,10 @@ public:
   Object *find_if (Functor predicate, bool all = false)
   {
     auto it
-        = std::find_if (m_map.begin (), m_map.end (), [=] (const auto &value) {
-            return bool{ (all || is_valid (value.second))
-                         && predicate (value.second) };
-          });
+      = std::find_if (m_map.begin (), m_map.end (), [=] (const auto &value) {
+          return bool{ (all || is_valid (value.second))
+                       && predicate (value.second) };
+        });
     return (it != m_map.end ()) ? &it->second : nullptr;
   }
 
@@ -343,10 +343,10 @@ public:
   const Object *find_if (Functor predicate, bool all = false) const
   {
     auto it
-        = std::find_if (m_map.begin (), m_map.end (), [=] (const auto &value) {
-            return bool{ (all || is_valid (value.second))
-                         && predicate (value.second) };
-          });
+      = std::find_if (m_map.begin (), m_map.end (), [=] (const auto &value) {
+          return bool{ (all || is_valid (value.second))
+                       && predicate (value.second) };
+        });
     return (it != m_map.end ()) ? &it->second : nullptr;
   }
 
@@ -388,10 +388,10 @@ public:
     using monotonic_counter_underlying_type_t = decltype (handle_type::handle);
 
     static monotonic_counter_t<
-        monotonic_counter_underlying_type_t,
-        monotonic_counter_start_v<handle_type>,
-        detail::handle_has_wrapped_around<monotonic_counter_underlying_type_t>>
-        counter;
+      monotonic_counter_underlying_type_t,
+      monotonic_counter_start_v<handle_type>,
+      detail::handle_has_wrapped_around<monotonic_counter_underlying_type_t>>
+      counter;
     return counter;
   }
 };
@@ -409,8 +409,8 @@ handle_object_set_t<Object>::create_object (std::optional<handle_type> id,
     id = handle_type{ next_id () () };
 
   auto [it, success] = m_map.emplace (
-      std::piecewise_construct, std::forward_as_tuple (*id),
-      std::forward_as_tuple (*id, std::forward<Args> (args)...));
+    std::piecewise_construct, std::forward_as_tuple (*id),
+    std::forward_as_tuple (*id, std::forward<Args> (args)...));
 
   if (!success)
     error ("could not create new object");
@@ -440,8 +440,8 @@ struct object_type_from_handle<Handle, Tuple, 0>
 {
   using element_0_type = typename std::tuple_element_t<0, Tuple>;
   using type = std::conditional_t<
-      std::is_same_v<Handle, typename element_0_type::handle_type>,
-      typename element_0_type::object_type, void>;
+    std::is_same_v<Handle, typename element_0_type::handle_type>,
+    typename element_0_type::object_type, void>;
 };
 
 template <typename Handle, typename Tuple, size_t I>
@@ -449,16 +449,17 @@ struct object_type_from_handle
 {
   using element_I_type = typename std::tuple_element_t<I, Tuple>;
   using type = std::conditional_t<
-      std::is_same_v<Handle, typename element_I_type::handle_type>,
-      typename element_I_type::object_type,
-      typename object_type_from_handle<Handle, Tuple, I - 1>::type>;
+    std::is_same_v<Handle, typename element_I_type::handle_type>,
+    typename element_I_type::object_type,
+    typename object_type_from_handle<Handle, Tuple, I - 1>::type>;
 };
 
 } /* namespace detail */
 
 template <typename Handle, typename Tuple>
-using object_type_from_handle_t = typename detail::object_type_from_handle<
-    Handle, Tuple, std::tuple_size_v<Tuple> - 1>::type;
+using object_type_from_handle_t =
+  typename detail::object_type_from_handle<Handle, Tuple,
+                                           std::tuple_size_v<Tuple> - 1>::type;
 
 } /* namespace amd::dbgapi */
 

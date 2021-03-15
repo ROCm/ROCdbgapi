@@ -163,7 +163,7 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
       break;
     case AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS:
       string
-          = "An error occurred while trying to access memory in the inferior";
+        = "An error occurred while trying to access memory in the inferior";
       break;
     case AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION:
       string = "The segment address cannot be converted to the "

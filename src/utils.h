@@ -92,9 +92,9 @@ using file_desc_t = int;
 extern std::string string_vprintf (const char *format, va_list va);
 extern std::string string_printf (const char *format, ...)
 #if defined(__GNUC__)
-    __attribute__ ((format (printf, 1, 2)))
+  __attribute__ ((format (printf, 1, 2)))
 #endif /* defined (__GNUC__) */
-    ;
+  ;
 
 namespace utils
 {
@@ -106,8 +106,8 @@ bit_mask (int first, int last)
   dbgapi_assert (last >= first && "invalid argument");
   size_t num_bits = last - first + 1;
   return ((num_bits >= sizeof (Integral) * 8)
-              ? ~Integral{ 0 } /* num_bits exceed the size of Integral */
-              : ((Integral{ 1 } << num_bits) - 1))
+            ? ~Integral{ 0 } /* num_bits exceed the size of Integral */
+            : ((Integral{ 1 } << num_bits) - 1))
          << first;
 }
 
@@ -447,7 +447,7 @@ First first_argument_of_helper_t (Return (Functor::*) (First, Rest...) const);
 /* Holds the type of the Functor's first argument.  */
 template <typename Functor>
 using first_argument_of_t
-    = decltype (detail::first_argument_of_helper_t (&Functor::operator()));
+  = decltype (detail::first_argument_of_helper_t (&Functor::operator()));
 
 namespace detail
 {

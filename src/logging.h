@@ -50,9 +50,9 @@ extern size_t log_indent_depth;
 
 extern void log (amd_dbgapi_log_level_t level, const char *format, ...)
 #if defined(__GNUC__)
-    __attribute__ ((format (printf, 2, 3)))
+  __attribute__ ((format (printf, 2, 3)))
 #endif /* defined (__GNUC__) */
-    ;
+  ;
 
 } /* namespace detail */
 
@@ -209,7 +209,7 @@ to_string (detail::ref<T> ref)
     return "null";
 
   std::string str
-      = string_printf ("*%p=", static_cast<const void *> (ref.value ()));
+    = string_printf ("*%p=", static_cast<const void *> (ref.value ()));
   const size_t count = ref.count ();
 
   if (count != 1)
@@ -348,8 +348,7 @@ inline std::string
 to_string (std::tuple<Args...> &&t)
 {
   return std::apply (
-      [] (auto &&... ts) { return to_string (std::forward<Args> (ts)...); },
-      t);
+    [] (auto &&... ts) { return to_string (std::forward<Args> (ts)...); }, t);
 }
 
 namespace detail
@@ -386,7 +385,7 @@ private:
 public:
   template <typename... Args>
   tracer (const char *prefix, const char *function)
-      : m_prefix (prefix), m_function (function)
+    : m_prefix (prefix), m_function (function)
   {
   }
 

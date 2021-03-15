@@ -54,7 +54,7 @@ private:
 
 public:
   exception_t (amd_dbgapi_status_t error_code, std::string message = {})
-      : std::runtime_error (std::move (message)), m_error_code (error_code)
+    : std::runtime_error (std::move (message)), m_error_code (error_code)
   {
   }
 
@@ -65,9 +65,9 @@ public:
 
 extern void warning (const char *format, ...)
 #if defined(__GNUC__)
-    __attribute__ ((format (printf, 1, 2)))
+  __attribute__ ((format (printf, 1, 2)))
 #endif /* defined (__GNUC__) */
-    ;
+  ;
 
 extern void error [[noreturn]] (const char *format, ...)
 #if defined(__GNUC__)

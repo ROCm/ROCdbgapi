@@ -71,7 +71,7 @@ public:
 };
 
 linux_driver_t::linux_driver_t (amd_dbgapi_os_process_id_t os_pid)
-    : os_driver_t (os_pid)
+  : os_driver_t (os_pid)
 {
   /* Open the /proc/pid/mem file for this process.  */
   std::string filename = string_printf ("/proc/%d/mem", os_pid);
@@ -96,8 +96,8 @@ linux_driver_t::~linux_driver_t ()
 
 amd_dbgapi_status_t
 linux_driver_t::xfer_global_memory_partial (
-    amd_dbgapi_global_address_t address, void *read, const void *write,
-    size_t *size) const
+  amd_dbgapi_global_address_t address, void *read, const void *write,
+  size_t *size) const
 {
   dbgapi_assert (!read != !write && "either read or write buffer");
   dbgapi_assert (is_valid ());
@@ -130,17 +130,17 @@ private:
   };
 
   static constexpr gfxip_lookup_table_t s_gfxip_lookup_table[]
-      = { { "vega10", EF_AMDGPU_MACH_AMDGCN_GFX900, 33206 },
-          { "raven", EF_AMDGPU_MACH_AMDGCN_GFX902, 0 },
-          { "vega12", EF_AMDGPU_MACH_AMDGCN_GFX904, 0 },
-          { "vega20", EF_AMDGPU_MACH_AMDGCN_GFX906, 438 },
-          { "arcturus", EF_AMDGPU_MACH_AMDGCN_GFX908, 48 },
-          { "aldebaran", EF_AMDGPU_MACH_AMDGCN_GFX90A, 0 },
-          { "navi10", EF_AMDGPU_MACH_AMDGCN_GFX1010, 0 },
-          { "navi12", EF_AMDGPU_MACH_AMDGCN_GFX1011, 0 },
-          { "navi14", EF_AMDGPU_MACH_AMDGCN_GFX1012, 0 },
-          { "sienna_cichlid", EF_AMDGPU_MACH_AMDGCN_GFX1030, 0 },
-          { "navy_flounder", EF_AMDGPU_MACH_AMDGCN_GFX1031, 0 } };
+    = { { "vega10", EF_AMDGPU_MACH_AMDGCN_GFX900, 33206 },
+        { "raven", EF_AMDGPU_MACH_AMDGCN_GFX902, 0 },
+        { "vega12", EF_AMDGPU_MACH_AMDGCN_GFX904, 0 },
+        { "vega20", EF_AMDGPU_MACH_AMDGCN_GFX906, 438 },
+        { "arcturus", EF_AMDGPU_MACH_AMDGCN_GFX908, 48 },
+        { "aldebaran", EF_AMDGPU_MACH_AMDGCN_GFX90A, 0 },
+        { "navi10", EF_AMDGPU_MACH_AMDGCN_GFX1010, 0 },
+        { "navi12", EF_AMDGPU_MACH_AMDGCN_GFX1011, 0 },
+        { "navi14", EF_AMDGPU_MACH_AMDGCN_GFX1012, 0 },
+        { "sienna_cichlid", EF_AMDGPU_MACH_AMDGCN_GFX1030, 0 },
+        { "navy_flounder", EF_AMDGPU_MACH_AMDGCN_GFX1031, 0 } };
 
   static size_t s_kfd_open_count;
   static std::optional<file_desc_t> s_kfd_fd;
@@ -167,8 +167,8 @@ private:
 public:
   kfd_driver_t (amd_dbgapi_os_process_id_t os_pid,
                 std::function<void ()> pending_event_notifier)
-      : linux_driver_t (os_pid),
-        m_pending_event_notifier (std::move (pending_event_notifier))
+    : linux_driver_t (os_pid),
+      m_pending_event_notifier (std::move (pending_event_notifier))
   {
     open_kfd ();
 
@@ -217,11 +217,9 @@ public:
                   size_t *queue_count,
                   os_exception_mask_t exceptions_cleared) const override;
 
-  amd_dbgapi_status_t
-  set_address_watch (amd_dbgapi_global_address_t address,
-                     amd_dbgapi_global_address_t mask,
-                     os_watch_mode_t os_watch_mode,
-                     os_watch_id_t *os_watch_id) const override;
+  amd_dbgapi_status_t set_address_watch (
+    amd_dbgapi_global_address_t address, amd_dbgapi_global_address_t mask,
+    os_watch_mode_t os_watch_mode, os_watch_id_t *os_watch_id) const override;
 
   amd_dbgapi_status_t
   clear_address_watch (os_watch_id_t os_watch_id) const override;
@@ -230,11 +228,11 @@ public:
   set_wave_launch_mode (os_wave_launch_mode_t mode) const override;
 
   amd_dbgapi_status_t set_wave_launch_trap_override (
-      os_wave_launch_trap_override_t override,
-      os_wave_launch_trap_mask_t trap_mask,
-      os_wave_launch_trap_mask_t requested_bits,
-      os_wave_launch_trap_mask_t *previous_mask,
-      os_wave_launch_trap_mask_t *supported_mask) const override;
+    os_wave_launch_trap_override_t override,
+    os_wave_launch_trap_mask_t trap_mask,
+    os_wave_launch_trap_mask_t requested_bits,
+    os_wave_launch_trap_mask_t *previous_mask,
+    os_wave_launch_trap_mask_t *supported_mask) const override;
 };
 
 size_t kfd_driver_t::s_kfd_open_count{ 0 };
@@ -309,9 +307,9 @@ kfd_driver_t::check_version () const
       || get_version_args.minor_version < KFD_IOCTL_MINOR_VERSION)
     {
       warning (
-          "AMD GPU driver version %d.%d does not match %d.%d+ requirement",
-          get_version_args.major_version, get_version_args.minor_version,
-          KFD_IOCTL_MAJOR_VERSION, KFD_IOCTL_MINOR_VERSION);
+        "AMD GPU driver version %d.%d does not match %d.%d+ requirement",
+        get_version_args.major_version, get_version_args.minor_version,
+        KFD_IOCTL_MAJOR_VERSION, KFD_IOCTL_MINOR_VERSION);
       return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
     }
 
@@ -357,10 +355,10 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
   /* Discover the GPU nodes from the sysfs topology.  */
 
   static const std::string sysfs_nodes_path (
-      "/sys/devices/virtual/kfd/kfd/topology/nodes/");
+    "/sys/devices/virtual/kfd/kfd/topology/nodes/");
 
   std::unique_ptr<DIR, void (*) (DIR *)> dirp (
-      opendir (sysfs_nodes_path.c_str ()), [] (DIR *d) { closedir (d); });
+    opendir (sysfs_nodes_path.c_str ()), [] (DIR *d) { closedir (d); });
 
   std::unordered_set<os_agent_id_t> processed_os_agent_ids;
   *agent_count = 0;
@@ -386,7 +384,7 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
 
   kfd_ioctl_get_process_apertures_new_args args{};
   args.kfd_process_device_apertures_ptr
-      = reinterpret_cast<uintptr_t> (node_aperture_infos.data ());
+    = reinterpret_cast<uintptr_t> (node_aperture_infos.data ());
   args.num_of_nodes = node_aperture_infos.size ();
 
   /* FIXME: There is no guarantee that the the debugger's apertures are the
@@ -437,10 +435,10 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
       /* Fill in the apertures for this agent.  */
 
       auto it = std::find_if (
-          node_aperture_infos.begin (), node_aperture_infos.end (),
-          [&] (const auto &node_aperture_info) {
-            return node_aperture_info.gpu_id == agent_info.os_agent_id;
-          });
+        node_aperture_infos.begin (), node_aperture_infos.end (),
+        [&] (const auto &node_aperture_info) {
+          return node_aperture_info.gpu_id == agent_info.os_agent_id;
+        });
 
       if (it == node_aperture_infos.end ())
         error ("Could not get apertures for gpu_id %d",
@@ -475,7 +473,7 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
 
       decltype (&s_gfxip_lookup_table[0]) gfxip_info = nullptr;
       constexpr size_t num_elem
-          = sizeof (s_gfxip_lookup_table) / sizeof (s_gfxip_lookup_table[0]);
+        = sizeof (s_gfxip_lookup_table) / sizeof (s_gfxip_lookup_table[0]);
 
       for (size_t i = 0; i < num_elem; ++i)
         if (agent_info.name == s_gfxip_lookup_table[i].gpu_name)
@@ -704,7 +702,7 @@ kfd_driver_t::set_address_watch (amd_dbgapi_global_address_t address,
   kfd_ioctl_dbg_trap_args args{};
   args.ptr = address;
   args.data2 = static_cast<std::underlying_type_t<decltype (os_watch_mode)>> (
-      os_watch_mode);
+    os_watch_mode);
   args.data3 = mask;
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_ADDRESS_WATCH, &args);
@@ -758,10 +756,9 @@ kfd_driver_t::set_wave_launch_mode (os_wave_launch_mode_t mode) const
 
 amd_dbgapi_status_t
 kfd_driver_t::set_wave_launch_trap_override (
-    os_wave_launch_trap_override_t override, os_wave_launch_trap_mask_t value,
-    os_wave_launch_trap_mask_t mask,
-    os_wave_launch_trap_mask_t *previous_value,
-    os_wave_launch_trap_mask_t *supported_mask) const
+  os_wave_launch_trap_override_t override, os_wave_launch_trap_mask_t value,
+  os_wave_launch_trap_mask_t mask, os_wave_launch_trap_mask_t *previous_value,
+  os_wave_launch_trap_mask_t *supported_mask) const
 {
   /* KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_OVERRIDE (#1)
      data1: [in] override mode (see enum kfd_dbg_trap_override_mode)
@@ -770,12 +767,12 @@ kfd_driver_t::set_wave_launch_trap_override (
 
   kfd_ioctl_dbg_trap_args args{};
   args.data1
-      = static_cast<std::underlying_type_t<decltype (override)>> (override);
+    = static_cast<std::underlying_type_t<decltype (override)>> (override);
   args.data2 = static_cast<std::underlying_type_t<decltype (value)>> (value);
   args.data3 = static_cast<std::underlying_type_t<decltype (mask)>> (mask);
 
   int err
-      = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_OVERRIDE, &args);
+    = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_OVERRIDE, &args);
   if (err == -ESRCH)
     return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
   else if (err == -EPERM || err == -EACCES)
@@ -899,8 +896,8 @@ kfd_driver_t::start_event_thread ()
 
   using namespace std::placeholders;
   m_event_thread
-      = new std::thread (std::bind (&kfd_driver_t::event_loop, this, _1),
-                         std::move (event_thread_exception));
+    = new std::thread (std::bind (&kfd_driver_t::event_loop, this, _1),
+                       std::move (event_thread_exception));
 
   if (pthread_sigmask (SIG_SETMASK, &orig_mask, nullptr))
     {
@@ -946,8 +943,8 @@ kfd_driver_t::check_event_thread ()
      application thread.  */
   if (m_event_thread_exception.valid ()
       && m_event_thread_exception.wait_until (
-             std::chrono::steady_clock::time_point::min ())
-             == std::future_status::ready)
+           std::chrono::steady_clock::time_point::min ())
+           == std::future_status::ready)
     m_event_thread_exception.get ();
 }
 
@@ -955,7 +952,7 @@ class no_agents_driver_t : public linux_driver_t
 {
 public:
   no_agents_driver_t (amd_dbgapi_os_process_id_t os_pid)
-      : linux_driver_t (os_pid)
+    : linux_driver_t (os_pid)
   {
   }
   ~no_agents_driver_t () override = default;
@@ -975,7 +972,7 @@ public:
   }
 
   amd_dbgapi_status_t
-      enable_debug (os_exception_mask_t /* exceptions_reported  */) override
+    enable_debug (os_exception_mask_t /* exceptions_reported  */) override
   {
     error ("should not call this, null_driver does not have any agents");
   }
@@ -1034,23 +1031,23 @@ public:
   }
 
   amd_dbgapi_status_t
-      clear_address_watch (os_watch_id_t /* os_watch_id  */) const override
+    clear_address_watch (os_watch_id_t /* os_watch_id  */) const override
   {
     error ("should not call this, null_driver does not have any agents");
   }
 
   amd_dbgapi_status_t
-      set_wave_launch_mode (os_wave_launch_mode_t /* mode  */) const override
+    set_wave_launch_mode (os_wave_launch_mode_t /* mode  */) const override
   {
     error ("should not call this, null_driver does not have any agents");
   }
 
   amd_dbgapi_status_t set_wave_launch_trap_override (
-      os_wave_launch_trap_override_t /* override  */,
-      os_wave_launch_trap_mask_t /* trap_mask  */,
-      os_wave_launch_trap_mask_t /* requested_bits  */,
-      os_wave_launch_trap_mask_t * /* previous_mask  */,
-      os_wave_launch_trap_mask_t * /* supported_mask  */) const override
+    os_wave_launch_trap_override_t /* override  */,
+    os_wave_launch_trap_mask_t /* trap_mask  */,
+    os_wave_launch_trap_mask_t /* requested_bits  */,
+    os_wave_launch_trap_mask_t * /* previous_mask  */,
+    os_wave_launch_trap_mask_t * /* supported_mask  */) const override
   {
     error ("should not call this, null_driver does not have any agents");
   }
@@ -1061,7 +1058,7 @@ os_driver_t::create_driver (amd_dbgapi_os_process_id_t os_pid,
                             std::function<void ()> pending_event_notifier)
 {
   std::unique_ptr<os_driver_t> os_driver{ new kfd_driver_t (
-      os_pid, std::move (pending_event_notifier)) };
+    os_pid, std::move (pending_event_notifier)) };
   if (os_driver->is_valid ())
     return os_driver;
 
@@ -1088,7 +1085,7 @@ to_string (os_wave_launch_mode_t mode)
       return "WAVE_LAUNCH_MODE_DISABLE";
     }
   return to_string (
-      make_hex (static_cast<std::underlying_type_t<decltype (mode)>> (mode)));
+    make_hex (static_cast<std::underlying_type_t<decltype (mode)>> (mode)));
 }
 
 namespace
@@ -1128,9 +1125,9 @@ one_os_exception_to_string (os_exception_mask_t exception_mask)
     case os_exception_mask_t::gpu_remove:
       return "GPU_REMOVE";
     }
-  return to_string (make_hex (
-      static_cast<std::underlying_type_t<decltype (exception_mask)>> (
-          exception_mask)));
+  return to_string (
+    make_hex (static_cast<std::underlying_type_t<decltype (exception_mask)>> (
+      exception_mask)));
 }
 
 } /* namespace */
@@ -1147,7 +1144,7 @@ to_string (os_exception_mask_t exception_mask)
   while (exception_mask != 0)
     {
       os_exception_mask_t one_bit
-          = exception_mask ^ (exception_mask & (exception_mask - 1));
+        = exception_mask ^ (exception_mask & (exception_mask - 1));
 
       if (!str.empty ())
         str += " | ";

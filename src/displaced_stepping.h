@@ -41,7 +41,7 @@ class process_t;
 /* AMD Debugger API Displaced Stepping.  */
 
 class displaced_stepping_t
-    : public detail::handle_object<amd_dbgapi_displaced_stepping_id_t>
+  : public detail::handle_object<amd_dbgapi_displaced_stepping_id_t>
 {
 private:
   bool const m_is_simulated;
@@ -54,10 +54,10 @@ private:
 
 public:
   displaced_stepping_t (
-      amd_dbgapi_displaced_stepping_id_t displaced_stepping_id, queue_t &queue,
-      amd_dbgapi_global_address_t original_pc,
-      std::vector<uint8_t> original_instruction, bool simulate,
-      instruction_buffer_t instruction_buffer);
+    amd_dbgapi_displaced_stepping_id_t displaced_stepping_id, queue_t &queue,
+    amd_dbgapi_global_address_t original_pc,
+    std::vector<uint8_t> original_instruction, bool simulate,
+    instruction_buffer_t instruction_buffer);
 
   ~displaced_stepping_t ();
 

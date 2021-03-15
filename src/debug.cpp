@@ -88,7 +88,7 @@ full_callback (void *data, uintptr_t pc, const char *filename, int lineno,
   else
     {
       char *demangled
-          = abi::__cxa_demangle (function, nullptr, nullptr, &status);
+        = abi::__cxa_demangle (function, nullptr, nullptr, &status);
       info->sstream << ' ' << (status == 0 ? demangled : function);
       free (demangled);
 
@@ -107,8 +107,8 @@ exception_t::print_message () const noexcept
 {
   if (const char *message = what (); message && *message)
     dbgapi_log (error_code () == AMD_DBGAPI_STATUS_FATAL
-                    ? AMD_DBGAPI_LOG_LEVEL_FATAL_ERROR
-                    : AMD_DBGAPI_LOG_LEVEL_WARNING,
+                  ? AMD_DBGAPI_LOG_LEVEL_FATAL_ERROR
+                  : AMD_DBGAPI_LOG_LEVEL_WARNING,
                 "%s", message);
 }
 

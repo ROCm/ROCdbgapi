@@ -163,7 +163,7 @@ public:
   size_t lane_count () const
   {
     return m_cwsr_record->get_info (
-        architecture_t::cwsr_record_t::query_kind_t::lane_count);
+      architecture_t::cwsr_record_t::query_kind_t::lane_count);
   }
 
   auto group_ids () const { return m_group_ids; }

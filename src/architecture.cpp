@@ -53,7 +53,7 @@ const architecture_t *last_found_architecture = nullptr;
 } /* namespace detail */
 
 decltype (architecture_t::s_next_architecture_id)
-    architecture_t::s_next_architecture_id;
+  architecture_t::s_next_architecture_id;
 
 /* Base class for all AMDGCN architectures.  */
 
@@ -76,7 +76,7 @@ protected:
   };
 
   static const std::unordered_map<uint16_t, cbranch_cond_t>
-      cbranch_opcodes_map;
+    cbranch_opcodes_map;
 
   static constexpr uint32_t sq_wave_status_scc_mask = 1 << 0;
   static constexpr uint32_t sq_wave_status_priv_mask = 1 << 5;
@@ -92,7 +92,7 @@ protected:
   static constexpr uint32_t ttmp7_wave_stopped_mask = 1 << 30;
   static constexpr uint32_t ttmp7_saved_status_halt_mask = 1 << 29;
   static constexpr uint32_t ttmp7_saved_trap_id_mask
-      = utils::bit_mask (25, 28);
+    = utils::bit_mask (25, 28);
   static constexpr uint32_t ttmp7_saved_trap_id (uint32_t x)
   {
     return utils::bit_extract (x, 25, 28);
@@ -140,7 +140,7 @@ protected:
 
   amdgcn_architecture_t (elf_amdgpu_machine_t e_machine,
                          std::string target_triple)
-      : architecture_t (e_machine, std::move (target_triple))
+    : architecture_t (e_machine, std::move (target_triple))
   {
   }
 
@@ -148,28 +148,28 @@ public:
   void initialize () override;
 
   amd_dbgapi_status_t convert_address_space (
-      const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
-      const address_space_t &from_address_space,
-      const address_space_t &to_address_space,
-      amd_dbgapi_segment_address_t from_address,
-      amd_dbgapi_segment_address_t *to_address) const override;
+    const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
+    const address_space_t &from_address_space,
+    const address_space_t &to_address_space,
+    amd_dbgapi_segment_address_t from_address,
+    amd_dbgapi_segment_address_t *to_address) const override;
 
   void lower_address_space (
-      const wave_t &wave, amd_dbgapi_lane_id_t *lane_id,
-      const address_space_t &original_address_space,
-      const address_space_t **lowered_address_space,
-      amd_dbgapi_segment_address_t original_address,
-      amd_dbgapi_segment_address_t *lowered_address) const override;
+    const wave_t &wave, amd_dbgapi_lane_id_t *lane_id,
+    const address_space_t &original_address_space,
+    const address_space_t **lowered_address_space,
+    amd_dbgapi_segment_address_t original_address,
+    amd_dbgapi_segment_address_t *lowered_address) const override;
 
   bool address_is_in_address_class (
-      const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
-      const address_space_t &address_space,
-      amd_dbgapi_segment_address_t segment_address,
-      const address_class_t &address_class) const override;
+    const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
+    const address_space_t &address_space,
+    amd_dbgapi_segment_address_t segment_address,
+    const address_class_t &address_class) const override;
 
   bool address_spaces_may_alias (
-      const address_space_t &address_space1,
-      const address_space_t &address_space2) const override;
+    const address_space_t &address_space1,
+    const address_space_t &address_space2) const override;
 
   amd_dbgapi_watchpoint_share_kind_t watchpoint_share_kind () const override
   {
@@ -199,7 +199,7 @@ public:
                        amd_dbgapi_wave_state_t state) const override;
 
   virtual uint32_t os_wave_launch_trap_mask_to_wave_mode (
-      os_wave_launch_trap_mask_t mask) const;
+    os_wave_launch_trap_mask_t mask) const;
 
   void
   enable_wave_traps (wave_t &wave,
@@ -284,23 +284,23 @@ protected:
                         amd_dbgapi_global_address_t address) const override;
 
   bool simulate_instruction (
-      wave_t &wave, amd_dbgapi_global_address_t pc,
-      const std::vector<uint8_t> &instruction) const override;
+    wave_t &wave, amd_dbgapi_global_address_t pc,
+    const std::vector<uint8_t> &instruction) const override;
 };
 
 decltype (amdgcn_architecture_t::cbranch_opcodes_map)
-    amdgcn_architecture_t::cbranch_opcodes_map{
-      { 4, cbranch_cond_t::scc0 },
-      { 5, cbranch_cond_t::scc1 },
-      { 6, cbranch_cond_t::vccz },
-      { 7, cbranch_cond_t::vccnz },
-      { 8, cbranch_cond_t::execz },
-      { 9, cbranch_cond_t::execnz },
-      { 23, cbranch_cond_t::cdbgsys },
-      { 24, cbranch_cond_t::cdbguser },
-      { 25, cbranch_cond_t::cdbgsys_or_user },
-      { 26, cbranch_cond_t::cdbgsys_and_user },
-    };
+  amdgcn_architecture_t::cbranch_opcodes_map{
+    { 4, cbranch_cond_t::scc0 },
+    { 5, cbranch_cond_t::scc1 },
+    { 6, cbranch_cond_t::vccz },
+    { 7, cbranch_cond_t::vccnz },
+    { 8, cbranch_cond_t::execz },
+    { 9, cbranch_cond_t::execnz },
+    { 23, cbranch_cond_t::cdbgsys },
+    { 24, cbranch_cond_t::cdbguser },
+    { 25, cbranch_cond_t::cdbgsys_or_user },
+    { 26, cbranch_cond_t::cdbgsys_and_user },
+  };
 
 void
 amdgcn_architecture_t::initialize ()
@@ -308,26 +308,26 @@ amdgcn_architecture_t::initialize ()
   /* Create address spaces.  */
 
   auto &as_global = create<address_space_t> (
-      std::make_optional (AMD_DBGAPI_ADDRESS_SPACE_GLOBAL), *this, "global",
-      address_space_t::global, DW_ASPACE_none, 64, 0x0000000000000000,
-      AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
+    std::make_optional (AMD_DBGAPI_ADDRESS_SPACE_GLOBAL), *this, "global",
+    address_space_t::global, DW_ASPACE_none, 64, 0x0000000000000000,
+    AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   auto &as_generic = create<address_space_t> (
-      *this, "generic", address_space_t::generic, DW_ASPACE_AMDGPU_generic, 64,
-      0x0000000000000000, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
+    *this, "generic", address_space_t::generic, DW_ASPACE_AMDGPU_generic, 64,
+    0x0000000000000000, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   auto &as_region = create<address_space_t> (
-      *this, "region", address_space_t::region, DW_ASPACE_AMDGPU_region, 32,
-      0xFFFFFFFF, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
+    *this, "region", address_space_t::region, DW_ASPACE_AMDGPU_region, 32,
+    0xFFFFFFFF, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   auto &as_local = create<address_space_t> (
-      *this, "local", address_space_t::local, DW_ASPACE_AMDGPU_local, 32,
-      0xFFFFFFFF, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
+    *this, "local", address_space_t::local, DW_ASPACE_AMDGPU_local, 32,
+    0xFFFFFFFF, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   auto &as_private_lane = create<address_space_t> (
-      *this, "private_lane", address_space_t::private_swizzled,
-      DW_ASPACE_AMDGPU_private_lane, 32, 0x00000000,
-      AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
+    *this, "private_lane", address_space_t::private_swizzled,
+    DW_ASPACE_AMDGPU_private_lane, 32, 0x00000000,
+    AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   create<address_space_t> (*this, "private_wave",
                            address_space_t::private_unswizzled,
@@ -357,7 +357,7 @@ amdgcn_architecture_t::initialize ()
   register_class_t::register_map_t scalar_registers;
   scalar_registers.emplace (amdgpu_regnum_t::first_sgpr,
                             amdgpu_regnum_t::first_sgpr
-                                + scalar_register_count () - 1);
+                              + scalar_register_count () - 1);
   create<register_class_t> (*this, "scalar", scalar_registers);
 
   /* Vector registers: [v0-v255, a0-a255]  */
@@ -440,11 +440,11 @@ namespace
  */
 const address_space_t &
 address_space_for_generic_address (
-    const wave_t &wave, amd_dbgapi_segment_address_t generic_address)
+  const wave_t &wave, amd_dbgapi_segment_address_t generic_address)
 {
   address_space_t::address_space_kind_t address_space_kind;
   amd_dbgapi_global_address_t aperture
-      = generic_address & utils::bit_mask (32, 63);
+    = generic_address & utils::bit_mask (32, 63);
 
   if (aperture == wave.agent ().private_address_space_aperture ())
     address_space_kind = address_space_t::private_swizzled;
@@ -454,9 +454,9 @@ address_space_for_generic_address (
     address_space_kind = address_space_t::global;
 
   const address_space_t *segment_address_space
-      = wave.architecture ().find_if ([=] (const address_space_t &as) {
-          return as.kind () == address_space_kind;
-        });
+    = wave.architecture ().find_if ([=] (const address_space_t &as) {
+        return as.kind () == address_space_kind;
+      });
   if (!segment_address_space)
     error ("address space not found in architecture");
 
@@ -470,8 +470,8 @@ address_space_for_generic_address (
  */
 std::optional<amd_dbgapi_segment_address_t>
 generic_address_for_address_space (
-    const wave_t &wave, const address_space_t &segment_address_space,
-    amd_dbgapi_segment_address_t segment_address)
+  const wave_t &wave, const address_space_t &segment_address_space,
+  amd_dbgapi_segment_address_t segment_address)
 {
   amd_dbgapi_segment_address_t aperture{ 0 };
 
@@ -487,7 +487,7 @@ generic_address_for_address_space (
     return segment_address_space.null_address ();
 
   segment_address
-      &= utils::bit_mask (0, segment_address_space.address_size () - 1);
+    &= utils::bit_mask (0, segment_address_space.address_size () - 1);
 
   return aperture | segment_address;
 }
@@ -496,11 +496,11 @@ generic_address_for_address_space (
 
 amd_dbgapi_status_t
 amdgcn_architecture_t::convert_address_space (
-    const wave_t &wave, amd_dbgapi_lane_id_t /* lane_id  */,
-    const address_space_t &from_address_space,
-    const address_space_t &to_address_space,
-    amd_dbgapi_segment_address_t from_address,
-    amd_dbgapi_segment_address_t *to_address) const
+  const wave_t &wave, amd_dbgapi_lane_id_t /* lane_id  */,
+  const address_space_t &from_address_space,
+  const address_space_t &to_address_space,
+  amd_dbgapi_segment_address_t from_address,
+  amd_dbgapi_segment_address_t *to_address) const
 {
   /* Remove the unused bits from the address.  */
   from_address &= utils::bit_mask (0, from_address_space.address_size () - 1);
@@ -526,8 +526,8 @@ amdgcn_architecture_t::convert_address_space (
         return AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION;
 
       *to_address
-          = from_address
-            & utils::bit_mask (0, to_address_space.address_size () - 1);
+        = from_address
+          & utils::bit_mask (0, to_address_space.address_size () - 1);
 
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
@@ -539,7 +539,7 @@ amdgcn_architecture_t::convert_address_space (
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION;
 
   auto generic_address = generic_address_for_address_space (
-      wave, from_address_space, from_address);
+    wave, from_address_space, from_address);
   if (!generic_address)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION;
 
@@ -549,20 +549,20 @@ amdgcn_architecture_t::convert_address_space (
 
 void
 amdgcn_architecture_t::lower_address_space (
-    const wave_t &wave, amd_dbgapi_lane_id_t *lane_id,
-    const address_space_t &original_address_space,
-    const address_space_t **lowered_address_space,
-    amd_dbgapi_segment_address_t original_address,
-    amd_dbgapi_segment_address_t *lowered_address) const
+  const wave_t &wave, amd_dbgapi_lane_id_t *lane_id,
+  const address_space_t &original_address_space,
+  const address_space_t **lowered_address_space,
+  amd_dbgapi_segment_address_t original_address,
+  amd_dbgapi_segment_address_t *lowered_address) const
 {
   if (original_address_space.kind () == address_space_t::generic)
     {
       const address_space_t &segment_address_space
-          = address_space_for_generic_address (wave, original_address);
+        = address_space_for_generic_address (wave, original_address);
 
       wave.architecture ().convert_address_space (
-          wave, AMD_DBGAPI_LANE_NONE, original_address_space,
-          segment_address_space, original_address, lowered_address);
+        wave, AMD_DBGAPI_LANE_NONE, original_address_space,
+        segment_address_space, original_address, lowered_address);
 
       *lowered_address_space = &segment_address_space;
       return;
@@ -575,9 +575,9 @@ amdgcn_architecture_t::lower_address_space (
           && dwarf_value <= DW_ASPACE_AMDGPU_private_lane63)
         {
           const address_space_t *as_private_lane
-              = wave.architecture ().find_if ([=] (const address_space_t &as) {
-                  return as.kind () == address_space_t::private_swizzled;
-                });
+            = wave.architecture ().find_if ([=] (const address_space_t &as) {
+                return as.kind () == address_space_t::private_swizzled;
+              });
           if (!as_private_lane)
             error ("address space `private_lane' not found in architecture");
 
@@ -593,10 +593,10 @@ amdgcn_architecture_t::lower_address_space (
 
 bool
 amdgcn_architecture_t::address_is_in_address_class (
-    const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
-    const address_space_t &address_space,
-    amd_dbgapi_segment_address_t segment_address,
-    const address_class_t &address_class) const
+  const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
+  const address_space_t &address_space,
+  amd_dbgapi_segment_address_t segment_address,
+  const address_class_t &address_class) const
 {
   /* The implementation follows this table:
 
@@ -640,8 +640,8 @@ amdgcn_architecture_t::address_is_in_address_class (
 
 bool
 amdgcn_architecture_t::address_spaces_may_alias (
-    const address_space_t &address_space1,
-    const address_space_t &address_space2) const
+  const address_space_t &address_space1,
+  const address_space_t &address_space2) const
 {
   /* generic aliases with private, local and global.  */
   if (address_space1.kind () == address_space_t::generic
@@ -743,8 +743,8 @@ amdgcn_architecture_t::breakpoint_instruction_pc_adjust () const
 
 amd_dbgapi_global_address_t
 amdgcn_architecture_t::branch_target (
-    wave_t &wave, amd_dbgapi_global_address_t pc,
-    const std::vector<uint8_t> &instruction) const
+  wave_t &wave, amd_dbgapi_global_address_t pc,
+  const std::vector<uint8_t> &instruction) const
 {
   amd_dbgapi_global_address_t new_pc = pc + instruction.size ();
   ssize_t branch_offset = encoding_simm16 (instruction) << 2;
@@ -816,8 +816,8 @@ amdgcn_architecture_t::branch_target (
 std::tuple<amd_dbgapi_instruction_kind_t, amd_dbgapi_instruction_properties_t,
            size_t, std::vector<uint64_t>>
 amdgcn_architecture_t::classify_instruction (
-    const std::vector<uint8_t> &instruction,
-    amd_dbgapi_global_address_t address) const
+  const std::vector<uint8_t> &instruction,
+  amd_dbgapi_global_address_t address) const
 {
   enum class information_kind_t
   {
@@ -829,7 +829,7 @@ amdgcn_architecture_t::classify_instruction (
 
   amd_dbgapi_instruction_kind_t instruction_kind;
   amd_dbgapi_instruction_properties_t instruction_properties
-      = AMD_DBGAPI_INSTRUCTION_PROPERTY_NONE;
+    = AMD_DBGAPI_INSTRUCTION_PROPERTY_NONE;
 
   std::optional<amdgpu_regnum_t> ssrc_regnum, sdst_regnum;
 
@@ -850,7 +850,7 @@ amdgcn_architecture_t::classify_instruction (
   else if (is_cbranch_g_fork (instruction))
     {
       instruction_kind
-          = AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_BRANCH_CONDITIONAL_REGISTER_PAIR;
+        = AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_BRANCH_CONDITIONAL_REGISTER_PAIR;
       information_kind = information_kind_t::pc_indirect;
       ssrc_regnum = scalar_operand_to_regnum (encoding_ssrc1 (instruction));
     }
@@ -862,7 +862,7 @@ amdgcn_architecture_t::classify_instruction (
   else if (is_setpc (instruction))
     {
       instruction_kind
-          = AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_BRANCH_REGISTER_PAIR;
+        = AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_BRANCH_REGISTER_PAIR;
       information_kind = information_kind_t::pc_indirect;
       ssrc_regnum = scalar_operand_to_regnum (encoding_ssrc0 (instruction));
     }
@@ -875,7 +875,7 @@ amdgcn_architecture_t::classify_instruction (
   else if (is_swappc (instruction))
     {
       instruction_kind
-          = AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_CALL_REGISTER_PAIRS;
+        = AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_CALL_REGISTER_PAIRS;
       information_kind = information_kind_t::pc_indirect;
       ssrc_regnum = scalar_operand_to_regnum (encoding_ssrc0 (instruction));
       sdst_regnum = scalar_operand_to_regnum (encoding_sdst (instruction));
@@ -944,7 +944,7 @@ amdgcn_architecture_t::classify_instruction (
   else if (information_kind == information_kind_t::uint8)
     {
       information.emplace_back (
-          utils::bit_extract (encoding_simm16 (instruction), 0, 7));
+        utils::bit_extract (encoding_simm16 (instruction), 0, 7));
     }
 
   return { instruction_kind, instruction_properties, size,
@@ -953,8 +953,8 @@ amdgcn_architecture_t::classify_instruction (
 
 bool
 amdgcn_architecture_t::simulate_instruction (
-    wave_t &wave, amd_dbgapi_global_address_t pc,
-    const std::vector<uint8_t> &instruction) const
+  wave_t &wave, amd_dbgapi_global_address_t pc,
+  const std::vector<uint8_t> &instruction) const
 {
   dbgapi_assert (wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
                  && "wave must be stopped to simulate instructions");
@@ -987,7 +987,7 @@ amdgcn_architecture_t::simulate_instruction (
       if (!is_setpc (instruction))
         {
           amdgpu_regnum_t sdst_regnum
-              = scalar_operand_to_regnum (encoding_sdst (instruction));
+            = scalar_operand_to_regnum (encoding_sdst (instruction));
 
           /* The hardware requires a 64-bit address register pair to have the
              lower register number be even.  If it is not, then it is treated
@@ -1019,14 +1019,14 @@ amdgcn_architecture_t::simulate_instruction (
             }
 
           new_pc = is_call (instruction)
-                       ? branch_target (wave, pc, instruction)
-                       : pc + instruction.size ();
+                     ? branch_target (wave, pc, instruction)
+                     : pc + instruction.size ();
         }
 
       if (is_setpc (instruction) || is_swappc (instruction))
         {
           amdgpu_regnum_t ssrc_regnum
-              = scalar_operand_to_regnum (encoding_ssrc0 (instruction));
+            = scalar_operand_to_regnum (encoding_ssrc0 (instruction));
 
           /* The hardware requires a 64-bit address register pair to have the
              lower register number be even.  If it is not, then it is treated
@@ -1073,8 +1073,8 @@ amdgcn_architecture_t::simulate_instruction (
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "%s simulated \"%s\" (pc=%#lx)",
               to_string (wave.id ()).c_str (),
               std::get<1> (wave.architecture ().disassemble_instruction (
-                               pc, instruction.data (), instruction.size ()))
-                  .c_str (),
+                             pc, instruction.data (), instruction.size ()))
+                .c_str (),
               pc);
 
   return true;
@@ -1082,8 +1082,8 @@ amdgcn_architecture_t::simulate_instruction (
 
 void
 amdgcn_architecture_t::get_wave_state (
-    wave_t &wave, amd_dbgapi_wave_state_t *state,
-    amd_dbgapi_wave_stop_reason_t *stop_reason) const
+  wave_t &wave, amd_dbgapi_wave_state_t *state,
+  amd_dbgapi_wave_stop_reason_t *stop_reason) const
 {
   dbgapi_assert (state && stop_reason && "Invalid parameter");
 
@@ -1094,11 +1094,11 @@ amdgcn_architecture_t::get_wave_state (
   amd_dbgapi_wave_state_t prev_state = wave.state ();
 
   amd_dbgapi_wave_state_t new_state
-      = (ttmp7 & ttmp7_wave_stopped_mask)
-            ? AMD_DBGAPI_WAVE_STATE_STOP
-            : ((mode_reg & sq_wave_mode_debug_en_mask)
-                   ? AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
-                   : AMD_DBGAPI_WAVE_STATE_RUN);
+    = (ttmp7 & ttmp7_wave_stopped_mask)
+        ? AMD_DBGAPI_WAVE_STATE_STOP
+        : ((mode_reg & sq_wave_mode_debug_en_mask)
+             ? AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
+             : AMD_DBGAPI_WAVE_STATE_RUN);
 
   if (new_state != AMD_DBGAPI_WAVE_STATE_STOP)
     {
@@ -1121,9 +1121,9 @@ amdgcn_architecture_t::get_wave_state (
       wave.write_register (amdgpu_regnum_t::mode, &mode_reg);
 
       amd_dbgapi_wave_stop_reason_t reason_mask
-          = (prev_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
-                ? AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP
-                : AMD_DBGAPI_WAVE_STOP_REASON_NONE;
+        = (prev_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
+            ? AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP
+            : AMD_DBGAPI_WAVE_STOP_REASON_NONE;
 
       uint32_t trapsts;
       wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
@@ -1141,8 +1141,8 @@ amdgcn_architecture_t::get_wave_state (
 
           pc = static_cast<amd_dbgapi_global_address_t> (ttmp6)
                | static_cast<amd_dbgapi_global_address_t> (
-                     utils::bit_extract (ttmp11, 7, 22))
-                     << 32;
+                   utils::bit_extract (ttmp11, 7, 22))
+                   << 32;
           wave.write_register (amdgpu_regnum_t::pc, &pc);
         }
 
@@ -1173,8 +1173,8 @@ amdgcn_architecture_t::get_wave_state (
          after.  In such cases, un-halt the wave and let it continue, so that
          the instruction is executed.  */
       bool ignore_single_step_event
-          = prev_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
-            && wave.last_stopped_pc () == pc;
+        = prev_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
+          && wave.last_stopped_pc () == pc;
 
       /* FIXME: Is this worth it?  */
       if (ignore_single_step_event)
@@ -1348,7 +1348,7 @@ amdgcn_architecture_t::set_wave_state (wave_t &wave,
    SQ_WAVE_MODE register.  */
 uint32_t
 amdgcn_architecture_t::os_wave_launch_trap_mask_to_wave_mode (
-    os_wave_launch_trap_mask_t mask) const
+  os_wave_launch_trap_mask_t mask) const
 {
   uint32_t mode{ 0 };
 
@@ -1374,7 +1374,7 @@ amdgcn_architecture_t::os_wave_launch_trap_mask_to_wave_mode (
 
 void
 amdgcn_architecture_t::enable_wave_traps (
-    wave_t &wave, os_wave_launch_trap_mask_t mask) const
+  wave_t &wave, os_wave_launch_trap_mask_t mask) const
 {
   uint32_t mode;
   wave.read_register (amdgpu_regnum_t::mode, &mode);
@@ -1387,7 +1387,7 @@ amdgcn_architecture_t::enable_wave_traps (
 
 void
 amdgcn_architecture_t::disable_wave_traps (
-    wave_t &wave, os_wave_launch_trap_mask_t mask) const
+  wave_t &wave, os_wave_launch_trap_mask_t mask) const
 {
   uint32_t mode;
 
@@ -1545,7 +1545,7 @@ amdgcn_architecture_t::is_sleep (const std::vector<uint8_t> &bytes) const
 
 bool
 amdgcn_architecture_t::is_code_end (
-    const std::vector<uint8_t> & /* bytes  */) const
+  const std::vector<uint8_t> & /* bytes  */) const
 {
   return false;
 }
@@ -1612,7 +1612,7 @@ amdgcn_architecture_t::is_cbranch (const std::vector<uint8_t> &bytes) const
 
 bool
 amdgcn_architecture_t::is_cbranch_i_fork (
-    const std::vector<uint8_t> &bytes) const
+  const std::vector<uint8_t> &bytes) const
 {
   /* s_cbranch_i_fork: SOPK Opcode 16  */
   return is_sopk_instruction (bytes, 16);
@@ -1620,7 +1620,7 @@ amdgcn_architecture_t::is_cbranch_i_fork (
 
 bool
 amdgcn_architecture_t::is_cbranch_g_fork (
-    const std::vector<uint8_t> &bytes) const
+  const std::vector<uint8_t> &bytes) const
 {
   /* s_cbranch_g_fork: SOP2 Opcode 41  */
   return is_sop2_instruction (bytes, 41);
@@ -1628,7 +1628,7 @@ amdgcn_architecture_t::is_cbranch_g_fork (
 
 bool
 amdgcn_architecture_t::is_cbranch_join (
-    const std::vector<uint8_t> &bytes) const
+  const std::vector<uint8_t> &bytes) const
 {
   /* s_cbranch_join: SOP1 Opcode 46  */
   return is_sop1_instruction (bytes, 46);
@@ -1636,7 +1636,7 @@ amdgcn_architecture_t::is_cbranch_join (
 
 bool
 amdgcn_architecture_t::is_pseudo_register_available (
-    const wave_t &wave, amdgpu_regnum_t regnum) const
+  const wave_t &wave, amdgpu_regnum_t regnum) const
 {
   dbgapi_assert (is_pseudo_register (regnum));
 
@@ -1768,11 +1768,11 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
       uint32_t base_reg, status_reg;
 
       amdgpu_regnum_t base_regnum = regnum == amdgpu_regnum_t::pseudo_exec_32
-                                        ? amdgpu_regnum_t::exec_32
-                                        : amdgpu_regnum_t::vcc_32;
+                                      ? amdgpu_regnum_t::exec_32
+                                      : amdgpu_regnum_t::vcc_32;
       uint32_t status_mask = regnum == amdgpu_regnum_t::pseudo_exec_32
-                                 ? sq_wave_status_execz_mask
-                                 : sq_wave_status_vccz_mask;
+                               ? sq_wave_status_execz_mask
+                               : sq_wave_status_vccz_mask;
 
       wave.read_register (amdgpu_regnum_t::status, &status_reg);
       wave.read_register (base_regnum, &base_reg);
@@ -1781,7 +1781,7 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
               static_cast<const char *> (value) + offset, value_size);
 
       status_reg
-          = (status_reg & ~status_mask) | (base_reg == 0 ? status_mask : 0);
+        = (status_reg & ~status_mask) | (base_reg == 0 ? status_mask : 0);
 
       wave.write_register (amdgpu_regnum_t::status, &status_reg);
       wave.write_register (base_regnum, &base_reg);
@@ -1796,11 +1796,11 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
       uint32_t status_reg;
 
       amdgpu_regnum_t base_regnum = regnum == amdgpu_regnum_t::pseudo_exec_64
-                                        ? amdgpu_regnum_t::exec_64
-                                        : amdgpu_regnum_t::vcc_64;
+                                      ? amdgpu_regnum_t::exec_64
+                                      : amdgpu_regnum_t::vcc_64;
       uint32_t status_mask = regnum == amdgpu_regnum_t::pseudo_exec_64
-                                 ? sq_wave_status_execz_mask
-                                 : sq_wave_status_vccz_mask;
+                               ? sq_wave_status_execz_mask
+                               : sq_wave_status_vccz_mask;
 
       wave.read_register (amdgpu_regnum_t::status, &status_reg);
       wave.read_register (base_regnum, &base_reg);
@@ -1809,7 +1809,7 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
               static_cast<const char *> (value) + offset, value_size);
 
       status_reg
-          = (status_reg & ~status_mask) | (base_reg == 0 ? status_mask : 0);
+        = (status_reg & ~status_mask) | (base_reg == 0 ? status_mask : 0);
 
       wave.write_register (amdgpu_regnum_t::status, &status_reg);
       wave.write_register (base_regnum, &base_reg);
@@ -1825,12 +1825,12 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
 
       /* Only some fields of the status register are writable.  */
       constexpr uint32_t writable_fields_mask
-          = utils::bit_mask (0, 4)      /* scc, spi_prio, user_prio  */
-            | utils::bit_mask (8, 8)    /* export_rdy  */
-            | utils::bit_mask (13, 13)  /* halt  */
-            | utils::bit_mask (17, 18)  /* ecc_err, skip_export  */
-            | utils::bit_mask (20, 21)  /* cond_dbg_user, cond_dbg_sys  */
-            | utils::bit_mask (27, 27); /* must_export  */
+        = utils::bit_mask (0, 4)      /* scc, spi_prio, user_prio  */
+          | utils::bit_mask (8, 8)    /* export_rdy  */
+          | utils::bit_mask (13, 13)  /* halt  */
+          | utils::bit_mask (17, 18)  /* ecc_err, skip_export  */
+          | utils::bit_mask (20, 21)  /* cond_dbg_user, cond_dbg_sys  */
+          | utils::bit_mask (27, 27); /* must_export  */
 
       wave.read_register (amdgpu_regnum_t::status, &prev_status_reg);
       wave.read_register (amdgpu_regnum_t::ttmp7, &ttmp7);
@@ -1892,10 +1892,10 @@ protected:
     cwsr_record_t (queue_t &queue, uint32_t compute_relaunch_wave,
                    uint32_t compute_relaunch_state,
                    amd_dbgapi_global_address_t context_save_address)
-        : architecture_t::cwsr_record_t (queue),
-          m_compute_relaunch_wave (compute_relaunch_wave),
-          m_compute_relaunch_state (compute_relaunch_state),
-          m_context_save_address (context_save_address)
+      : architecture_t::cwsr_record_t (queue),
+        m_compute_relaunch_wave (compute_relaunch_wave),
+        m_compute_relaunch_state (compute_relaunch_state),
+        m_context_save_address (context_save_address)
     {
     }
 
@@ -1907,9 +1907,9 @@ protected:
 
   virtual std::unique_ptr<architecture_t::cwsr_record_t>
   make_gfx9_cwsr_record (
-      queue_t &queue, uint32_t compute_relaunch_wave,
-      uint32_t compute_relaunch_state,
-      amd_dbgapi_global_address_t context_save_address) const
+    queue_t &queue, uint32_t compute_relaunch_wave,
+    uint32_t compute_relaunch_state,
+    amd_dbgapi_global_address_t context_save_address) const
   {
     return std::make_unique<cwsr_record_t> (queue, compute_relaunch_wave,
                                             compute_relaunch_state,
@@ -1919,7 +1919,7 @@ protected:
   amdgpu_regnum_t scalar_operand_to_regnum (int operand) const override;
 
   gfx9_base_t (elf_amdgpu_machine_t e_machine, std::string target_triple)
-      : amdgcn_architecture_t (e_machine, std::move (target_triple))
+    : amdgcn_architecture_t (e_machine, std::move (target_triple))
   {
   }
 
@@ -1934,17 +1934,15 @@ public:
   bool can_halt_at_endpgm () const override { return false; }
   size_t largest_instruction_size () const override { return 8; }
 
-  void
-  control_stack_iterate (queue_t &queue, const uint32_t *control_stack,
-                         size_t control_stack_words,
-                         amd_dbgapi_global_address_t wave_area_address,
-                         amd_dbgapi_size_t wave_area_size,
-                         const std::function<void (
-                             std::unique_ptr<architecture_t::cwsr_record_t>)>
-                             &wave_callback) const override;
+  void control_stack_iterate (
+    queue_t &queue, const uint32_t *control_stack, size_t control_stack_words,
+    amd_dbgapi_global_address_t wave_area_address,
+    amd_dbgapi_size_t wave_area_size,
+    const std::function<void (std::unique_ptr<architecture_t::cwsr_record_t>)>
+      &wave_callback) const override;
 
   amd_dbgapi_global_address_t dispatch_packet_address (
-      const architecture_t::cwsr_record_t &cwsr_record) const override;
+    const architecture_t::cwsr_record_t &cwsr_record) const override;
 
   size_t watchpoint_mask_bits () const override
   {
@@ -1990,7 +1988,7 @@ gfx9_base_t::cwsr_record_t::get_info (query_kind_t query) const
     case query_kind_t::is_halted:
       {
         const amd_dbgapi_global_address_t status_reg_address
-            = register_address (amdgpu_regnum_t::status).value ();
+          = register_address (amdgpu_regnum_t::status).value ();
 
         uint32_t status_reg;
         if (process ().read_global_memory (status_reg_address, &status_reg,
@@ -2004,7 +2002,7 @@ gfx9_base_t::cwsr_record_t::get_info (query_kind_t query) const
     case query_kind_t::is_stopped:
       {
         const amd_dbgapi_global_address_t ttmp7_address
-            = register_address (amdgpu_regnum_t::ttmp7).value ();
+          = register_address (amdgpu_regnum_t::ttmp7).value ();
 
         uint32_t ttmp7;
         if (process ().read_global_memory (ttmp7_address, &ttmp7,
@@ -2064,7 +2062,7 @@ std::optional<amd_dbgapi_global_address_t>
 gfx9_base_t::cwsr_record_t::register_address (amdgpu_regnum_t regnum) const
 {
   const auto &architecture
-      = static_cast<const gfx9_base_t &> (queue ().architecture ());
+    = static_cast<const gfx9_base_t &> (queue ().architecture ());
 
   size_t lane_count = get_info (query_kind_t::lane_count);
   amd_dbgapi_global_address_t save_area_addr = m_context_save_address;
@@ -2164,10 +2162,10 @@ gfx9_base_t::cwsr_record_t::register_address (amdgpu_regnum_t regnum) const
   size_t sgprs_addr = hwregs_addr - sgpr_count * sgpr_size;
 
   amdgpu_regnum_t aliased_sgpr_end
-      = amdgpu_regnum_t::first_sgpr
-        + std::min (architecture.scalar_register_count ()
-                        + architecture.scalar_alias_count (),
-                    sgpr_count);
+    = amdgpu_regnum_t::first_sgpr
+      + std::min (architecture.scalar_register_count ()
+                    + architecture.scalar_alias_count (),
+                  sgpr_count);
 
   /* Exclude the aliased sgprs.  */
   if (regnum >= (aliased_sgpr_end - architecture.scalar_alias_count ())
@@ -2246,11 +2244,11 @@ gfx9_base_t::cwsr_record_t::register_address (amdgpu_regnum_t regnum) const
 
 void
 gfx9_base_t::control_stack_iterate (
-    queue_t &queue, const uint32_t *control_stack, size_t control_stack_words,
-    amd_dbgapi_global_address_t wave_area_address,
-    amd_dbgapi_size_t wave_area_size,
-    const std::function<void (std::unique_ptr<architecture_t::cwsr_record_t>)>
-        &wave_callback) const
+  queue_t &queue, const uint32_t *control_stack, size_t control_stack_words,
+  amd_dbgapi_global_address_t wave_area_address,
+  amd_dbgapi_size_t wave_area_size,
+  const std::function<void (std::unique_ptr<architecture_t::cwsr_record_t>)>
+    &wave_callback) const
 {
   uint32_t state{ 0 };
 
@@ -2275,8 +2273,8 @@ gfx9_base_t::control_stack_iterate (
                                                     last_wave_area - 64);
 
           last_wave_area
-              = cwsr_record->register_address (amdgpu_regnum_t::first_vgpr_64)
-                    .value ();
+            = cwsr_record->register_address (amdgpu_regnum_t::first_vgpr_64)
+                .value ();
 
           wave_callback (std::move (cwsr_record));
         }
@@ -2291,30 +2289,29 @@ gfx9_base_t::control_stack_iterate (
 
 amd_dbgapi_global_address_t
 gfx9_base_t::dispatch_packet_address (
-    const architecture_t::cwsr_record_t &cwsr_record) const
+  const architecture_t::cwsr_record_t &cwsr_record) const
 {
   static constexpr uint64_t aql_packet_size = 64;
 
   amd_dbgapi_global_address_t packets_address;
   amd_dbgapi_status_t status = cwsr_record.queue ().get_info (
-      AMD_DBGAPI_QUEUE_INFO_ADDRESS, sizeof (packets_address),
-      &packets_address);
+    AMD_DBGAPI_QUEUE_INFO_ADDRESS, sizeof (packets_address), &packets_address);
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     error ("Could not get the queue address (rc=%d)", status);
 
   const amd_dbgapi_global_address_t ttmp6_7_address
-      = cwsr_record.register_address (amdgpu_regnum_t::ttmp6).value ();
+    = cwsr_record.register_address (amdgpu_regnum_t::ttmp6).value ();
 
   uint64_t ttmp6_7;
   status = cwsr_record.process ().read_global_memory (
-      ttmp6_7_address, &ttmp6_7, sizeof (ttmp6_7));
+    ttmp6_7_address, &ttmp6_7, sizeof (ttmp6_7));
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     error ("Could not read the 'ttmp6:7' registers (rc=%d)", status);
 
   if ((ttmp6_7 >> 32) & ttmp7_dispatch_id_converted_mask)
     {
       amd_dbgapi_os_queue_packet_id_t os_queue_packet_id
-          = ttmp7_queue_packet_id (ttmp6_7 >> 32);
+        = ttmp7_queue_packet_id (ttmp6_7 >> 32);
       return packets_address + (os_queue_packet_id * aql_packet_size);
     }
   else
@@ -2337,7 +2334,7 @@ class gfx900_t final : public gfx9_base_t
 {
 public:
   gfx900_t ()
-      : gfx9_base_t (EF_AMDGPU_MACH_AMDGCN_GFX900, "amdgcn-amd-amdhsa--gfx900")
+    : gfx9_base_t (EF_AMDGPU_MACH_AMDGCN_GFX900, "amdgcn-amd-amdhsa--gfx900")
   {
   }
 };
@@ -2348,7 +2345,7 @@ class gfx906_t final : public gfx9_base_t
 {
 public:
   gfx906_t ()
-      : gfx9_base_t (EF_AMDGPU_MACH_AMDGCN_GFX906, "amdgcn-amd-amdhsa--gfx906")
+    : gfx9_base_t (EF_AMDGPU_MACH_AMDGCN_GFX906, "amdgcn-amd-amdhsa--gfx906")
   {
   }
 };
@@ -2364,9 +2361,9 @@ protected:
     cwsr_record_t (queue_t &queue, uint32_t compute_relaunch_wave,
                    uint32_t compute_relaunch_state,
                    amd_dbgapi_global_address_t context_save_address)
-        : gfx9_base_t::cwsr_record_t (queue, compute_relaunch_wave,
-                                      compute_relaunch_state,
-                                      context_save_address)
+      : gfx9_base_t::cwsr_record_t (queue, compute_relaunch_wave,
+                                    compute_relaunch_state,
+                                    context_save_address)
     {
     }
 
@@ -2384,9 +2381,9 @@ protected:
   };
 
   std::unique_ptr<architecture_t::cwsr_record_t> make_gfx9_cwsr_record (
-      queue_t &queue, uint32_t compute_relaunch_wave,
-      uint32_t compute_relaunch_state,
-      amd_dbgapi_global_address_t context_save_address) const override
+    queue_t &queue, uint32_t compute_relaunch_wave,
+    uint32_t compute_relaunch_state,
+    amd_dbgapi_global_address_t context_save_address) const override
   {
     return std::make_unique<cwsr_record_t> (queue, compute_relaunch_wave,
                                             compute_relaunch_state,
@@ -2395,7 +2392,7 @@ protected:
 
 public:
   gfx908_t ()
-      : gfx9_base_t (EF_AMDGPU_MACH_AMDGCN_GFX908, "amdgcn-amd-amdhsa--gfx908")
+    : gfx9_base_t (EF_AMDGPU_MACH_AMDGCN_GFX908, "amdgcn-amd-amdhsa--gfx908")
   {
   }
 
@@ -2422,9 +2419,9 @@ protected:
     cwsr_record_t (queue_t &queue, uint32_t compute_relaunch_wave,
                    uint32_t compute_relaunch_state,
                    amd_dbgapi_global_address_t context_save_address)
-        : gfx9_base_t::cwsr_record_t (queue, compute_relaunch_wave,
-                                      compute_relaunch_state,
-                                      context_save_address)
+      : gfx9_base_t::cwsr_record_t (queue, compute_relaunch_wave,
+                                    compute_relaunch_state,
+                                    context_save_address)
     {
     }
 
@@ -2452,9 +2449,9 @@ protected:
   };
 
   std::unique_ptr<architecture_t::cwsr_record_t> make_gfx9_cwsr_record (
-      queue_t &queue, uint32_t compute_relaunch_wave,
-      uint32_t compute_relaunch_state,
-      amd_dbgapi_global_address_t context_save_address) const override
+    queue_t &queue, uint32_t compute_relaunch_wave,
+    uint32_t compute_relaunch_state,
+    amd_dbgapi_global_address_t context_save_address) const override
   {
     return std::make_unique<cwsr_record_t> (queue, compute_relaunch_wave,
                                             compute_relaunch_state,
@@ -2463,7 +2460,7 @@ protected:
 
 public:
   gfx90a_t ()
-      : gfx9_base_t (EF_AMDGPU_MACH_AMDGCN_GFX90A, "amdgcn-amd-amdhsa--gfx90a")
+    : gfx9_base_t (EF_AMDGPU_MACH_AMDGCN_GFX90A, "amdgcn-amd-amdhsa--gfx90a")
   {
   }
 
@@ -2502,10 +2499,10 @@ protected:
                    uint32_t compute_relaunch_state,
                    uint32_t compute_relaunch2_state,
                    amd_dbgapi_global_address_t context_save_address)
-        : gfx9_base_t::cwsr_record_t (queue, compute_relaunch_wave,
-                                      compute_relaunch_state,
-                                      context_save_address),
-          m_compute_relaunch2_state (compute_relaunch2_state)
+      : gfx9_base_t::cwsr_record_t (queue, compute_relaunch_wave,
+                                    compute_relaunch_state,
+                                    context_save_address),
+        m_compute_relaunch2_state (compute_relaunch2_state)
     {
     }
 
@@ -2517,19 +2514,19 @@ protected:
 
   virtual std::unique_ptr<architecture_t::cwsr_record_t>
   make_gfx10_cwsr_record (
-      queue_t &queue, uint32_t compute_relaunch_wave,
-      uint32_t compute_relaunch_state, uint32_t compute_relaunch2_state,
-      amd_dbgapi_global_address_t context_save_address) const
+    queue_t &queue, uint32_t compute_relaunch_wave,
+    uint32_t compute_relaunch_state, uint32_t compute_relaunch2_state,
+    amd_dbgapi_global_address_t context_save_address) const
   {
     return std::make_unique<cwsr_record_t> (
-        queue, compute_relaunch_wave, compute_relaunch_state,
-        compute_relaunch2_state, context_save_address);
+      queue, compute_relaunch_wave, compute_relaunch_state,
+      compute_relaunch2_state, context_save_address);
   }
 
   amdgpu_regnum_t scalar_operand_to_regnum (int operand) const override;
 
   gfx10_base_t (elf_amdgpu_machine_t e_machine, std::string target_triple)
-      : gfx9_base_t (e_machine, std::move (target_triple))
+    : gfx9_base_t (e_machine, std::move (target_triple))
   {
   }
 
@@ -2550,14 +2547,12 @@ public:
   bool is_cbranch_g_fork (const std::vector<uint8_t> &bytes) const override;
   bool is_cbranch_join (const std::vector<uint8_t> &bytes) const override;
 
-  void
-  control_stack_iterate (queue_t &queue, const uint32_t *control_stack,
-                         size_t control_stack_words,
-                         amd_dbgapi_global_address_t wave_area_address,
-                         amd_dbgapi_size_t wave_area_size,
-                         const std::function<void (
-                             std::unique_ptr<architecture_t::cwsr_record_t>)>
-                             &wave_callback) const override;
+  void control_stack_iterate (
+    queue_t &queue, const uint32_t *control_stack, size_t control_stack_words,
+    amd_dbgapi_global_address_t wave_area_address,
+    amd_dbgapi_size_t wave_area_size,
+    const std::function<void (std::unique_ptr<architecture_t::cwsr_record_t>)>
+      &wave_callback) const override;
 
   bool can_halt_at_endpgm () const override { return false; }
   size_t largest_instruction_size () const override { return 20; }
@@ -2671,14 +2666,14 @@ gfx10_base_t::is_swappc (const std::vector<uint8_t> &bytes) const
 
 bool
 gfx10_base_t::is_cbranch_i_fork (
-    const std::vector<uint8_t> & /* bytes  */) const
+  const std::vector<uint8_t> & /* bytes  */) const
 {
   return false;
 }
 
 bool
 gfx10_base_t::is_cbranch_g_fork (
-    const std::vector<uint8_t> & /* bytes  */) const
+  const std::vector<uint8_t> & /* bytes  */) const
 {
   return false;
 }
@@ -2726,11 +2721,11 @@ gfx10_base_t::cwsr_record_t::get_info (query_kind_t query) const
 
 void
 gfx10_base_t::control_stack_iterate (
-    queue_t &queue, const uint32_t *control_stack, size_t control_stack_words,
-    amd_dbgapi_global_address_t wave_area_address,
-    amd_dbgapi_size_t wave_area_size,
-    const std::function<void (std::unique_ptr<architecture_t::cwsr_record_t>)>
-        &wave_callback) const
+  queue_t &queue, const uint32_t *control_stack, size_t control_stack_words,
+  amd_dbgapi_global_address_t wave_area_address,
+  amd_dbgapi_size_t wave_area_size,
+  const std::function<void (std::unique_ptr<architecture_t::cwsr_record_t>)>
+    &wave_callback) const
 {
   uint32_t state0{ 0 }, state1{ 0 };
 
@@ -2756,14 +2751,14 @@ gfx10_base_t::control_stack_iterate (
           auto cwsr_record = make_gfx10_cwsr_record (queue, relaunch, state0,
                                                      state1, last_wave_area);
 
-          last_wave_area = cwsr_record
-                               ->register_address (
-                                   cwsr_record->get_info (
-                                       cwsr_record_t::query_kind_t::lane_count)
-                                           == 32
-                                       ? amdgpu_regnum_t::first_vgpr_32
-                                       : amdgpu_regnum_t::first_vgpr_64)
-                               .value ();
+          last_wave_area
+            = cwsr_record
+                ->register_address (cwsr_record->get_info (
+                                      cwsr_record_t::query_kind_t::lane_count)
+                                        == 32
+                                      ? amdgpu_regnum_t::first_vgpr_32
+                                      : amdgpu_regnum_t::first_vgpr_64)
+                .value ();
 
           wave_callback (std::move (cwsr_record));
         }
@@ -2780,7 +2775,7 @@ class gfx10_1_t : public gfx10_base_t
 {
 protected:
   gfx10_1_t (elf_amdgpu_machine_t e_machine, std::string target_triple)
-      : gfx10_base_t (e_machine, std::move (target_triple))
+    : gfx10_base_t (e_machine, std::move (target_triple))
   {
   }
 };
@@ -2789,7 +2784,7 @@ class gfx1010_t final : public gfx10_1_t
 {
 public:
   gfx1010_t ()
-      : gfx10_1_t (EF_AMDGPU_MACH_AMDGCN_GFX1010, "amdgcn-amd-amdhsa--gfx1010")
+    : gfx10_1_t (EF_AMDGPU_MACH_AMDGCN_GFX1010, "amdgcn-amd-amdhsa--gfx1010")
   {
   }
 };
@@ -2798,7 +2793,7 @@ class gfx1011_t final : public gfx10_1_t
 {
 public:
   gfx1011_t ()
-      : gfx10_1_t (EF_AMDGPU_MACH_AMDGCN_GFX1011, "amdgcn-amd-amdhsa--gfx1011")
+    : gfx10_1_t (EF_AMDGPU_MACH_AMDGCN_GFX1011, "amdgcn-amd-amdhsa--gfx1011")
   {
   }
 };
@@ -2807,7 +2802,7 @@ class gfx1012_t final : public gfx10_1_t
 {
 public:
   gfx1012_t ()
-      : gfx10_1_t (EF_AMDGPU_MACH_AMDGCN_GFX1012, "amdgcn-amd-amdhsa--gfx1012")
+    : gfx10_1_t (EF_AMDGPU_MACH_AMDGCN_GFX1012, "amdgcn-amd-amdhsa--gfx1012")
   {
   }
 };
@@ -2816,7 +2811,7 @@ class gfx10_3_t : public gfx10_1_t
 {
 protected:
   gfx10_3_t (elf_amdgpu_machine_t e_machine, std::string target_triple)
-      : gfx10_1_t (e_machine, std::move (target_triple))
+    : gfx10_1_t (e_machine, std::move (target_triple))
   {
   }
 
@@ -2828,7 +2823,7 @@ class gfx1030_t final : public gfx10_3_t
 {
 public:
   gfx1030_t ()
-      : gfx10_3_t (EF_AMDGPU_MACH_AMDGCN_GFX1030, "amdgcn-amd-amdhsa--gfx1030")
+    : gfx10_3_t (EF_AMDGPU_MACH_AMDGCN_GFX1030, "amdgcn-amd-amdhsa--gfx1030")
   {
   }
 };
@@ -2837,17 +2832,17 @@ class gfx1031_t final : public gfx10_3_t
 {
 public:
   gfx1031_t ()
-      : gfx10_3_t (EF_AMDGPU_MACH_AMDGCN_GFX1031, "amdgcn-amd-amdhsa--gfx1031")
+    : gfx10_3_t (EF_AMDGPU_MACH_AMDGCN_GFX1031, "amdgcn-amd-amdhsa--gfx1031")
   {
   }
 };
 
 architecture_t::architecture_t (elf_amdgpu_machine_t e_machine,
                                 std::string target_triple)
-    : m_architecture_id (
-        amd_dbgapi_architecture_id_t{ s_next_architecture_id () }),
-      m_disassembly_info (new amd_comgr_disassembly_info_t{ 0 }),
-      m_e_machine (e_machine), m_target_triple (std::move (target_triple))
+  : m_architecture_id (
+    amd_dbgapi_architecture_id_t{ s_next_architecture_id () }),
+    m_disassembly_info (new amd_comgr_disassembly_info_t{ 0 }),
+    m_e_machine (e_machine), m_target_triple (std::move (target_triple))
 {
 }
 
@@ -2890,7 +2885,7 @@ architecture_t::find (elf_amdgpu_machine_t elf_amdgpu_machine)
 {
   if (detail::last_found_architecture
       && detail::last_found_architecture->elf_amdgpu_machine ()
-             == elf_amdgpu_machine)
+           == elf_amdgpu_machine)
     return detail::last_found_architecture;
 
   auto it = std::find_if (s_architecture_map.begin (),
@@ -3247,7 +3242,7 @@ architecture_t::disassembly_info () const
       auto read_memory_callback = [] (uint64_t from, char *to, uint64_t size,
                                       void *user_data) -> uint64_t {
         detail::disassembly_user_data_t *data
-            = static_cast<detail::disassembly_user_data_t *> (user_data);
+          = static_cast<detail::disassembly_user_data_t *> (user_data);
 
         size_t offset = from - data->offset;
         if (offset >= data->size)
@@ -3260,30 +3255,30 @@ architecture_t::disassembly_info () const
       };
 
       auto print_instruction_callback
-          = [] (const char *instruction, void *user_data) {
-              detail::disassembly_user_data_t *data
-                  = static_cast<detail::disassembly_user_data_t *> (user_data);
+        = [] (const char *instruction, void *user_data) {
+            detail::disassembly_user_data_t *data
+              = static_cast<detail::disassembly_user_data_t *> (user_data);
 
-              while (isspace (*instruction))
-                ++instruction;
+            while (isspace (*instruction))
+              ++instruction;
 
-              if (data->instruction)
-                data->instruction->assign (instruction);
-            };
+            if (data->instruction)
+              data->instruction->assign (instruction);
+          };
 
       auto print_address_annotation_callback
-          = [] (uint64_t address, void *user_data) {
-              detail::disassembly_user_data_t *data
-                  = static_cast<detail::disassembly_user_data_t *> (user_data);
-              if (data->operands)
-                data->operands->emplace_back (
-                    static_cast<amd_dbgapi_global_address_t> (address));
-            };
+        = [] (uint64_t address, void *user_data) {
+            detail::disassembly_user_data_t *data
+              = static_cast<detail::disassembly_user_data_t *> (user_data);
+            if (data->operands)
+              data->operands->emplace_back (
+                static_cast<amd_dbgapi_global_address_t> (address));
+          };
 
       if (amd_comgr_create_disassembly_info (
-              target_triple ().c_str (), read_memory_callback,
-              print_instruction_callback, print_address_annotation_callback,
-              m_disassembly_info.get ()))
+            target_triple ().c_str (), read_memory_callback,
+            print_instruction_callback, print_address_annotation_callback,
+            m_disassembly_info.get ()))
         error ("amd_comgr_create_disassembly_info failed");
     }
 
@@ -3295,11 +3290,11 @@ architecture_t::instruction_size (const void *instruction_bytes,
                                   size_t size) const
 {
   struct detail::disassembly_user_data_t user_data
-      = { /* .memory =  */ instruction_bytes,
-          /* .offset =  */ 0,
-          /* .size =  */ size,
-          /* .instruction =  */ nullptr,
-          /* .operands =  */ nullptr };
+    = { /* .memory =  */ instruction_bytes,
+        /* .offset =  */ 0,
+        /* .size =  */ size,
+        /* .instruction =  */ nullptr,
+        /* .operands =  */ nullptr };
 
   /* Disassemble one instruction.  */
   if (amd_comgr_disassemble_instruction (disassembly_info (), 0, &user_data,
@@ -3321,11 +3316,11 @@ architecture_t::disassemble_instruction (amd_dbgapi_global_address_t address,
   std::vector<uint64_t> address_operands;
 
   struct detail::disassembly_user_data_t user_data
-      = { /* .memory =  */ instruction_bytes,
-          /* .offset =  */ address,
-          /* .size =  */ size,
-          /* .instruction =  */ &instruction_text,
-          /* .operands =  */ &address_operands };
+    = { /* .memory =  */ instruction_bytes,
+        /* .offset =  */ address,
+        /* .size =  */ size,
+        /* .instruction =  */ &instruction_text,
+        /* .operands =  */ &address_operands };
 
   /* Disassemble one instruction.  */
   if (amd_comgr_disassemble_instruction (disassembly_info (),
@@ -3387,7 +3382,7 @@ architecture_t::create_architecture (Args &&... args)
 }
 
 decltype (
-    architecture_t::s_architecture_map) architecture_t::s_architecture_map{
+  architecture_t::s_architecture_map) architecture_t::s_architecture_map{
   [] () {
     decltype (s_architecture_map) map;
     map.emplace (create_architecture<gfx900_t> ());
@@ -3421,7 +3416,7 @@ amd_dbgapi_get_architecture (uint32_t elf_amdgpu_machine,
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   const architecture_t *architecture = architecture_t::find (
-      static_cast<elf_amdgpu_machine_t> (elf_amdgpu_machine));
+    static_cast<elf_amdgpu_machine_t> (elf_amdgpu_machine));
 
   if (!architecture)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ELF_AMDGPU_MACHINE;
@@ -3456,13 +3451,13 @@ amd_dbgapi_architecture_get_info (amd_dbgapi_architecture_id_t architecture_id,
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_disassemble_instruction (
-    amd_dbgapi_architecture_id_t architecture_id,
-    amd_dbgapi_global_address_t address, amd_dbgapi_size_t *size,
-    const void *memory, char **instruction_text,
-    amd_dbgapi_symbolizer_id_t symbolizer_id,
-    amd_dbgapi_status_t (*symbolizer) (
-        amd_dbgapi_symbolizer_id_t symbolizer_id,
-        amd_dbgapi_global_address_t address, char **symbol_text))
+  amd_dbgapi_architecture_id_t architecture_id,
+  amd_dbgapi_global_address_t address, amd_dbgapi_size_t *size,
+  const void *memory, char **instruction_text,
+  amd_dbgapi_symbolizer_id_t symbolizer_id,
+  amd_dbgapi_status_t (*symbolizer) (amd_dbgapi_symbolizer_id_t symbolizer_id,
+                                     amd_dbgapi_global_address_t address,
+                                     char **symbol_text))
 {
   TRACE_BEGIN (architecture_id, make_hex (address), make_ref (size),
                make_hex (make_ref (static_cast<const uint8_t *> (memory),
@@ -3489,7 +3484,7 @@ amd_dbgapi_disassemble_instruction (
     }
 
   auto [instruction_size, instruction_str, address_operands]
-      = architecture->disassemble_instruction (address, memory, *size);
+    = architecture->disassemble_instruction (address, memory, *size);
 
   std::string address_operands_str;
   for (auto &&operand : address_operands)
@@ -3501,7 +3496,7 @@ amd_dbgapi_disassemble_instruction (
           char *symbol_text{};
 
           amd_dbgapi_status_t status
-              = symbolizer (symbolizer_id, operand, &symbol_text);
+            = symbolizer (symbolizer_id, operand, &symbol_text);
 
           if (status == AMD_DBGAPI_STATUS_SUCCESS)
             {
@@ -3543,11 +3538,11 @@ amd_dbgapi_disassemble_instruction (
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_classify_instruction (
-    amd_dbgapi_architecture_id_t architecture_id,
-    amd_dbgapi_global_address_t address, amd_dbgapi_size_t *size_p,
-    const void *memory, amd_dbgapi_instruction_kind_t *instruction_kind_p,
-    amd_dbgapi_instruction_properties_t *instruction_properties_p,
-    void **instruction_information_p)
+  amd_dbgapi_architecture_id_t architecture_id,
+  amd_dbgapi_global_address_t address, amd_dbgapi_size_t *size_p,
+  const void *memory, amd_dbgapi_instruction_kind_t *instruction_kind_p,
+  amd_dbgapi_instruction_properties_t *instruction_properties_p,
+  void **instruction_information_p)
 {
   TRACE_BEGIN (architecture_id, make_hex (address), make_ref (size_p),
                make_hex (make_ref (static_cast<const uint8_t *> (memory),
@@ -3569,15 +3564,15 @@ amd_dbgapi_classify_instruction (
 
   std::vector<uint8_t> instruction (static_cast<const uint8_t *> (memory),
                                     static_cast<const uint8_t *> (memory)
-                                        + *size_p);
+                                      + *size_p);
 
   auto [kind, properties, size, information]
-      = architecture->classify_instruction (instruction, address);
+    = architecture->classify_instruction (instruction, address);
 
   if (instruction_information_p)
     {
       size_t mem_size
-          = information.size () * sizeof (decltype (information)::value_type);
+        = information.size () * sizeof (decltype (information)::value_type);
 
       if (!mem_size)
         {
@@ -3605,7 +3600,7 @@ amd_dbgapi_classify_instruction (
   TRACE_END (make_ref (size_p), make_ref (instruction_kind_p),
              make_ref (instruction_properties_p),
              make_query_ref (instruction_kind_p
-                                 ? *instruction_kind_p
-                                 : AMD_DBGAPI_INSTRUCTION_KIND_UNKNOWN,
+                               ? *instruction_kind_p
+                               : AMD_DBGAPI_INSTRUCTION_KIND_UNKNOWN,
                              instruction_information_p));
 }

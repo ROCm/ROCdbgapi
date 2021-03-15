@@ -75,13 +75,13 @@ class architecture_t
 
 private:
   static monotonic_counter_t<
-      uint32_t, monotonic_counter_start_v<amd_dbgapi_architecture_id_t>>
-      s_next_architecture_id;
+    uint32_t, monotonic_counter_start_v<amd_dbgapi_architecture_id_t>>
+    s_next_architecture_id;
 
   static std::unordered_map<amd_dbgapi_architecture_id_t,
                             std::unique_ptr<const architecture_t>,
                             hash<amd_dbgapi_architecture_id_t>>
-      s_architecture_map;
+    s_architecture_map;
 
   amd_dbgapi_architecture_id_t const m_architecture_id;
   std::unique_ptr<amd_comgr_disassembly_info_t> m_disassembly_info;
@@ -92,7 +92,7 @@ private:
   std::tuple<handle_object_set_t<address_space_t>,
              handle_object_set_t<address_class_t>,
              handle_object_set_t<register_class_t>>
-      m_handle_object_sets{};
+    m_handle_object_sets{};
 
   amd_comgr_disassembly_info_t disassembly_info () const;
 
@@ -170,12 +170,11 @@ public:
   virtual bool has_acc_vgprs () const = 0;
 
   virtual void control_stack_iterate (
-      queue_t &queue, const uint32_t *control_stack,
-      size_t control_stack_words,
-      amd_dbgapi_global_address_t wave_area_address,
-      amd_dbgapi_size_t wave_area_size,
-      const std::function<void (std::unique_ptr<cwsr_record_t>)>
-          &wave_callback) const = 0;
+    queue_t &queue, const uint32_t *control_stack, size_t control_stack_words,
+    amd_dbgapi_global_address_t wave_area_address,
+    amd_dbgapi_size_t wave_area_size,
+    const std::function<void (std::unique_ptr<cwsr_record_t>)> &wave_callback)
+    const = 0;
 
   virtual amd_dbgapi_global_address_t
   dispatch_packet_address (const cwsr_record_t &cwsr_record) const = 0;
@@ -196,11 +195,11 @@ public:
                          amd_dbgapi_segment_address_t *to_address) const = 0;
 
   virtual void lower_address_space (
-      const wave_t &wave, amd_dbgapi_lane_id_t *lane_id,
-      const address_space_t &original_address_space,
-      const address_space_t **lowered_address_space,
-      amd_dbgapi_segment_address_t original_address,
-      amd_dbgapi_segment_address_t *lowered_address) const = 0;
+    const wave_t &wave, amd_dbgapi_lane_id_t *lane_id,
+    const address_space_t &original_address_space,
+    const address_space_t **lowered_address_space,
+    amd_dbgapi_segment_address_t original_address,
+    amd_dbgapi_segment_address_t *lowered_address) const = 0;
 
   virtual bool
   address_is_in_address_class (const wave_t &wave,
@@ -236,12 +235,10 @@ public:
   virtual const std::vector<uint8_t> &assert_instruction () const = 0;
   virtual const std::vector<uint8_t> &endpgm_instruction () const = 0;
 
-  virtual std::tuple<
-      amd_dbgapi_instruction_kind_t,       /* instruction_kind  */
-      amd_dbgapi_instruction_properties_t, /* instruction_properties
-                                            */
-      size_t,                              /* instruction_size  */
-      std::vector<uint64_t> /* instruction_information  */>
+  virtual std::tuple<amd_dbgapi_instruction_kind_t /* instruction_kind  */,
+                     amd_dbgapi_instruction_properties_t /* properties  */,
+                     size_t /* instruction_size  */,
+                     std::vector<uint64_t> /* information  */>
   classify_instruction (const std::vector<uint8_t> &instruction,
                         amd_dbgapi_global_address_t address) const = 0;
 
@@ -276,8 +273,8 @@ public:
     using integral_type = decltype (amd_dbgapi_register_id_t::handle);
 
     static_assert (
-        sizeof (typename decltype (s_next_architecture_id)::value_type) <= 4
-        && sizeof (amdgpu_regnum_t) <= 4 && sizeof (integral_type) >= 8);
+      sizeof (typename decltype (s_next_architecture_id)::value_type) <= 4
+      && sizeof (amdgpu_regnum_t) <= 4 && sizeof (integral_type) >= 8);
 
     auto register_id = (static_cast<integral_type> (id ().handle) << 32)
                        | static_cast<integral_type> (regnum);
@@ -288,17 +285,17 @@ public:
   register_id_to_regnum (amd_dbgapi_register_id_t register_id)
   {
     amdgpu_regnum_t regnum = static_cast<amdgpu_regnum_t> (
-        utils::bit_extract (register_id.handle, 0, 31));
+      utils::bit_extract (register_id.handle, 0, 31));
 
     return (regnum <= amdgpu_regnum_t::last_regnum)
-               ? std::make_optional (regnum)
-               : std::nullopt;
+             ? std::make_optional (regnum)
+             : std::nullopt;
   }
   static const architecture_t *
   register_id_to_architecture (amd_dbgapi_register_id_t register_id)
   {
     return find (amd_dbgapi_architecture_id_t{
-        utils::bit_extract (register_id.handle, 32, 63) });
+      utils::bit_extract (register_id.handle, 32, 63) });
   }
 
   std::set<amdgpu_regnum_t> register_set () const;
@@ -338,7 +335,7 @@ public:
   template <typename Object, typename... Args> auto &create (Args &&... args)
   {
     return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
-        .create_object (std::forward<Args> (args)...);
+      .create_object (std::forward<Args> (args)...);
   }
 
   /* Return an Object range. A range implements begin () and end (), and
@@ -346,28 +343,28 @@ public:
   template <typename Object> auto range () const
   {
     return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
-        .range ();
+      .range ();
   }
 
   /* Return the element count for the sub-Object.  */
   template <typename Object> size_t count () const
   {
     return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
-        .size ();
+      .size ();
   }
 
   /* Find an object with the given handle.  */
   template <typename Handle,
             std::enable_if_t<!std::is_void_v<object_type_from_handle_t<
-                                 Handle, decltype (m_handle_object_sets)>>,
+                               Handle, decltype (m_handle_object_sets)>>,
                              int> = 0>
   const auto *find (Handle id) const
   {
     using object_type
-        = object_type_from_handle_t<Handle, decltype (m_handle_object_sets)>;
+      = object_type_from_handle_t<Handle, decltype (m_handle_object_sets)>;
 
     return std::get<handle_object_set_t<object_type>> (m_handle_object_sets)
-        .find (id);
+      .find (id);
   }
 
   /* Find an object for which the unary predicate f returns true.  */
@@ -376,22 +373,22 @@ public:
     using object_type = std::decay_t<utils::first_argument_of_t<Functor>>;
 
     return std::get<handle_object_set_t<object_type>> (m_handle_object_sets)
-        .find_if (predicate);
+      .find_if (predicate);
   }
 };
 
 namespace detail
 {
 template <typename Handle>
-using architecture_find_t = decltype (
-    std::declval<architecture_t> ().find (std::declval<Handle> ()));
+using architecture_find_t
+  = decltype (std::declval<architecture_t> ().find (std::declval<Handle> ()));
 } /* namespace detail */
 
 /* Find an object with the given handle.  */
 template <
-    typename Handle,
-    std::enable_if_t<utils::is_detected_v<detail::architecture_find_t, Handle>,
-                     int> = 0>
+  typename Handle,
+  std::enable_if_t<utils::is_detected_v<detail::architecture_find_t, Handle>,
+                   int> = 0>
 auto *
 find (Handle id)
 {

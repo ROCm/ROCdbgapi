@@ -36,8 +36,8 @@ shared_library_t::shared_library_t (amd_dbgapi_shared_library_id_t library_id,
                                     process_t &process, std::string name,
                                     notify_callback_t on_load,
                                     notify_callback_t on_unload)
-    : handle_object (library_id), m_name (std::move (name)),
-      m_on_load (on_load), m_on_unload (on_unload), m_process (process)
+  : handle_object (library_id), m_name (std::move (name)), m_on_load (on_load),
+    m_on_unload (on_unload), m_process (process)
 {
 }
 
@@ -102,8 +102,8 @@ breakpoint_t::breakpoint_t (amd_dbgapi_breakpoint_id_t breakpoint_id,
                             const shared_library_t &shared_library,
                             amd_dbgapi_global_address_t address,
                             action_callback_t action)
-    : handle_object (breakpoint_id), m_address (address), m_action (action),
-      m_shared_library (shared_library)
+  : handle_object (breakpoint_id), m_address (address), m_action (action),
+    m_shared_library (shared_library)
 {
   m_inserted = process ().insert_breakpoint (shared_library.id (), address,
                                              breakpoint_id)
@@ -142,8 +142,8 @@ using namespace amd::dbgapi;
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_report_shared_library (
-    amd_dbgapi_shared_library_id_t shared_library_id,
-    amd_dbgapi_shared_library_state_t shared_library_state)
+  amd_dbgapi_shared_library_id_t shared_library_id,
+  amd_dbgapi_shared_library_state_t shared_library_state)
 {
   TRACE_BEGIN (shared_library_id, shared_library_state);
   TRY;
@@ -169,8 +169,8 @@ amd_dbgapi_report_shared_library (
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_code_shared_library_get_info (
-    amd_dbgapi_shared_library_id_t shared_library_id,
-    amd_dbgapi_shared_library_info_t query, size_t value_size, void *value)
+  amd_dbgapi_shared_library_id_t shared_library_id,
+  amd_dbgapi_shared_library_info_t query, size_t value_size, void *value)
 {
   TRACE_BEGIN (shared_library_id, query, value_size, value);
   TRY;
@@ -190,9 +190,9 @@ amd_dbgapi_code_shared_library_get_info (
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_report_breakpoint_hit (
-    amd_dbgapi_breakpoint_id_t breakpoint_id,
-    amd_dbgapi_client_thread_id_t client_thread_id,
-    amd_dbgapi_breakpoint_action_t *breakpoint_action)
+  amd_dbgapi_breakpoint_id_t breakpoint_id,
+  amd_dbgapi_client_thread_id_t client_thread_id,
+  amd_dbgapi_breakpoint_action_t *breakpoint_action)
 {
   TRACE_BEGIN (breakpoint_id, client_thread_id, breakpoint_action);
   TRY;

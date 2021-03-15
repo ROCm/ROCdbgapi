@@ -47,8 +47,8 @@ public:
                 amd_dbgapi_global_address_t requested_address,
                 amd_dbgapi_size_t requested_size,
                 amd_dbgapi_watchpoint_kind_t kind)
-      : handle_object (watchpoint_id), m_requested_address (requested_address),
-        m_requested_size (requested_size), m_kind (kind), m_process (process)
+    : handle_object (watchpoint_id), m_requested_address (requested_address),
+      m_requested_size (requested_size), m_kind (kind), m_process (process)
   {
   }
   ~watchpoint_t () {}

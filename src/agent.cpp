@@ -44,8 +44,8 @@ namespace amd::dbgapi
 agent_t::agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
                   const architecture_t &architecture,
                   const os_agent_snapshot_entry_t &os_agent_info)
-    : handle_object (agent_id), m_os_agent_info (os_agent_info),
-      m_architecture (architecture), m_process (process)
+  : handle_object (agent_id), m_os_agent_info (os_agent_info),
+    m_architecture (architecture), m_process (process)
 {
 }
 
@@ -84,8 +84,8 @@ agent_t::get_info (amd_dbgapi_agent_info_t query, size_t value_size,
 
     case AMD_DBGAPI_AGENT_INFO_OS_ID:
       return utils::get_info (
-          value_size, value,
-          static_cast<amd_dbgapi_os_agent_id_t> (m_os_agent_info.os_agent_id));
+        value_size, value,
+        static_cast<amd_dbgapi_os_agent_id_t> (m_os_agent_info.os_agent_id));
     }
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }

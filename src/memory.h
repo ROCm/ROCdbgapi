@@ -60,7 +60,7 @@ constexpr uint64_t DW_ASPACE_AMDGPU_private_lane0 = 0x20;
 constexpr uint64_t DW_ASPACE_AMDGPU_private_lane63 = 0x5F;
 
 class address_space_t
-    : public detail::handle_object<amd_dbgapi_address_space_id_t>
+  : public detail::handle_object<amd_dbgapi_address_space_id_t>
 {
 public:
   enum address_space_kind_t
@@ -90,10 +90,10 @@ public:
                    amd_dbgapi_size_t address_size,
                    amd_dbgapi_segment_address_t null_address,
                    amd_dbgapi_address_space_access_t access)
-      : handle_object (address_space_id), m_name (std::move (name)),
-        m_kind (kind), m_dwarf_value (dwarf_value),
-        m_address_size (address_size), m_null_address (null_address),
-        m_access (access), m_architecture (architecture)
+    : handle_object (address_space_id), m_name (std::move (name)),
+      m_kind (kind), m_dwarf_value (dwarf_value),
+      m_address_size (address_size), m_null_address (null_address),
+      m_access (access), m_architecture (architecture)
   {
   }
 
@@ -113,21 +113,21 @@ public:
    global address space id, to we need to start numbering at 2.  */
 template <>
 struct monotonic_counter_start_t<amd_dbgapi_address_space_id_t>
-    : public std::integral_constant<
-          decltype (amd_dbgapi_address_space_id_t::handle), 2>
+  : public std::integral_constant<
+      decltype (amd_dbgapi_address_space_id_t::handle), 2>
 {
 };
 
 class address_class_t
-    : public detail::handle_object<amd_dbgapi_address_class_id_t>
+  : public detail::handle_object<amd_dbgapi_address_class_id_t>
 {
 public:
   address_class_t (amd_dbgapi_address_class_id_t address_class_id,
                    const architecture_t &architecture, std::string name,
                    uint64_t dwarf_value, const address_space_t &address_space)
-      : handle_object (address_class_id), m_name (std::move (name)),
-        m_dwarf_value (dwarf_value), m_address_space (address_space),
-        m_architecture (architecture)
+    : handle_object (address_class_id), m_name (std::move (name)),
+      m_dwarf_value (dwarf_value), m_address_space (address_space),
+      m_architecture (architecture)
   {
   }
 
@@ -149,7 +149,7 @@ private:
 };
 
 class memory_cache_t
-    : public utils::doubly_linked_list_t<memory_cache_t>::entry_type
+  : public utils::doubly_linked_list_t<memory_cache_t>::entry_type
 {
 public:
   enum class policy_t
@@ -176,7 +176,7 @@ private:
 
 public:
   memory_cache_t (process_t &process, policy_t policy = policy_t::write_back)
-      : m_policy (policy), m_process (process)
+    : m_policy (policy), m_process (process)
   {
   }
 
