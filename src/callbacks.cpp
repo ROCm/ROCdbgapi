@@ -92,10 +92,15 @@ shared_library_t::set_state (amd_dbgapi_shared_library_state_t state)
   if (m_state && m_state == state)
     return;
 
+  auto prev_state = m_state;
   m_state.emplace (state);
+
   /* Call the notifier since the state has changed.  */
-  (state == AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED ? m_on_load
-                                                   : m_on_unload) (*this);
+  if (state == AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED)
+    m_on_load (*this);
+  else if (prev_state /* Only call on_unload if the state
+                         was previously loaded  */)
+    m_on_unload (*this);
 }
 
 breakpoint_t::breakpoint_t (amd_dbgapi_breakpoint_id_t breakpoint_id,
