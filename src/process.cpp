@@ -1463,6 +1463,9 @@ process_t::enqueue_event (event_t &event)
 std::pair<std::variant<process_t *, agent_t *, queue_t *>, os_exception_mask_t>
 process_t::query_debug_event ()
 {
+  if (!os_driver ().is_debug_enabled ())
+    return { this, os_exception_mask_t::none };
+
   while (true)
     {
       os_source_id_t source_id;
