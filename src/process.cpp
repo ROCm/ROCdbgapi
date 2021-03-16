@@ -487,9 +487,6 @@ process_t::update_agents ()
       if (agent)
         continue;
 
-      if (!first_update)
-        error ("gpu hot pluging is not supported");
-
       const architecture_t *architecture
         = architecture_t::find (agent_info.e_machine);
 
@@ -499,19 +496,24 @@ process_t::update_agents ()
 
       if (!architecture)
         {
-          warning ("os_agent_id %d: `%s' architecture not supported.",
-                   agent_info.os_agent_id, agent_info.name.c_str ());
+          if (first_update)
+            warning ("os_agent_id %d: `%s' architecture not supported.",
+                     agent_info.os_agent_id, agent_info.name.c_str ());
           continue;
         }
 
       if (agent_info.fw_version < agent_info.fw_version_required)
         {
-          warning ("os_agent_id %d: firmware version %d does not match "
-                   "%d+ requirement",
-                   agent_info.os_agent_id, agent_info.fw_version,
-                   agent_info.fw_version_required);
+          if (first_update)
+            warning ("os_agent_id %d: firmware version %d does not match "
+                     "%d+ requirement",
+                     agent_info.os_agent_id, agent_info.fw_version,
+                     agent_info.fw_version_required);
           continue;
         }
+
+      if (!first_update)
+        error ("gpu hot pluging is not supported");
 
       create<agent_t> (*this,         /* process  */
                        *architecture, /* architecture  */
