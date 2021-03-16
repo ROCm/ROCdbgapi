@@ -225,7 +225,7 @@ amd_dbgapi_process_dispatch_list (amd_dbgapi_process_id_t process_id,
 
       if (amd_dbgapi_status_t status = process->update_queues ();
           status != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("process_t::update_agents failed (rc=%d)", status);
+        error ("process_t::update_queues failed (rc=%d)", status);
 
       processes.emplace_back (process);
     }
@@ -235,7 +235,7 @@ amd_dbgapi_process_dispatch_list (amd_dbgapi_process_id_t process_id,
         {
           if (amd_dbgapi_status_t status = process.update_queues ();
               status != AMD_DBGAPI_STATUS_SUCCESS)
-            error ("process_t::update_agents failed (rc=%d)", status);
+            error ("process_t::update_queues failed (rc=%d)", status);
 
           processes.emplace_back (&process);
         }
