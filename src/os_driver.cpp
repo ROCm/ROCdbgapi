@@ -974,25 +974,25 @@ public:
   amd_dbgapi_status_t
     enable_debug (os_exception_mask_t /* exceptions_reported  */) override
   {
-    error ("should not call this, null_driver does not have any agents");
+    return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
   }
 
   amd_dbgapi_status_t disable_debug () override
   {
-    error ("should not call this, null_driver does not have any agents");
+    /* Debug is never enabled.  */
+    return AMD_DBGAPI_STATUS_ERROR;
   }
 
-  bool is_debug_enabled () const override
-  {
-    error ("should not call this, null_driver does not have any agents");
-  }
+  bool is_debug_enabled () const override { return false; }
 
   amd_dbgapi_status_t
-  query_debug_event (os_exception_mask_t * /* exceptions_present  */,
-                     os_source_id_t * /* os_source_id  */,
+  query_debug_event (os_exception_mask_t *exceptions_present,
+                     os_source_id_t *os_source_id,
                      os_exception_mask_t /* exceptions_cleared  */) override
   {
-    error ("should not call this, null_driver does not have any agents");
+    *exceptions_present = os_exception_mask_t::none;
+    os_source_id->raw = 0;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
 
   size_t
@@ -1027,19 +1027,19 @@ public:
                      os_watch_mode_t /* os_watch_mode  */,
                      os_watch_id_t * /* os_watch_id  */) const override
   {
-    error ("should not call this, null_driver does not have any agents");
+    return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
   }
 
   amd_dbgapi_status_t
     clear_address_watch (os_watch_id_t /* os_watch_id  */) const override
   {
-    error ("should not call this, null_driver does not have any agents");
+    error ("should not call this, null_driver does not support watchpoints");
   }
 
   amd_dbgapi_status_t
     set_wave_launch_mode (os_wave_launch_mode_t /* mode  */) const override
   {
-    error ("should not call this, null_driver does not have any agents");
+    return AMD_DBGAPI_STATUS_ERROR;
   }
 
   amd_dbgapi_status_t set_wave_launch_trap_override (
@@ -1049,7 +1049,7 @@ public:
     os_wave_launch_trap_mask_t * /* previous_mask  */,
     os_wave_launch_trap_mask_t * /* supported_mask  */) const override
   {
-    error ("should not call this, null_driver does not have any agents");
+    return AMD_DBGAPI_STATUS_ERROR;
   }
 };
 

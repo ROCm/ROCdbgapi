@@ -187,13 +187,16 @@ process_t::detach ()
       exception = std::current_exception ();
     }
 
-  amd_dbgapi_status_t status = os_driver ().disable_debug ();
-  if (status != AMD_DBGAPI_STATUS_SUCCESS
-      && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-    error ("Could not disable debug (rc=%d)", status);
+  if (os_driver ().is_debug_enabled ())
+    {
+      amd_dbgapi_status_t status = os_driver ().disable_debug ();
+      if (status != AMD_DBGAPI_STATUS_SUCCESS
+          && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+        error ("Could not disable debug (rc=%d)", status);
 
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "debugging is disabled for %s",
-              to_string (id ()).c_str ());
+      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "debugging is disabled for %s",
+                  to_string (id ()).c_str ());
+    }
 
   /* Destruct the waves, dispatches, queues, and agents, in this order.  */
   std::get<handle_object_set_t<watchpoint_t>> (m_handle_object_sets).clear ();
