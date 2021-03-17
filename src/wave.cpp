@@ -237,18 +237,25 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
       size_t instruction_size
         = architecture ().instruction_size (original_instruction);
 
-      if (!instruction_size
-          || !architecture ().can_execute_displaced (original_instruction))
+      if (!instruction_size)
         {
           /* If instruction_size is 0, the disassembler did not recognize the
              instruction.  This instruction may be non-sequencial, and we won't
              be able to tell if the jump is relative or absolute.  */
           throw exception_t (AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION);
         }
-
       original_instruction.resize (instruction_size);
 
       bool simulate = architecture ().can_simulate (original_instruction);
+
+      if (!architecture ().can_execute_displaced (original_instruction)
+          && !simulate)
+        {
+          /* If this instruction cannot be displaced-stepped nor simulated,
+             then it must be inline-stepped.  */
+          throw exception_t (AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION);
+        }
+
       instruction_buffer_t instruction_buffer{};
 
       if (!simulate)

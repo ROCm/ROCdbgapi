@@ -257,20 +257,6 @@ protected:
   bool is_endpgm (const std::vector<uint8_t> &bytes) const override;
   bool is_breakpoint (const std::vector<uint8_t> &bytes) const override;
 
-  bool can_execute_displaced (
-    const std::vector<uint8_t> & /* bytes */) const override
-  {
-    return true;
-  }
-
-  bool can_simulate (const std::vector<uint8_t> &bytes) const override
-  {
-    return is_branch (bytes) || is_cbranch (bytes) || is_cbranch_i_fork (bytes)
-           || is_cbranch_g_fork (bytes) || is_cbranch_join (bytes)
-           || is_call (bytes) || is_getpc (bytes) || is_setpc (bytes)
-           || is_swappc (bytes) || is_endpgm (bytes) || is_nop (bytes);
-  }
-
   virtual bool
   is_cbranch_taken (wave_t &wave,
                     const std::vector<uint8_t> &instruction) const;
@@ -285,6 +271,10 @@ protected:
              std::vector<uint64_t> /* instruction_information  */>
   classify_instruction (const std::vector<uint8_t> &instruction,
                         amd_dbgapi_global_address_t address) const override;
+
+  bool
+  can_execute_displaced (const std::vector<uint8_t> &bytes) const override;
+  bool can_simulate (const std::vector<uint8_t> &bytes) const override;
 
   bool simulate_instruction (
     wave_t &wave, amd_dbgapi_global_address_t pc,
@@ -800,10 +790,8 @@ amdgcn_architecture_t::is_cbranch_taken (
                                         : encoding_ssrc0 (instruction));
 
       /* The hardware requires a 64-bit address register pair to have the lower
-         register number be even.  If it is not, then it is treated as if the
-         lower register number is the preceding even register number.  So mask
-         out lower bit of the register number.  */
-      regnum = regnum & -2;
+         register number be even.  */
+      dbgapi_assert ((regnum & -2) == regnum);
 
       wave.read_register (regnum + 0, &mask_lo);
       wave.read_register (regnum + 1, &mask_hi);
@@ -856,10 +844,8 @@ amdgcn_architecture_t::branch_target (
         = scalar_operand_to_regnum (encoding_ssrc1 (instruction));
 
       /* The hardware requires a 64-bit address register pair to have the lower
-         register number be even.  If it is not, then it is treated as if the
-         lower register number is the preceding even register number.  So mask
-         out lower bit of the register number.  */
-      regnum = regnum & -2;
+         register number be even.  */
+      dbgapi_assert ((regnum & -2) == regnum);
 
       uint32_t pc_lo, pc_hi;
       wave.read_register (regnum + 0, &pc_lo);
@@ -1010,6 +996,54 @@ amdgcn_architecture_t::classify_instruction (
 }
 
 bool
+amdgcn_architecture_t::can_execute_displaced (
+  const std::vector<uint8_t> &bytes) const
+{
+  /* PC relative branch instructions cannot be displaced as a wave cannot be
+     halted with a PC pointing at random or unmapped memory if the branch is
+     taken.  */
+  if (is_branch (bytes) || is_cbranch (bytes) || is_cbranch_i_fork (bytes)
+      || is_call (bytes))
+    return false;
+
+  /* All PC reading/modifying instructions are simulated, so no attempt is made
+     to fixup the state after instruction is displaced-stepped.  */
+  return !(is_cbranch_g_fork (bytes) || is_cbranch_join (bytes)
+           || is_getpc (bytes) || is_setpc (bytes) || is_swappc (bytes));
+}
+
+bool
+amdgcn_architecture_t::can_simulate (const std::vector<uint8_t> &bytes) const
+{
+  /* s_call_b64 must have even aligned sdst.  */
+  if (is_call (bytes))
+    return !(encoding_sdst (bytes) & 1);
+
+  /* s_getpc_b64 must have even aligned sdst.  */
+  if (is_getpc (bytes))
+    return !(encoding_sdst (bytes) & 1);
+
+  /* s_setpc_b64 must have even aligned ssrc.  */
+  if (is_setpc (bytes))
+    return !(encoding_ssrc0 (bytes) & 1);
+
+  /* s_swappc_b64 must have even aligned ssrc and sdst.  */
+  if (is_swappc (bytes))
+    return !(encoding_ssrc0 (bytes) & 1) && !(encoding_sdst (bytes) & 1);
+
+  /* s_cbranch_i_fork must have even aligned arg0.  */
+  if (is_cbranch_i_fork (bytes))
+    return !(encoding_sdst (bytes) & 1);
+
+  /* s_cbranch_i_fork must have even aligned arg0 & arg1.  */
+  if (is_cbranch_g_fork (bytes))
+    return !(encoding_ssrc0 (bytes) & 1) && !(encoding_ssrc1 (bytes) & 1);
+
+  return is_nop (bytes) || is_branch (bytes) || is_cbranch (bytes)
+         || is_cbranch_join (bytes) || is_endpgm (bytes);
+}
+
+bool
 amdgcn_architecture_t::simulate_instruction (
   wave_t &wave, amd_dbgapi_global_address_t pc,
   const std::vector<uint8_t> &instruction) const
@@ -1054,10 +1088,8 @@ amdgcn_architecture_t::simulate_instruction (
                                         : encoding_ssrc0 (instruction));
 
       /* The hardware requires a 64-bit address register pair to have the lower
-         register number be even.  If it is not, then it is treated as if the
-         lower register number is the preceding even register number.  So mask
-         out lower bit of the register number.  */
-      mask_regnum = mask_regnum & -2;
+         register number be even.  */
+      dbgapi_assert ((mask_regnum & -2) == mask_regnum);
 
       uint32_t mask_lo, mask_hi;
       wave.read_register (mask_regnum + 0, &mask_lo);
@@ -1142,10 +1174,8 @@ amdgcn_architecture_t::simulate_instruction (
             = scalar_operand_to_regnum (encoding_sdst (instruction));
 
           /* The hardware requires a 64-bit address register pair to have the
-             lower register number be even.  If it is not, then it is treated
-             as if the lower register number is the preceding even register
-             number.  So mask out lower bit of the register number.  */
-          sdst_regnum = sdst_regnum & -2;
+             lower register number be even.  */
+          dbgapi_assert ((sdst_regnum & -2) == sdst_regnum);
 
           /* If the destination register pair is out of range of the allocated
              registers, then the hardware does no register write.  */
@@ -1181,10 +1211,8 @@ amdgcn_architecture_t::simulate_instruction (
             = scalar_operand_to_regnum (encoding_ssrc0 (instruction));
 
           /* The hardware requires a 64-bit address register pair to have the
-             lower register number be even.  If it is not, then it is treated
-             as if the lower register number is the preceding even register
-             number.  So mask out lower bit of the register number.  */
-          ssrc_regnum = ssrc_regnum & -2;
+             lower register number be even.  */
+          dbgapi_assert ((ssrc_regnum & -2) == ssrc_regnum);
 
           /* If the source register pair is out of range of the allocated
              registers, then the hardware reads from s[0:1].  */
@@ -1367,7 +1395,7 @@ amdgcn_architecture_t::get_wave_state (
   if (reason_mask == AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP
       && pc == wave.last_stopped_pc ())
     {
-      /* Branch instructions must be simulated, and the event reported, as we
+      /* Branch instructions must be simulated and the event reported, as we
          cannot tell if a branch to self has executed.  */
       if (auto instruction = wave.instruction_at_pc ();
           instruction && can_simulate (*instruction))
