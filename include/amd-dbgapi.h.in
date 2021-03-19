@@ -69,9 +69,6 @@
  * control the inferior.  Therefore, the library must be executed on the same
  * machine as the inferior.
  *
- * The library implementation creates an internal native operating system
- * thread for its own internal use.
- *
  * The library uses opaque handles to refer to the entities that it manages.
  * These should not be modified directly.  See the handle definitions for
  * information on the lifetime and scope of handles of that type.  If a handle
