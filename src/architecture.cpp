@@ -75,9 +75,6 @@ protected:
     cdbgsys_and_user, /* Conditional Debug for System and User is 1.  */
   };
 
-  static const std::unordered_map<uint16_t, cbranch_cond_t>
-    cbranch_opcodes_map;
-
   static constexpr uint32_t sq_wave_status_scc_mask = 1 << 0;
   static constexpr uint32_t sq_wave_status_priv_mask = 1 << 5;
   static constexpr uint32_t sq_wave_status_trap_en_mask = 1 << 6;
@@ -237,25 +234,29 @@ protected:
   /* Return the number of aliased scalar registers (e.g. vcc, flat_scratch)  */
   virtual size_t scalar_alias_count () const = 0;
 
-  virtual bool is_sethalt (const std::vector<uint8_t> &bytes) const;
-  virtual bool is_barrier (const std::vector<uint8_t> &bytes) const;
-  virtual bool is_sleep (const std::vector<uint8_t> &bytes) const;
-  virtual bool is_code_end (const std::vector<uint8_t> &bytes) const;
-  virtual bool is_call (const std::vector<uint8_t> &bytes) const;
-  virtual bool is_getpc (const std::vector<uint8_t> &bytes) const;
-  virtual bool is_setpc (const std::vector<uint8_t> &bytes) const;
-  virtual bool is_swappc (const std::vector<uint8_t> &bytes) const;
-  virtual bool is_branch (const std::vector<uint8_t> &bytes) const;
-  virtual bool is_cbranch (const std::vector<uint8_t> &bytes) const;
-  virtual bool is_cbranch_i_fork (const std::vector<uint8_t> &bytes) const;
-  virtual bool is_cbranch_g_fork (const std::vector<uint8_t> &bytes) const;
-  virtual bool is_cbranch_join (const std::vector<uint8_t> &bytes) const;
-  virtual bool is_nop (const std::vector<uint8_t> &bytes) const;
-  virtual bool is_trap (const std::vector<uint8_t> &bytes,
-                        uint8_t *trap_id = nullptr) const;
+  /* Return the condition code for the given conditional branch.  */
+  virtual cbranch_cond_t
+  cbranch_condition_code (const std::vector<uint8_t> &bytes) const = 0;
 
-  bool is_endpgm (const std::vector<uint8_t> &bytes) const override;
-  bool is_breakpoint (const std::vector<uint8_t> &bytes) const override;
+  virtual bool is_sethalt (const std::vector<uint8_t> &bytes) const = 0;
+  virtual bool is_barrier (const std::vector<uint8_t> &bytes) const = 0;
+  virtual bool is_sleep (const std::vector<uint8_t> &bytes) const = 0;
+  virtual bool is_code_end (const std::vector<uint8_t> &bytes) const = 0;
+  virtual bool is_call (const std::vector<uint8_t> &bytes) const = 0;
+  virtual bool is_getpc (const std::vector<uint8_t> &bytes) const = 0;
+  virtual bool is_setpc (const std::vector<uint8_t> &bytes) const = 0;
+  virtual bool is_swappc (const std::vector<uint8_t> &bytes) const = 0;
+  virtual bool is_branch (const std::vector<uint8_t> &bytes) const = 0;
+  virtual bool is_cbranch (const std::vector<uint8_t> &bytes) const = 0;
+  virtual bool is_cbranch_i_fork (const std::vector<uint8_t> &bytes) const = 0;
+  virtual bool is_cbranch_g_fork (const std::vector<uint8_t> &bytes) const = 0;
+  virtual bool is_cbranch_join (const std::vector<uint8_t> &bytes) const = 0;
+  virtual bool is_nop (const std::vector<uint8_t> &bytes) const = 0;
+  virtual bool is_trap (const std::vector<uint8_t> &bytes,
+                        uint8_t *trap_id = nullptr) const = 0;
+
+  bool is_endpgm (const std::vector<uint8_t> &bytes) const override = 0;
+  bool is_breakpoint (const std::vector<uint8_t> &bytes) const override = 0;
 
   virtual bool
   is_cbranch_taken (wave_t &wave,
@@ -280,20 +281,6 @@ protected:
     wave_t &wave, amd_dbgapi_global_address_t pc,
     const std::vector<uint8_t> &instruction) const override;
 };
-
-decltype (amdgcn_architecture_t::cbranch_opcodes_map)
-  amdgcn_architecture_t::cbranch_opcodes_map{
-    { 4, cbranch_cond_t::scc0 },
-    { 5, cbranch_cond_t::scc1 },
-    { 6, cbranch_cond_t::vccz },
-    { 7, cbranch_cond_t::vccnz },
-    { 8, cbranch_cond_t::execz },
-    { 9, cbranch_cond_t::execnz },
-    { 23, cbranch_cond_t::cdbgsys },
-    { 24, cbranch_cond_t::cdbguser },
-    { 25, cbranch_cond_t::cdbgsys_or_user },
-    { 26, cbranch_cond_t::cdbgsys_and_user },
-  };
 
 void
 amdgcn_architecture_t::initialize ()
@@ -745,7 +732,7 @@ amdgcn_architecture_t::is_cbranch_taken (
       wave.read_register (amdgpu_regnum_t::status, &status_reg);
 
       /* Evaluate the condition.  */
-      switch (cbranch_opcodes_map.find (encoding_op7 (instruction))->second)
+      switch (cbranch_condition_code (instruction))
         {
         case cbranch_cond_t::scc0:
           return (status_reg & sq_wave_status_scc_mask) == 0;
@@ -1651,154 +1638,6 @@ amdgcn_architecture_t::is_sopp_instruction (const std::vector<uint8_t> &bytes,
 }
 
 bool
-amdgcn_architecture_t::is_nop (const std::vector<uint8_t> &bytes) const
-{
-  /* s_nop: SOPP Opcode 0  */
-  return is_sopp_instruction (bytes, 0);
-}
-
-bool
-amdgcn_architecture_t::is_endpgm (const std::vector<uint8_t> &bytes) const
-{
-  /* s_endpgm: SOPP Opcode 1  */
-  return is_sopp_instruction (bytes, 1);
-}
-
-bool
-amdgcn_architecture_t::is_breakpoint (const std::vector<uint8_t> &bytes) const
-{
-  uint8_t trap_id = 0;
-  return is_trap (bytes, &trap_id) && trap_id == breakpoint_trap_id;
-}
-
-bool
-amdgcn_architecture_t::is_trap (const std::vector<uint8_t> &bytes,
-                                uint8_t *trap_id) const
-{
-  /* s_trap: SOPP Opcode 18  */
-  if (is_sopp_instruction (bytes, 18))
-    {
-      if (trap_id)
-        *trap_id = utils::bit_extract (encoding_simm16 (bytes), 0, 7);
-
-      return true;
-    }
-  return false;
-}
-
-bool
-amdgcn_architecture_t::is_sethalt (const std::vector<uint8_t> &bytes) const
-{
-  /* s_sethalt: SOPP Opcode 13  */
-  return is_sopp_instruction (bytes, 13);
-}
-
-bool
-amdgcn_architecture_t::is_barrier (const std::vector<uint8_t> &bytes) const
-{
-  /* s_barrier: SOPP Opcode 10  */
-  return is_sopp_instruction (bytes, 10);
-}
-
-bool
-amdgcn_architecture_t::is_sleep (const std::vector<uint8_t> &bytes) const
-{
-  /* s_sleep: SOPP Opcode 14  */
-  return is_sopp_instruction (bytes, 14);
-}
-
-bool
-amdgcn_architecture_t::is_code_end (
-  const std::vector<uint8_t> & /* bytes  */) const
-{
-  return false;
-}
-
-bool
-amdgcn_architecture_t::is_call (const std::vector<uint8_t> &bytes) const
-{
-  /* s_call: SOPK Opcode 21  */
-  return is_sopk_instruction (bytes, 21);
-}
-
-bool
-amdgcn_architecture_t::is_getpc (const std::vector<uint8_t> &bytes) const
-{
-  /* s_getpc: SOP1 Opcode 28  */
-  return is_sop1_instruction (bytes, 28);
-}
-
-bool
-amdgcn_architecture_t::is_setpc (const std::vector<uint8_t> &bytes) const
-{
-  /* s_setpc: SOP1 Opcode 29  */
-  return is_sop1_instruction (bytes, 29);
-}
-
-bool
-amdgcn_architecture_t::is_swappc (const std::vector<uint8_t> &bytes) const
-{
-  /* s_swappc: SOP1 Opcode 30  */
-  return is_sop1_instruction (bytes, 30);
-}
-
-bool
-amdgcn_architecture_t::is_branch (const std::vector<uint8_t> &bytes) const
-{
-  /* s_sleep: SOPP Opcode 2  */
-  return is_sopp_instruction (bytes, 2);
-}
-
-bool
-amdgcn_architecture_t::is_cbranch (const std::vector<uint8_t> &bytes) const
-{
-  if (bytes.size () < sizeof (uint32_t))
-    return false;
-
-  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
-
-  /* s_cbranch_scc0:             SOPP Opcode 4  [10111111 10000100 SIMM16]
-     s_cbranch_scc1:             SOPP Opcode 5  [10111111 10000101 SIMM16]
-     s_cbranch_vccz:             SOPP Opcode 6  [10111111 10000110 SIMM16]
-     s_cbranch_vccnz:            SOPP Opcode 7  [10111111 10000111 SIMM16]
-     s_cbranch_execz:            SOPP Opcode 8  [10111111 10001000 SIMM16]
-     s_cbranch_execnz:           SOPP Opcode 9  [10111111 10001001 SIMM16]
-     s_cbranch_cdbgsys:          SOPP Opcode 23 [10111111 10010111 SIMM16]
-     s_cbranch_cdbguser:         SOPP Opcode 24 [10111111 10011000 SIMM16]
-     s_cbranch_cdbgsys_or_user:  SOPP Opcode 25 [10111111 10011001 SIMM16]
-     s_cbranch_cdbgsys_and_user: SOPP Opcode 26 [10111111 10011010 SIMM16] */
-  if ((encoding & 0xFF800000) != 0xBF800000)
-    return false;
-
-  return cbranch_opcodes_map.find (encoding_op7 (bytes))
-         != cbranch_opcodes_map.end ();
-}
-
-bool
-amdgcn_architecture_t::is_cbranch_i_fork (
-  const std::vector<uint8_t> &bytes) const
-{
-  /* s_cbranch_i_fork: SOPK Opcode 16  */
-  return is_sopk_instruction (bytes, 16);
-}
-
-bool
-amdgcn_architecture_t::is_cbranch_g_fork (
-  const std::vector<uint8_t> &bytes) const
-{
-  /* s_cbranch_g_fork: SOP2 Opcode 41  */
-  return is_sop2_instruction (bytes, 41);
-}
-
-bool
-amdgcn_architecture_t::is_cbranch_join (
-  const std::vector<uint8_t> &bytes) const
-{
-  /* s_cbranch_join: SOP1 Opcode 46  */
-  return is_sop1_instruction (bytes, 46);
-}
-
-bool
 amdgcn_architecture_t::is_pseudo_register_available (
   const wave_t &wave, amdgpu_regnum_t regnum) const
 {
@@ -2052,6 +1891,10 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
 
 class gfx9_base_t : public amdgcn_architecture_t
 {
+private:
+  static const std::unordered_map<uint16_t, cbranch_cond_t>
+    cbranch_opcodes_map;
+
 protected:
   class cwsr_record_t : public architecture_t::cwsr_record_t
   {
@@ -2123,6 +1966,28 @@ public:
   bool has_wave32_vgprs () const override { return false; }
   bool has_wave64_vgprs () const override { return true; }
   bool has_acc_vgprs () const override { return false; }
+
+  cbranch_cond_t
+  cbranch_condition_code (const std::vector<uint8_t> &bytes) const override;
+
+  bool is_sethalt (const std::vector<uint8_t> &bytes) const override;
+  bool is_barrier (const std::vector<uint8_t> &bytes) const override;
+  bool is_sleep (const std::vector<uint8_t> &bytes) const override;
+  bool is_code_end (const std::vector<uint8_t> &bytes) const override;
+  bool is_call (const std::vector<uint8_t> &bytes) const override;
+  bool is_getpc (const std::vector<uint8_t> &bytes) const override;
+  bool is_setpc (const std::vector<uint8_t> &bytes) const override;
+  bool is_swappc (const std::vector<uint8_t> &bytes) const override;
+  bool is_branch (const std::vector<uint8_t> &bytes) const override;
+  bool is_cbranch (const std::vector<uint8_t> &bytes) const override;
+  bool is_cbranch_i_fork (const std::vector<uint8_t> &bytes) const override;
+  bool is_cbranch_g_fork (const std::vector<uint8_t> &bytes) const override;
+  bool is_cbranch_join (const std::vector<uint8_t> &bytes) const override;
+  bool is_nop (const std::vector<uint8_t> &bytes) const override;
+  bool is_trap (const std::vector<uint8_t> &bytes,
+                uint8_t *trap_id = nullptr) const override;
+  bool is_endpgm (const std::vector<uint8_t> &bytes) const override;
+  bool is_breakpoint (const std::vector<uint8_t> &bytes) const override;
 
   bool can_halt_at_endpgm () const override { return false; }
   size_t largest_instruction_size () const override { return 8; }
@@ -2249,6 +2114,170 @@ gfx9_base_t::scalar_operand_to_regnum (int operand) const
     default:
       error ("Invalid scalar operand");
     }
+}
+
+decltype (gfx9_base_t::cbranch_opcodes_map) gfx9_base_t::cbranch_opcodes_map{
+  { 4, cbranch_cond_t::scc0 },
+  { 5, cbranch_cond_t::scc1 },
+  { 6, cbranch_cond_t::vccz },
+  { 7, cbranch_cond_t::vccnz },
+  { 8, cbranch_cond_t::execz },
+  { 9, cbranch_cond_t::execnz },
+  { 23, cbranch_cond_t::cdbgsys },
+  { 24, cbranch_cond_t::cdbguser },
+  { 25, cbranch_cond_t::cdbgsys_or_user },
+  { 26, cbranch_cond_t::cdbgsys_and_user },
+};
+
+amdgcn_architecture_t::cbranch_cond_t
+gfx9_base_t::cbranch_condition_code (const std::vector<uint8_t> &bytes) const
+{
+  dbgapi_assert (is_cbranch (bytes));
+  return cbranch_opcodes_map.find (encoding_op7 (bytes))->second;
+}
+
+bool
+gfx9_base_t::is_nop (const std::vector<uint8_t> &bytes) const
+{
+  /* s_nop: SOPP Opcode 0  */
+  return is_sopp_instruction (bytes, 0);
+}
+
+bool
+gfx9_base_t::is_endpgm (const std::vector<uint8_t> &bytes) const
+{
+  /* s_endpgm: SOPP Opcode 1  */
+  return is_sopp_instruction (bytes, 1);
+}
+
+bool
+gfx9_base_t::is_breakpoint (const std::vector<uint8_t> &bytes) const
+{
+  uint8_t trap_id = 0;
+  return is_trap (bytes, &trap_id) && trap_id == breakpoint_trap_id;
+}
+
+bool
+gfx9_base_t::is_trap (const std::vector<uint8_t> &bytes,
+                      uint8_t *trap_id) const
+{
+  /* s_trap: SOPP Opcode 18  */
+  if (is_sopp_instruction (bytes, 18))
+    {
+      if (trap_id)
+        *trap_id = utils::bit_extract (encoding_simm16 (bytes), 0, 7);
+
+      return true;
+    }
+  return false;
+}
+
+bool
+gfx9_base_t::is_sethalt (const std::vector<uint8_t> &bytes) const
+{
+  /* s_sethalt: SOPP Opcode 13  */
+  return is_sopp_instruction (bytes, 13);
+}
+
+bool
+gfx9_base_t::is_barrier (const std::vector<uint8_t> &bytes) const
+{
+  /* s_barrier: SOPP Opcode 10  */
+  return is_sopp_instruction (bytes, 10);
+}
+
+bool
+gfx9_base_t::is_sleep (const std::vector<uint8_t> &bytes) const
+{
+  /* s_sleep: SOPP Opcode 14  */
+  return is_sopp_instruction (bytes, 14);
+}
+
+bool
+gfx9_base_t::is_code_end (const std::vector<uint8_t> & /* bytes  */) const
+{
+  return false;
+}
+
+bool
+gfx9_base_t::is_call (const std::vector<uint8_t> &bytes) const
+{
+  /* s_call: SOPK Opcode 21  */
+  return is_sopk_instruction (bytes, 21);
+}
+
+bool
+gfx9_base_t::is_getpc (const std::vector<uint8_t> &bytes) const
+{
+  /* s_getpc: SOP1 Opcode 28  */
+  return is_sop1_instruction (bytes, 28);
+}
+
+bool
+gfx9_base_t::is_setpc (const std::vector<uint8_t> &bytes) const
+{
+  /* s_setpc: SOP1 Opcode 29  */
+  return is_sop1_instruction (bytes, 29);
+}
+
+bool
+gfx9_base_t::is_swappc (const std::vector<uint8_t> &bytes) const
+{
+  /* s_swappc: SOP1 Opcode 30  */
+  return is_sop1_instruction (bytes, 30);
+}
+
+bool
+gfx9_base_t::is_branch (const std::vector<uint8_t> &bytes) const
+{
+  /* s_sleep: SOPP Opcode 2  */
+  return is_sopp_instruction (bytes, 2);
+}
+
+bool
+gfx9_base_t::is_cbranch (const std::vector<uint8_t> &bytes) const
+{
+  if (bytes.size () < sizeof (uint32_t))
+    return false;
+
+  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
+
+  /* s_cbranch_scc0:             SOPP Opcode 4  [10111111 10000100 SIMM16]
+     s_cbranch_scc1:             SOPP Opcode 5  [10111111 10000101 SIMM16]
+     s_cbranch_vccz:             SOPP Opcode 6  [10111111 10000110 SIMM16]
+     s_cbranch_vccnz:            SOPP Opcode 7  [10111111 10000111 SIMM16]
+     s_cbranch_execz:            SOPP Opcode 8  [10111111 10001000 SIMM16]
+     s_cbranch_execnz:           SOPP Opcode 9  [10111111 10001001 SIMM16]
+     s_cbranch_cdbgsys:          SOPP Opcode 23 [10111111 10010111 SIMM16]
+     s_cbranch_cdbguser:         SOPP Opcode 24 [10111111 10011000 SIMM16]
+     s_cbranch_cdbgsys_or_user:  SOPP Opcode 25 [10111111 10011001 SIMM16]
+     s_cbranch_cdbgsys_and_user: SOPP Opcode 26 [10111111 10011010 SIMM16] */
+  if ((encoding & 0xFF800000) != 0xBF800000)
+    return false;
+
+  return gfx9_base_t::cbranch_opcodes_map.find (encoding_op7 (bytes))
+         != gfx9_base_t::cbranch_opcodes_map.end ();
+}
+
+bool
+gfx9_base_t::is_cbranch_i_fork (const std::vector<uint8_t> &bytes) const
+{
+  /* s_cbranch_i_fork: SOPK Opcode 16  */
+  return is_sopk_instruction (bytes, 16);
+}
+
+bool
+gfx9_base_t::is_cbranch_g_fork (const std::vector<uint8_t> &bytes) const
+{
+  /* s_cbranch_g_fork: SOP2 Opcode 41  */
+  return is_sop2_instruction (bytes, 41);
+}
+
+bool
+gfx9_base_t::is_cbranch_join (const std::vector<uint8_t> &bytes) const
+{
+  /* s_cbranch_join: SOP1 Opcode 46  */
+  return is_sop1_instruction (bytes, 46);
 }
 
 std::optional<amd_dbgapi_global_address_t>
