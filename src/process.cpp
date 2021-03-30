@@ -1714,21 +1714,30 @@ amd_dbgapi_process_set_progress (amd_dbgapi_process_id_t process_id,
   if (!detail::is_initialized)
     return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
 
-  process_t *process = process_t::find (process_id);
-
-  if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
-
+  bool forward_progress_needed;
   switch (progress)
     {
     case AMD_DBGAPI_PROGRESS_NORMAL:
-      process->set_forward_progress_needed (true);
+      forward_progress_needed = true;
       break;
     case AMD_DBGAPI_PROGRESS_NO_FORWARD:
-      process->set_forward_progress_needed (false);
+      forward_progress_needed = false;
       break;
     default:
       return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+    }
+
+  if (process_id == AMD_DBGAPI_PROCESS_NONE)
+    {
+      for (auto &&process : process_t::all ())
+        process.set_forward_progress_needed (forward_progress_needed);
+    }
+  else
+    {
+      if (process_t *process = process_t::find (process_id); process)
+        process->set_forward_progress_needed (forward_progress_needed);
+      else
+        return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
     }
 
   return AMD_DBGAPI_STATUS_SUCCESS;

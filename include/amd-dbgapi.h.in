@@ -476,6 +476,12 @@ extern "C" {
  */
 #define AMD_DBGAPI_VERSION_0_46
 
+/**
+ * The function was introduced in version 0.47 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.47"``.
+ */
+#define AMD_DBGAPI_VERSION_0_47
+
 /** @} */
 
 /** \ingroup callbacks_group
@@ -1858,7 +1864,9 @@ typedef enum
 /**
  * Set the progress required for a process.
  *
- * \param[in] process_id The process being controlled.
+ * \param[in] process_id If ::AMD_DBGAPI_PROCESS_NONE then set the progress for
+ * all processes currently attached.  Otherwise, set the progress for the
+ * process \p process_id.
  *
  * \param[in] progress The progress being set.
  *
@@ -1879,7 +1887,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_set_progress (
     amd_dbgapi_process_id_t process_id,
-    amd_dbgapi_progress_t progress) AMD_DBGAPI_VERSION_0_24;
+    amd_dbgapi_progress_t progress) AMD_DBGAPI_VERSION_0_47;
 
 /**
  * The kinds of wave creation supported by the hardware.
