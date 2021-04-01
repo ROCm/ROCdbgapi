@@ -982,7 +982,9 @@ amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
   if (wave->stop_reason ()
       & ~(AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT
           | AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT
-          | AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP))
+          | AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP
+          | AMD_DBGAPI_WAVE_STOP_REASON_DEBUG_TRAP
+          | AMD_DBGAPI_WAVE_STOP_REASON_TRAP))
     return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_RESUMABLE;
 
   /* The wave is not resumable if the stop event is not yet processed.  */
