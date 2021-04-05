@@ -1366,15 +1366,12 @@ process_t::attach ()
 
     create<breakpoint_t> (library, r_brk_address, r_brk_callback);
 
+    status = update_code_objects ();
+    if (status != AMD_DBGAPI_STATUS_SUCCESS)
+      error ("update_code_objects failed (rc=%d)", status);
+
     enqueue_event (create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
                                     AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS));
-
-    update_code_objects ();
-
-    if (count<code_object_t> ())
-      enqueue_event (
-        create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED,
-                         AMD_DBGAPI_EVENT_NONE));
   };
 
   auto on_runtime_unload_callback = [this] (const shared_library_t &library) {
@@ -1392,10 +1389,6 @@ process_t::attach ()
     amd_dbgapi_status_t status = update_agents ();
     if (status != AMD_DBGAPI_STATUS_SUCCESS)
       error ("update_agents failed (rc=%d)", status);
-
-    enqueue_event (
-      create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED,
-                       AMD_DBGAPI_EVENT_NONE));
 
     enqueue_event (create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
                                     AMD_DBGAPI_RUNTIME_STATE_UNLOADED));
