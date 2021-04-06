@@ -1696,6 +1696,14 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
  * system process, and the amd_dbgapi_callbacks_s::get_os_pid callback is used
  * to obtain it.
  *
+ * It is the client's responsibility to fetch the current code object list
+ * using ::amd_dbgapi_process_code_object_list as the
+ * ::AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED event is only reported when
+ * a thread is in the process of changing the code object list.
+ *
+ * The ::AMD_DBGAPI_EVENT_KIND_RUNTIME event will be reported if the runtime
+ * support is already enabled in process.
+ *
  * If the associated native operating system process exits while the library is
  * attached to it, appropriate actions are taken to reflect that the inferior
  * process no longer has any state.  For example, pending events are created
@@ -1778,12 +1786,12 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_attach (
  * displaced stepping buffer are stopped and the displaced stepping buffer
  * completed.  Any data watchpoints are removed.  All agents are configured to
  * ::AMD_DBGAPI_MEMORY_PRECISION_NONE.  Any waves in the stopped or single step
- * state are resumed in non-single step mode.  Any pending events are
- * discarded.
+ * state are resumed in non-single step mode.  Any pending events for the
+ * process are discarded, and no further events will be generated for the
+ * process.
  *
- * After detaching, the process handle becomes invalid.  It is undefined to use
- * any handles returned by previous operations performed with a process handle
- * that has become invalid.
+ * After detaching, the process handle, and all handles associated with
+ * entities relating to the process, become invalid.
  *
  * A native operating system process can be attached and detached multiple
  * times.  Each attach returns a unique process handle even for the same native
@@ -5861,6 +5869,12 @@ typedef enum
   /**
    * The list of code objects has changed.
    *
+   * This event is only reported when a thread is in the process of loading or
+   * unloading a code object.  It is not reported when attaching to a process
+   * even if there are loaded code objects.  It is the client's responsibility
+   * to fetch the current code object list using
+   * ::amd_dbgapi_process_code_object_list.
+   *
    * The thread that caused the code object list to change will be stopped
    * until the event is reported as processed.  Before reporting the event has
    * been processed, the client must set any pending breakpoints for newly
@@ -5888,13 +5902,13 @@ typedef enum
    */
   AMD_DBGAPI_EVENT_KIND_BREAKPOINT_RESUME = 4,
   /**
-   * The runtime support in the inferior has been loaded or unloaded.  Until it
-   * has been successfully loaded no code objects will be loaded and no waves
-   * will be created.  The client can use this event to determine when to
-   * activate and deactivate AMD GPU debugging functionality.  This event
-   * reports the load status, the version, and if it is compatible with this
-   * library.  If it is not compatible, then no code objects or waves will be
-   * reported to exist.
+   * The runtime support in the inferior is enabled or disabled.  Until it has
+   * been successfully enabled no code objects will be loaded and no waves will
+   * be created.  The client can use this event to determine when to activate
+   * and deactivate AMD GPU debugging functionality.  This event reports the
+   * enabled status, the version, and if it is compatible with this library.  If
+   * it is not compatible, then no code objects or waves will be reported to
+   * exist.
    */
   AMD_DBGAPI_EVENT_KIND_RUNTIME = 5,
   /**
