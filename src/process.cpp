@@ -432,11 +432,11 @@ process_t::set_wave_launch_trap_override (os_wave_launch_trap_mask_t value,
 amd_dbgapi_status_t
 process_t::set_precise_memory (bool enabled)
 {
-  if (!m_supports_precise_memory)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
-
   if (m_precise_memory == enabled)
     return AMD_DBGAPI_STATUS_SUCCESS;
+
+  if (!m_supports_precise_memory)
+    return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
 
   if (os_driver ().is_debug_enabled ())
     {
