@@ -542,12 +542,12 @@ kfd_driver_t::enable_debug (os_exception_mask_t exceptions_reported)
 amd_dbgapi_status_t
 kfd_driver_t::disable_debug ()
 {
+  if (!is_debug_enabled ())
+    return AMD_DBGAPI_STATUS_SUCCESS;
+
   amd_dbgapi_status_t status = stop_event_thread ();
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     error ("Could not stop the event thread (rc=%d)", status);
-
-  if (!m_event_poll_fd.has_value ())
-    return AMD_DBGAPI_STATUS_SUCCESS;
 
   ::close (*m_event_poll_fd);
   m_event_poll_fd.reset ();
@@ -573,6 +573,13 @@ kfd_driver_t::query_debug_event (os_exception_mask_t *exceptions_present,
                                  os_exception_mask_t exceptions_cleared)
 {
   dbgapi_assert (exceptions_present && os_source_id && "must not be null");
+
+  if (!is_debug_enabled ())
+    {
+      *exceptions_present = os_exception_mask_t::none;
+      os_source_id->raw = 0;
+      return AMD_DBGAPI_STATUS_SUCCESS;
+    }
 
   /* We get our event notifications from the process event thread, so
      make sure it is still running, an exception may have caused it to
@@ -662,6 +669,12 @@ kfd_driver_t::queue_snapshot (os_queue_snapshot_entry_t *snapshots,
   dbgapi_assert (snapshots && queue_count && "must not be null");
   dbgapi_assert (snapshot_count <= std::numeric_limits<uint32_t>::max ()
                  && "invalid argument");
+
+  if (!is_debug_enabled ())
+    {
+      *queue_count = 0;
+      return AMD_DBGAPI_STATUS_SUCCESS;
+    }
 
   /* KFD_IOC_DBG_TRAP_GET_QUEUE_SNAPSHOT (#7):
      exception_mask: [in] exceptions to clear on snapshot
