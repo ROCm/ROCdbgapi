@@ -121,17 +121,15 @@ private:
   };
 
   static constexpr gfxip_lookup_table_t s_gfxip_lookup_table[]
-    = { { "vega10", EF_AMDGPU_MACH_AMDGCN_GFX900, 33206 },
-        { "raven", EF_AMDGPU_MACH_AMDGCN_GFX902, 0 },
-        { "vega12", EF_AMDGPU_MACH_AMDGCN_GFX904, 0 },
-        { "vega20", EF_AMDGPU_MACH_AMDGCN_GFX906, 438 },
-        { "arcturus", EF_AMDGPU_MACH_AMDGCN_GFX908, 48 },
-        { "aldebaran", EF_AMDGPU_MACH_AMDGCN_GFX90A, 0 },
-        { "navi10", EF_AMDGPU_MACH_AMDGCN_GFX1010, 0 },
-        { "navi12", EF_AMDGPU_MACH_AMDGCN_GFX1011, 0 },
-        { "navi14", EF_AMDGPU_MACH_AMDGCN_GFX1012, 0 },
-        { "sienna_cichlid", EF_AMDGPU_MACH_AMDGCN_GFX1030, 0 },
-        { "navy_flounder", EF_AMDGPU_MACH_AMDGCN_GFX1031, 0 } };
+    = { { "vega10", EF_AMDGPU_MACH_AMDGCN_GFX900, 455 + 32768 },
+        { "vega20", EF_AMDGPU_MACH_AMDGCN_GFX906, 455 },
+        { "arcturus", EF_AMDGPU_MACH_AMDGCN_GFX908, 57 },
+        { "aldebaran", EF_AMDGPU_MACH_AMDGCN_GFX90A, 47 },
+        { "navi10", EF_AMDGPU_MACH_AMDGCN_GFX1010, 143 },
+        { "navi12", EF_AMDGPU_MACH_AMDGCN_GFX1011, 143 },
+        { "navi14", EF_AMDGPU_MACH_AMDGCN_GFX1012, 143 },
+        { "sienna_cichlid", EF_AMDGPU_MACH_AMDGCN_GFX1030, 88 },
+        { "navy_flounder", EF_AMDGPU_MACH_AMDGCN_GFX1031, 88 } };
 
   static size_t s_kfd_open_count;
   static std::optional<file_desc_t> s_kfd_fd;

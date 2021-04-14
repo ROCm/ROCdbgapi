@@ -104,13 +104,13 @@ wave_t::pc () const
 }
 
 std::optional<std::vector<uint8_t>>
-wave_t::instruction_at_pc () const
+wave_t::instruction_at_pc (size_t pc_adjust) const
 {
   size_t size = architecture ().largest_instruction_size ();
   std::vector<uint8_t> instruction_bytes (size);
 
   amd_dbgapi_status_t status = process ().read_global_memory_partial (
-    pc (), instruction_bytes.data (), &size);
+    pc () + pc_adjust, instruction_bytes.data (), &size);
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return {};
 

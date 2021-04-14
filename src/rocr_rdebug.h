@@ -33,8 +33,9 @@
 4: New trap handler ABI. Save the trap id in ttmp11[17:10].
 5: New trap handler ABI. Save the PC in ttmp11[22:7] ttmp6[31:0], and park the
    wave if stopped.
+6: New trap handler ABI. ttmp6[25:0] contains dispatch index modulo queue size
 */
 
-#define ROCR_RDEBUG_VERSION 5
+#define ROCR_RDEBUG_VERSION 6
 
 #endif /* ROCR_RDEBUG_H */

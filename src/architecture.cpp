@@ -84,11 +84,10 @@ protected:
   static constexpr uint32_t sq_wave_status_cond_dbg_user_mask = 1 << 20;
   static constexpr uint32_t sq_wave_status_cond_dbg_sys_mask = 1 << 21;
 
-  static constexpr uint32_t ttmp11_wave_in_group_mask = 0x003f;
-  static constexpr uint32_t ttmp7_dispatch_id_converted_mask = 1 << 31;
-  static constexpr uint32_t ttmp7_wave_stopped_mask = 1 << 30;
-  static constexpr uint32_t ttmp7_saved_status_halt_mask = 1 << 29;
-  static constexpr uint32_t ttmp7_saved_trap_id_mask
+  static constexpr uint32_t ttmp11_wave_in_group_mask = utils::bit_mask (0, 5);
+  static constexpr uint32_t ttmp6_wave_stopped_mask = 1 << 30;
+  static constexpr uint32_t ttmp6_saved_status_halt_mask = 1 << 29;
+  static constexpr uint32_t ttmp6_saved_trap_id_mask
     = utils::bit_mask (25, 28);
 
   /* See https://llvm.org/docs/AMDGPUUsage.html#trap-handler-abi  */
@@ -104,14 +103,14 @@ protected:
      cannot be detected and is invalid, trap_id >= 15 could be any ID between
      15 and 255, and therefore cannot be differentiated.  The debugger API
      library only handles trap IDs between 1 and 14.  */
-  static constexpr std::optional<trap_id_t> ttmp7_saved_trap_id (uint32_t x)
+  static constexpr std::optional<trap_id_t> ttmp6_saved_trap_id (uint32_t x)
   {
     if (uint8_t trap_id = utils::bit_extract (x, 25, 28); trap_id != 0)
       return trap_id_t{ trap_id };
     return std::nullopt;
   }
 
-  static constexpr uint32_t ttmp7_queue_packet_id (uint32_t x)
+  static constexpr uint32_t ttmp6_queue_packet_id (uint32_t x)
   {
     return utils::bit_extract (x, 0, 24);
   }
@@ -1060,14 +1059,14 @@ amdgcn_architecture_t::simulate_instruction (
   wave_t &wave, amd_dbgapi_global_address_t pc,
   const std::vector<uint8_t> &instruction) const
 {
-  uint32_t ttmp7;
-  wave.read_register (amdgpu_regnum_t::ttmp7, &ttmp7);
+  uint32_t ttmp6;
+  wave.read_register (amdgpu_regnum_t::ttmp6, &ttmp6);
 
-  dbgapi_assert ((ttmp7 & ttmp7_wave_stopped_mask)
+  dbgapi_assert ((ttmp6 & ttmp6_wave_stopped_mask)
                  && "wave must be stopped to simulate instructions");
 
   /* Don't simulate the instruction if the wave is halted.  */
-  if (ttmp7 & ttmp7_saved_status_halt_mask)
+  if (ttmp6 & ttmp6_saved_status_halt_mask)
     return false;
 
   amd_dbgapi_global_address_t new_pc;
@@ -1279,14 +1278,14 @@ amdgcn_architecture_t::get_wave_state (
 {
   dbgapi_assert (state && stop_reason && "Invalid parameter");
 
-  uint32_t ttmp7, mode_reg;
-  wave.read_register (amdgpu_regnum_t::ttmp7, &ttmp7);
+  uint32_t ttmp6, mode_reg;
+  wave.read_register (amdgpu_regnum_t::ttmp6, &ttmp6);
   wave.read_register (amdgpu_regnum_t::mode, &mode_reg);
 
   amd_dbgapi_wave_state_t prev_state = wave.state ();
 
   amd_dbgapi_wave_state_t new_state
-    = (ttmp7 & ttmp7_wave_stopped_mask)
+    = (ttmp6 & ttmp6_wave_stopped_mask)
         ? AMD_DBGAPI_WAVE_STATE_STOP
         : ((mode_reg & sq_wave_mode_debug_en_mask)
              ? AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
@@ -1324,16 +1323,16 @@ amdgcn_architecture_t::get_wave_state (
 
   amd_dbgapi_global_address_t pc = wave.pc ();
 
-  if (ttmp7 & ttmp7_dispatch_id_converted_mask)
+  if (!can_halt_at_endpgm ())
     {
       /* The trap handler "parked" the wave and saved the PC in ttmp11[22:7]
-         and ttmp6[31:0]  */
+         and ttmp7[31:0]  */
 
-      uint32_t ttmp6, ttmp11;
-      wave.read_register (amdgpu_regnum_t::ttmp6, &ttmp6);
+      uint32_t ttmp7, ttmp11;
+      wave.read_register (amdgpu_regnum_t::ttmp7, &ttmp7);
       wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
 
-      pc = static_cast<amd_dbgapi_global_address_t> (ttmp6)
+      pc = static_cast<amd_dbgapi_global_address_t> (ttmp7)
            | static_cast<amd_dbgapi_global_address_t> (
                utils::bit_extract (ttmp11, 7, 22))
                << 32;
@@ -1354,7 +1353,7 @@ amdgcn_architecture_t::get_wave_state (
     }
 
   /* Check for traps caused by an s_trap instruction.  */
-  if (auto trap_id = ttmp7_saved_trap_id (ttmp7); trap_id)
+  if (auto trap_id = ttmp6_saved_trap_id (ttmp6); trap_id)
     {
       switch (*trap_id)
         {
@@ -1372,26 +1371,16 @@ amdgcn_architecture_t::get_wave_state (
           break;
         }
 
-      /* For all trap IDs except trap_id_t::breakpoint, check that the actual
-         instruction at the current PC is a trap instruction.  We can't check
+      /* For all trap IDs except trap_id_t::breakpoint, check that the PC
+         points past an actual trap instruction.  We can't check
          trap_id_t::breakpoint because the debugger may have removed the
          breakpoint and restored the original instruction.  */
       if (*trap_id != trap_id_t::breakpoint && ![&] () {
-            auto trap_instruction = wave.instruction_at_pc ();
-            return trap_instruction && is_trap (*trap_instruction);
+            auto instruction
+              = wave.instruction_at_pc (-breakpoint_instruction_pc_adjust ());
+            return instruction && is_trap (*instruction);
           }())
         error ("trap exception not raised by a trap instruction");
-
-      /* The hardware and trap_handler leave the program counter at the trap
-         instruction, so advance it to the next instruction to make resuming
-         from a user breakpoint (for example debug_trap) easier.
-
-         It is the debugger's responsibility to rewind the program counter to
-         point at the breakpoint instruction by using the value returned by the
-         AMD_DBGAPI_ARCHITECTURE_INFO_BREAKPOINT_INSTRUCTION_PC_ADJUST query.
-       */
-      pc += trap_instruction ().size ();
-      wave.write_register (amdgpu_regnum_t::pc, &pc);
     }
 
   /* Check for exceptions.  */
@@ -1470,24 +1459,24 @@ void
 amdgcn_architecture_t::set_wave_state (wave_t &wave,
                                        amd_dbgapi_wave_state_t state) const
 {
-  uint32_t status_reg, mode_reg, ttmp7;
+  uint32_t status_reg, mode_reg, ttmp6;
 
   wave.read_register (amdgpu_regnum_t::status, &status_reg);
   wave.read_register (amdgpu_regnum_t::mode, &mode_reg);
-  wave.read_register (amdgpu_regnum_t::ttmp7, &ttmp7);
+  wave.read_register (amdgpu_regnum_t::ttmp6, &ttmp6);
 
   switch (state)
     {
     case AMD_DBGAPI_WAVE_STATE_STOP:
-      /* Put the wave in the stop state (ttmp7.wave_stopped=1), save
-         status.halt in ttmp7.saved_status_halt, and halt the wave
+      /* Put the wave in the stop state (ttmp6.wave_stopped=1), save
+         status.halt in ttmp6.saved_status_halt, and halt the wave
          (status.halt=1).  */
-      ttmp7 &= ~(ttmp7_wave_stopped_mask | ttmp7_saved_status_halt_mask
-                 | ttmp7_saved_trap_id_mask);
+      ttmp6 &= ~(ttmp6_wave_stopped_mask | ttmp6_saved_status_halt_mask
+                 | ttmp6_saved_trap_id_mask);
 
       if (status_reg & sq_wave_status_halt_mask)
-        ttmp7 |= ttmp7_saved_status_halt_mask;
-      ttmp7 |= ttmp7_wave_stopped_mask;
+        ttmp6 |= ttmp6_saved_status_halt_mask;
+      ttmp6 |= ttmp6_wave_stopped_mask;
 
       mode_reg &= ~sq_wave_mode_debug_en_mask;
 
@@ -1495,27 +1484,27 @@ amdgcn_architecture_t::set_wave_state (wave_t &wave,
       break;
 
     case AMD_DBGAPI_WAVE_STATE_RUN:
-      /* Restore status.halt from ttmp7.saved_status_halt, put the wave in the
-         run state (ttmp7.wave_stopped=0), and set mode.debug_en=0.  */
+      /* Restore status.halt from ttmp6.saved_status_halt, put the wave in the
+         run state (ttmp6.wave_stopped=0), and set mode.debug_en=0.  */
       mode_reg &= ~sq_wave_mode_debug_en_mask;
 
       status_reg &= ~sq_wave_status_halt_mask;
-      if (ttmp7 & ttmp7_saved_status_halt_mask)
+      if (ttmp6 & ttmp6_saved_status_halt_mask)
         status_reg |= sq_wave_status_halt_mask;
 
-      ttmp7 &= ~(ttmp7_wave_stopped_mask | ttmp7_saved_status_halt_mask);
+      ttmp6 &= ~(ttmp6_wave_stopped_mask | ttmp6_saved_status_halt_mask);
       break;
 
     case AMD_DBGAPI_WAVE_STATE_SINGLE_STEP:
-      /* Restore status.halt from ttmp7.saved_status_halt, put the wave in the
-         run state (ttmp7.wave_stopped=0), and set mode.debug_en=1.  */
+      /* Restore status.halt from ttmp6.saved_status_halt, put the wave in the
+         run state (ttmp6.wave_stopped=0), and set mode.debug_en=1.  */
       mode_reg |= sq_wave_mode_debug_en_mask;
 
       status_reg &= ~sq_wave_status_halt_mask;
-      if (ttmp7 & ttmp7_saved_status_halt_mask)
+      if (ttmp6 & ttmp6_saved_status_halt_mask)
         status_reg |= sq_wave_status_halt_mask;
 
-      ttmp7 &= ~(ttmp7_wave_stopped_mask | ttmp7_saved_status_halt_mask);
+      ttmp6 &= ~(ttmp6_wave_stopped_mask | ttmp6_saved_status_halt_mask);
       break;
 
     default:
@@ -1524,7 +1513,7 @@ amdgcn_architecture_t::set_wave_state (wave_t &wave,
 
   wave.write_register (amdgpu_regnum_t::status, &status_reg);
   wave.write_register (amdgpu_regnum_t::mode, &mode_reg);
-  wave.write_register (amdgpu_regnum_t::ttmp7, &ttmp7);
+  wave.write_register (amdgpu_regnum_t::ttmp6, &ttmp6);
 
   /* If resuming the wave (run or single-step), clear the watchpoint exceptions
      in trapsts.  */
@@ -1757,16 +1746,16 @@ amdgcn_architecture_t::read_pseudo_register (const wave_t &wave,
 
   if (regnum == amdgpu_regnum_t::pseudo_status)
     {
-      /* pseudo_status is a composite of: sq_wave_status[31:14], ttmp7[29]
+      /* pseudo_status is a composite of: sq_wave_status[31:14], ttmp6[29]
          (halt), sq_wave_status [12:6], 0[0] (priv), sq_wave_status [4:0].  */
 
-      uint32_t ttmp7, status_reg;
+      uint32_t ttmp6, status_reg;
 
       wave.read_register (amdgpu_regnum_t::status, &status_reg);
-      wave.read_register (amdgpu_regnum_t::ttmp7, &ttmp7);
+      wave.read_register (amdgpu_regnum_t::ttmp6, &ttmp6);
 
       status_reg &= ~(sq_wave_status_priv_mask | sq_wave_status_halt_mask);
-      if (ttmp7 & ttmp7_saved_status_halt_mask)
+      if (ttmp6 & ttmp6_saved_status_halt_mask)
         status_reg |= sq_wave_status_halt_mask;
 
       memcpy (static_cast<char *> (value) + offset,
@@ -1883,10 +1872,10 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
 
   if (regnum == amdgpu_regnum_t::pseudo_status)
     {
-      /* pseudo_status is a composite of: status[31:14], ttmp7[29] (halt),
+      /* pseudo_status is a composite of: status[31:14], ttmp6[29] (halt),
          status [12:6], 0[0] (priv), status [4:0].  */
 
-      uint32_t prev_status_reg, status_reg, ttmp7;
+      uint32_t prev_status_reg, status_reg, ttmp6;
 
       /* Only some fields of the status register are writable.  */
       constexpr uint32_t writable_fields_mask
@@ -1898,7 +1887,7 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
           | utils::bit_mask (27, 27); /* must_export  */
 
       wave.read_register (amdgpu_regnum_t::status, &prev_status_reg);
-      wave.read_register (amdgpu_regnum_t::ttmp7, &ttmp7);
+      wave.read_register (amdgpu_regnum_t::ttmp6, &ttmp6);
 
       status_reg = prev_status_reg;
       memcpy (reinterpret_cast<char *> (&status_reg) + offset,
@@ -1908,12 +1897,12 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
       status_reg = (status_reg & writable_fields_mask)
                    | (prev_status_reg & ~writable_fields_mask);
 
-      ttmp7 &= ~ttmp7_saved_status_halt_mask;
+      ttmp6 &= ~ttmp6_saved_status_halt_mask;
       if (status_reg & sq_wave_status_halt_mask)
-        ttmp7 |= ttmp7_saved_status_halt_mask;
+        ttmp6 |= ttmp6_saved_status_halt_mask;
 
       wave.write_register (amdgpu_regnum_t::status, &status_reg);
-      wave.write_register (amdgpu_regnum_t::ttmp7, &ttmp7);
+      wave.write_register (amdgpu_regnum_t::ttmp6, &ttmp6);
       return;
     }
 
@@ -2120,16 +2109,16 @@ gfx9_base_t::cwsr_record_t::get_info (query_kind_t query) const
 
     case query_kind_t::is_stopped:
       {
-        const amd_dbgapi_global_address_t ttmp7_address
-          = register_address (amdgpu_regnum_t::ttmp7).value ();
+        const amd_dbgapi_global_address_t ttmp6_address
+          = register_address (amdgpu_regnum_t::ttmp6).value ();
 
-        uint32_t ttmp7;
-        if (process ().read_global_memory (ttmp7_address, &ttmp7,
-                                           sizeof (ttmp7))
+        uint32_t ttmp6;
+        if (process ().read_global_memory (ttmp6_address, &ttmp6,
+                                           sizeof (ttmp6))
             != AMD_DBGAPI_STATUS_SUCCESS)
-          error ("Could not read the 'ttmp7' register");
+          error ("Could not read the 'ttmp6' register");
 
-        return (ttmp7 & ttmp7_wave_stopped_mask) != 0;
+        return (ttmp6 & ttmp6_wave_stopped_mask) != 0;
       }
 
     default:
@@ -2582,33 +2571,18 @@ gfx9_base_t::dispatch_packet_address (
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     error ("Could not get the queue address (rc=%d)", status);
 
-  const amd_dbgapi_global_address_t ttmp6_7_address
+  const amd_dbgapi_global_address_t ttmp6_address
     = cwsr_record.register_address (amdgpu_regnum_t::ttmp6).value ();
 
-  uint64_t ttmp6_7;
-  status = cwsr_record.process ().read_global_memory (
-    ttmp6_7_address, &ttmp6_7, sizeof (ttmp6_7));
+  uint64_t ttmp6;
+  status = cwsr_record.process ().read_global_memory (ttmp6_address, &ttmp6,
+                                                      sizeof (ttmp6));
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     error ("Could not read the 'ttmp6:7' registers (rc=%d)", status);
 
-  if ((ttmp6_7 >> 32) & ttmp7_dispatch_id_converted_mask)
-    {
-      amd_dbgapi_os_queue_packet_id_t os_queue_packet_id
-        = ttmp7_queue_packet_id (ttmp6_7 >> 32);
-      return packets_address + (os_queue_packet_id * aql_packet_size);
-    }
-  else
-    {
-      if (!ttmp6_7)
-        error ("invalid null dispatch_ptr");
-
-      /* SPI only sends us the lower 40 bits of the dispatch_ptr, so we
-         need to reconstitute it using the packets address for the
-         missing upper 8 bits.  */
-
-      constexpr uint64_t spi_mask = utils::bit_mask (0, 39);
-      return (ttmp6_7 & spi_mask) | (packets_address & ~spi_mask);
-    }
+  amd_dbgapi_os_queue_packet_id_t os_queue_packet_id
+    = ttmp6_queue_packet_id (ttmp6);
+  return packets_address + (os_queue_packet_id * aql_packet_size);
 }
 
 /* Vega10 Architecture.  */
