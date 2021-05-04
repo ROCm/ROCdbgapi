@@ -413,11 +413,8 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
     && "displaced-stepping waves can only be stopped or single-stepped");
 
   dbgapi_assert ((state == AMD_DBGAPI_WAVE_STATE_STOP
-                  || !(m_stop_reason
-                       & ~(AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT
-                           | AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT
-                           | AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP)))
-                 && "cannot resume a wave with exceptions");
+                  || !(m_stop_reason & ~resumable_stop_reason_mask))
+                 && "cannot resume a wave with fatal exceptions");
 
   m_stop_requested = state == AMD_DBGAPI_WAVE_STATE_STOP;
 
@@ -979,12 +976,7 @@ amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
   if (wave->client_visible_state () != AMD_DBGAPI_WAVE_STATE_STOP)
     return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED;
 
-  if (wave->stop_reason ()
-      & ~(AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT
-          | AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT
-          | AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP
-          | AMD_DBGAPI_WAVE_STOP_REASON_DEBUG_TRAP
-          | AMD_DBGAPI_WAVE_STOP_REASON_TRAP))
+  if (wave->stop_reason () & ~wave_t::resumable_stop_reason_mask)
     return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_RESUMABLE;
 
   /* The wave is not resumable if the stop event is not yet processed.  */

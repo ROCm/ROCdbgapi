@@ -60,6 +60,15 @@ public:
      trap handler.  */
   static constexpr amd_dbgapi_wave_id_t undefined = { 0 };
 
+  /* Mask of stop reasons a wave can have and still be resumed. These stop
+     reasons are not fatal, and are cleared when the wave is resumed.  */
+  static constexpr amd_dbgapi_wave_stop_reason_t resumable_stop_reason_mask
+    = AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT
+      | AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT
+      | AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP
+      | AMD_DBGAPI_WAVE_STOP_REASON_DEBUG_TRAP
+      | AMD_DBGAPI_WAVE_STOP_REASON_TRAP;
+
   enum class visibility_t
   {
     visible,
