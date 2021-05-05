@@ -2569,7 +2569,8 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_queue_list (
  *
  * The queue packets are returned as a byte block that the client must
  * interpret according to the packet ABI determined by the queue type available
- * using the ::AMD_DBGAPI_QUEUE_TYPE query.  See ::amd_dbgapi_os_queue_type_t.
+ * using the ::AMD_DBGAPI_QUEUE_INFO_TYPE query.  See
+ * ::amd_dbgapi_os_queue_type_t.
  *
  * \param[in] queue_id The queue for which the packet list is requested.
  *
@@ -2746,11 +2747,11 @@ typedef enum
   /**
    * Return the dispatch completion event address.  The type of this attribute
    * is ::amd_dbgapi_global_address_t.  The ABI of the completion event varies
-   * depending on the queue type available using the ::AMD_DBGAPI_QUEUE_TYPE
-   * query.  See ::amd_dbgapi_os_queue_type_t.  If the queue type does not use
-   * completion events, or the dispatch packet does not define a completion
-   * event, then ::amd_dbgapi_dispatch_get_info will return
-   * ::AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED.
+   * depending on the queue type available using the
+   * ::AMD_DBGAPI_QUEUE_INFO_TYPE query.  See ::amd_dbgapi_os_queue_type_t.  If
+   * the queue type does not use completion events, or the dispatch packet does
+   * not define a completion event, then ::amd_dbgapi_dispatch_get_info will
+   * return ::AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED.
    */
   AMD_DBGAPI_DISPATCH_INFO_KERNEL_COMPLETION_ADDRESS = 17
 } amd_dbgapi_dispatch_info_t;
@@ -3671,8 +3672,8 @@ typedef enum
 /**
  * Query information about a displaced stepping buffer.
  *
- * ::amd_dbgapi_displaced_stepping_t specifies the queries supported and the
- * type returned using the \p value argument.
+ * ::amd_dbgapi_displaced_stepping_info_t specifies the queries supported and
+ * the type returned using the \p value argument.
  *
  * \param[in] displaced_stepping_id The handle of the displaced stepping buffer
  * being queried.
@@ -3957,7 +3958,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_watchpoint_get_info (
 /**
  * The way watchpoints are shared between processes.
  *
- * The ::AMD_DBGAPI_ARCHITECTURE_INFO_WATCHPOINT_SHARE query can be used to
+ * The ::AMD_DBGAPI_PROCESS_INFO_WATCHPOINT_SHARE query can be used to
  * determine the watchpoint sharing for an architecture.
  */
 typedef enum
@@ -4853,7 +4854,7 @@ typedef struct
  * the generated architecture specific code must include information about the
  * lane mapping.
  *
- * The ::AMD_DBGAPI_ADDRESS_SPACE_LANE address space supports memory
+ * The \p DW_ASPACE_AMDGPU_private_lane DWARF address space supports memory
  * allocated independently for each lane of a wave.
  *
  * Lanes are numbered from 0 to ::AMD_DBGAPI_WAVE_INFO_LANE_COUNT minus 1.
@@ -4892,10 +4893,10 @@ typedef struct
 
 /**
  * Source language address class queries that are supported by
- * ::amd_dbgapi_architecture_address_class_get_info.
+ * ::amd_dbgapi_address_class_get_info.
  *
  * Each query specifies the type of data returned in the \p value argument to
- * ::amd_dbgapi_architecture_address_class_get_info.
+ * ::amd_dbgapi_address_class_get_info.
  */
 typedef enum
 {
@@ -5381,24 +5382,23 @@ typedef uint64_t amd_dbgapi_segment_address_t;
  *
  * \param[in] lane_id The lane of the \p wave_id that is using the address.
  *
- * \param[in] source_address_space The address space of the \p
+ * \param[in] source_address_space_id The address space of the \p
  * source_segment_address.
  *
  * \param[in] source_segment_address The integral value of the source segment
  * address.  Only the bits corresponding to the address size for the \p
- * source_address_space requested are used.  The address size is provided by
- * the
- * ::AMD_DBGAPI_ADDRESS_SPACE_INFO_ADDRESS_SIZE query.
+ * source_address_space_id requested are used.  The address size is provided by
+ * the ::AMD_DBGAPI_ADDRESS_SPACE_INFO_ADDRESS_SIZE query.
  *
- * \param[in] destination_address_space The address space to which to convert
- * \p source_segment_address that is in \p source_address_space.
+ * \param[in] destination_address_space_id The address space to which to
+ * convert \p source_segment_address that is in \p source_address_space_id.
  *
  * \param[out] destination_segment_address The integral value of the segment
- * address in \p destination_address_space that corresponds to \p
- * source_segment_address in \p source_address_space.  The bits corresponding
- * to the address size for the \p destination_address_space are updated, and
- * any remaining bits are set to zero.  The address size is provided by the
- * ::AMD_DBGAPI_ADDRESS_SPACE_INFO_ADDRESS_SIZE query.
+ * address in \p destination_address_space_id that corresponds to \p
+ * source_segment_address in \p source_address_space_id.  The bits
+ * corresponding to the address size for the \p destination_address_space_id
+ * are updated, and any remaining bits are set to zero.  The address size is
+ * provided by the ::AMD_DBGAPI_ADDRESS_SPACE_INFO_ADDRESS_SIZE query.
  *
  * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
  * successfully and the result is stored in \p destination_segment_address.
@@ -5414,8 +5414,8 @@ typedef uint64_t amd_dbgapi_segment_address_t;
  * destination_segment_address is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID \p lane_id is invalid, or
- * \p lane_id is ::AMD_DBGAPI_LANE_NONE and \p source_address_space depends on
- * the active lane.  \p destination_segment_address is unaltered.
+ * \p lane_id is ::AMD_DBGAPI_LANE_NONE and \p source_address_space_id depends
+ * on the active lane.  \p destination_segment_address is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID \p
  * source_address_space_id or \p destination_address_space_id are invalid.  \p
