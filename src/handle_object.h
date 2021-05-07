@@ -281,10 +281,9 @@ public:
   handle_object_set_t () = default;
 
   template <typename... Args>
-  inline Object &create_object (std::optional<handle_type> id,
-                                Args &&... args);
+  inline Object &create_object (std::optional<handle_type> id, Args &&...args);
 
-  template <typename... Args> Object &create_object (Args &&... args)
+  template <typename... Args> Object &create_object (Args &&...args)
   {
     return create_object (std::optional<handle_type>{},
                           std::forward<Args> (args)...);
@@ -331,22 +330,24 @@ public:
   template <typename Functor>
   Object *find_if (Functor predicate, bool all = false)
   {
-    auto it
-      = std::find_if (m_map.begin (), m_map.end (), [=] (const auto &value) {
-          return bool{ (all || is_valid (value.second))
-                       && predicate (value.second) };
-        });
+    auto it = std::find_if (m_map.begin (), m_map.end (),
+                            [=] (const auto &value)
+                            {
+                              return bool{ (all || is_valid (value.second))
+                                           && predicate (value.second) };
+                            });
     return (it != m_map.end ()) ? &it->second : nullptr;
   }
 
   template <typename Functor>
   const Object *find_if (Functor predicate, bool all = false) const
   {
-    auto it
-      = std::find_if (m_map.begin (), m_map.end (), [=] (const auto &value) {
-          return bool{ (all || is_valid (value.second))
-                       && predicate (value.second) };
-        });
+    auto it = std::find_if (m_map.begin (), m_map.end (),
+                            [=] (const auto &value)
+                            {
+                              return bool{ (all || is_valid (value.second))
+                                           && predicate (value.second) };
+                            });
     return (it != m_map.end ()) ? &it->second : nullptr;
   }
 
@@ -400,7 +401,7 @@ template <typename Object>
 template <typename... Args>
 inline Object &
 handle_object_set_t<Object>::create_object (std::optional<handle_type> id,
-                                            Args &&... args)
+                                            Args &&...args)
 {
   /* If id does not contain a value, request a new one.  This allows us to
      "re-create" objects that were place-holders (e.g. partially initialized
@@ -481,7 +482,8 @@ operator!= (const Handle &lhs, const Handle &rhs)
 
 template <typename Handle,
           std::enable_if_t<amd::dbgapi::is_handle_type_v<Handle>, int> = 0>
-bool operator! (const Handle &handle)
+bool
+operator! (const Handle &handle)
 {
   return handle == Handle{};
 }

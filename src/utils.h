@@ -525,7 +525,8 @@ template <typename T> struct is_flag : std::false_type
 template <typename T> inline constexpr bool is_flag_v = is_flag<T>::value;
 
 template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
-constexpr bool operator! (T flag)
+constexpr bool
+operator! (T flag)
 {
   using t = std::underlying_type_t<T>;
   return static_cast<t> (flag) == t{};
@@ -585,7 +586,8 @@ operator|= (T &lhs, T rhs)
 }
 
 template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
-constexpr T operator& (T lhs, T rhs)
+constexpr T
+operator& (T lhs, T rhs)
 {
   using t = std::underlying_type_t<T>;
   return static_cast<T> (static_cast<t> (lhs) & static_cast<t> (rhs));

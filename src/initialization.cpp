@@ -84,10 +84,12 @@ amd_dbgapi_finalize ()
     }
 
   /* Reset the callbacks only after the tracer is done logging.  */
-  reset_callbacks.emplace ([] () {
-    detail::process_callbacks = {};
-    detail::is_initialized = false;
-  });
+  reset_callbacks.emplace (
+    [] ()
+    {
+      detail::process_callbacks = {};
+      detail::is_initialized = false;
+    });
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 

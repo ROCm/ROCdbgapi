@@ -450,10 +450,9 @@ address_space_for_generic_address (
   else /* all other addresses are treated as global addresses  */
     address_space_kind = address_space_t::global;
 
-  const address_space_t *segment_address_space
-    = wave.architecture ().find_if ([=] (const address_space_t &as) {
-        return as.kind () == address_space_kind;
-      });
+  const address_space_t *segment_address_space = wave.architecture ().find_if (
+    [=] (const address_space_t &as)
+    { return as.kind () == address_space_kind; });
   if (!segment_address_space)
     error ("address space not found in architecture");
 
@@ -572,9 +571,9 @@ amdgcn_architecture_t::lower_address_space (
           && dwarf_value <= DW_ASPACE_AMDGPU_private_lane63)
         {
           const address_space_t *as_private_lane
-            = wave.architecture ().find_if ([=] (const address_space_t &as) {
-                return as.kind () == address_space_t::private_swizzled;
-              });
+            = wave.architecture ().find_if (
+              [=] (const address_space_t &as)
+              { return as.kind () == address_space_t::private_swizzled; });
           if (!as_private_lane)
             error ("address space `private_lane' not found in architecture");
 
@@ -645,7 +644,8 @@ amdgcn_architecture_t::address_spaces_may_alias (
       || address_space2.kind () == address_space_t::generic)
     return true;
 
-  auto is_private = [] (const address_space_t &address_space) {
+  auto is_private = [] (const address_space_t &address_space)
+  {
     return address_space.kind () == address_space_t::private_swizzled
            || address_space.kind () == address_space_t::private_swizzled_n
            || address_space.kind () == address_space_t::private_unswizzled;
@@ -3152,11 +3152,10 @@ architecture_t::find (elf_amdgpu_machine_t elf_amdgpu_machine)
            == elf_amdgpu_machine)
     return detail::last_found_architecture;
 
-  auto it = std::find_if (s_architecture_map.begin (),
-                          s_architecture_map.end (), [&] (const auto &value) {
-                            return value.second->elf_amdgpu_machine ()
-                                   == elf_amdgpu_machine;
-                          });
+  auto it = std::find_if (
+    s_architecture_map.begin (), s_architecture_map.end (),
+    [&] (const auto &value)
+    { return value.second->elf_amdgpu_machine () == elf_amdgpu_machine; });
   if (it != s_architecture_map.end ())
     {
       auto architecture = it->second.get ();
@@ -3508,7 +3507,8 @@ architecture_t::disassembly_info () const
   if (*m_disassembly_info == amd_comgr_disassembly_info_t{ 0 })
     {
       auto read_memory_callback = [] (uint64_t from, char *to, uint64_t size,
-                                      void *user_data) -> uint64_t {
+                                      void *user_data) -> uint64_t
+      {
         detail::disassembly_user_data_t *data
           = static_cast<detail::disassembly_user_data_t *> (user_data);
 
@@ -3523,25 +3523,27 @@ architecture_t::disassembly_info () const
       };
 
       auto print_instruction_callback
-        = [] (const char *instruction, void *user_data) {
-            detail::disassembly_user_data_t *data
-              = static_cast<detail::disassembly_user_data_t *> (user_data);
+        = [] (const char *instruction, void *user_data)
+      {
+        detail::disassembly_user_data_t *data
+          = static_cast<detail::disassembly_user_data_t *> (user_data);
 
-            while (isspace (*instruction))
-              ++instruction;
+        while (isspace (*instruction))
+          ++instruction;
 
-            if (data->instruction)
-              data->instruction->assign (instruction);
-          };
+        if (data->instruction)
+          data->instruction->assign (instruction);
+      };
 
       auto print_address_annotation_callback
-        = [] (uint64_t address, void *user_data) {
-            detail::disassembly_user_data_t *data
-              = static_cast<detail::disassembly_user_data_t *> (user_data);
-            if (data->operands)
-              data->operands->emplace_back (
-                static_cast<amd_dbgapi_global_address_t> (address));
-          };
+        = [] (uint64_t address, void *user_data)
+      {
+        detail::disassembly_user_data_t *data
+          = static_cast<detail::disassembly_user_data_t *> (user_data);
+        if (data->operands)
+          data->operands->emplace_back (
+            static_cast<amd_dbgapi_global_address_t> (address));
+      };
 
       if (amd_comgr_create_disassembly_info (
             target_triple ().c_str (), read_memory_callback,
@@ -3650,19 +3652,22 @@ architecture_t::create_architecture (Args &&...args)
 }
 
 decltype (architecture_t::s_architecture_map)
-  architecture_t::s_architecture_map{ [] () {
-    decltype (s_architecture_map) map;
-    map.emplace (create_architecture<gfx900_t> ());
-    map.emplace (create_architecture<gfx906_t> ());
-    map.emplace (create_architecture<gfx908_t> ());
-    map.emplace (create_architecture<gfx90a_t> ());
-    map.emplace (create_architecture<gfx1010_t> ());
-    map.emplace (create_architecture<gfx1011_t> ());
-    map.emplace (create_architecture<gfx1012_t> ());
-    map.emplace (create_architecture<gfx1030_t> ());
-    map.emplace (create_architecture<gfx1031_t> ());
-    return map;
-  }() };
+  architecture_t::s_architecture_map{
+    [] ()
+    {
+      decltype (s_architecture_map) map;
+      map.emplace (create_architecture<gfx900_t> ());
+      map.emplace (create_architecture<gfx906_t> ());
+      map.emplace (create_architecture<gfx908_t> ());
+      map.emplace (create_architecture<gfx90a_t> ());
+      map.emplace (create_architecture<gfx1010_t> ());
+      map.emplace (create_architecture<gfx1011_t> ());
+      map.emplace (create_architecture<gfx1012_t> ());
+      map.emplace (create_architecture<gfx1030_t> ());
+      map.emplace (create_architecture<gfx1031_t> ());
+      return map;
+    }()
+  };
 
 } /* namespace amd::dbgapi */
 

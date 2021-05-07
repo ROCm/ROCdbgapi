@@ -317,7 +317,7 @@ public:
     TRACE_CALLBACK_END ();
   }
 
-  template <typename Object, typename... Args> auto &create (Args &&... args)
+  template <typename Object, typename... Args> auto &create (Args &&...args)
   {
     return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
       .create_object (std::forward<Args> (args)...);

@@ -412,9 +412,8 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
 
       auto it = std::find_if (
         node_aperture_infos.begin (), node_aperture_infos.end (),
-        [&] (const auto &node_aperture_info) {
-          return node_aperture_info.gpu_id == agent_info.os_agent_id;
-        });
+        [&] (const auto &node_aperture_info)
+        { return node_aperture_info.gpu_id == agent_info.os_agent_id; });
 
       if (it == node_aperture_infos.end ())
         error ("Could not get apertures for gpu_id %d",

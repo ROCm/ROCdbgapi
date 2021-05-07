@@ -509,9 +509,9 @@ process_t::update_agents ()
   /* Add new agents to the process.  */
   for (auto &&agent_info : agent_infos)
     {
-      agent_t *agent = find_if ([&] (const agent_t &a) {
-        return a.os_agent_id () == agent_info.os_agent_id;
-      });
+      agent_t *agent
+        = find_if ([&] (const agent_t &a)
+                   { return a.os_agent_id () == agent_info.os_agent_id; });
 
       if (agent)
         {
@@ -781,9 +781,9 @@ process_t::remove_watchpoint (const watchpoint_t &watchpoint)
 {
   /* Find watchpoint in the os_watch_id to watchpoint_t map.  The key will be
      the os_watch_id to clear for this agent.  */
-  auto it = std::find_if (
-    m_watchpoint_map.begin (), m_watchpoint_map.end (),
-    [&watchpoint] (const auto &value) { return value.second == &watchpoint; });
+  auto it = std::find_if (m_watchpoint_map.begin (), m_watchpoint_map.end (),
+                          [&watchpoint] (const auto &value)
+                          { return value.second == &watchpoint; });
 
   if (it == m_watchpoint_map.end ())
     error ("watchpoint is not inserted");
@@ -849,7 +849,8 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
 
   dbgapi_log (
     AMD_DBGAPI_LOG_LEVEL_INFO, "suspending %s (%s)",
-    [&] () {
+    [&] ()
+    {
       std::string str;
       for (auto *queue : queues)
         {
@@ -953,7 +954,8 @@ process_t::resume_queues (const std::vector<queue_t *> &queues,
 
   dbgapi_log (
     AMD_DBGAPI_LOG_LEVEL_INFO, "resuming %s (%s)",
-    [&] () {
+    [&] ()
+    {
       std::string str;
       for (auto *queue : queues)
         {
@@ -1051,9 +1053,9 @@ process_t::update_queues ()
 
           /* Find the queue by matching its os_queue_id with the one
              returned by the ioctl.  */
-          queue_t *queue = find_if ([&] (const queue_t &x) {
-            return x.os_queue_id () == queue_info.queue_id;
-          });
+          queue_t *queue
+            = find_if ([&] (const queue_t &x)
+                       { return x.os_queue_id () == queue_info.queue_id; });
 
           if ((os_queue_exception_status (queue_info)
                & os_exception_mask_t::queue_new)
@@ -1110,9 +1112,9 @@ process_t::update_queues ()
              snapshot ioctl.  */
 
           /* Find the agent for this queue. */
-          agent_t *agent = find_if ([&] (const agent_t &x) {
-            return x.os_agent_id () == queue_info.gpu_id;
-          });
+          agent_t *agent
+            = find_if ([&] (const agent_t &x)
+                       { return x.os_agent_id () == queue_info.gpu_id; });
 
           /* TODO: investigate when this could happen, e.g. the debugger
              cgroups not matching the application cgroups?  */
@@ -1204,13 +1206,15 @@ process_t::update_code_objects ()
         error ("read_string failed (rc=%d)", status);
 
       /* Check if the code object already exists.  */
-      code_object_t *code_object = find_if ([&] (const code_object_t &x) {
-        /* FIXME: We have an ABA problem for memory based code objects. A new
-           code object of the same size could have been loaded at the same
-           address as an old stale code object. We could add a unique
-           identifier to the URI.  */
-        return x.load_address () == load_address && x.uri () == uri;
-      });
+      code_object_t *code_object = find_if (
+        [&] (const code_object_t &x)
+        {
+          /* FIXME: We have an ABA problem for memory based code objects. A new
+             code object of the same size could have been loaded at the same
+             address as an old stale code object. We could add a unique
+             identifier to the URI.  */
+          return x.load_address () == load_address && x.uri () == uri;
+        });
 
       if (!code_object)
         code_object = &create<code_object_t> (*this, uri, load_address);
@@ -1246,7 +1250,8 @@ process_t::attach ()
      to suspend the queues (and update the waves).  */
   set_flag (flag_t::assign_new_ids_to_all_waves);
 
-  auto on_runtime_load_callback = [this] (const shared_library_t &library) {
+  auto on_runtime_load_callback = [this] (const shared_library_t &library)
+  {
     amd_dbgapi_status_t status;
 
     if (os_driver ().check_version () != AMD_DBGAPI_STATUS_SUCCESS)
@@ -1373,38 +1378,39 @@ process_t::attach ()
     auto r_brk_callback
       = [this] (breakpoint_t &breakpoint,
                 amd_dbgapi_client_thread_id_t client_thread_id,
-                amd_dbgapi_breakpoint_action_t *action) {
-          /* Save the current 'changed' status of code_object_t`s.  */
-          bool saved_changed = set_changed<code_object_t> (false);
+                amd_dbgapi_breakpoint_action_t *action)
+    {
+      /* Save the current 'changed' status of code_object_t`s.  */
+      bool saved_changed = set_changed<code_object_t> (false);
 
-          update_code_objects ();
+      update_code_objects ();
 
-          /* If nothing has changed, we don't need to report an event.  */
-          if (!set_changed<code_object_t> (changed<code_object_t> ()
-                                           | saved_changed))
-            {
-              *action = AMD_DBGAPI_BREAKPOINT_ACTION_RESUME;
-              return AMD_DBGAPI_STATUS_SUCCESS;
-            }
-
-          /* Create a breakpoint resume event that will be enqueued when the
-             code object list updated event is reported as processed.  This
-             will allow the client thread to resume execution.  */
-          event_t &breakpoint_resume_event
-            = create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_BREAKPOINT_RESUME,
-                               breakpoint.id (), client_thread_id);
-
-          /* Enqueue a code object list updated event.  */
-          enqueue_event (create<event_t> (
-            *this, AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED,
-            breakpoint_resume_event.id ()));
-
-          /* Tell the client thread that it cannot resume execution until it
-             sees the breakpoint resume event for this breakpoint_id and
-             report it as processed.  */
-          *action = AMD_DBGAPI_BREAKPOINT_ACTION_HALT;
+      /* If nothing has changed, we don't need to report an event.  */
+      if (!set_changed<code_object_t> (changed<code_object_t> ()
+                                       | saved_changed))
+        {
+          *action = AMD_DBGAPI_BREAKPOINT_ACTION_RESUME;
           return AMD_DBGAPI_STATUS_SUCCESS;
-        };
+        }
+
+      /* Create a breakpoint resume event that will be enqueued when the
+         code object list updated event is reported as processed.  This
+         will allow the client thread to resume execution.  */
+      event_t &breakpoint_resume_event
+        = create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_BREAKPOINT_RESUME,
+                           breakpoint.id (), client_thread_id);
+
+      /* Enqueue a code object list updated event.  */
+      enqueue_event (
+        create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED,
+                         breakpoint_resume_event.id ()));
+
+      /* Tell the client thread that it cannot resume execution until it
+         sees the breakpoint resume event for this breakpoint_id and
+         report it as processed.  */
+      *action = AMD_DBGAPI_BREAKPOINT_ACTION_HALT;
+      return AMD_DBGAPI_STATUS_SUCCESS;
+    };
 
     create<breakpoint_t> (library, r_brk_address, r_brk_callback);
 
@@ -1416,7 +1422,8 @@ process_t::attach ()
                                     AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS));
   };
 
-  auto on_runtime_unload_callback = [this] (const shared_library_t &library) {
+  auto on_runtime_unload_callback = [this] (const shared_library_t &library)
+  {
     process_t &process = library.process ();
 
     /* Remove the breakpoints we've inserted when the library was loaded.  */
@@ -1540,9 +1547,9 @@ process_t::query_debug_event ()
 
           /* Find the agent by matching its os_agent_id with the one
              returned by the ioctl.  */
-          agent_t *agent = find_if ([source_id] (const agent_t &q) {
-            return q.os_agent_id () == source_id.agent;
-          });
+          agent_t *agent
+            = find_if ([source_id] (const agent_t &q)
+                       { return q.os_agent_id () == source_id.agent; });
 
           if (agent)
             return { agent, exceptions };
@@ -1559,9 +1566,9 @@ process_t::query_debug_event ()
       /* Find the queue by matching its os_queue_id with the one
          returned by the ioctl.  */
 
-      queue_t *queue = find_if ([source_id] (const queue_t &q) {
-        return q.os_queue_id () == source_id.queue;
-      });
+      queue_t *queue
+        = find_if ([source_id] (const queue_t &q)
+                   { return q.os_queue_id () == source_id.queue; });
 
       /* If this is a new queue, update the queues to make sure we don't
          return a stale queue with the same os_queue_id.  */

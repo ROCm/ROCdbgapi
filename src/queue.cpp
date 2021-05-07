@@ -257,7 +257,8 @@ aql_queue_impl_t::aql_queue_impl_t (
     /* Return the address of an endpgm instruction.  */
     [&] () { return m_endpgm_instruction_buffer->begin (); },
     /* Insert the given register cache into the queue's dirty cache list.  */
-    [&] (memory_cache_t &cache) {
+    [&] (memory_cache_t &cache)
+    {
       if (!cache.is_inserted ())
         m_dirty_caches.insert (cache);
     },
@@ -318,7 +319,8 @@ aql_queue_impl_t::allocate_instruction_buffer ()
   else
     error ("could not allocate debugger memory");
 
-  auto deleter = [this] (amd_dbgapi_global_address_t ptr) {
+  auto deleter = [this] (amd_dbgapi_global_address_t ptr)
+  {
     size_t index = (ptr - m_debugger_memory_base) / debugger_memory_chunk_size;
 
     dbgapi_assert (index < m_debugger_memory_chunk_count);
@@ -355,7 +357,8 @@ aql_queue_impl_t::update_waves ()
 
   wave_t *group_leader = nullptr;
 
-  auto callback = [=, &process, &group_leader] (auto cwsr_record) {
+  auto callback = [=, &process, &group_leader] (auto cwsr_record)
+  {
     dbgapi_assert (m_queue == cwsr_record->queue ());
 
     amd_dbgapi_wave_id_t wave_id;
@@ -454,10 +457,12 @@ aql_queue_impl_t::update_waves ()
                  os_queue_packet_id, read_dispatch_id, write_dispatch_id);
 
         /* Check if the dispatch already exists.  */
-        dispatch_t *dispatch = process.find_if ([&] (const dispatch_t &x) {
-          return x.queue () == m_queue
-                 && x.os_queue_packet_id () == os_queue_packet_id;
-        });
+        dispatch_t *dispatch = process.find_if (
+          [&] (const dispatch_t &x)
+          {
+            return x.queue () == m_queue
+                   && x.os_queue_packet_id () == os_queue_packet_id;
+          });
 
         /* If we did not find the current dispatch, create a new one.  */
         if (!dispatch)
@@ -804,11 +809,13 @@ queue_t::queue_t (amd_dbgapi_queue_id_t queue_id, agent_t &agent,
 
 queue_t::queue_t (amd_dbgapi_queue_id_t queue_id, agent_t &agent,
                   os_queue_id_t os_queue_id)
-  : queue_t (queue_id, agent, [os_queue_id] () {
-      os_queue_snapshot_entry_t os_queue_info{};
-      os_queue_info.queue_id = os_queue_id;
-      return os_queue_info;
-    }())
+  : queue_t (queue_id, agent,
+             [os_queue_id] ()
+             {
+               os_queue_snapshot_entry_t os_queue_info{};
+               os_queue_info.queue_id = os_queue_id;
+               return os_queue_info;
+             }())
 {
 }
 

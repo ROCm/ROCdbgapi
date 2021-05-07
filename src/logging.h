@@ -333,7 +333,7 @@ to_string ()
 
 template <typename T, typename... Args>
 inline std::string
-to_string (T &&first, Args &&... args)
+to_string (T &&first, Args &&...args)
 {
   std::string str = to_string (std::forward<T> (first));
   std::string last = to_string (std::forward<Args> (args)...);
@@ -347,7 +347,7 @@ inline std::string
 to_string (std::tuple<Args...> &&t)
 {
   return std::apply (
-    [] (auto &&... ts) { return to_string (std::forward<Args> (ts)...); }, t);
+    [] (auto &&...ts) { return to_string (std::forward<Args> (ts)...); }, t);
 }
 
 namespace detail

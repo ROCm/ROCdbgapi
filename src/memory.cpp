@@ -284,10 +284,9 @@ amd_dbgapi_dwarf_address_class_to_address_class (
   if (!address_class_id)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
-  const address_class_t *address_class
-    = architecture->find_if ([=] (const address_class_t &ac) {
-        return ac.dwarf_value () == dwarf_address_class;
-      });
+  const address_class_t *address_class = architecture->find_if (
+    [=] (const address_class_t &ac)
+    { return ac.dwarf_value () == dwarf_address_class; });
 
   if (!address_class)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
@@ -385,10 +384,9 @@ amd_dbgapi_dwarf_address_space_to_address_space (
   if (!address_space_id)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
-  const address_space_t *address_space
-    = architecture->find_if ([=] (const address_space_t &ac) {
-        return ac.dwarf_value () == dwarf_address_space;
-      });
+  const address_space_t *address_space = architecture->find_if (
+    [=] (const address_space_t &ac)
+    { return ac.dwarf_value () == dwarf_address_space; });
 
   if (!address_space)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;

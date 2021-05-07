@@ -200,10 +200,9 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
   /* Check if we already have a displaced stepping buffer for this pc
      that can be shared between waves associated with the same queue.
    */
-  displaced_stepping_t *displaced_stepping
-    = process ().find_if ([&] (const displaced_stepping_t &other) {
-        return other.queue () == queue () && other.from () == pc ();
-      });
+  displaced_stepping_t *displaced_stepping = process ().find_if (
+    [&] (const displaced_stepping_t &other)
+    { return other.queue () == queue () && other.from () == pc (); });
 
   if (displaced_stepping)
     {
@@ -892,7 +891,8 @@ wave_t::get_info (amd_dbgapi_wave_info_t query, size_t value_size,
         if (list.count && !list.watchpoint_ids)
           return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
 
-        auto watchpoint_id = [this] (os_watch_id_t os_watch_id) {
+        auto watchpoint_id = [this] (os_watch_id_t os_watch_id)
+        {
           const watchpoint_t *watchpoint
             = process ().find_watchpoint (os_watch_id);
           if (!watchpoint)
