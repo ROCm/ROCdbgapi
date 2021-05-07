@@ -231,10 +231,11 @@ public:
   virtual size_t largest_instruction_size () const = 0;
   virtual size_t minimum_instruction_alignment () const = 0;
   virtual size_t breakpoint_instruction_pc_adjust () const = 0;
-  virtual const std::vector<uint8_t> &nop_instruction () const = 0;
-  virtual const std::vector<uint8_t> &breakpoint_instruction () const = 0;
-  virtual const std::vector<uint8_t> &assert_instruction () const = 0;
-  virtual const std::vector<uint8_t> &endpgm_instruction () const = 0;
+  virtual std::vector<uint8_t> nop_instruction () const = 0;
+  virtual std::vector<uint8_t> breakpoint_instruction () const = 0;
+  virtual std::vector<uint8_t> assert_instruction () const = 0;
+  virtual std::vector<uint8_t> debug_trap_instruction () const = 0;
+  virtual std::vector<uint8_t> endpgm_instruction () const = 0;
 
   virtual std::tuple<amd_dbgapi_instruction_kind_t /* instruction_kind  */,
                      amd_dbgapi_instruction_properties_t /* properties  */,
@@ -263,7 +264,7 @@ public:
   const std::string &target_triple () const { return m_target_triple; }
 
   template <typename ArchitectureType, typename... Args>
-  static auto create_architecture (Args &&... args);
+  static auto create_architecture (Args &&...args);
 
   static const architecture_t *
   find (amd_dbgapi_architecture_id_t architecture_id, int ignore = 0);
@@ -333,7 +334,7 @@ public:
   amd_dbgapi_status_t get_info (amd_dbgapi_architecture_info_t query,
                                 size_t value_size, void *value) const;
 
-  template <typename Object, typename... Args> auto &create (Args &&... args)
+  template <typename Object, typename... Args> auto &create (Args &&...args)
   {
     return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
       .create_object (std::forward<Args> (args)...);

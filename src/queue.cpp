@@ -205,7 +205,7 @@ aql_queue_impl_t::aql_queue_impl_t (
   m_park_instruction_buffer = allocate_instruction_buffer ();
   m_endpgm_instruction_buffer = allocate_instruction_buffer ();
 
-  auto &endpgm_instruction = architecture.endpgm_instruction ();
+  auto endpgm_instruction = architecture.endpgm_instruction ();
   m_endpgm_instruction_buffer->resize (endpgm_instruction.size ());
   if (process.write_global_memory (m_endpgm_instruction_buffer->begin (),
                                    endpgm_instruction.data (),
@@ -287,7 +287,7 @@ aql_queue_impl_t::~aql_queue_impl_t ()
 instruction_buffer_t
 aql_queue_impl_t::allocate_instruction_buffer ()
 {
-  auto &assert_instruction = m_queue.architecture ().assert_instruction ();
+  auto assert_instruction = m_queue.architecture ().assert_instruction ();
   amd_dbgapi_global_address_t instruction_buffer_address;
 
   if (!m_debugger_memory_free_chunks.empty ())

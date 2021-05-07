@@ -90,10 +90,27 @@ protected:
   static constexpr uint32_t ttmp7_saved_status_halt_mask = 1 << 29;
   static constexpr uint32_t ttmp7_saved_trap_id_mask
     = utils::bit_mask (25, 28);
-  static constexpr uint32_t ttmp7_saved_trap_id (uint32_t x)
+
+  /* See https://llvm.org/docs/AMDGPUUsage.html#trap-handler-abi  */
+  enum class trap_id_t : uint8_t
   {
-    return utils::bit_extract (x, 25, 28);
+    reserved = 0x0,
+    assert_trap = 0x2,
+    debug_trap = 0x3,
+    breakpoint = 0x7
+  };
+
+  /* The trap handler only saves 4 bits of the original trap_id.  trap_id 0
+     cannot be detected and is invalid, trap_id >= 15 could be any ID between
+     15 and 255, and therefore cannot be differentiated.  The debugger API
+     library only handles trap IDs between 1 and 14.  */
+  static constexpr std::optional<trap_id_t> ttmp7_saved_trap_id (uint32_t x)
+  {
+    if (uint8_t trap_id = utils::bit_extract (x, 25, 28); trap_id != 0)
+      return trap_id_t{ trap_id };
+    return std::nullopt;
   }
+
   static constexpr uint32_t ttmp7_queue_packet_id (uint32_t x)
   {
     return utils::bit_extract (x, 0, 24);
@@ -208,18 +225,16 @@ public:
                       os_wave_launch_trap_mask_t mask) const override final;
 
   size_t minimum_instruction_alignment () const override;
-  const std::vector<uint8_t> &nop_instruction () const override;
-  const std::vector<uint8_t> &breakpoint_instruction () const override;
-  const std::vector<uint8_t> &assert_instruction () const override;
-  const std::vector<uint8_t> &endpgm_instruction () const override;
+  std::vector<uint8_t> nop_instruction () const override;
+  virtual std::vector<uint8_t>
+  trap_instruction (std::optional<trap_id_t> trap_id = std::nullopt) const;
+  std::vector<uint8_t> breakpoint_instruction () const override;
+  std::vector<uint8_t> assert_instruction () const override;
+  std::vector<uint8_t> debug_trap_instruction () const override;
+  std::vector<uint8_t> endpgm_instruction () const override;
   size_t breakpoint_instruction_pc_adjust () const override;
 
 protected:
-  /* See https://llvm.org/docs/AMDGPUUsage.html#trap-handler-abi  */
-  static constexpr uint8_t assert_trap_id = 0x2;
-  static constexpr uint8_t debug_trap_id = 0x3;
-  static constexpr uint8_t breakpoint_trap_id = 0x7;
-
   static uint8_t encoding_ssrc0 (const std::vector<uint8_t> &bytes);
   static uint8_t encoding_ssrc1 (const std::vector<uint8_t> &bytes);
   static uint8_t encoding_sdst (const std::vector<uint8_t> &bytes);
@@ -255,7 +270,7 @@ protected:
   virtual bool is_cbranch_join (const std::vector<uint8_t> &bytes) const = 0;
   virtual bool is_nop (const std::vector<uint8_t> &bytes) const = 0;
   virtual bool is_trap (const std::vector<uint8_t> &bytes,
-                        uint8_t *trap_id = nullptr) const = 0;
+                        trap_id_t *trap_id = nullptr) const = 0;
 
   bool is_endpgm (const std::vector<uint8_t> &bytes) const override = 0;
   bool is_breakpoint (const std::vector<uint8_t> &bytes) const override = 0;
@@ -677,50 +692,52 @@ amdgcn_architecture_t::minimum_instruction_alignment () const
   return sizeof (uint32_t);
 }
 
-const std::vector<uint8_t> &
+std::vector<uint8_t>
 amdgcn_architecture_t::nop_instruction () const
 {
-  static const std::vector<uint8_t> s_nop_instruction_bytes{
+  return std::vector<uint8_t> ({
     0x00, 0x00, 0x80, 0xBF /* s_nop 0 */
-  };
-
-  return s_nop_instruction_bytes;
+  });
 }
 
-const std::vector<uint8_t> &
+std::vector<uint8_t>
+amdgcn_architecture_t::trap_instruction (
+  std::optional<trap_id_t> trap_id) const
+{
+  uint8_t imm8 = static_cast<uint8_t> (trap_id.value_or (trap_id_t::reserved));
+  return std::vector<uint8_t> ({ imm8, 0x00, 0x92, 0xBF /* s_trap #imm8 */ });
+}
+
+std::vector<uint8_t>
 amdgcn_architecture_t::breakpoint_instruction () const
 {
-  static const std::vector<uint8_t> s_breakpoint_instruction_bytes{
-    breakpoint_trap_id, 0x00, 0x92, 0xBF /* s_trap 7 */
-  };
-
-  return s_breakpoint_instruction_bytes;
+  return trap_instruction (trap_id_t::breakpoint);
 }
 
-const std::vector<uint8_t> &
+std::vector<uint8_t>
 amdgcn_architecture_t::assert_instruction () const
 {
-  static const std::vector<uint8_t> s_assert_instruction_bytes{
-    assert_trap_id, 0x00, 0x92, 0xBF /* s_trap 2 */
-  };
-
-  return s_assert_instruction_bytes;
+  return trap_instruction (trap_id_t::assert_trap);
 }
 
-const std::vector<uint8_t> &
+std::vector<uint8_t>
+amdgcn_architecture_t::debug_trap_instruction () const
+{
+  return trap_instruction (trap_id_t::debug_trap);
+}
+
+std::vector<uint8_t>
 amdgcn_architecture_t::endpgm_instruction () const
 {
-  static const std::vector<uint8_t> s_endpgm_instruction_bytes{
+  return std::vector<uint8_t> ({
     0x00, 0x00, 0x81, 0xBF /* s_endpgm 0 */
-  };
-
-  return s_endpgm_instruction_bytes;
+  });
 }
 
 size_t
 amdgcn_architecture_t::breakpoint_instruction_pc_adjust () const
 {
-  return 0;
+  return breakpoint_instruction ().size ();
 }
 
 bool
@@ -1331,22 +1348,44 @@ amdgcn_architecture_t::get_wave_state (
     }
 
   /* Check for traps caused by an s_trap instruction.  */
-  switch (ttmp7_saved_trap_id (ttmp7))
+  if (auto trap_id = ttmp7_saved_trap_id (ttmp7); trap_id)
     {
-    case 0:
-      break;
-    case 2:
-      reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_ASSERT_TRAP;
-      break;
-    case 3:
-      reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_DEBUG_TRAP;
-      break;
-    case 7:
-      reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT;
-      break;
-    default:
-      reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_TRAP;
-      break;
+      switch (*trap_id)
+        {
+        case trap_id_t::assert_trap:
+          reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_ASSERT_TRAP;
+          break;
+        case trap_id_t::debug_trap:
+          reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_DEBUG_TRAP;
+          break;
+        case trap_id_t::breakpoint:
+          reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT;
+          break;
+        default:
+          reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_TRAP;
+          break;
+        }
+
+      /* For all trap IDs except trap_id_t::breakpoint, check that the actual
+         instruction at the current PC is a trap instruction.  We can't check
+         trap_id_t::breakpoint because the debugger may have removed the
+         breakpoint and restored the original instruction.  */
+      if (*trap_id != trap_id_t::breakpoint && ![&] () {
+            auto trap_instruction = wave.instruction_at_pc ();
+            return trap_instruction && is_trap (*trap_instruction);
+          }())
+        error ("trap exception not raised by a trap instruction");
+
+      /* The hardware and trap_handler leave the program counter at the trap
+         instruction, so advance it to the next instruction to make resuming
+         from a user breakpoint (for example debug_trap) easier.
+
+         It is the debugger's responsibility to rewind the program counter to
+         point at the breakpoint instruction by using the value returned by the
+         AMD_DBGAPI_ARCHITECTURE_INFO_BREAKPOINT_INSTRUCTION_PC_ADJUST query.
+       */
+      pc += trap_instruction ().size ();
+      wave.write_register (amdgpu_regnum_t::pc, &pc);
     }
 
   /* Check for exceptions.  */
@@ -1987,7 +2026,7 @@ public:
   bool is_cbranch_join (const std::vector<uint8_t> &bytes) const override;
   bool is_nop (const std::vector<uint8_t> &bytes) const override;
   bool is_trap (const std::vector<uint8_t> &bytes,
-                uint8_t *trap_id = nullptr) const override;
+                trap_id_t *trap_id = nullptr) const override;
   bool is_endpgm (const std::vector<uint8_t> &bytes) const override;
   bool is_breakpoint (const std::vector<uint8_t> &bytes) const override;
 
@@ -2155,20 +2194,20 @@ gfx9_base_t::is_endpgm (const std::vector<uint8_t> &bytes) const
 bool
 gfx9_base_t::is_breakpoint (const std::vector<uint8_t> &bytes) const
 {
-  uint8_t trap_id = 0;
-  return is_trap (bytes, &trap_id) && trap_id == breakpoint_trap_id;
+  trap_id_t trap_id;
+  return is_trap (bytes, &trap_id) && trap_id == trap_id_t::breakpoint;
 }
 
 bool
 gfx9_base_t::is_trap (const std::vector<uint8_t> &bytes,
-                      uint8_t *trap_id) const
+                      trap_id_t *trap_id) const
 {
   /* s_trap: SOPP Opcode 18  */
   if (is_sopp_instruction (bytes, 18))
     {
-      if (trap_id)
-        *trap_id = utils::bit_extract (encoding_simm16 (bytes), 0, 7);
-
+      if (trap_id != nullptr)
+        *trap_id = trap_id_t{ static_cast<std::underlying_type_t<trap_id_t>> (
+          utils::bit_extract (encoding_simm16 (bytes), 0, 7)) };
       return true;
     }
   return false;
@@ -3600,7 +3639,7 @@ architecture_t::get_info (amd_dbgapi_architecture_info_t query,
 
 template <typename ArchitectureType, typename... Args>
 auto
-architecture_t::create_architecture (Args &&... args)
+architecture_t::create_architecture (Args &&...args)
 {
   auto *arch = new ArchitectureType (std::forward<Args> (args)...);
   if (!arch)
@@ -3610,9 +3649,8 @@ architecture_t::create_architecture (Args &&... args)
   return std::make_pair (arch->id (), std::unique_ptr<architecture_t> (arch));
 }
 
-decltype (
-  architecture_t::s_architecture_map) architecture_t::s_architecture_map{
-  [] () {
+decltype (architecture_t::s_architecture_map)
+  architecture_t::s_architecture_map{ [] () {
     decltype (s_architecture_map) map;
     map.emplace (create_architecture<gfx900_t> ());
     map.emplace (create_architecture<gfx906_t> ());
@@ -3624,8 +3662,7 @@ decltype (
     map.emplace (create_architecture<gfx1030_t> ());
     map.emplace (create_architecture<gfx1031_t> ());
     return map;
-  }()
-};
+  }() };
 
 } /* namespace amd::dbgapi */
 
