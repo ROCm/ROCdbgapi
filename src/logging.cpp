@@ -503,8 +503,8 @@ to_string (detail::query_ref<amd_dbgapi_instruction_kind_t> ref)
                       *const *> (information))));
     case AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_CALL_REGISTER_PAIRS:
       return to_string (make_ref (make_ref (
-        static_cast<const amd_dbgapi_register_id_t *const *> (information),
-        4)));
+        static_cast<const amd_dbgapi_register_id_t *const *> (information)),
+        4));
     case AMD_DBGAPI_INSTRUCTION_KIND_TRAP:
       return to_string (make_ref (
         make_ref (static_cast<const uint64_t *const *> (information))));
