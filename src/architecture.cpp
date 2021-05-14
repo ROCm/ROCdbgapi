@@ -975,20 +975,26 @@ amdgcn_architecture_t::classify_instruction (
 
       if (sdst_regnum.has_value ())
         {
-          information.emplace_back (static_cast<uint64_t> (*sdst_regnum) + 0);
-          information.emplace_back (static_cast<uint64_t> (*sdst_regnum) + 1);
+          information.emplace_back (static_cast<uint64_t> (
+            regnum_to_register_id (*sdst_regnum + 0).handle));
+          information.emplace_back (static_cast<uint64_t> (
+            regnum_to_register_id (*sdst_regnum + 1).handle));
         }
     }
   else if (information_kind == information_kind_t::pc_indirect)
     {
       dbgapi_assert (ssrc_regnum.has_value ());
-      information.emplace_back (static_cast<uint64_t> (*ssrc_regnum) + 0);
-      information.emplace_back (static_cast<uint64_t> (*ssrc_regnum) + 1);
+      information.emplace_back (static_cast<uint64_t> (
+        regnum_to_register_id (*ssrc_regnum + 0).handle));
+      information.emplace_back (static_cast<uint64_t> (
+        regnum_to_register_id (*ssrc_regnum + 1).handle));
 
       if (sdst_regnum.has_value ())
         {
-          information.emplace_back (static_cast<uint64_t> (*sdst_regnum) + 0);
-          information.emplace_back (static_cast<uint64_t> (*sdst_regnum) + 1);
+          information.emplace_back (static_cast<uint64_t> (
+            regnum_to_register_id (*sdst_regnum + 0).handle));
+          information.emplace_back (static_cast<uint64_t> (
+            regnum_to_register_id (*sdst_regnum + 1).handle));
         }
     }
   else if (information_kind == information_kind_t::uint8)
