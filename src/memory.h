@@ -168,6 +168,9 @@ public:
   };
 
 private:
+  static monotonic_counter_t<uint64_t, 1> m_next_id;
+
+  uint64_t const m_id{ m_next_id () };
   std::vector<uint8_t> m_cached_bytes{};
   std::optional<amd_dbgapi_global_address_t> m_address{};
 
@@ -182,6 +185,7 @@ public:
   {
   }
 
+  uint64_t id () const { return m_id; }
   size_t size () const { return m_cached_bytes.size (); }
   policy_t policy () const { return m_policy; }
 

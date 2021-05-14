@@ -82,6 +82,8 @@ address_space_t::get_info (amd_dbgapi_address_space_info_t query,
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }
 
+decltype (memory_cache_t::m_next_id) memory_cache_t::m_next_id;
+
 void
 memory_cache_t::relocate (std::optional<amd_dbgapi_global_address_t> address)
 {
@@ -89,7 +91,7 @@ memory_cache_t::relocate (std::optional<amd_dbgapi_global_address_t> address)
     return;
 
   dbgapi_log (
-    AMD_DBGAPI_LOG_LEVEL_VERBOSE, "relocated cache %s -> %s",
+    AMD_DBGAPI_LOG_LEVEL_VERBOSE, "relocated cache_%ld %s -> %s", id (),
     m_address
       ? string_printf ("[%#lx..%#lx[", *m_address, *m_address + size ())
           .c_str ()
@@ -107,16 +109,22 @@ memory_cache_t::reset (amd_dbgapi_global_address_t address,
 {
   dbgapi_assert (!is_dirty () && "cannot reset a dirty cache");
 
+  size_t prev_size = size ();
   m_address = address;
   m_cached_bytes.resize (cache_size);
 
   /* Reload the cache from memory.  */
-  if (m_process.read_global_memory (*m_address, &m_cached_bytes[0], size ())
+  if (m_process.read_global_memory (*m_address, &m_cached_bytes[0],
+                                    m_cached_bytes.size ())
       != AMD_DBGAPI_STATUS_SUCCESS)
     error ("Could not reload the hwregs cache");
 
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "reloaded cache [%#lx..%#lx[",
-              *m_address, *m_address + size ());
+  if (cache_size != 0)
+    dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "%s cache_%ld [%#lx..%#lx[",
+                prev_size == 0 ? "loaded" : "reloaded", id (), *m_address,
+                *m_address + size ());
+  else if (prev_size != 0)
+    dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "cleared cache_%ld", id ());
 }
 
 void
@@ -132,8 +140,9 @@ memory_cache_t::flush ()
           != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not write the hwregs cache back to memory");
 
-      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "flushed cache [%#lx..%#lx[",
-                  *m_address, *m_address + size ());
+      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE,
+                  "flushed cache_%ld [%#lx..%#lx[", id (), *m_address,
+                  *m_address + size ());
     }
 
   m_dirty = false;

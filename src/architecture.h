@@ -133,6 +133,11 @@ public:
     virtual std::optional<amd_dbgapi_global_address_t>
     register_address (amdgpu_regnum_t regnum) const = 0;
 
+    /* The address of the first byte in the wave's context save.  */
+    virtual amd_dbgapi_global_address_t begin () const = 0;
+    /* The address of the byte following the last byte in the context save. */
+    virtual amd_dbgapi_global_address_t end () const = 0;
+
     queue_t &queue () const { return m_queue; }
     agent_t &agent () const { return queue ().agent (); }
     process_t &process () const { return agent ().process (); }

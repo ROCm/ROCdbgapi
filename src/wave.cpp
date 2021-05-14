@@ -337,7 +337,8 @@ wave_t::update (const wave_t &group_leader,
 
   /* Update the wave's state if this is a new wave, or if the wave was running
      the last time the queue it belongs to was resumed.  */
-  if (m_state != AMD_DBGAPI_WAVE_STATE_STOP)
+  amd_dbgapi_wave_state_t prev_state = m_state;
+  if (prev_state != AMD_DBGAPI_WAVE_STATE_STOP)
     {
       auto last_cached_register_address
         = register_address (last_cached_register);
@@ -356,22 +357,35 @@ wave_t::update (const wave_t &group_leader,
                               register_cache_end - *register_cache_begin);
 
       architecture ().get_wave_state (*this, &m_state, &m_stop_reason);
-
-      /* The wave was running, and it is now stopped. Park it.  */
-      if (m_state == AMD_DBGAPI_WAVE_STATE_STOP
-          && !architecture ().can_halt_at_endpgm ())
-        park ();
-
-      if (visibility () == visibility_t::visible
-          && m_state == AMD_DBGAPI_WAVE_STATE_STOP
-          && m_stop_reason != AMD_DBGAPI_WAVE_STOP_REASON_NONE)
-        raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
     }
   else
     {
       /* The address of this cwsr_record may have changed since the last
        context save, relocate the hwregs cache.  */
       m_register_cache.relocate (*register_cache_begin);
+    }
+
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE,
+              "%s %s%s (pc=%#lx, state=%s) "
+              "context_save:[%#lx..%#lx[, register_cache=cache_%ld",
+              first_update ? "created" : "updated",
+              visibility () != visibility_t::visible ? "invisible " : "",
+              to_string (id ()).c_str (), pc (), to_string (m_state).c_str (),
+              m_cwsr_record->begin (), m_cwsr_record->end (),
+              m_register_cache.id ());
+
+  /* The wave was running, and it is now stopped.  */
+  if (prev_state != AMD_DBGAPI_WAVE_STATE_STOP
+      && m_state == AMD_DBGAPI_WAVE_STATE_STOP)
+    {
+      /* Park the wave if the architecture does not support halting at an
+         endpgm instruction.  */
+      if (!architecture ().can_halt_at_endpgm ())
+        park ();
+
+      if (visibility () == visibility_t::visible
+          && m_stop_reason != AMD_DBGAPI_WAVE_STOP_REASON_NONE)
+        raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
     }
 
   /* If this is the first time we update this wave, store the wave_id, and load

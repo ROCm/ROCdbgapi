@@ -1982,6 +1982,18 @@ protected:
     {
     }
 
+    amd_dbgapi_global_address_t begin () const override
+    {
+      return register_address (get_info (query_kind_t::lane_count) == 32
+                                 ? amdgpu_regnum_t::v0_32
+                                 : amdgpu_regnum_t::v0_64)
+        .value ();
+    }
+    amd_dbgapi_global_address_t end () const override
+    {
+      return m_context_save_address;
+    }
+
     uint64_t get_info (query_kind_t query) const override;
 
     std::optional<amd_dbgapi_global_address_t>
