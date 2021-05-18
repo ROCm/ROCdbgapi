@@ -1752,7 +1752,7 @@ amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_process_set_progress (amd_dbgapi_process_id_t process_id,
                                  amd_dbgapi_progress_t progress)
 {
-  TRACE_BEGIN (process_id, progress);
+  TRACE_BEGIN (param_in (process_id), param_in (progress));
   TRY;
 
   if (!detail::is_initialized)
@@ -1794,7 +1794,7 @@ amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_process_set_wave_creation (amd_dbgapi_process_id_t process_id,
                                       amd_dbgapi_wave_creation_t creation)
 {
-  TRACE_BEGIN (process_id, creation);
+  TRACE_BEGIN (param_in (process_id), param_in (creation));
   TRY;
 
   if (!detail::is_initialized)
@@ -1833,7 +1833,7 @@ amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
                            amd_dbgapi_process_id_t *process_id)
 {
-  TRACE_BEGIN (client_process_id, process_id);
+  TRACE_BEGIN (param_in (client_process_id), param_in (process_id));
   TRY;
 
   if (!detail::is_initialized)
@@ -1876,13 +1876,13 @@ amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
   return AMD_DBGAPI_STATUS_SUCCESS;
 
   CATCH;
-  TRACE_END (make_ref (process_id));
+  TRACE_END (make_ref (param_out (process_id)));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_process_detach (amd_dbgapi_process_id_t process_id)
 {
-  TRACE_BEGIN (process_id);
+  TRACE_BEGIN (param_in (process_id));
   TRY;
 
   if (!detail::is_initialized)
@@ -1907,7 +1907,8 @@ amd_dbgapi_process_get_info (amd_dbgapi_process_id_t process_id,
                              amd_dbgapi_process_info_t query,
                              size_t value_size, void *value)
 {
-  TRACE_BEGIN (process_id, query, value_size, value);
+  TRACE_BEGIN (param_in (process_id), param_in (query), param_in (value_size),
+               param_in (value));
   TRY;
 
   if (!detail::is_initialized)
@@ -1921,5 +1922,5 @@ amd_dbgapi_process_get_info (amd_dbgapi_process_id_t process_id,
   return process->get_info (query, value_size, value);
 
   CATCH;
-  TRACE_END (make_query_ref (query, value));
+  TRACE_END (make_query_ref (query, param_out (value)));
 }

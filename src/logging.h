@@ -26,6 +26,7 @@
 
 #include <cstdarg>
 #include <cstddef>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <tuple>
@@ -64,6 +65,10 @@ template <typename T>
 inline std::string
 to_string (T v)
 {
+  if constexpr (std::is_pointer_v<T>)
+    if (v == nullptr)
+      return "nullptr";
+
   std::ostringstream ss;
   ss << v;
   return ss.str ();
@@ -71,21 +76,61 @@ to_string (T v)
 
 template <>
 inline std::string
-to_string (char *v)
+to_string (const char *v)
 {
-  std::ostringstream ss;
-  ss << '"' << v << '"';
-  return ss.str ();
+  return string_printf ("\"%s\"@%p", v, v);
 }
 
 template <>
 inline std::string
-to_string (const char *v)
+to_string (char *v)
 {
-  std::ostringstream ss;
-  ss << '"' << v << '"';
-  return ss.str ();
+  return to_string (const_cast<const char *> (v));
 }
+
+namespace detail
+{
+
+enum class parameter_kind_t
+{
+  in,
+  out
+};
+
+template <parameter_kind_t kind, typename T> struct parameter_t
+{
+  const char *m_name;
+  T m_value;
+
+  explicit constexpr parameter_t (const char *name, const T &value)
+    : m_name (name), m_value (value)
+  {
+  }
+
+  explicit constexpr parameter_t (const char *name, T &&value)
+    : m_name (name), m_value (std::forward<T> (value))
+  {
+  }
+};
+
+} /* namespapce detail */
+
+template <detail::parameter_kind_t kind, typename T>
+constexpr auto
+make_param (const char *name, T &&value)
+{
+  return detail::parameter_t<kind, std::decay_t<T>> (name,
+                                                     std::forward<T> (value));
+}
+
+#define param_in(param)                                                       \
+  amd::dbgapi::make_param<detail::parameter_kind_t::in> (#param, param)
+
+#define param_out(param)                                                      \
+  amd::dbgapi::make_param<detail::parameter_kind_t::out> (#param, param)
+
+template <typename T, detail::parameter_kind_t kind>
+std::string to_string (detail::parameter_t<kind, T> param);
 
 namespace detail
 {
@@ -93,12 +138,19 @@ namespace detail
 template <typename T> struct hex
 {
   T m_value;
+
+  explicit constexpr hex (const T &value) : m_value (value) {}
+
+  template <typename U>
+  explicit constexpr hex (U &&value) : m_value (std::forward<U> (value))
+  {
+  }
 };
 
 template <typename T> struct query_ref
 {
-  T query;
-  const void *memory;
+  T m_query;
+  const void *m_memory;
 };
 
 /* Forward declare the ref struct so that we can define is_ref.  */
@@ -113,12 +165,32 @@ template <typename T> struct is_ref<ref<T>> : std::true_type
 {
 };
 
+template <typename T> struct is_ref<hex<T>> : is_ref<T>
+{
+};
+
 template <class T> inline constexpr bool is_ref_v = is_ref<T>::value;
 
 template <typename T> struct ref
 {
   T m_reference;
-  size_t m_element_count;
+  std::optional<size_t> m_element_count;
+
+  template <typename U = T, std::enable_if_t<is_ref_v<U>, int> = 0>
+  explicit constexpr ref (U &&reference,
+                          std::optional<size_t> element_count = std::nullopt)
+    : m_reference (std::forward<U> (reference)),
+      m_element_count (element_count)
+  {
+  }
+
+  template <typename U,
+            std::enable_if_t<std::is_convertible_v<T, U *>, int> = 0>
+  explicit constexpr ref (U *reference,
+                          std::optional<size_t> element_count = std::nullopt)
+    : m_reference (static_cast<T> (reference)), m_element_count (element_count)
+  {
+  }
 
   auto *value () const
   {
@@ -128,7 +200,7 @@ template <typename T> struct ref
       return m_reference;
   }
 
-  size_t count () const
+  std::optional<size_t> count () const
   {
     if constexpr (is_ref_v<T>)
       return m_reference.count ();
@@ -158,35 +230,86 @@ template <typename T> struct ref
   }
 };
 
+/* void* references are always printed as array of bytes.  */
+template <> struct ref<void *> : ref<uint8_t *>
+{
+  explicit constexpr ref (void *reference,
+                          std::optional<size_t> element_count = std::nullopt)
+    : ref<uint8_t *> (reference, element_count)
+  {
+  }
+};
+template <> struct ref<const void *> : ref<const uint8_t *>
+{
+  explicit constexpr ref (const void *reference,
+                          std::optional<size_t> element_count = std::nullopt)
+    : ref<const uint8_t *> (reference, element_count)
+  {
+  }
+};
+
 } /* namespace detail  */
 
 /* Apply the hex modifier to the value of type T.  */
 template <typename T>
-auto
-make_hex (T value)
+constexpr auto
+make_hex (T &&value)
 {
-  return detail::hex<T>{ value };
+  return detail::hex<std::decay_t<T>> (std::forward<T> (value));
+}
+
+template <typename T, detail::parameter_kind_t kind>
+constexpr auto
+make_hex (detail::parameter_t<kind, T> &&value)
+{
+  return make_param<kind> (value.m_name, make_hex (std::move (value.m_value)));
 }
 
 template <typename T>
-detail::query_ref<T>
+constexpr auto
 make_query_ref (T query, const void *memory)
 {
   return detail::query_ref<T>{ query, memory };
 }
 
-template <typename T>
-auto
-make_ref (T *pointer, size_t count = 1)
+template <typename T, typename P, detail::parameter_kind_t kind>
+constexpr auto
+make_query_ref (T query, detail::parameter_t<kind, P *> memory)
 {
-  return detail::ref<T *>{ pointer, count };
+  return make_param<kind> (memory.m_name,
+                           make_query_ref (query, memory.m_value));
 }
 
 template <typename T>
-auto
-make_ref (detail::ref<T> reference, size_t count = 1)
+constexpr auto
+make_ref (T *pointer, std::optional<size_t> count = std::nullopt)
 {
-  return detail::ref<detail::ref<T>>{ reference, count };
+  return detail::ref<T *> (pointer, count);
+}
+
+template <typename T, detail::parameter_kind_t kind>
+constexpr auto
+make_ref (detail::parameter_t<kind, T *> pointer,
+          std::optional<size_t> count = std::nullopt)
+{
+  return make_param<kind> (pointer.m_name, make_ref (pointer.m_value, count));
+}
+
+template <typename T>
+constexpr auto
+make_ref (detail::ref<T> &&reference,
+          std::optional<size_t> count = std::nullopt)
+{
+  return detail::ref<detail::ref<T>> (std::move (reference), count);
+}
+
+template <typename T, detail::parameter_kind_t kind>
+constexpr auto
+make_ref (detail::parameter_t<kind, detail::ref<T>> &&reference,
+          std::optional<size_t> count = std::nullopt)
+{
+  return make_param<kind> (reference.m_name,
+                           make_ref (std::move (reference.m_value), count));
 }
 
 template <typename T> std::string to_string (detail::hex<detail::ref<T>> hex);
@@ -207,28 +330,29 @@ to_string (detail::ref<T> ref)
   if (!ref.value ())
     return "null";
 
-  std::string str
-    = string_printf ("*%p=", static_cast<const void *> (ref.value ()));
-  const size_t count = ref.count ();
+  std::string str;
+  auto *address = ref.value ();
 
-  if (count != 1)
-    str += '[';
-
-  for (size_t i = 0; i < count; ++i, ++ref)
+  std::optional<size_t> count = ref.count ();
+  for (size_t i = 0; i < count.value_or (1); ++i, ++ref)
     {
       if (i != 0)
         str += ',';
 
       if (i >= 16)
-        return str + string_printf ("... %ld more elements]", count - i);
+        {
+          str += string_printf ("... <%ld more elements>", *count - i);
+          break;
+        }
 
       str += to_string (U{ *ref });
     }
 
-  if (count != 1)
-    str += ']';
+  /* Add brackets if we are printing a tuple.  */
+  if (count.has_value ())
+    str = '[' + str + ']';
 
-  return str;
+  return str + string_printf ("@%p", static_cast<const void *> (address));
 }
 
 template <typename T>
@@ -237,6 +361,62 @@ to_string (detail::hex<detail::ref<T>> hex)
 {
   using Modifier = detail::hex<decltype (*std::declval<detail::ref<T>> ())>;
   return to_string<T, Modifier> (hex.m_value);
+}
+
+template <typename T, detail::parameter_kind_t kind>
+std::string
+to_string (detail::parameter_t<kind, T> param)
+{
+  return std::string (param.m_name) + '=' + to_string (param.m_value);
+}
+
+template <typename T, detail::parameter_kind_t kind,
+          typename U = decltype (*std::declval<detail::ref<T>> ())>
+std::string
+to_string (detail::parameter_t<kind, detail::ref<T>> param)
+{
+  if (kind == detail::parameter_kind_t::out && !param.m_value.value ())
+    return {};
+
+  std::string ref_str = to_string<T, U> (param.m_value);
+
+  /* For out parameters, simply print the name and it's value, no need to
+     repeat the address.  */
+  if (kind == detail::parameter_kind_t::out)
+    {
+      size_t pos = ref_str.rfind ("@");
+      dbgapi_assert (pos != std::string::npos);
+      return string_printf ("*%s=", param.m_name) + ref_str.substr (0, pos);
+    }
+
+  return string_printf ("%s=", param.m_name) + ref_str;
+}
+
+template <typename T, detail::parameter_kind_t kind>
+std::string
+to_string (detail::parameter_t<kind, detail::hex<detail::ref<T>>> param)
+{
+  using Modifier = detail::hex<decltype (*std::declval<detail::ref<T>> ())>;
+  return to_string<T, kind, Modifier> (
+    make_param<kind> (param.m_name, param.m_value.m_value));
+}
+
+template <typename T, detail::parameter_kind_t kind>
+std::string
+to_string (detail::parameter_t<kind, detail::query_ref<T>> param)
+{
+  static_assert (kind == detail::parameter_kind_t::out);
+  std::string query_ref_str = to_string (param.m_value);
+
+  /* Some queries may not return any information, for example queries to
+     return the information for a given instruction kind.  */
+  if (query_ref_str.empty ())
+    return {};
+
+  size_t pos = query_ref_str.rfind ("@");
+  dbgapi_assert (pos != std::string::npos);
+
+  return string_printf ("*%s=", param.m_name) + query_ref_str.substr (0, pos);
 }
 
 #define AMD_DBGAPI_TYPES_DO(F)                                                \
@@ -328,7 +508,7 @@ AMD_DBGAPI_TYPES_DO (EXPLICIT_SPECIALIZATION)
 inline std::string
 to_string ()
 {
-  return "";
+  return {};
 }
 
 template <typename T, typename... Args>
@@ -359,7 +539,7 @@ struct tracer_closure
 {
   Result m_result;
 
-  tracer_closure (Functor f) : m_result (f ()){};
+  tracer_closure (Functor &&f) : m_result (std::forward<Functor> (f) ()){};
   Result operator() () const { return m_result; }
 
   operator std::string () const { return to_string (m_result); }
@@ -367,7 +547,7 @@ struct tracer_closure
 
 template <typename Functor> struct tracer_closure<Functor, void>
 {
-  tracer_closure (Functor f) { f (); }
+  tracer_closure (Functor &&f) { std::forward<Functor> (f) (); }
   void operator() () const {}
 
   operator std::string () const { return "void"; }
@@ -382,28 +562,27 @@ private:
   const char *m_function;
 
 public:
-  template <typename... Args>
   tracer (const char *prefix, const char *function)
     : m_prefix (prefix), m_function (function)
   {
   }
 
   template <typename... Args, typename Functor>
-  detail::tracer_closure<Functor> enter (std::tuple<Args...> in_args,
-                                         Functor func);
+  detail::tracer_closure<Functor> enter (std::tuple<Args...> &&in_args,
+                                         Functor &&func);
 
   template <typename... Args, typename Functor>
   decltype (std::declval<Functor> () ())
-  leave (std::tuple<Args...> out_args,
+  leave (std::tuple<Args...> &&out_args,
          const detail::tracer_closure<Functor> &closure);
 };
 
 template <typename... Args, typename Functor>
 detail::tracer_closure<Functor>
-tracer::enter (std::tuple<Args...> in_args, Functor func)
+tracer::enter (std::tuple<Args...> &&in_args, Functor &&func)
 {
   if (log_level != AMD_DBGAPI_LOG_LEVEL_VERBOSE)
-    return detail::tracer_closure (func);
+    return detail::tracer_closure (std::forward<Functor> (func));
 
   detail::log (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "%s%s (%s) {", m_prefix,
                m_function, to_string (std::move (in_args)).c_str ());
@@ -411,7 +590,7 @@ tracer::enter (std::tuple<Args...> in_args, Functor func)
 
   try
     {
-      return detail::tracer_closure (func);
+      return detail::tracer_closure (std::forward<Functor> (func));
     }
   catch (...)
     {
@@ -423,7 +602,7 @@ tracer::enter (std::tuple<Args...> in_args, Functor func)
 
 template <typename... Args, typename Functor>
 decltype (std::declval<Functor> () ())
-tracer::leave (std::tuple<Args...> out_args,
+tracer::leave (std::tuple<Args...> &&out_args,
                const detail::tracer_closure<Functor> &closure)
 {
   if (log_level != AMD_DBGAPI_LOG_LEVEL_VERBOSE)
@@ -436,7 +615,7 @@ tracer::leave (std::tuple<Args...> out_args,
     print_out_args = closure () == AMD_DBGAPI_STATUS_SUCCESS;
 
   std::string results = closure;
-  if (print_out_args && std::tuple_size_v<decltype (out_args)> != 0)
+  if (print_out_args && std::tuple_size_v<std::tuple<Args...>> != 0)
     results += ", " + to_string (std::move (out_args));
 
   --detail::log_indent_depth;
@@ -459,7 +638,7 @@ tracer::leave (std::tuple<Args...> out_args,
 #define TRACE_BEGIN(...) _TRACE_BEGIN ("", __VA_ARGS__)
 #define TRACE_END(...) _TRACE_END (__VA_ARGS__)
 
-#define TRACE_CALLBACK_BEGIN(...) _TRACE_BEGIN ("[callback] ", __VA_ARGS__)
+#define TRACE_CALLBACK_BEGIN(...) _TRACE_BEGIN ("callback: ", __VA_ARGS__)
 #define TRACE_CALLBACK_END(...) _TRACE_END (__VA_ARGS__)
 
 #else /* !defined (WITH_API_TRACING) */

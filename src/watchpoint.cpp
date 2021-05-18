@@ -55,8 +55,9 @@ amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
                            amd_dbgapi_global_address_t *watchpoint_address,
                            amd_dbgapi_size_t *watchpoint_size)
 {
-  TRACE_BEGIN (process_id, make_hex (address), size, kind, watchpoint_id,
-               watchpoint_address, watchpoint_size);
+  TRACE_BEGIN (param_in (process_id), make_hex (param_in (address)),
+               param_in (size), param_in (kind), param_in (watchpoint_id),
+               param_in (watchpoint_address), param_in (watchpoint_size));
   TRY;
 
   if (!detail::is_initialized)
@@ -97,16 +98,16 @@ amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
   return AMD_DBGAPI_STATUS_SUCCESS;
 
   CATCH;
-  TRACE_END (make_ref (watchpoint_id),
-             make_hex (make_ref (watchpoint_address)),
-             make_ref (watchpoint_size));
+  TRACE_END (make_ref (param_out (watchpoint_id)),
+             make_hex (make_ref (param_out (watchpoint_address))),
+             make_ref (param_out (watchpoint_size)));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_remove_watchpoint (amd_dbgapi_process_id_t process_id,
                               amd_dbgapi_watchpoint_id_t watchpoint_id)
 {
-  TRACE_BEGIN (process_id, watchpoint_id);
+  TRACE_BEGIN (param_in (process_id), param_in (watchpoint_id));
   TRY;
 
   if (!detail::is_initialized)
@@ -136,7 +137,8 @@ amd_dbgapi_watchpoint_get_info (amd_dbgapi_watchpoint_id_t watchpoint_id,
                                 amd_dbgapi_watchpoint_info_t query,
                                 size_t value_size, void *value)
 {
-  TRACE_BEGIN (watchpoint_id, query, value_size, value);
+  TRACE_BEGIN (param_in (watchpoint_id), param_in (query),
+               param_in (value_size), param_in (value));
   TRY;
 
   if (!detail::is_initialized)
@@ -150,5 +152,5 @@ amd_dbgapi_watchpoint_get_info (amd_dbgapi_watchpoint_id_t watchpoint_id,
   return watchpoint->get_info (query, value_size, value);
 
   CATCH;
-  TRACE_END (make_query_ref (query, value));
+  TRACE_END (make_query_ref (query, param_out (value)));
 }

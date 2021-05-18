@@ -101,10 +101,9 @@ amd_dbgapi_displaced_stepping_start (
   amd_dbgapi_wave_id_t wave_id, const void *saved_instruction_bytes,
   amd_dbgapi_displaced_stepping_id_t *displaced_stepping_id)
 {
-  TRACE_BEGIN (wave_id,
-               make_hex (make_ref (
-                 static_cast<const uint8_t *> (saved_instruction_bytes), 4)),
-               displaced_stepping_id);
+  TRACE_BEGIN (param_in (wave_id),
+               make_hex (make_ref (param_in (saved_instruction_bytes), 4)),
+               param_in (displaced_stepping_id));
   TRY;
 
   if (!detail::is_initialized)
@@ -142,7 +141,7 @@ amd_dbgapi_displaced_stepping_start (
   return AMD_DBGAPI_STATUS_SUCCESS;
 
   CATCH;
-  TRACE_END (make_ref (displaced_stepping_id));
+  TRACE_END (make_ref (param_out (displaced_stepping_id)));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -150,7 +149,7 @@ amd_dbgapi_displaced_stepping_complete (
   amd_dbgapi_wave_id_t wave_id,
   amd_dbgapi_displaced_stepping_id_t displaced_stepping_id)
 {
-  TRACE_BEGIN (wave_id, displaced_stepping_id);
+  TRACE_BEGIN (param_in (wave_id), param_in (displaced_stepping_id));
   TRY;
 
   if (!detail::is_initialized)
@@ -198,7 +197,8 @@ amd_dbgapi_code_displaced_stepping_get_info (
   amd_dbgapi_displaced_stepping_id_t displaced_stepping_id,
   amd_dbgapi_displaced_stepping_info_t query, size_t value_size, void *value)
 {
-  TRACE_BEGIN (displaced_stepping_id, query, value_size, value);
+  TRACE_BEGIN (param_in (displaced_stepping_id), param_in (query),
+               param_in (value_size), param_in (value));
   TRY;
 
   if (!detail::is_initialized)
@@ -212,5 +212,5 @@ amd_dbgapi_code_displaced_stepping_get_info (
   return displaced_stepping->get_info (query, value_size, value);
 
   CATCH;
-  TRACE_END (make_query_ref (query, value));
+  TRACE_END (make_query_ref (query, param_out (value)));
 }

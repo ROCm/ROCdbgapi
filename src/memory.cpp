@@ -213,7 +213,8 @@ amd_dbgapi_address_class_get_info (
   amd_dbgapi_address_class_id_t address_class_id,
   amd_dbgapi_address_class_info_t query, size_t value_size, void *value)
 {
-  TRACE_BEGIN (address_class_id, query, value_size, value);
+  TRACE_BEGIN (param_in (address_class_id), param_in (query),
+               param_in (value_size), param_in (value));
   TRY;
 
   if (!detail::is_initialized)
@@ -230,7 +231,7 @@ amd_dbgapi_address_class_get_info (
   return address_class->get_info (query, value_size, value);
 
   CATCH;
-  TRACE_END (make_query_ref (query, value));
+  TRACE_END (make_query_ref (query, param_out (value)));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -238,7 +239,8 @@ amd_dbgapi_architecture_address_class_list (
   amd_dbgapi_architecture_id_t architecture_id, size_t *address_class_count,
   amd_dbgapi_address_class_id_t **address_classes)
 {
-  TRACE_BEGIN (architecture_id, address_class_count, address_classes);
+  TRACE_BEGIN (param_in (architecture_id), param_in (address_class_count),
+               param_in (address_classes));
   TRY;
 
   if (!detail::is_initialized)
@@ -270,8 +272,9 @@ amd_dbgapi_architecture_address_class_list (
   return AMD_DBGAPI_STATUS_SUCCESS;
 
   CATCH;
-  TRACE_END (make_ref (address_class_count),
-             make_ref (make_ref (address_classes), *address_class_count));
+  TRACE_END (
+    make_ref (param_out (address_class_count)),
+    make_ref (make_ref (param_out (address_classes)), *address_class_count));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -279,7 +282,8 @@ amd_dbgapi_dwarf_address_class_to_address_class (
   amd_dbgapi_architecture_id_t architecture_id, uint64_t dwarf_address_class,
   amd_dbgapi_address_class_id_t *address_class_id)
 {
-  TRACE_BEGIN (architecture_id, dwarf_address_class, address_class_id);
+  TRACE_BEGIN (param_in (architecture_id), param_in (dwarf_address_class),
+               param_in (address_class_id));
   TRY;
 
   if (!detail::is_initialized)
@@ -305,7 +309,7 @@ amd_dbgapi_dwarf_address_class_to_address_class (
   return AMD_DBGAPI_STATUS_SUCCESS;
 
   CATCH;
-  TRACE_END (make_ref (address_class_id));
+  TRACE_END (make_ref (param_out (address_class_id)));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -313,7 +317,8 @@ amd_dbgapi_address_space_get_info (
   amd_dbgapi_address_space_id_t address_space_id,
   amd_dbgapi_address_space_info_t query, size_t value_size, void *value)
 {
-  TRACE_BEGIN (address_space_id, query, value_size, value);
+  TRACE_BEGIN (param_in (address_space_id), param_in (query),
+               param_in (value_size), param_in (value));
   TRY;
 
   if (!detail::is_initialized)
@@ -330,7 +335,7 @@ amd_dbgapi_address_space_get_info (
   return address_space->get_info (query, value_size, value);
 
   CATCH;
-  TRACE_END (make_query_ref (query, value));
+  TRACE_END (make_query_ref (query, param_out (value)));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -338,7 +343,8 @@ amd_dbgapi_architecture_address_space_list (
   amd_dbgapi_architecture_id_t architecture_id, size_t *address_space_count,
   amd_dbgapi_address_space_id_t **address_spaces)
 {
-  TRACE_BEGIN (architecture_id, address_space_count, address_spaces);
+  TRACE_BEGIN (param_in (architecture_id), param_in (address_space_count),
+               param_in (address_spaces));
   TRY;
 
   if (!detail::is_initialized)
@@ -370,8 +376,9 @@ amd_dbgapi_architecture_address_space_list (
   return AMD_DBGAPI_STATUS_SUCCESS;
 
   CATCH;
-  TRACE_END (make_ref (address_space_count),
-             make_ref (make_ref (address_spaces), *address_space_count));
+  TRACE_END (
+    make_ref (param_out (address_space_count)),
+    make_ref (make_ref (param_out (address_spaces)), *address_space_count));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -379,7 +386,8 @@ amd_dbgapi_dwarf_address_space_to_address_space (
   amd_dbgapi_architecture_id_t architecture_id, uint64_t dwarf_address_space,
   amd_dbgapi_address_space_id_t *address_space_id)
 {
-  TRACE_BEGIN (architecture_id, dwarf_address_space, address_space_id);
+  TRACE_BEGIN (param_in (architecture_id), param_in (dwarf_address_space),
+               param_in (address_space_id));
   TRY;
 
   if (!detail::is_initialized)
@@ -405,7 +413,7 @@ amd_dbgapi_dwarf_address_space_to_address_space (
   return AMD_DBGAPI_STATUS_SUCCESS;
 
   CATCH;
-  TRACE_END (make_ref (address_space_id));
+  TRACE_END (make_ref (param_out (address_space_id)));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -414,7 +422,8 @@ amd_dbgapi_address_spaces_may_alias (
   amd_dbgapi_address_space_id_t address_space_id2,
   amd_dbgapi_address_space_alias_t *address_space_alias)
 {
-  TRACE_BEGIN (address_space_id1, address_space_id2, address_space_alias);
+  TRACE_BEGIN (param_in (address_space_id1), param_in (address_space_id2),
+               param_in (address_space_alias));
   TRY;
 
   if (!detail::is_initialized)
@@ -441,7 +450,7 @@ amd_dbgapi_address_spaces_may_alias (
   return AMD_DBGAPI_STATUS_SUCCESS;
 
   CATCH;
-  TRACE_END (make_ref (address_space_alias));
+  TRACE_END (make_ref (param_out (address_space_alias)));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -452,9 +461,10 @@ amd_dbgapi_convert_address_space (
   amd_dbgapi_address_space_id_t destination_address_space_id,
   amd_dbgapi_segment_address_t *destination_segment_address)
 {
-  TRACE_BEGIN (wave_id, lane_id, source_address_space_id,
-               source_segment_address, destination_address_space_id,
-               destination_segment_address);
+  TRACE_BEGIN (
+    param_in (wave_id), param_in (lane_id), param_in (source_address_space_id),
+    param_in (source_segment_address), param_in (destination_address_space_id),
+    param_in (destination_segment_address));
   TRY;
 
   if (!detail::is_initialized)
@@ -485,7 +495,7 @@ amd_dbgapi_convert_address_space (
     source_segment_address, destination_segment_address);
 
   CATCH;
-  TRACE_END (make_ref (destination_segment_address));
+  TRACE_END (make_ref (param_out (destination_segment_address)));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -496,8 +506,9 @@ amd_dbgapi_address_is_in_address_class (
   amd_dbgapi_address_class_id_t address_class_id,
   amd_dbgapi_address_class_state_t *address_class_state)
 {
-  TRACE_BEGIN (wave_id, lane_id, address_space_id, segment_address,
-               address_class_id, address_class_state);
+  TRACE_BEGIN (param_in (wave_id), param_in (lane_id),
+               param_in (address_space_id), param_in (segment_address),
+               param_in (address_class_id), param_in (address_class_state));
   TRY;
 
   if (!detail::is_initialized)
@@ -535,7 +546,7 @@ amd_dbgapi_address_is_in_address_class (
   return AMD_DBGAPI_STATUS_SUCCESS;
 
   CATCH;
-  TRACE_END (make_ref (address_class_state));
+  TRACE_END (make_ref (param_out (address_class_state)));
 }
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
@@ -545,8 +556,10 @@ amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
                         amd_dbgapi_segment_address_t segment_address,
                         amd_dbgapi_size_t *value_size, void *value)
 {
-  TRACE_BEGIN (process_id, wave_id, lane_id, address_space_id,
-               make_hex (segment_address), make_ref (value_size), value);
+  TRACE_BEGIN (param_in (process_id), param_in (wave_id), param_in (lane_id),
+               param_in (address_space_id),
+               make_hex (param_in (segment_address)),
+               make_ref (param_in (value_size)), param_in (value));
   TRY;
 
   if (!detail::is_initialized)
@@ -600,9 +613,8 @@ amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
                                     value, nullptr, value_size);
 
   CATCH;
-  TRACE_END (
-    make_ref (value_size),
-    make_hex (make_ref (static_cast<uint8_t *> (value), *value_size)));
+  TRACE_END (make_ref (param_out (value_size)),
+             make_hex (make_ref (param_out (value), *value_size)));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -613,10 +625,11 @@ amd_dbgapi_write_memory (amd_dbgapi_process_id_t process_id,
                          amd_dbgapi_segment_address_t segment_address,
                          amd_dbgapi_size_t *value_size, const void *value)
 {
-  TRACE_BEGIN (process_id, wave_id, lane_id, address_space_id,
-               make_hex (segment_address), make_ref (value_size),
-               make_hex (make_ref (static_cast<const uint8_t *> (value),
-                                   value_size ? *value_size : 0)));
+  TRACE_BEGIN (
+    param_in (process_id), param_in (wave_id), param_in (lane_id),
+    param_in (address_space_id), make_hex (param_in (segment_address)),
+    make_ref (param_in (value_size)),
+    make_hex (make_ref (param_in (value), value_size ? *value_size : 0)));
   TRY;
 
   if (!detail::is_initialized)
@@ -670,7 +683,7 @@ amd_dbgapi_write_memory (amd_dbgapi_process_id_t process_id,
   return wave->xfer_segment_memory (*address_space, lane_id, segment_address,
                                     nullptr, value, value_size);
   CATCH;
-  TRACE_END (make_ref (value_size));
+  TRACE_END (make_ref (param_out (value_size)));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -678,7 +691,7 @@ amd_dbgapi_set_memory_precision (
   amd_dbgapi_process_id_t process_id,
   amd_dbgapi_memory_precision_t memory_precision)
 {
-  TRACE_BEGIN (process_id, memory_precision);
+  TRACE_BEGIN (param_in (process_id), param_in (memory_precision));
   TRY;
 
   if (!detail::is_initialized)

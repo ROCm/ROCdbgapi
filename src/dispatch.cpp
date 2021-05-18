@@ -187,7 +187,8 @@ amd_dbgapi_dispatch_get_info (amd_dbgapi_dispatch_id_t dispatch_id,
                               amd_dbgapi_dispatch_info_t query,
                               size_t value_size, void *value)
 {
-  TRACE_BEGIN (dispatch_id, query, value_size, value);
+  TRACE_BEGIN (param_in (dispatch_id), param_in (query), param_in (value_size),
+               param_in (value));
   TRY;
 
   if (!detail::is_initialized)
@@ -201,7 +202,7 @@ amd_dbgapi_dispatch_get_info (amd_dbgapi_dispatch_id_t dispatch_id,
   return dispatch->get_info (query, value_size, value);
 
   CATCH;
-  TRACE_END (make_query_ref (query, value));
+  TRACE_END (make_query_ref (query, param_out (value)));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -210,7 +211,8 @@ amd_dbgapi_process_dispatch_list (amd_dbgapi_process_id_t process_id,
                                   amd_dbgapi_dispatch_id_t **dispatches,
                                   amd_dbgapi_changed_t *changed)
 {
-  TRACE_BEGIN (process_id, dispatch_count, dispatches, changed);
+  TRACE_BEGIN (param_in (process_id), param_in (dispatch_count),
+               param_in (dispatches), param_in (changed));
   TRY;
 
   if (!detail::is_initialized)
@@ -268,7 +270,7 @@ amd_dbgapi_process_dispatch_list (amd_dbgapi_process_id_t process_id,
   return status;
 
   CATCH;
-  TRACE_END (make_ref (dispatch_count),
-             make_ref (make_ref (dispatches), *dispatch_count),
-             make_ref (changed));
+  TRACE_END (make_ref (param_out (dispatch_count)),
+             make_ref (make_ref (param_out (dispatches)), *dispatch_count),
+             make_ref (param_out (changed)));
 }

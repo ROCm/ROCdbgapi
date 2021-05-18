@@ -3695,7 +3695,7 @@ amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_get_architecture (uint32_t elf_amdgpu_machine,
                              amd_dbgapi_architecture_id_t *architecture_id)
 {
-  TRACE_BEGIN (elf_amdgpu_machine, architecture_id);
+  TRACE_BEGIN (param_in (elf_amdgpu_machine), param_in (architecture_id));
   TRY;
 
   if (!detail::is_initialized)
@@ -3715,7 +3715,7 @@ amd_dbgapi_get_architecture (uint32_t elf_amdgpu_machine,
   return AMD_DBGAPI_STATUS_SUCCESS;
 
   CATCH;
-  TRACE_END (make_ref (architecture_id));
+  TRACE_END (make_ref (param_out (architecture_id)));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -3723,7 +3723,8 @@ amd_dbgapi_architecture_get_info (amd_dbgapi_architecture_id_t architecture_id,
                                   amd_dbgapi_architecture_info_t query,
                                   size_t value_size, void *value)
 {
-  TRACE_BEGIN (architecture_id, query, value_size, value);
+  TRACE_BEGIN (param_in (architecture_id), param_in (query),
+               param_in (value_size), param_in (value));
   TRY;
 
   if (!detail::is_initialized)
@@ -3737,7 +3738,7 @@ amd_dbgapi_architecture_get_info (amd_dbgapi_architecture_id_t architecture_id,
   return architecture->get_info (query, value_size, value);
 
   CATCH;
-  TRACE_END (make_query_ref (query, value));
+  TRACE_END (make_query_ref (query, param_out (value)));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -3750,11 +3751,11 @@ amd_dbgapi_disassemble_instruction (
                                      amd_dbgapi_global_address_t address,
                                      char **symbol_text))
 {
-  TRACE_BEGIN (architecture_id, make_hex (address), make_ref (size),
-               make_hex (make_ref (static_cast<const uint8_t *> (memory),
-                                   size ? *size : 0)),
-               instruction_text, symbolizer_id,
-               reinterpret_cast<const void *> (symbolizer));
+  TRACE_BEGIN (param_in (architecture_id), make_hex (param_in (address)),
+               make_ref (param_in (size)),
+               make_hex (make_ref (param_in (memory), size ? *size : 0)),
+               param_in (instruction_text), param_in (symbolizer_id),
+               param_in (symbolizer));
   TRY;
 
   if (!detail::is_initialized)
@@ -3825,7 +3826,8 @@ amd_dbgapi_disassemble_instruction (
   return AMD_DBGAPI_STATUS_SUCCESS;
 
   CATCH;
-  TRACE_END (make_ref (size), make_ref (instruction_text));
+  TRACE_END (make_ref (param_out (size)),
+             make_ref (param_out (instruction_text)));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -3836,11 +3838,12 @@ amd_dbgapi_classify_instruction (
   amd_dbgapi_instruction_properties_t *instruction_properties_p,
   void **instruction_information_p)
 {
-  TRACE_BEGIN (architecture_id, make_hex (address), make_ref (size_p),
-               make_hex (make_ref (static_cast<const uint8_t *> (memory),
-                                   size_p ? *size_p : 0)),
-               instruction_kind_p, instruction_properties_p,
-               instruction_information_p);
+  TRACE_BEGIN (param_in (architecture_id), make_hex (param_in (address)),
+               make_ref (param_in (size_p)),
+               make_hex (make_ref (param_in (memory), size_p ? *size_p : 0)),
+               param_in (instruction_kind_p),
+               param_in (instruction_properties_p),
+               param_in (instruction_information_p));
   TRY;
 
   if (!detail::is_initialized)
@@ -3890,10 +3893,10 @@ amd_dbgapi_classify_instruction (
   return AMD_DBGAPI_STATUS_SUCCESS;
 
   CATCH;
-  TRACE_END (make_ref (size_p), make_ref (instruction_kind_p),
-             make_ref (instruction_properties_p),
-             make_query_ref (instruction_kind_p
-                               ? *instruction_kind_p
-                               : AMD_DBGAPI_INSTRUCTION_KIND_UNKNOWN,
-                             instruction_information_p));
+  TRACE_END (
+    make_ref (param_out (size_p)), make_ref (param_out (instruction_kind_p)),
+    make_ref (param_out (instruction_properties_p)),
+    make_query_ref (instruction_kind_p ? *instruction_kind_p
+                                       : AMD_DBGAPI_INSTRUCTION_KIND_UNKNOWN,
+                    param_out (instruction_information_p)));
 }

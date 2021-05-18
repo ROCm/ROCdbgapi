@@ -83,7 +83,7 @@ to_string (amd_dbgapi_architecture_id_t architecture_id)
 
   if (const architecture_t *architecture = find (architecture_id);
       architecture)
-    str += " {" + architecture->name () + "}";
+    str += " <" + architecture->name () + ">";
 
   return str;
 }
@@ -108,7 +108,7 @@ to_string (amd_dbgapi_code_object_id_t code_object_id)
   std::string str = string_printf ("code_object_%ld", code_object_id.handle);
 
   if (code_object_t *code_object = find (code_object_id); code_object)
-    str += " {\"" + code_object->uri () + "\"}";
+    str += " <\"" + code_object->uri () + "\">";
 
   return str;
 }
@@ -176,8 +176,8 @@ to_string (amd_dbgapi_register_class_id_t register_class_id)
 
   if (const register_class_t *register_class = find (register_class_id);
       register_class)
-    str += " {" + register_class->architecture ().name ()
-           + "::" + register_class->name () + "}";
+    str += " <" + register_class->architecture ().name ()
+           + "::" + register_class->name () + ">";
 
   return str;
 }
@@ -200,7 +200,7 @@ to_string (amd_dbgapi_register_id_t register_id)
     {
       auto name = architecture->register_name (*regnum);
       if (name)
-        str += " {" + architecture->name () + "::" + *name + "}";
+        str += " <" + architecture->name () + "::" + *name + ">";
     }
 
   return str;
@@ -218,8 +218,8 @@ to_string (amd_dbgapi_address_class_id_t address_class_id)
 
   if (const address_class_t *address_class = find (address_class_id);
       address_class)
-    str += " {" + address_class->architecture ().name ()
-           + "::" + address_class->name () + "}";
+    str += " <" + address_class->architecture ().name ()
+           + "::" + address_class->name () + ">";
 
   return str;
 }
@@ -236,8 +236,8 @@ to_string (amd_dbgapi_address_space_id_t address_space_id)
 
   if (const address_space_t *address_space = find (address_space_id);
       address_space)
-    str += " {" + address_space->architecture ().name ()
-           + "::" + address_space->name () + "}";
+    str += " <" + address_space->architecture ().name ()
+           + "::" + address_space->name () + ">";
 
   return str;
 }
@@ -264,7 +264,7 @@ to_string (amd_dbgapi_shared_library_id_t shared_library_id)
 
   if (shared_library_t *shared_library = find (shared_library_id);
       shared_library)
-    str += " {\"" + shared_library->name () + "\"}";
+    str += " <\"" + shared_library->name () + "\">";
 
   return str;
 }
@@ -486,7 +486,7 @@ to_string (detail::query_ref<amd_dbgapi_instruction_kind_t> ref)
     case AMD_DBGAPI_INSTRUCTION_KIND_BARRIER:
     case AMD_DBGAPI_INSTRUCTION_KIND_SLEEP:
     case AMD_DBGAPI_INSTRUCTION_KIND_SPECIAL:
-      return "";
+      return {};
     case AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_BRANCH:
     case AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_BRANCH_CONDITIONAL:
       return to_string (make_hex (make_ref (
@@ -632,7 +632,8 @@ to_string (detail::query_ref<amd_dbgapi_code_object_info_t> ref)
     case AMD_DBGAPI_CODE_OBJECT_INFO_URI_NAME:
       return to_string (make_ref (static_cast<char *const *> (value)));
     case AMD_DBGAPI_CODE_OBJECT_INFO_LOAD_ADDRESS:
-      return to_string (make_ref (static_cast<const ptrdiff_t *> (value)));
+      return to_string (
+        make_hex (make_ref (static_cast<const ptrdiff_t *> (value))));
     }
   error ("unhandled amd_dbgapi_code_object_info_t query (%s)",
          to_string (query).c_str ());
@@ -1050,8 +1051,9 @@ to_string (detail::query_ref<amd_dbgapi_wave_info_t> ref)
         const auto *list
           = static_cast<const amd_dbgapi_watchpoint_list_t *> (value);
         return string_printf (
-          "*%p={%zu,%s}", static_cast<const void *> (list), list->count,
-          to_string (make_ref (list->watchpoint_ids, list->count)).c_str ());
+          "[%zu,%s]@%p", list->count,
+          to_string (make_ref (list->watchpoint_ids, list->count)).c_str (),
+          static_cast<const void *> (list));
       }
     case AMD_DBGAPI_WAVE_INFO_DISPATCH:
       return to_string (

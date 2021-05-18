@@ -92,7 +92,8 @@ amd_dbgapi_agent_get_info (amd_dbgapi_agent_id_t agent_id,
                            amd_dbgapi_agent_info_t query, size_t value_size,
                            void *value)
 {
-  TRACE_BEGIN (agent_id, query, value_size, value);
+  TRACE_BEGIN (param_in (agent_id), param_in (query), param_in (value_size),
+               param_in (value));
   TRY;
 
   if (!detail::is_initialized)
@@ -106,7 +107,7 @@ amd_dbgapi_agent_get_info (amd_dbgapi_agent_id_t agent_id,
   return agent->get_info (query, value_size, value);
 
   CATCH;
-  TRACE_END (make_query_ref (query, value));
+  TRACE_END (make_query_ref (query, param_out (value)));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -115,7 +116,8 @@ amd_dbgapi_process_agent_list (amd_dbgapi_process_id_t process_id,
                                amd_dbgapi_agent_id_t **agents,
                                amd_dbgapi_changed_t *changed)
 {
-  TRACE_BEGIN (process_id, agent_count, agents, changed);
+  TRACE_BEGIN (param_in (process_id), param_in (agent_count),
+               param_in (agents), param_in (changed));
   TRY;
 
   if (!detail::is_initialized)
@@ -150,6 +152,7 @@ amd_dbgapi_process_agent_list (amd_dbgapi_process_id_t process_id,
   return utils::get_handle_list<agent_t> (processes, agent_count, agents,
                                           changed);
   CATCH;
-  TRACE_END (make_ref (agent_count),
-             make_ref (make_ref (agents), *agent_count), make_ref (changed));
+  TRACE_END (make_ref (param_out (agent_count)),
+             make_ref (make_ref (param_out (agents)), *agent_count),
+             make_ref (param_out (changed)));
 }
