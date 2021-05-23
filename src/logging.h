@@ -97,40 +97,39 @@ enum class parameter_kind_t
   out
 };
 
-template <parameter_kind_t kind, typename T> struct parameter_t
+template <typename T, char const *name, parameter_kind_t kind>
+struct parameter_t
 {
-  const char *m_name;
   T m_value;
 
-  explicit constexpr parameter_t (const char *name, const T &value)
-    : m_name (name), m_value (value)
-  {
-  }
+  explicit constexpr parameter_t (const T &value) : m_value (value) {}
 
-  explicit constexpr parameter_t (const char *name, T &&value)
-    : m_name (name), m_value (std::forward<T> (value))
+  explicit constexpr parameter_t (T &&value)
+    : m_value (std::forward<T> (value))
   {
   }
 };
 
 } /* namespapce detail */
 
-template <detail::parameter_kind_t kind, typename T>
+template <char const *name, detail::parameter_kind_t kind, typename T>
 constexpr auto
-make_param (const char *name, T &&value)
+make_param (T &&value)
 {
-  return detail::parameter_t<kind, std::decay_t<T>> (name,
-                                                     std::forward<T> (value));
+  return detail::parameter_t<std::decay_t<T>, name, kind> (
+    std::forward<T> (value));
 }
 
 #define param_in(param)                                                       \
-  amd::dbgapi::make_param<detail::parameter_kind_t::in> (#param, param)
+  amd::dbgapi::make_param<STRING_LITERAL (#param),                            \
+                          detail::parameter_kind_t::in> (param)
 
 #define param_out(param)                                                      \
-  amd::dbgapi::make_param<detail::parameter_kind_t::out> (#param, param)
+  amd::dbgapi::make_param<STRING_LITERAL (#param),                            \
+                          detail::parameter_kind_t::out> (param)
 
-template <typename T, detail::parameter_kind_t kind>
-std::string to_string (detail::parameter_t<kind, T> param);
+template <typename T, char const *name, detail::parameter_kind_t kind>
+std::string to_string (detail::parameter_t<T, name, kind> param);
 
 namespace detail
 {
@@ -258,11 +257,11 @@ make_hex (T &&value)
   return detail::hex<std::decay_t<T>> (std::forward<T> (value));
 }
 
-template <typename T, detail::parameter_kind_t kind>
+template <typename T, char const *name, detail::parameter_kind_t kind>
 constexpr auto
-make_hex (detail::parameter_t<kind, T> &&value)
+make_hex (detail::parameter_t<T, name, kind> &&value)
 {
-  return make_param<kind> (value.m_name, make_hex (std::move (value.m_value)));
+  return make_param<name, kind> (make_hex (std::move (value.m_value)));
 }
 
 template <typename T>
@@ -272,12 +271,12 @@ make_query_ref (T query, const void *memory)
   return detail::query_ref<T>{ query, memory };
 }
 
-template <typename T, typename P, detail::parameter_kind_t kind>
+template <typename T, typename P, char const *name,
+          detail::parameter_kind_t kind>
 constexpr auto
-make_query_ref (T query, detail::parameter_t<kind, P *> memory)
+make_query_ref (T query, detail::parameter_t<P *, name, kind> memory)
 {
-  return make_param<kind> (memory.m_name,
-                           make_query_ref (query, memory.m_value));
+  return make_param<name, kind> (make_query_ref (query, memory.m_value));
 }
 
 template <typename T>
@@ -287,12 +286,12 @@ make_ref (T *pointer, std::optional<size_t> count = std::nullopt)
   return detail::ref<T *> (pointer, count);
 }
 
-template <typename T, detail::parameter_kind_t kind>
+template <typename T, char const *name, detail::parameter_kind_t kind>
 constexpr auto
-make_ref (detail::parameter_t<kind, T *> pointer,
+make_ref (detail::parameter_t<T *, name, kind> pointer,
           std::optional<size_t> count = std::nullopt)
 {
-  return make_param<kind> (pointer.m_name, make_ref (pointer.m_value, count));
+  return make_param<name, kind> (make_ref (pointer.m_value, count));
 }
 
 template <typename T>
@@ -303,13 +302,13 @@ make_ref (detail::ref<T> &&reference,
   return detail::ref<detail::ref<T>> (std::move (reference), count);
 }
 
-template <typename T, detail::parameter_kind_t kind>
+template <typename T, char const *name, detail::parameter_kind_t kind>
 constexpr auto
-make_ref (detail::parameter_t<kind, detail::ref<T>> &&reference,
+make_ref (detail::parameter_t<detail::ref<T>, name, kind> &&reference,
           std::optional<size_t> count = std::nullopt)
 {
-  return make_param<kind> (reference.m_name,
-                           make_ref (std::move (reference.m_value), count));
+  return make_param<name, kind> (
+    make_ref (std::move (reference.m_value), count));
 }
 
 template <typename T> std::string to_string (detail::hex<detail::ref<T>> hex);
@@ -363,17 +362,17 @@ to_string (detail::hex<detail::ref<T>> hex)
   return to_string<T, Modifier> (hex.m_value);
 }
 
-template <typename T, detail::parameter_kind_t kind>
+template <typename T, char const *name, detail::parameter_kind_t kind>
 std::string
-to_string (detail::parameter_t<kind, T> param)
+to_string (detail::parameter_t<T, name, kind> param)
 {
-  return std::string (param.m_name) + '=' + to_string (param.m_value);
+  return std::string (name) + '=' + to_string (param.m_value);
 }
 
-template <typename T, detail::parameter_kind_t kind,
+template <typename T, char const *name, detail::parameter_kind_t kind,
           typename U = decltype (*std::declval<detail::ref<T>> ())>
 std::string
-to_string (detail::parameter_t<kind, detail::ref<T>> param)
+to_string (detail::parameter_t<detail::ref<T>, name, kind> param)
 {
   if (kind == detail::parameter_kind_t::out && !param.m_value.value ())
     return {};
@@ -386,24 +385,24 @@ to_string (detail::parameter_t<kind, detail::ref<T>> param)
     {
       size_t pos = ref_str.rfind ("@");
       dbgapi_assert (pos != std::string::npos);
-      return string_printf ("*%s=", param.m_name) + ref_str.substr (0, pos);
+      return string_printf ("*%s=", name) + ref_str.substr (0, pos);
     }
 
-  return string_printf ("%s=", param.m_name) + ref_str;
+  return string_printf ("%s=", name) + ref_str;
 }
 
-template <typename T, detail::parameter_kind_t kind>
+template <typename T, char const *name, detail::parameter_kind_t kind>
 std::string
-to_string (detail::parameter_t<kind, detail::hex<detail::ref<T>>> param)
+to_string (detail::parameter_t<detail::hex<detail::ref<T>>, name, kind> param)
 {
   using Modifier = detail::hex<decltype (*std::declval<detail::ref<T>> ())>;
-  return to_string<T, kind, Modifier> (
-    make_param<kind> (param.m_name, param.m_value.m_value));
+  return to_string<T, name, kind, Modifier> (
+    make_param<name, kind> (param.m_value.m_value));
 }
 
-template <typename T, detail::parameter_kind_t kind>
+template <typename T, char const *name, detail::parameter_kind_t kind>
 std::string
-to_string (detail::parameter_t<kind, detail::query_ref<T>> param)
+to_string (detail::parameter_t<detail::query_ref<T>, name, kind> param)
 {
   static_assert (kind == detail::parameter_kind_t::out);
   std::string query_ref_str = to_string (param.m_value);
@@ -416,7 +415,7 @@ to_string (detail::parameter_t<kind, detail::query_ref<T>> param)
   size_t pos = query_ref_str.rfind ("@");
   dbgapi_assert (pos != std::string::npos);
 
-  return string_printf ("*%s=", param.m_name) + query_ref_str.substr (0, pos);
+  return string_printf ("*%s=", name) + query_ref_str.substr (0, pos);
 }
 
 #define AMD_DBGAPI_TYPES_DO(F)                                                \

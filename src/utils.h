@@ -512,6 +512,91 @@ amd_dbgapi_status_t get_handle_list (const std::vector<process_t *> &processes,
                                      typename Object::handle_type **objects,
                                      amd_dbgapi_changed_t *changed);
 
+template <char... Chars> struct string_literal
+{
+  using type = string_literal;
+  static constexpr char value[sizeof...(Chars) + 1] = { Chars..., 0 };
+};
+
+namespace detail
+{
+
+template <class T, class U> struct concat;
+
+/* Concatenate 2 string literals.  */
+template <char... Ts, char... Us>
+struct concat<string_literal<Ts...>, string_literal<Us...>>
+  : string_literal<Ts..., Us...>
+{
+};
+
+template <size_t N, char... Cs> struct make_string_literal;
+
+/* string_literal terminator.  */
+template <char... Cs>
+struct make_string_literal<0, '\0', Cs...> : string_literal<>
+{
+};
+
+/* Build a string literal one character at a time. Note, this could be made
+   more efficient using power of twos if it becomes an issue.  */
+template <size_t N, char C0, char... Cs>
+struct make_string_literal<N, C0, Cs...>
+  : concat<string_literal<C0>,
+           typename make_string_literal<N - 1, Cs...>::type>
+{
+};
+
+static constexpr size_t MAX_STRING_LITERAL_LENGTH = 32;
+
+template <size_t N>
+constexpr char
+string_literal_at_or (const char (&str)[N], size_t n, char value)
+{
+  static_assert (N <= MAX_STRING_LITERAL_LENGTH, "increase tokenizer size");
+  return (n < N - 1) ? str[n] : value;
+}
+
+} /* namespace detail */
+
+#define TOKENIZE_STRING_LITERAL(s)                                            \
+  utils::detail::string_literal_at_or ((s), 0, '\0'),                         \
+    utils::detail::string_literal_at_or ((s), 1, '\0'),                       \
+    utils::detail::string_literal_at_or ((s), 2, '\0'),                       \
+    utils::detail::string_literal_at_or ((s), 3, '\0'),                       \
+    utils::detail::string_literal_at_or ((s), 4, '\0'),                       \
+    utils::detail::string_literal_at_or ((s), 5, '\0'),                       \
+    utils::detail::string_literal_at_or ((s), 6, '\0'),                       \
+    utils::detail::string_literal_at_or ((s), 7, '\0'),                       \
+    utils::detail::string_literal_at_or ((s), 8, '\0'),                       \
+    utils::detail::string_literal_at_or ((s), 9, '\0'),                       \
+    utils::detail::string_literal_at_or ((s), 10, '\0'),                      \
+    utils::detail::string_literal_at_or ((s), 11, '\0'),                      \
+    utils::detail::string_literal_at_or ((s), 12, '\0'),                      \
+    utils::detail::string_literal_at_or ((s), 13, '\0'),                      \
+    utils::detail::string_literal_at_or ((s), 14, '\0'),                      \
+    utils::detail::string_literal_at_or ((s), 15, '\0'),                      \
+    utils::detail::string_literal_at_or ((s), 16, '\0'),                      \
+    utils::detail::string_literal_at_or ((s), 17, '\0'),                      \
+    utils::detail::string_literal_at_or ((s), 18, '\0'),                      \
+    utils::detail::string_literal_at_or ((s), 19, '\0'),                      \
+    utils::detail::string_literal_at_or ((s), 20, '\0'),                      \
+    utils::detail::string_literal_at_or ((s), 21, '\0'),                      \
+    utils::detail::string_literal_at_or ((s), 22, '\0'),                      \
+    utils::detail::string_literal_at_or ((s), 23, '\0'),                      \
+    utils::detail::string_literal_at_or ((s), 24, '\0'),                      \
+    utils::detail::string_literal_at_or ((s), 25, '\0'),                      \
+    utils::detail::string_literal_at_or ((s), 26, '\0'),                      \
+    utils::detail::string_literal_at_or ((s), 27, '\0'),                      \
+    utils::detail::string_literal_at_or ((s), 28, '\0'),                      \
+    utils::detail::string_literal_at_or ((s), 29, '\0'),                      \
+    utils::detail::string_literal_at_or ((s), 30, '\0'),                      \
+    utils::detail::string_literal_at_or ((s), 31, '\0')
+
+#define STRING_LITERAL(s)                                                     \
+  utils::detail::make_string_literal<sizeof (s) - 1,                          \
+                                     TOKENIZE_STRING_LITERAL (s)>::value
+
 } /* namespace utils */
 
 template <typename T> struct is_flag : std::false_type
