@@ -5542,7 +5542,13 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_is_in_address_class (
  * the address space.
  *
  * The library performs all necessary hardware cache management so that the
- * memory values read are coherent with the \p wave_id.
+ * memory values read are coherent with the \p wave_id if not
+ * ::AMD_DBGAPI_WAVE_NONE.  In order for the memory values read to be coherent
+ * with other waves, the waves must be stopped when invoking this operation.
+ * Stopping wave creation, stopping all waves, performing this operation,
+ * resuming any stopped waves, and then allowing wave creation can achieve this
+ * requirement.  This requirement also applies if memory is read by other
+ * operating system supported means.
  *
  * \param[in] process_id The process to read memory from if \p wave_id is
  * ::AMD_DBGAPI_WAVE_NONE the \p address_space is
@@ -5638,7 +5644,13 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_memory (
  * the address space.
  *
  * The library performs all necessary hardware cache management so that the
- * memory values written are coherent with the \p wave_id.
+ * memory values written are coherent with the \p wave_id if not
+ * ::AMD_DBGAPI_WAVE_NONE.  In order for the memory values written to be
+ * coherent with other waves, the waves must be stopped when invoking this
+ * operation.  Stopping wave creation, stopping all waves, performing this
+ * operation, resuming any stopped waves, and then allowing wave creation can
+ * achieve this requirement.  This requirement also applies if memory is
+ * written by other operating system supported means.
  *
  * \param[in] process_id The process to write memory to if \p wave_id is
  * ::AMD_DBGAPI_WAVE_NONE the \p address_space is
