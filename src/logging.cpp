@@ -23,6 +23,7 @@
 #include "callbacks.h"
 #include "code_object.h"
 #include "debug.h"
+#include "initialization.h"
 #include "memory.h"
 #include "process.h"
 #include "register.h"
@@ -1604,11 +1605,17 @@ to_string (os_wave_launch_trap_mask_t value)
 
 } /* namespace amd::dbgapi */
 
+using namespace amd::dbgapi;
+
 void AMD_DBGAPI
 amd_dbgapi_set_log_level (amd_dbgapi_log_level_t level)
 {
   amd::dbgapi::log_level = level;
 
-  TRACE_BEGIN (level);
-  TRACE_END ();
+  /* Only log if the client callbacks are initialized.  */
+  if (detail::is_initialized)
+    {
+      TRACE_BEGIN (level);
+      TRACE_END ();
+    }
 }

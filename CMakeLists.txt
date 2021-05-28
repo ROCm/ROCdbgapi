@@ -105,7 +105,7 @@ else()
   endif()
 endif()
 
-target_link_libraries(amd-dbgapi PRIVATE amd_comgr Threads::Threads)
+target_link_libraries(amd-dbgapi PRIVATE amd_comgr Threads::Threads ${CMAKE_DL_LIBS})
 
 target_compile_options(amd-dbgapi
   PRIVATE -fno-rtti -Wall -Wno-attributes -fvisibility=hidden)
@@ -113,7 +113,7 @@ target_compile_options(amd-dbgapi
 target_compile_definitions(amd-dbgapi
   PRIVATE _GNU_SOURCE __STDC_LIMIT_MACROS __STDC_CONSTANT_MACROS)
 
-set_source_files_properties(src/versioning.cpp PROPERTIES
+set_source_files_properties(src/versioning.cpp src/initialization.cpp PROPERTIES
   COMPILE_DEFINITIONS "AMD_DBGAPI_VERSION_PATCH=${AMD_DBGAPI_VERSION_PATCH};AMD_DBGAPI_BUILD_INFO=\"${AMD_DBGAPI_VERSION}-${build_info}\"")
 
 target_include_directories(amd-dbgapi
