@@ -166,9 +166,10 @@ public:
 
   amd_dbgapi_status_t check_version () const override;
 
-  amd_dbgapi_status_t agent_snapshot (os_agent_snapshot_entry_t *snapshots,
-                                      size_t snapshot_count,
-                                      size_t *agent_count) const override;
+  amd_dbgapi_status_t
+  agent_snapshot (os_agent_snapshot_entry_t *snapshots, size_t snapshot_count,
+                  size_t *agent_count,
+                  os_exception_mask_t exceptions_cleared) const override;
 
   amd_dbgapi_status_t enable_debug (os_exception_mask_t exceptions_reported,
                                     file_desc_t notifier) override;
@@ -176,9 +177,19 @@ public:
   bool is_debug_enabled () const override { return m_is_debug_enabled; }
 
   amd_dbgapi_status_t
+  send_runtime_event (os_exception_code_t event,
+                      os_source_id_t os_source_id) const override;
+
+  amd_dbgapi_status_t
   query_debug_event (os_exception_mask_t *exceptions_present,
                      os_source_id_t *os_source_id,
                      os_exception_mask_t exceptions_cleared) override;
+
+  amd_dbgapi_status_t
+  query_exception_info (os_exception_code_t exception,
+                        os_source_id_t os_source_id, void *exception_info,
+                        size_t exception_info_size,
+                        bool clear_exception) const override;
 
   size_t
   suspend_queues (os_queue_id_t *queues, size_t queue_count,
@@ -289,7 +300,7 @@ kfd_driver_t::check_version () const
       return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
     }
 
-  /* KFD_IOC_DBG_TRAP_GET_VERSION (#8)
+  /* KFD_IOC_DBG_TRAP_GET_VERSION (#7)
      data1: [out] major version
      data2: [out] minor version */
 
@@ -324,20 +335,49 @@ kfd_driver_t::check_version () const
 
 amd_dbgapi_status_t
 kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
-                              size_t snapshot_count, size_t *agent_count) const
+                              size_t snapshot_count, size_t *agent_count,
+                              os_exception_mask_t exceptions_cleared) const
 {
   dbgapi_assert (snapshots && agent_count && "must not be null");
+  dbgapi_assert (snapshot_count <= std::numeric_limits<uint32_t>::max ()
+                 && "invalid argument");
 
-  /* Discover the GPU nodes from the sysfs topology.  */
+  if (!is_debug_enabled ())
+    {
+      *agent_count = 0;
+      return AMD_DBGAPI_STATUS_SUCCESS;
+    }
+
+  std::vector<kfd_dbg_device_info_entry> kfd_device_infos (snapshot_count);
+
+  /* KFD_IOC_DBG_TRAP_DEVICE_SNAPSHOT (#12):
+     exception_mask: [in] exceptions to clear on snapshot
+     data1: [in/out] number of device snapshots
+     ptr:   [in] user buffer  */
+
+  kfd_ioctl_dbg_trap_args args{};
+  args.exception_mask = static_cast<uint64_t> (exceptions_cleared);
+  args.data1 = static_cast<uint32_t> (kfd_device_infos.size ());
+  args.ptr = reinterpret_cast<uint64_t> (kfd_device_infos.data ());
+
+  int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_DEVICE_SNAPSHOT, &args);
+  if (err == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err < 0)
+    return AMD_DBGAPI_STATUS_ERROR;
+
+  /* KFD writes up to snapshot_count device snapshots, but returns the number
+     of devices in the process so that we can check if we have allocated enough
+     memory to hold all the snapshots.  */
+  *agent_count = args.data1;
+
+  /* Fill in the missing information from the sysfs topology.  */
 
   static const std::string sysfs_nodes_path (
     "/sys/devices/virtual/kfd/kfd/topology/nodes/");
 
   std::unique_ptr<DIR, void (*) (DIR *)> dirp (
     opendir (sysfs_nodes_path.c_str ()), [] (DIR *d) { closedir (d); });
-
-  std::unordered_set<os_agent_id_t> processed_os_agent_ids;
-  *agent_count = 0;
 
   if (!dirp && errno == ENOENT)
     {
@@ -349,53 +389,44 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
     error ("Could not opendir `%s': %s", sysfs_nodes_path.c_str (),
            strerror (errno));
 
-  size_t node_count{ 0 };
-
+  std::unordered_set<os_agent_id_t> processed_os_agent_ids;
+  size_t agents_found = 0;
   struct dirent *dir;
-  while ((dir = readdir (dirp.get ())))
-    if (dir->d_name != "."s && dir->d_name != ".."s)
-      ++node_count;
 
-  std::vector<kfd_process_device_apertures> node_aperture_infos (node_count);
-
-  kfd_ioctl_get_process_apertures_new_args args{};
-  args.kfd_process_device_apertures_ptr
-    = reinterpret_cast<uintptr_t> (node_aperture_infos.data ());
-  args.num_of_nodes = node_aperture_infos.size ();
-
-  /* FIXME: There is no guarantee that the the debugger's apertures are the
-     same as the inferior's, so we really should be using a dbgtrap ioctl.  */
-  if (::ioctl (*s_kfd_fd, AMDKFD_IOC_GET_PROCESS_APERTURES_NEW, &args))
-    error ("AMDKFD_IOC_GET_PROCESS_APERTURES_NEW failed");
-
-  /* KFD returns the actual number of entries copied to the array. */
-  dbgapi_assert (args.num_of_nodes <= node_aperture_infos.size ());
-  node_aperture_infos.resize (args.num_of_nodes);
-
-  rewinddir (dirp.get ());
-  while ((dir = readdir (dirp.get ())))
+  while ((dir = readdir (dirp.get ())) != nullptr)
     {
       if (dir->d_name == "."s || dir->d_name == ".."s)
         continue;
 
-      os_agent_snapshot_entry_t agent_info{};
       std::string node_path (sysfs_nodes_path + dir->d_name);
 
       /* Retrieve the GPU ID.  */
-
       std::ifstream gpu_id_ifs (node_path + "/gpu_id");
       if (!gpu_id_ifs.is_open ())
         error ("Could not open %s/gpu_id", node_path.c_str ());
 
-      gpu_id_ifs >> agent_info.os_agent_id;
+      os_agent_id_t gpu_id;
+      gpu_id_ifs >> gpu_id;
 
-      if (gpu_id_ifs.fail () || !agent_info.os_agent_id)
+      if (gpu_id_ifs.fail () || !gpu_id)
         /* Skip inaccessible nodes and CPU nodes.  */
         continue;
 
-      if (!processed_os_agent_ids.emplace (agent_info.os_agent_id).second)
+      auto it
+        = std::find_if (kfd_device_infos.begin (), kfd_device_infos.end (),
+                        [&] (const auto &device_info)
+                        { return device_info.gpu_id == gpu_id; });
+      if (it == kfd_device_infos.end ())
+        /* This sysfs topology node was not reported by the device snapshot
+           ioctl, skip it.  */
+        continue;
+
+      if (!processed_os_agent_ids.emplace (gpu_id).second)
         error ("More than one os_agent_id %d reported in the sysfs topology",
-               agent_info.os_agent_id);
+               gpu_id);
+
+      auto &agent_info = snapshots[agents_found++];
+      agent_info.os_agent_id = gpu_id;
 
       /* Retrieve the GPU name.  */
 
@@ -409,15 +440,6 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
                agent_info.os_agent_id);
 
       /* Fill in the apertures for this agent.  */
-
-      auto it = std::find_if (
-        node_aperture_infos.begin (), node_aperture_infos.end (),
-        [&] (const auto &node_aperture_info)
-        { return node_aperture_info.gpu_id == agent_info.os_agent_id; });
-
-      if (it == node_aperture_infos.end ())
-        error ("Could not get apertures for gpu_id %d",
-               agent_info.os_agent_id);
 
       agent_info.local_address_space_aperture = it->lds_base;
       agent_info.private_address_space_aperture = it->scratch_base;
@@ -462,14 +484,12 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
           agent_info.e_machine = gfxip_info->e_machine;
           agent_info.fw_version_required = gfxip_info->fw_version;
         }
-
-      if (snapshot_count)
-        {
-          *snapshots++ = agent_info;
-          --snapshot_count;
-        }
-      ++*agent_count;
     }
+
+  /* Make sure we filled the information for all snapshot entries returned by
+     the kfd device snapshot ioctl.  */
+  if (agents_found != std::min (snapshot_count, *agent_count))
+    error ("not all agents found in the sysfs topology");
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
@@ -532,6 +552,29 @@ kfd_driver_t::disable_debug ()
 }
 
 amd_dbgapi_status_t
+kfd_driver_t::send_runtime_event (os_exception_code_t event,
+                                  os_source_id_t os_source_id) const
+{
+  dbgapi_assert (is_debug_enabled () && "debug is not enabled");
+
+  /* KFD_IOC_DBG_TRAP_SEND_RUNTIME_EVENT (#14):
+     data1: [in] source id (queue or device)
+     data2: [in] event to send  */
+
+  kfd_ioctl_dbg_trap_args args{};
+  args.data1 = os_source_id.raw;
+  args.data2 = static_cast<uint32_t> (event);
+
+  int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SEND_RUNTIME_EVENT, &args);
+  if (err == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err < 0)
+    return AMD_DBGAPI_STATUS_ERROR;
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
+amd_dbgapi_status_t
 kfd_driver_t::query_debug_event (os_exception_mask_t *exceptions_present,
                                  os_source_id_t *os_source_id,
                                  os_exception_mask_t exceptions_cleared)
@@ -545,7 +588,7 @@ kfd_driver_t::query_debug_event (os_exception_mask_t *exceptions_present,
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
 
-  /* KFD_IOC_DBG_TRAP_QUERY_DEBUG_EVENT (#6):
+  /* KFD_IOC_DBG_TRAP_QUERY_DEBUG_EVENT (#5):
 
      exception_mask: [in/out] exception to clear on query, and report
      data1: [out] source id  */
@@ -572,13 +615,47 @@ kfd_driver_t::query_debug_event (os_exception_mask_t *exceptions_present,
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
+amd_dbgapi_status_t
+kfd_driver_t::query_exception_info (os_exception_code_t exception,
+                                    os_source_id_t os_source_id,
+                                    void *exception_info,
+                                    size_t exception_info_size,
+                                    bool clear_exception) const
+{
+  dbgapi_assert (is_debug_enabled () && "debug is not enabled");
+
+  /* KFD_IOC_DBG_TRAP_QUERY_EXCEPTION_INFO (#11)
+     ptr: [in] exception info pointer to copy to
+     data1: [in] source_id
+     data2: [in] exception_code
+     data3: [in] clear_exception (1 == true, 0 == false)
+     data4: [in/out] exception info data size  */
+
+  kfd_ioctl_dbg_trap_args args{};
+  args.ptr = reinterpret_cast<uintptr_t> (exception_info);
+  args.data1 = os_source_id.raw;
+  args.data2 = static_cast<uint32_t> (exception);
+  args.data3 = clear_exception ? 1 : 0;
+  args.data4 = exception_info_size;
+
+  int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_QUERY_EXCEPTION_INFO, &args);
+  if (err == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err < 0)
+    return exception_info_size > args.data4
+             ? AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY
+             : AMD_DBGAPI_STATUS_ERROR;
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
 size_t
 kfd_driver_t::suspend_queues (os_queue_id_t *queues, size_t queue_count,
                               os_exception_mask_t exceptions_cleared) const
 {
   dbgapi_assert (queue_count <= std::numeric_limits<uint32_t>::max ());
 
-  /* KFD_IOC_DBG_TRAP_NODE_SUSPEND (#4):
+  /* KFD_IOC_DBG_TRAP_NODE_SUSPEND (#3):
      exception_mask: [in] exceptions to clear on suspend
      data1: [in] number of queues
      data2: [in] grace period
@@ -603,7 +680,7 @@ kfd_driver_t::resume_queues (os_queue_id_t *queues, size_t queue_count) const
 {
   dbgapi_assert (queue_count <= std::numeric_limits<uint32_t>::max ());
 
-  /* KFD_IOC_DBG_TRAP_NODE_RESUME (#5):
+  /* KFD_IOC_DBG_TRAP_NODE_RESUME (#4):
      data1: [in] number of queues
      ptr:   [in/out] queue ids  */
 
@@ -635,7 +712,7 @@ kfd_driver_t::queue_snapshot (os_queue_snapshot_entry_t *snapshots,
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
 
-  /* KFD_IOC_DBG_TRAP_GET_QUEUE_SNAPSHOT (#7):
+  /* KFD_IOC_DBG_TRAP_GET_QUEUE_SNAPSHOT (#6):
      exception_mask: [in] exceptions to clear on snapshot
      data1: [in/out] number of queues snapshots
      ptr:   [in] user buffer  */
@@ -651,9 +728,9 @@ kfd_driver_t::queue_snapshot (os_queue_snapshot_entry_t *snapshots,
   else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
-  /* KFD writes up to snapshot_count queue snapshots, but returns the
-     number of queues in the process so that we can check if we have
-     allocated enough memory to hold all the snapshots.  */
+  /* KFD writes up to snapshot_count queue snapshots, but returns the number of
+     queues in the process so that we can check if we have allocated enough
+     memory to hold all the snapshots.  */
   *queue_count = args.data1;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
@@ -765,7 +842,7 @@ kfd_driver_t::set_wave_launch_trap_override (
 amd_dbgapi_status_t
 kfd_driver_t::set_precise_memory (bool enabled) const
 {
-  /* KFD_IOC_DBG_TRAP_SET_PRECISE_MEM_OPS (#11)
+  /* KFD_IOC_DBG_TRAP_SET_PRECISE_MEM_OPS (#10)
      data1: 0=disable, 1=enable  */
 
   kfd_ioctl_dbg_trap_args args{};
@@ -796,8 +873,8 @@ public:
 
   amd_dbgapi_status_t
   agent_snapshot (os_agent_snapshot_entry_t * /* snapshots  */,
-                  size_t /* snapshot_count  */,
-                  size_t *agent_count) const override
+                  size_t /* snapshot_count  */, size_t *agent_count,
+                  os_exception_mask_t /* exceptions_cleared  */) const override
   {
     *agent_count = 0;
     return AMD_DBGAPI_STATUS_SUCCESS;
@@ -819,6 +896,13 @@ public:
   bool is_debug_enabled () const override { return false; }
 
   amd_dbgapi_status_t
+    send_runtime_event (os_exception_code_t /* event  */,
+                        os_source_id_t /* os_source_id  */) const override
+  {
+    return AMD_DBGAPI_STATUS_ERROR;
+  }
+
+  amd_dbgapi_status_t
   query_debug_event (os_exception_mask_t *exceptions_present,
                      os_source_id_t *os_source_id,
                      os_exception_mask_t /* exceptions_cleared  */) override
@@ -826,6 +910,14 @@ public:
     *exceptions_present = os_exception_mask_t::none;
     os_source_id->raw = 0;
     return AMD_DBGAPI_STATUS_SUCCESS;
+  }
+
+  amd_dbgapi_status_t query_exception_info (
+    os_exception_code_t /* exception  */, os_source_id_t /* os_source_id  */,
+    void * /* exception_info  */, size_t /* exception_info_size  */,
+    bool /* clear_exception  */) const override
+  {
+    return AMD_DBGAPI_STATUS_ERROR;
   }
 
   size_t
@@ -932,35 +1024,75 @@ one_os_exception_to_string (os_exception_mask_t exception_mask)
 {
   dbgapi_assert (!(exception_mask & (exception_mask - 1)) && "only 1 bit");
 
-  switch (exception_mask)
-    {
-    case os_exception_mask_t::none:
-      return "NONE";
-    case os_exception_mask_t::queue_new:
-      return "QUEUE_NEW";
-    case os_exception_mask_t::trap_handler:
-      return "TRAP_HANDLER";
-    case os_exception_mask_t::cp_packet_error:
-      return "CP_PACKET_ERROR";
-    case os_exception_mask_t::hws_preemption_error:
-      return "HWS_PREEMPTION_ERROR";
-    case os_exception_mask_t::memory_violation:
-      return "MEMORY_VIOLATION";
-    case os_exception_mask_t::ras_error:
-      return "RAS_ERROR";
-    case os_exception_mask_t::fatal_halt:
-      return "FATAL_HALT";
-    case os_exception_mask_t::queue_delete:
-      return "QUEUE_DELETE";
-    case os_exception_mask_t::gpu_add:
-      return "GPU_ADD";
-    case os_exception_mask_t::runtime_enable:
-      return "RUNTIME_ENABLE";
-    case os_exception_mask_t::runtime_disable:
-      return "RUNTIME_DISABLE";
-    case os_exception_mask_t::gpu_remove:
-      return "GPU_REMOVE";
-    }
+  if (exception_mask == os_exception_mask_t::none)
+    return "NONE";
+
+  if (has_os_exception (exception_mask, os_exception_code_t::queue_new))
+    return "QUEUE_NEW";
+  if (has_os_exception (exception_mask, os_exception_code_t::queue_trap))
+    return "QUEUE_TRAP";
+  if (has_os_exception (exception_mask,
+                        os_exception_code_t::queue_illegal_instruction))
+    return "QUEUE_ILLEGAL_INSTRUCTION";
+  if (has_os_exception (exception_mask,
+                        os_exception_code_t::queue_memory_violation))
+    return "QUEUE_MEMORY_VIOLATION";
+  if (has_os_exception (exception_mask,
+                        os_exception_code_t::queue_aperture_violation))
+    return "QUEUE_APERTURE_VIOLATION";
+  if (has_os_exception (
+        exception_mask,
+        os_exception_code_t::queue_packet_dispatch_dim_invalid))
+    return "QUEUE_PACKET_DISPATCH_DIM_INVALID";
+  if (has_os_exception (
+        exception_mask,
+        os_exception_code_t::queue_packet_dispatch_group_segment_size_invalid))
+    return "QUEUE_PACKET_DISPATCH_GROUP_SEGMENT_SIZE_INVALID";
+  if (has_os_exception (
+        exception_mask,
+        os_exception_code_t::queue_packet_dispatch_code_invalid))
+    return "QUEUE_PACKET_DISPATCH_CODE_INVALID";
+  if (has_os_exception (exception_mask,
+                        os_exception_code_t::queue_packet_unsupported))
+    return "QUEUE_PACKET_UNSUPPORTED";
+  if (has_os_exception (
+        exception_mask,
+        os_exception_code_t::queue_packet_dispatch_work_group_size_invalid))
+    return "QUEUE_PACKET_DISPATCH_WORK_GROUP_SIZE_INVALID";
+  if (has_os_exception (
+        exception_mask,
+        os_exception_code_t::queue_packet_dispatch_register_invalid))
+    return "QUEUE_PACKET_DISPATCH_REGISTER_INVALID";
+  if (has_os_exception (
+        exception_mask,
+        os_exception_code_t::queue_packet_dispatch_vendor_unsupported))
+    return "QUEUE_PACKET_DISPATCH_VENDOR_UNSUPPORTED";
+  if (has_os_exception (exception_mask,
+                        os_exception_code_t::queue_preemption_error))
+    return "QUEUE_PREEMPTION_ERROR";
+  if (has_os_exception (exception_mask,
+                        os_exception_code_t::device_queue_delete))
+    return "DEVICE_QUEUE_DELETE";
+  if (has_os_exception (exception_mask,
+                        os_exception_code_t::device_memory_violation))
+    return "DEVICE_MEMORY_VIOLATION";
+  if (has_os_exception (exception_mask, os_exception_code_t::device_ras_error))
+    return "DEVICE_RAS_ERROR";
+  if (has_os_exception (exception_mask,
+                        os_exception_code_t::device_fatal_halt))
+    return "DEVICE_FATAL_HALT";
+  if (has_os_exception (exception_mask, os_exception_code_t::device_new))
+    return "DEVICE_NEW";
+  if (has_os_exception (exception_mask,
+                        os_exception_code_t::process_runtime_enable))
+    return "PROCESS_RUNTIME_ENABLE";
+  if (has_os_exception (exception_mask,
+                        os_exception_code_t::process_runtime_disable))
+    return "PROCESS_RUNTIME_DISABLE";
+  if (has_os_exception (exception_mask,
+                        os_exception_code_t::process_device_remove))
+    return "PROCESS_REMOVE";
+
   return to_string (
     make_hex (static_cast<std::underlying_type_t<decltype (exception_mask)>> (
       exception_mask)));
@@ -974,10 +1106,10 @@ to_string (os_exception_mask_t exception_mask)
 {
   std::string str;
 
-  if (!exception_mask)
+  if (exception_mask == os_exception_mask_t::none)
     return one_os_exception_to_string (exception_mask);
 
-  while (exception_mask != 0)
+  while (exception_mask != os_exception_mask_t::none)
     {
       os_exception_mask_t one_bit
         = exception_mask ^ (exception_mask & (exception_mask - 1));
@@ -990,6 +1122,13 @@ to_string (os_exception_mask_t exception_mask)
     }
 
   return str;
+}
+
+template <>
+std::string
+to_string (os_exception_code_t exception_code)
+{
+  return one_os_exception_to_string (os_exception_mask (exception_code));
 }
 
 } /* namespace amd::dbgapi */

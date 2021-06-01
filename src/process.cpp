@@ -495,7 +495,8 @@ process_t::update_agents ()
       agent_infos.resize (agent_count);
 
       amd_dbgapi_status_t status = os_driver ().agent_snapshot (
-        agent_infos.data (), agent_count, &agent_count);
+        agent_infos.data (), agent_count, &agent_count,
+        os_exception_mask_t::none);
       if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
         agent_count = 0;
       else if (status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -880,7 +881,10 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
 
   int ret = os_driver ().suspend_queues (
     queue_ids.data (), queue_ids.size (),
-    os_exception_mask_t::trap_handler | os_exception_mask_t::memory_violation);
+    os_exception_mask (os_exception_code_t::queue_trap)
+      | os_exception_mask (os_exception_code_t::queue_illegal_instruction)
+      | os_exception_mask (os_exception_code_t::queue_memory_violation)
+      | os_exception_mask (os_exception_code_t::queue_aperture_violation));
   if (ret == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
     {
       for (auto &&queue : queues)
@@ -1030,7 +1034,7 @@ process_t::update_queues ()
 
       amd_dbgapi_status_t status = os_driver ().queue_snapshot (
         snapshots.data (), snapshot_count, &queue_count,
-        os_exception_mask_t::queue_new);
+        os_exception_mask (os_exception_code_t::queue_new));
 
       if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
         {
@@ -1057,9 +1061,8 @@ process_t::update_queues ()
             = find_if ([&] (const queue_t &x)
                        { return x.os_queue_id () == queue_info.queue_id; });
 
-          if ((os_queue_exception_status (queue_info)
-               & os_exception_mask_t::queue_new)
-              != 0)
+          if (has_os_exception (os_queue_exception_status (queue_info),
+                                os_exception_code_t::queue_new))
             {
               /* If there is a stale queue with the same os_queue_id,
                  destroy it.  */
@@ -1250,6 +1253,10 @@ process_t::attach ()
      to suspend the queues (and update the waves).  */
   set_flag (flag_t::assign_new_ids_to_all_waves);
 
+  /* Queues that are already created will not be reported with a queue_new
+    exception, so assume all queues reported by queue snapshot are new.  */
+  clear_flag (flag_t::require_new_queue_bit);
+
   auto on_runtime_load_callback = [this] (const shared_library_t &library)
   {
     amd_dbgapi_status_t status;
@@ -1262,10 +1269,12 @@ process_t::attach ()
         return;
       }
 
-    status
-      = os_driver ().enable_debug (os_exception_mask_t::trap_handler
-                                     | os_exception_mask_t::memory_violation,
-                                   m_client_notifier_pipe.write_fd ());
+    status = os_driver ().enable_debug (
+      os_exception_mask (os_exception_code_t::queue_trap)
+        | os_exception_mask (os_exception_code_t::queue_illegal_instruction)
+        | os_exception_mask (os_exception_code_t::queue_memory_violation)
+        | os_exception_mask (os_exception_code_t::queue_aperture_violation),
+      m_client_notifier_pipe.write_fd ());
     if (status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
       {
         enqueue_event (
@@ -1320,7 +1329,7 @@ process_t::attach ()
     if (status != AMD_DBGAPI_STATUS_SUCCESS)
       error ("update_queues failed (rc=%d)", status);
 
-    /* From now on, new queues reported by kfd should have NEW_QUEUE set.  */
+    /* From now on, newly created queues raise a queue_new exception.  */
     set_flag (flag_t::require_new_queue_bit);
 
     std::vector<queue_t *> queues;
@@ -1517,51 +1526,42 @@ process_t::query_debug_event ()
 
       amd_dbgapi_status_t status = os_driver ().query_debug_event (
         &exceptions, &source_id,
-        os_exception_mask_t::trap_handler
-          | os_exception_mask_t::memory_violation
-          | os_exception_mask_t::queue_new);
+        os_exception_mask (os_exception_code_t::queue_trap)
+          | os_exception_mask (os_exception_code_t::queue_illegal_instruction)
+          | os_exception_mask (os_exception_code_t::queue_memory_violation)
+          | os_exception_mask (os_exception_code_t::queue_aperture_violation)
+          | os_exception_mask (os_exception_code_t::queue_new));
 
       if (status != AMD_DBGAPI_STATUS_SUCCESS
           && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
         error ("os_driver_t::query_debug_event failed (rc=%d)", status);
 
-      if (exceptions == os_exception_mask_t::none
-          || status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+      if (!exceptions || status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
         {
           /* There are no more events.  */
           return { this, os_exception_mask_t::none };
         }
 
-      if ((exceptions & os_process_exceptions_mask) != 0)
+      if (is_os_exception_mask_type_process (exceptions))
+        return { this, exceptions };
+
+      if (is_os_exception_mask_type_device (exceptions))
         {
-          dbgapi_assert ((exceptions & ~os_process_exceptions_mask) == 0
-                         && "can only have process exceptions");
-
-          return { this, exceptions };
-        }
-
-      if ((exceptions & os_agent_exceptions_mask) != 0)
-        {
-          dbgapi_assert ((exceptions & ~os_agent_exceptions_mask) == 0
-                         && "can only have device exceptions");
-
           /* Find the agent by matching its os_agent_id with the one
              returned by the ioctl.  */
           agent_t *agent
             = find_if ([source_id] (const agent_t &q)
                        { return q.os_agent_id () == source_id.agent; });
 
-          if (agent)
-            return { agent, exceptions };
+          if (!agent)
+            error ("could not find os_agent_id %d", source_id.agent);
 
-          error ("could not find os_agent_id %d", source_id.agent);
+          return { agent, exceptions };
         }
 
       /* We've handled process and device exceptions, the only exceptions
          left are queue exceptions.  */
-      dbgapi_assert ((exceptions & os_queue_exceptions_mask) != 0
-                     && (exceptions & ~os_queue_exceptions_mask) == 0
-                     && "can only have queue exceptions");
+      dbgapi_assert (is_os_exception_mask_type_queue (exceptions));
 
       /* Find the queue by matching its os_queue_id with the one
          returned by the ioctl.  */
@@ -1572,7 +1572,7 @@ process_t::query_debug_event ()
 
       /* If this is a new queue, update the queues to make sure we don't
          return a stale queue with the same os_queue_id.  */
-      if ((exceptions & os_exception_mask_t::queue_new) != 0)
+      if (has_os_exception (exceptions, os_exception_code_t::queue_new))
         {
           /* If there is a stale queue with the same os_queue_id, destroy it.
            */
@@ -1664,7 +1664,7 @@ process_t::next_pending_event ()
                 std::visit ([] (auto &&x) -> bool { return x; }, source)
                 && "source cannot be null");
 
-              if (exceptions == os_exception_mask_t::none)
+              if (!exceptions)
                 break;
 
               dbgapi_log (
@@ -1674,18 +1674,14 @@ process_t::next_pending_event ()
                   .c_str (),
                 to_string (exceptions).c_str ());
 
-              if ((exceptions & os_exception_mask_t::memory_violation) != 0)
-                {
-                  agent_t *agent = std::get<agent_t *> (source);
-
-                  /* All queues on the device should be suspended to inspect
-                     the state.  */
-                  for (auto &&queue : range<queue_t> ())
-                    if (!queue.is_suspended () && queue.agent () == *agent)
-                      queues_needing_suspend.emplace (&queue);
-                }
-
-              if ((exceptions & os_exception_mask_t::trap_handler) != 0)
+              if (has_os_exception (
+                    exceptions, os_exception_code_t::queue_illegal_instruction)
+                  || has_os_exception (
+                    exceptions, os_exception_code_t::queue_memory_violation)
+                  || has_os_exception (
+                    exceptions, os_exception_code_t::queue_aperture_violation)
+                  || has_os_exception (exceptions,
+                                       os_exception_code_t::queue_trap))
                 {
                   queue_t *queue = std::get<queue_t *> (source);
 

@@ -1409,8 +1409,10 @@ amdgcn_architecture_t::get_wave_state (
     reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_FP_INEXACT;
   if (trapsts & sq_wave_trapsts_excp_int_div0_mask)
     reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_INT_DIVIDE_BY_0;
-  if (trapsts & sq_wave_trapsts_excp_mem_viol_mask)
+  if (trapsts & sq_wave_trapsts_xnack_error_mask)
     reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_MEMORY_VIOLATION;
+  else if (trapsts & sq_wave_trapsts_excp_mem_viol_mask)
+    reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_APERTURE_VIOLATION;
   if (trapsts & sq_wave_trapsts_illegal_inst_mask)
     reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_ILLEGAL_INSTRUCTION;
   if (trapsts

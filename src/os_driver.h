@@ -101,58 +101,101 @@ union os_source_id_t
 };
 static_assert (sizeof (os_source_id_t) == sizeof (uint32_t));
 
-enum class os_exception_mask_t : uint64_t
+enum class os_exception_code_t : uint32_t
 {
   none = EC_NONE,
 
   /* per queue exceptions  */
-  queue_new = KFD_EC_MASK (EC_QUEUE_NEW),
-  trap_handler = KFD_EC_MASK (EC_TRAP_HANDLER),
-  cp_packet_error = KFD_EC_MASK (EC_CP_PACKET_ERROR),
-  hws_preemption_error = KFD_EC_MASK (EC_HWS_PREEMPTION_ERROR),
+  queue_new = EC_QUEUE_NEW,
+  queue_trap = EC_QUEUE_TRAP,
+  queue_illegal_instruction = EC_QUEUE_ILLEGAL_INSTRUCTION,
+  queue_memory_violation = EC_QUEUE_MEMORY_VIOLATION,
+  queue_aperture_violation = EC_QUEUE_APERTURE_VIOLATION,
+  queue_packet_dispatch_dim_invalid = EC_QUEUE_PACKET_DISPATCH_DIM_INVALID,
+  queue_packet_dispatch_group_segment_size_invalid
+  = EC_QUEUE_PACKET_DISPATCH_GROUP_SEGMENT_SIZE_INVALID,
+  queue_packet_dispatch_code_invalid = EC_QUEUE_PACKET_DISPATCH_CODE_INVALID,
+  queue_packet_unsupported = EC_QUEUE_PACKET_UNSUPPORTED,
+  queue_packet_dispatch_work_group_size_invalid
+  = EC_QUEUE_PACKET_DISPATCH_WORK_GROUP_SIZE_INVALID,
+  queue_packet_dispatch_register_invalid
+  = EC_QUEUE_PACKET_DISPATCH_REGISTER_INVALID,
+  queue_packet_dispatch_vendor_unsupported
+  = EC_QUEUE_PACKET_VENDOR_UNSUPPORTED,
+  queue_preemption_error = EC_QUEUE_PREEMPTION_ERROR,
 
   /* per device exceptions  */
-  memory_violation = KFD_EC_MASK (EC_MEMORY_VIOLATION),
-  ras_error = KFD_EC_MASK (EC_RAS_ERROR),
-  fatal_halt = KFD_EC_MASK (EC_FATAL_HALT),
-  queue_delete = KFD_EC_MASK (EC_QUEUE_DELETE),
-  gpu_add = KFD_EC_MASK (EC_GPU_ADD),
+  device_queue_delete = EC_DEVICE_QUEUE_DELETE,
+  device_memory_violation = EC_DEVICE_MEMORY_VIOLATION,
+  device_ras_error = EC_DEVICE_RAS_ERROR,
+  device_fatal_halt = EC_DEVICE_FATAL_HALT,
+  device_new = EC_DEVICE_NEW,
 
   /* per process exceptions  */
-  runtime_enable = KFD_EC_MASK (EC_RUNTIME_ENABLE),
-  runtime_disable = KFD_EC_MASK (EC_RUNTIME_DISABLE),
-  gpu_remove = KFD_EC_MASK (EC_GPU_REMOVE),
+  process_runtime_enable = EC_PROCESS_RUNTIME_ENABLE,
+  process_runtime_disable = EC_PROCESS_RUNTIME_DISABLE,
+  process_device_remove = EC_PROCESS_DEVICE_REMOVE,
+};
+
+enum class os_exception_mask_t : uint64_t
+{
+  none = 0,
 };
 template <> struct is_flag<os_exception_mask_t> : std::true_type
 {
 };
 
-static constexpr os_exception_mask_t os_queue_exceptions_mask
-  = static_cast<os_exception_mask_t> (KFD_EC_MASK_QUEUE);
+constexpr os_exception_mask_t
+os_exception_mask (os_exception_code_t os_exception_code)
+{
+  if (os_exception_code == os_exception_code_t::none)
+    return os_exception_mask_t::none;
 
-static_assert (os_queue_exceptions_mask
-               == (os_exception_mask_t::queue_new
-                   | os_exception_mask_t::trap_handler
-                   | os_exception_mask_t::cp_packet_error
-                   | os_exception_mask_t::hws_preemption_error));
+  return os_exception_mask_t{ KFD_EC_MASK (
+    static_cast<int> (os_exception_code)) };
+}
 
-static constexpr os_exception_mask_t os_agent_exceptions_mask
-  = static_cast<os_exception_mask_t> (KFD_EC_MASK_DEVICE);
+constexpr bool
+has_os_exception (os_exception_mask_t mask, os_exception_code_t code)
+{
+  return (mask & os_exception_mask (code)) != 0;
+}
 
-static_assert (os_agent_exceptions_mask
-               == (os_exception_mask_t::memory_violation
-                   | os_exception_mask_t::ras_error
-                   | os_exception_mask_t::fatal_halt
-                   | os_exception_mask_t::queue_delete
-                   | os_exception_mask_t::gpu_add));
+constexpr bool
+is_os_exception_mask_type_queue (os_exception_mask_t os_exception_mask)
+{
+  constexpr os_exception_mask_t queue_exception_mask{ KFD_EC_MASK_QUEUE };
 
-static constexpr os_exception_mask_t os_process_exceptions_mask
-  = static_cast<os_exception_mask_t> (KFD_EC_MASK_PROCESS);
+  dbgapi_assert (!(os_exception_mask & queue_exception_mask)
+                   != !(os_exception_mask & ~queue_exception_mask)
+                 && "invalid exception mask: mixed sources");
 
-static_assert (os_process_exceptions_mask
-               == (os_exception_mask_t::runtime_enable
-                   | os_exception_mask_t::runtime_disable
-                   | os_exception_mask_t::gpu_remove));
+  return (os_exception_mask & queue_exception_mask) != 0;
+}
+
+constexpr bool
+is_os_exception_mask_type_device (os_exception_mask_t os_exception_mask)
+{
+  constexpr os_exception_mask_t device_exception_mask{ KFD_EC_MASK_DEVICE };
+
+  dbgapi_assert (!(os_exception_mask & device_exception_mask)
+                   != !(os_exception_mask & ~device_exception_mask)
+                 && "invalid exception mask: mixed sources");
+
+  return (os_exception_mask & device_exception_mask) != 0;
+}
+
+constexpr bool
+is_os_exception_mask_type_process (os_exception_mask_t os_exception_mask)
+{
+  constexpr os_exception_mask_t process_exception_mask{ KFD_EC_MASK_PROCESS };
+
+  dbgapi_assert (!(os_exception_mask & process_exception_mask)
+                   != !(os_exception_mask & ~process_exception_mask)
+                 && "invalid exception mask: mixed sources");
+
+  return (os_exception_mask & process_exception_mask) != 0;
+}
 
 enum class os_wave_launch_trap_override_t : uint32_t
 {
@@ -232,7 +275,8 @@ public:
 
   virtual amd_dbgapi_status_t
   agent_snapshot (os_agent_snapshot_entry_t *snapshots, size_t snapshot_count,
-                  size_t *agent_count) const = 0;
+                  size_t *agent_count,
+                  os_exception_mask_t exceptions_cleared) const = 0;
 
   virtual amd_dbgapi_status_t
   enable_debug (os_exception_mask_t exceptions_reported, file_desc_t notifier)
@@ -240,11 +284,21 @@ public:
   virtual amd_dbgapi_status_t disable_debug () = 0;
   virtual bool is_debug_enabled () const = 0;
 
+  virtual amd_dbgapi_status_t send_runtime_event (os_exception_code_t event,
+                                                  os_source_id_t os_source_id
+                                                  = {}) const = 0;
+
   virtual amd_dbgapi_status_t
   query_debug_event (os_exception_mask_t *exceptions_present,
                      os_source_id_t *os_source_id,
                      os_exception_mask_t exceptions_cleared)
     = 0;
+
+  virtual amd_dbgapi_status_t
+  query_exception_info (os_exception_code_t exception,
+                        os_source_id_t os_source_id, void *exception_info,
+                        size_t exception_info_size,
+                        bool clear_exception) const = 0;
 
   virtual size_t
   suspend_queues (os_queue_id_t *queues, size_t queue_count,
