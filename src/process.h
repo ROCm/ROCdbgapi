@@ -99,7 +99,7 @@ private:
 
   amd_dbgapi_client_process_id_t const m_client_process_id;
   amd_dbgapi_os_process_id_t m_os_process_id{};
-  amd_dbgapi_global_address_t m_r_debug_address{ 0 };
+  std::optional<amd_dbgapi_global_address_t> m_r_debug_address;
 
   std::unique_ptr<os_driver_t> m_os_driver{};
   flag_t m_flags{};
@@ -138,7 +138,7 @@ private:
 
   std::pair<std::variant<process_t *, agent_t *, queue_t *>,
             os_exception_mask_t>
-  query_debug_event ();
+  query_debug_event (os_exception_mask_t exceptions_cleared);
 
 public:
   process_t (amd_dbgapi_process_id_t process_id,
@@ -226,6 +226,9 @@ public:
   amd_dbgapi_status_t update_agents ();
   amd_dbgapi_status_t update_queues ();
   amd_dbgapi_status_t update_code_objects ();
+
+  void runtime_enable ();
+  void runtime_disable ();
 
   amd_dbgapi_status_t attach ();
   void detach ();

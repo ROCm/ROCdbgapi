@@ -1164,12 +1164,14 @@ process_t::update_queues ()
 amd_dbgapi_status_t
 process_t::update_code_objects ()
 {
+  dbgapi_assert (m_r_debug_address.has_value ());
+
   epoch_t code_object_mark = m_next_code_object_mark ();
   amd_dbgapi_status_t status;
 
   decltype (r_debug::r_state) state;
-  status = read_global_memory (m_r_debug_address + offsetof (r_debug, r_state),
-                               &state, sizeof (state));
+  status = read_global_memory (
+    *m_r_debug_address + offsetof (r_debug, r_state), &state, sizeof (state));
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     error ("read_global_memory failed (rc=%d)", status);
 
@@ -1182,7 +1184,7 @@ process_t::update_code_objects ()
     return AMD_DBGAPI_STATUS_SUCCESS;
 
   amd_dbgapi_global_address_t link_map_address;
-  status = read_global_memory (m_r_debug_address + offsetof (r_debug, r_map),
+  status = read_global_memory (*m_r_debug_address + offsetof (r_debug, r_map),
                                &link_map_address, sizeof (link_map_address));
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     error ("read_global_memory failed (rc=%d)", status);
@@ -1245,6 +1247,160 @@ process_t::update_code_objects ()
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
+void
+process_t::runtime_enable ()
+{
+  dbgapi_assert (m_r_debug_address.has_value ());
+
+  if (os_driver ().check_version () != AMD_DBGAPI_STATUS_SUCCESS)
+    {
+      enqueue_event (
+        create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
+                         AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION));
+      return;
+    }
+
+  /* Check the r_version.  */
+  int r_version;
+  amd_dbgapi_status_t status = read_global_memory (
+    *m_r_debug_address + offsetof (struct r_debug, r_version), &r_version,
+    sizeof (r_version));
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("read_global_memory failed (rc=%d)", status);
+
+  if (r_version != ROCR_RDEBUG_VERSION)
+    {
+      warning ("AMD GPU runtime _amdgpu_r_debug.r_version %d does not"
+               " match %d requirement",
+               r_version, ROCR_RDEBUG_VERSION);
+      enqueue_event (
+        create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
+                         AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION));
+      return;
+    }
+
+  /* Install a breakpoint at _amd_r_debug.r_brk.  The runtime calls this
+     function before updating the code object list, and after completing
+     updating the code object list.  */
+
+  amd_dbgapi_global_address_t r_brk_address;
+  status = read_global_memory (*m_r_debug_address
+                                 + offsetof (struct r_debug, r_brk),
+                               &r_brk_address, sizeof (r_brk_address));
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("read_global_memory failed (rc=%d)", status);
+
+  /* This function gets called when the client reports that the breakpoint
+     has been hit.  */
+  auto r_brk_callback = [this] (breakpoint_t &breakpoint,
+                                amd_dbgapi_client_thread_id_t client_thread_id,
+                                amd_dbgapi_breakpoint_action_t *action)
+  {
+    /* Save the current 'changed' status of code_object_t`s.  */
+    bool saved_changed = set_changed<code_object_t> (false);
+
+    update_code_objects ();
+
+    /* If nothing has changed, we don't need to report an event.  */
+    if (!set_changed<code_object_t> (changed<code_object_t> ()
+                                     | saved_changed))
+      {
+        *action = AMD_DBGAPI_BREAKPOINT_ACTION_RESUME;
+        return AMD_DBGAPI_STATUS_SUCCESS;
+      }
+
+    /* Create a breakpoint resume event that will be enqueued when the
+       code object list updated event is reported as processed.  This
+       will allow the client thread to resume execution.  */
+    event_t &breakpoint_resume_event
+      = create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_BREAKPOINT_RESUME,
+                         breakpoint.id (), client_thread_id);
+
+    /* Enqueue a code object list updated event.  */
+    enqueue_event (
+      create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED,
+                       breakpoint_resume_event.id ()));
+
+    /* Tell the client thread that it cannot resume execution until it
+       sees the breakpoint resume event for this breakpoint_id and
+       report it as processed.  */
+    *action = AMD_DBGAPI_BREAKPOINT_ACTION_HALT;
+    return AMD_DBGAPI_STATUS_SUCCESS;
+  };
+
+  create<breakpoint_t> (/* FIXME */ *range<shared_library_t> ().begin (),
+                        r_brk_address, r_brk_callback);
+
+  status = update_code_objects ();
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("update_code_objects failed (rc=%d)", status);
+
+  status = os_driver ().set_wave_launch_mode (m_wave_launch_mode);
+  if (status != AMD_DBGAPI_STATUS_SUCCESS
+      && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    error ("Could not set the wave launch mode for %s (rc=%d).",
+           to_string (id ()).c_str (), status);
+
+  os_wave_launch_trap_mask_t supported_wave_trap_mask;
+  status = os_driver ().set_wave_launch_trap_override (
+    os_wave_launch_trap_override_t::apply, os_wave_launch_trap_mask_t::none,
+    os_wave_launch_trap_mask_t::none, nullptr, &supported_wave_trap_mask);
+  if (status != AMD_DBGAPI_STATUS_SUCCESS
+      && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    error ("Could not set the wave launch trap override for %s (rc=%d).",
+           to_string (id ()).c_str (), status);
+
+  if ((m_wave_trap_mask & ~supported_wave_trap_mask) != 0)
+    error ("Unsupported wave trap mask (%s) requested for %s",
+           to_string (m_wave_trap_mask & ~supported_wave_trap_mask).c_str (),
+           to_string (id ()).c_str ());
+
+  status = os_driver ().set_wave_launch_trap_override (
+    os_wave_launch_trap_override_t::apply, m_wave_trap_mask,
+    supported_wave_trap_mask);
+  if (status != AMD_DBGAPI_STATUS_SUCCESS
+      && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    error ("Could not set the wave launch trap override for %s (rc=%d).",
+           to_string (id ()).c_str (), status);
+
+  if (m_supports_precise_memory)
+    {
+      status = os_driver ().set_precise_memory (m_precise_memory);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS
+          && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+        error ("Could not set precise memory for %s (rc=%d).",
+               to_string (id ()).c_str (), status);
+    }
+
+  std::vector<queue_t *> queues;
+  for (auto &&queue : range<queue_t> ())
+    queues.emplace_back (&queue);
+
+  /* Suspend the newly created queues to update the waves, then resume them.
+     We could have attached to the process while wavefronts were executing.
+   */
+  suspend_queues (queues, "attach to process");
+  clear_flag (flag_t::assign_new_ids_to_all_waves);
+  resume_queues (queues, "attach to process");
+
+  enqueue_event (create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
+                                  AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS));
+}
+
+void
+process_t::runtime_disable ()
+{
+  /* Destruct the code objects.  */
+  std::get<handle_object_set_t<code_object_t>> (m_handle_object_sets).clear ();
+
+  amd_dbgapi_status_t status = update_agents ();
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("update_agents failed (rc=%d)", status);
+
+  enqueue_event (create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
+                                  AMD_DBGAPI_RUNTIME_STATE_UNLOADED));
+}
+
 amd_dbgapi_status_t
 process_t::attach ()
 {
@@ -1257,181 +1413,33 @@ process_t::attach ()
     exception, so assume all queues reported by queue snapshot are new.  */
   clear_flag (flag_t::require_new_queue_bit);
 
-  auto on_runtime_load_callback = [this] (const shared_library_t &library)
+  auto on_runtime_load_callback = [] (const shared_library_t &library)
   {
-    amd_dbgapi_status_t status;
+    process_t &process = library.process ();
 
-    if (os_driver ().check_version () != AMD_DBGAPI_STATUS_SUCCESS)
-      {
-        enqueue_event (
-          create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
-                           AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION));
-        return;
-      }
-
-    status = os_driver ().enable_debug (
-      os_exception_mask (os_exception_code_t::queue_trap)
+    amd_dbgapi_status_t status = process.os_driver ().enable_debug (
+      os_exception_mask (os_exception_code_t::process_runtime_enable)
+        | os_exception_mask (os_exception_code_t::process_runtime_disable)
+        | os_exception_mask (os_exception_code_t::queue_trap)
         | os_exception_mask (os_exception_code_t::queue_illegal_instruction)
         | os_exception_mask (os_exception_code_t::queue_memory_violation)
         | os_exception_mask (os_exception_code_t::queue_aperture_violation),
-      m_client_notifier_pipe.write_fd ());
+      process.m_client_notifier_pipe.write_fd ());
     if (status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
       {
-        enqueue_event (
-          create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
-                           AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION));
+        process.enqueue_event (process.create<event_t> (
+          process, AMD_DBGAPI_EVENT_KIND_RUNTIME,
+          AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION));
         return;
       }
     else if (status != AMD_DBGAPI_STATUS_SUCCESS)
       error ("enable_debug failed (rc=%d)", status);
 
     dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "debugging is enabled for %s",
-                to_string (id ()).c_str ());
-
-    status = os_driver ().set_wave_launch_mode (m_wave_launch_mode);
-    if (status != AMD_DBGAPI_STATUS_SUCCESS
-        && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-      error ("Could not set the wave launch mode for %s (rc=%d).",
-             to_string (id ()).c_str (), status);
-
-    os_wave_launch_trap_mask_t supported_wave_trap_mask;
-    status = os_driver ().set_wave_launch_trap_override (
-      os_wave_launch_trap_override_t::apply, os_wave_launch_trap_mask_t::none,
-      os_wave_launch_trap_mask_t::none, nullptr, &supported_wave_trap_mask);
-    if (status != AMD_DBGAPI_STATUS_SUCCESS
-        && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-      error ("Could not set the wave launch trap override for %s (rc=%d).",
-             to_string (id ()).c_str (), status);
-
-    if ((m_wave_trap_mask & ~supported_wave_trap_mask) != 0)
-      error ("Unsupported wave trap mask (%s) requested for %s",
-             to_string (m_wave_trap_mask & ~supported_wave_trap_mask).c_str (),
-             to_string (id ()).c_str ());
-
-    status = os_driver ().set_wave_launch_trap_override (
-      os_wave_launch_trap_override_t::apply, m_wave_trap_mask,
-      supported_wave_trap_mask);
-    if (status != AMD_DBGAPI_STATUS_SUCCESS
-        && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-      error ("Could not set the wave launch trap override for %s (rc=%d).",
-             to_string (id ()).c_str (), status);
-
-    if (m_supports_precise_memory)
-      {
-        status = os_driver ().set_precise_memory (m_precise_memory);
-        if (status != AMD_DBGAPI_STATUS_SUCCESS
-            && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-          error ("Could not set precise memory for %s (rc=%d).",
-                 to_string (id ()).c_str (), status);
-      }
-
-    status = update_queues ();
-    if (status != AMD_DBGAPI_STATUS_SUCCESS)
-      error ("update_queues failed (rc=%d)", status);
-
-    /* From now on, newly created queues raise a queue_new exception.  */
-    set_flag (flag_t::require_new_queue_bit);
-
-    std::vector<queue_t *> queues;
-    for (auto &&queue : range<queue_t> ())
-      queues.emplace_back (&queue);
-
-    /* Suspend the newly created queues to update the waves, then resume them.
-       We could have attached to the process while wavefronts were executing.
-     */
-    suspend_queues (queues, "attach to process");
-    clear_flag (flag_t::assign_new_ids_to_all_waves);
-    resume_queues (queues, "attach to process");
-
-    /* Retrieve the address of the rendez-vous structure (_amd_gpu_r_debug)
-       used by the runtime loader to communicate details of code objects
-       loading to the debugger.  */
-    constexpr char amdgpu_r_debug_symbol_name[] = "_amdgpu_r_debug";
-    if (get_symbol_address (library.id (), amdgpu_r_debug_symbol_name,
-                            &m_r_debug_address)
-        != AMD_DBGAPI_STATUS_SUCCESS)
-      error ("Cannot find symbol `%s'", amdgpu_r_debug_symbol_name);
-
-    /* Check the r_version.  */
-    int r_version;
-    status = read_global_memory (m_r_debug_address
-                                   + offsetof (struct r_debug, r_version),
-                                 &r_version, sizeof (r_version));
-    if (status != AMD_DBGAPI_STATUS_SUCCESS)
-      error ("read_global_memory failed (rc=%d)", status);
-
-    if (r_version != ROCR_RDEBUG_VERSION)
-      {
-        warning ("%s: AMD GPU runtime _amdgpu_r_debug.r_version %d "
-                 "does not match %d requirement",
-                 library.name ().c_str (), r_version, ROCR_RDEBUG_VERSION);
-        enqueue_event (
-          create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
-                           AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION));
-        return;
-      }
-
-    /* Install a breakpoint at _amd_r_debug.r_brk.  The runtime calls this
-       function before updating the code object list, and after completing
-       updating the code object list.  */
-
-    amd_dbgapi_global_address_t r_brk_address;
-    status = read_global_memory (m_r_debug_address
-                                   + offsetof (struct r_debug, r_brk),
-                                 &r_brk_address, sizeof (r_brk_address));
-    if (status != AMD_DBGAPI_STATUS_SUCCESS)
-      error ("read_global_memory failed (rc=%d)", status);
-
-    /* This function gets called when the client reports that the breakpoint
-       has been hit.  */
-    auto r_brk_callback
-      = [this] (breakpoint_t &breakpoint,
-                amd_dbgapi_client_thread_id_t client_thread_id,
-                amd_dbgapi_breakpoint_action_t *action)
-    {
-      /* Save the current 'changed' status of code_object_t`s.  */
-      bool saved_changed = set_changed<code_object_t> (false);
-
-      update_code_objects ();
-
-      /* If nothing has changed, we don't need to report an event.  */
-      if (!set_changed<code_object_t> (changed<code_object_t> ()
-                                       | saved_changed))
-        {
-          *action = AMD_DBGAPI_BREAKPOINT_ACTION_RESUME;
-          return AMD_DBGAPI_STATUS_SUCCESS;
-        }
-
-      /* Create a breakpoint resume event that will be enqueued when the
-         code object list updated event is reported as processed.  This
-         will allow the client thread to resume execution.  */
-      event_t &breakpoint_resume_event
-        = create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_BREAKPOINT_RESUME,
-                           breakpoint.id (), client_thread_id);
-
-      /* Enqueue a code object list updated event.  */
-      enqueue_event (
-        create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED,
-                         breakpoint_resume_event.id ()));
-
-      /* Tell the client thread that it cannot resume execution until it
-         sees the breakpoint resume event for this breakpoint_id and
-         report it as processed.  */
-      *action = AMD_DBGAPI_BREAKPOINT_ACTION_HALT;
-      return AMD_DBGAPI_STATUS_SUCCESS;
-    };
-
-    create<breakpoint_t> (library, r_brk_address, r_brk_callback);
-
-    status = update_code_objects ();
-    if (status != AMD_DBGAPI_STATUS_SUCCESS)
-      error ("update_code_objects failed (rc=%d)", status);
-
-    enqueue_event (create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
-                                    AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS));
+                to_string (process.id ()).c_str ());
   };
 
-  auto on_runtime_unload_callback = [this] (const shared_library_t &library)
+  auto on_runtime_unload_callback = [] (const shared_library_t &library)
   {
     process_t &process = library.process ();
 
@@ -1439,17 +1447,6 @@ process_t::attach ()
     auto &&breakpoint_range = process.range<breakpoint_t> ();
     for (auto it = breakpoint_range.begin (); it != breakpoint_range.end ();)
       it = (it->shared_library () == library) ? process.destroy (it) : ++it;
-
-    /* Destruct the code objects.  */
-    std::get<handle_object_set_t<code_object_t>> (m_handle_object_sets)
-      .clear ();
-
-    amd_dbgapi_status_t status = update_agents ();
-    if (status != AMD_DBGAPI_STATUS_SUCCESS)
-      error ("update_agents failed (rc=%d)", status);
-
-    enqueue_event (create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
-                                    AMD_DBGAPI_RUNTIME_STATE_UNLOADED));
   };
 
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "attaching %s to process %d",
@@ -1458,6 +1455,13 @@ process_t::attach ()
   amd_dbgapi_status_t status = update_agents ();
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     error ("update_agents failed (rc=%d)", status);
+
+  status = update_queues ();
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("update_queues failed (rc=%d)", status);
+
+  /* From now on, newly created queues raise a queue_new exception.  */
+  set_flag (flag_t::require_new_queue_bit);
 
   /* Set/remove internal breakpoints when the runtime is loaded/unloaded.  */
   shared_library_t &shared_library = create<shared_library_t> (
@@ -1514,7 +1518,7 @@ process_t::enqueue_event (event_t &event)
 }
 
 std::pair<std::variant<process_t *, agent_t *, queue_t *>, os_exception_mask_t>
-process_t::query_debug_event ()
+process_t::query_debug_event (os_exception_mask_t cleared_exceptions)
 {
   if (!os_driver ().is_debug_enabled ())
     return { this, os_exception_mask_t::none };
@@ -1525,12 +1529,7 @@ process_t::query_debug_event ()
       os_exception_mask_t exceptions;
 
       amd_dbgapi_status_t status = os_driver ().query_debug_event (
-        &exceptions, &source_id,
-        os_exception_mask (os_exception_code_t::queue_trap)
-          | os_exception_mask (os_exception_code_t::queue_illegal_instruction)
-          | os_exception_mask (os_exception_code_t::queue_memory_violation)
-          | os_exception_mask (os_exception_code_t::queue_aperture_violation)
-          | os_exception_mask (os_exception_code_t::queue_new));
+        &exceptions, &source_id, cleared_exceptions);
 
       if (status != AMD_DBGAPI_STATUS_SUCCESS
           && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
@@ -1635,101 +1634,6 @@ process_t::query_debug_event ()
 event_t *
 process_t::next_pending_event ()
 {
-  /* If we don't have any events left, we have to suspend the queues with
-     pending events and process their context save area to add events for
-     the waves that have reported events.  */
-  if (m_pending_events.empty ())
-    {
-      std::vector<queue_t *> queues_needing_resume;
-      queues_needing_resume.reserve (count<queue_t> ());
-
-      /* It is possible for new events to be generated between the time we
-         query the agents for pending queue events and the time we actually
-         suspend the queues.  To make sure all events associated with the
-         suspended queues are consumed, we loop until no new queue events are
-         reported.
-         This is guaranteed to terminate as once a queue is suspended it cannot
-         create any new events. A queue will require at most 2 iterations; and
-         if any new events occur on additional queues those queues will be
-         suspended by additional iterations, and since there are a finite
-         number of queues N, this can at most result in 2*N iterations.  */
-      while (true)
-        {
-          std::unordered_set<queue_t *> queues_needing_suspend;
-
-          while (true)
-            {
-              auto [source, exceptions] = query_debug_event ();
-              dbgapi_assert (
-                std::visit ([] (auto &&x) -> bool { return x; }, source)
-                && "source cannot be null");
-
-              if (!exceptions)
-                break;
-
-              dbgapi_log (
-                AMD_DBGAPI_LOG_LEVEL_INFO, "%s has pending exceptions (%s)",
-                std::visit ([] (auto &&x) { return to_string (x->id ()); },
-                            source)
-                  .c_str (),
-                to_string (exceptions).c_str ());
-
-              if (has_os_exception (
-                    exceptions, os_exception_code_t::queue_illegal_instruction)
-                  || has_os_exception (
-                    exceptions, os_exception_code_t::queue_memory_violation)
-                  || has_os_exception (
-                    exceptions, os_exception_code_t::queue_aperture_violation)
-                  || has_os_exception (exceptions,
-                                       os_exception_code_t::queue_trap))
-                {
-                  queue_t *queue = std::get<queue_t *> (source);
-
-                  /* The queue may already be suspended. This can happen if
-                     an event occurs after requesting the queue to be
-                     suspended and before that request has completed, or if
-                     the act of suspending a wave generates a new event (such
-                     as for the single step work-around in the CWSR handler).
-                   */
-                  if (!queue->is_suspended ())
-                    queues_needing_suspend.emplace (queue);
-                }
-            }
-
-          /* Convert the std::set<queue_t *> into a std::vector<queue_t *>.  */
-          std::vector<queue_t *> queues;
-          queues.reserve (queues_needing_suspend.size ());
-          std::copy (queues_needing_suspend.begin (),
-                     queues_needing_suspend.end (),
-                     std::back_inserter (queues));
-
-          /* Suspend the queues that have pending events which will cause all
-             events to be created for any waves that have pending events.  */
-          if (suspend_queues (queues, "next pending event") != queues.size ())
-            {
-              /* Some queues may have become invalid since we retrieved the
-                 event, failed to suspend, and marked by suspend_queues () as
-                 invalid. Remove such queues from our list, they will be
-                 destroyed next time we update the queues.  */
-              for (auto it = queues.begin (); it != queues.end ();)
-                it = (*it)->is_valid () ? std::next (it) : queues.erase (it);
-            }
-
-          /* Exit the loop if we did not add any new queues to suspend in
-             this iteration.  */
-          if (queues.empty ())
-            break;
-
-          /* If forward progress is needed, append queues into the list of
-             queues needing resume.  */
-          if (forward_progress_needed ())
-            queues_needing_resume.insert (queues_needing_resume.end (),
-                                          queues.begin (), queues.end ());
-        }
-
-      resume_queues (queues_needing_resume, "next pending event");
-    }
-
   if (!m_pending_events.empty ())
     {
       event_t *event = m_pending_events.front ();
@@ -1737,7 +1641,161 @@ process_t::next_pending_event ()
       return event;
     }
 
-  return nullptr;
+  /* If we don't have any events left, we have to suspend the queues with
+     pending events and process their context save area to add events for the
+     waves that have reported events.  */
+
+  std::vector<queue_t *> queues_needing_resume;
+  queues_needing_resume.reserve (count<queue_t> ());
+
+  /* It is possible for new events to be generated between the time we query
+     the agents for pending queue events and the time we actually suspend the
+     queues.  To make sure all events associated with the suspended queues are
+     consumed, we loop until no new queue events are reported.
+     This is guaranteed to terminate as once a queue is suspended it cannot
+     create any new events. A queue will require at most 2 iterations; and if
+     any new events occur on additional queues those queues will be suspended
+     by additional iterations, and since there are a finite number of queues N,
+     this can at most result in 2*N iterations.  */
+  while (true)
+    {
+      std::unordered_set<queue_t *> queues_needing_suspend;
+
+      while (true)
+        {
+          auto [source, exceptions] = query_debug_event (
+            os_exception_mask (os_exception_code_t::process_runtime_disable)
+            | os_exception_mask (os_exception_code_t::queue_trap)
+            | os_exception_mask (
+              os_exception_code_t::queue_illegal_instruction)
+            | os_exception_mask (os_exception_code_t::queue_memory_violation)
+            | os_exception_mask (os_exception_code_t::queue_aperture_violation)
+            | os_exception_mask (os_exception_code_t::queue_new));
+          dbgapi_assert (
+            std::visit ([] (auto &&x) -> bool { return x; }, source)
+            && "source cannot be null");
+
+          if (!exceptions)
+            break;
+
+          dbgapi_log (
+            AMD_DBGAPI_LOG_LEVEL_INFO, "%s has pending exceptions (%s)",
+            std::visit ([] (auto &&x) { return to_string (x->id ()); }, source)
+              .c_str (),
+            to_string (exceptions).c_str ());
+
+          if (has_os_exception (exceptions, os_exception_code_t::queue_trap)
+              || has_os_exception (
+                exceptions, os_exception_code_t::queue_illegal_instruction)
+              || has_os_exception (exceptions,
+                                   os_exception_code_t::queue_memory_violation)
+              || has_os_exception (
+                exceptions, os_exception_code_t::queue_aperture_violation))
+            {
+              queue_t *queue = std::get<queue_t *> (source);
+
+              /* The queue may already be suspended. This can happen if an
+                 event occurs after requesting the queue to be suspended and
+                 before that request has completed, or if the act of suspending
+                 a wave generates a new event (such as for the single step
+                 work-around in the CWSR handler).
+               */
+              if (!queue->is_suspended ())
+                queues_needing_suspend.emplace (queue);
+            }
+
+          if (has_os_exception (exceptions,
+                                os_exception_code_t::process_runtime_enable))
+            {
+              /* Make sure the runtime receives the process_runtime_enable
+                 event even if an exception is thrown.  */
+              utils::scope_exit send_runtime_event (
+                [this] ()
+                {
+                  amd_dbgapi_status_t status
+                    = os_driver ().send_runtime_event (
+                      os_exception_code_t::process_runtime_enable);
+                  if (status != AMD_DBGAPI_STATUS_SUCCESS
+                      && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+                    error ("send_runtime_event failed (rc=%d)", status);
+                });
+
+              /* Retrieve the address of the rendez-vous structure
+                 (_amd_gpu_r_debug) used by the runtime loader to communicate
+                 details of code objects loading to the debugger.  */
+
+              amd_dbgapi_global_address_t r_debug_address;
+              amd_dbgapi_status_t status = os_driver ().query_exception_info (
+                os_exception_code_t::process_runtime_enable, {},
+                &r_debug_address, sizeof (r_debug_address), true);
+              if (status == AMD_DBGAPI_STATUS_SUCCESS)
+                {
+                  m_r_debug_address.emplace (r_debug_address);
+                  runtime_enable ();
+                }
+              else if (status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+                error ("could not get r_debug's address for %s (rc=%d).",
+                       to_string (id ()).c_str (), status);
+            }
+
+          if (has_os_exception (exceptions,
+                                os_exception_code_t::process_runtime_disable))
+            {
+              /* Make sure the runtime receives the process_runtime_disable
+                 event even if an exception is thrown.  */
+              utils::scope_exit send_runtime_event (
+                [this] ()
+                {
+                  amd_dbgapi_status_t status
+                    = os_driver ().send_runtime_event (
+                      os_exception_code_t::process_runtime_disable);
+                  if (status != AMD_DBGAPI_STATUS_SUCCESS
+                      && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+                    error ("send_runtime_event failed (rc=%d)", status);
+                });
+
+              runtime_disable ();
+            }
+        }
+
+      /* Convert the std::set<queue_t *> into a std::vector<queue_t *>.  */
+      std::vector<queue_t *> queues;
+      queues.reserve (queues_needing_suspend.size ());
+      std::copy (queues_needing_suspend.begin (),
+                 queues_needing_suspend.end (), std::back_inserter (queues));
+
+      /* Suspend the queues that have pending events which will cause all
+         events to be created for any waves that have pending events.  */
+      if (suspend_queues (queues, "next pending event") != queues.size ())
+        {
+          /* Some queues may have become invalid since we retrieved the event,
+             failed to suspend, and marked by suspend_queues () as invalid.
+             Remove such queues from our list, they will be destroyed next time
+             we update the queues.  */
+          for (auto it = queues.begin (); it != queues.end ();)
+            it = (*it)->is_valid () ? std::next (it) : queues.erase (it);
+        }
+
+      /* Exit the loop if we did not add any new queues to suspend in this
+         iteration.  */
+      if (queues.empty ())
+        break;
+
+      /* If forward progress is needed, append queues into the list of queues
+         needing resume.  */
+      if (forward_progress_needed ())
+        queues_needing_resume.insert (queues_needing_resume.end (),
+                                      queues.begin (), queues.end ());
+    }
+
+  resume_queues (queues_needing_resume, "next pending event");
+
+  if (m_pending_events.empty ())
+    return nullptr;
+
+  event_t *event = m_pending_events.front ();
+  m_pending_events.pop ();
+  return event;
 }
 
 } /* namespace amd::dbgapi */
