@@ -85,8 +85,6 @@ static_assert (
          == sizeof (amd_dbgapi_enum_underlying_type32_t)
     && sizeof (amd_dbgapi_runtime_state_t)
          == sizeof (amd_dbgapi_enum_underlying_type32_t)
-    && sizeof (amd_dbgapi_shared_library_state_t)
-         == sizeof (amd_dbgapi_enum_underlying_type32_t)
     && sizeof (amd_dbgapi_watchpoint_share_kind_t)
          == sizeof (amd_dbgapi_enum_underlying_type32_t)
     && sizeof (amd_dbgapi_wave_state_t)

@@ -490,10 +490,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_47
 
 /**
- * The function was introduced in version 0.49 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.49"``.
+ * The function was introduced in version 0.50 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.50"``.
  */
-#define AMD_DBGAPI_VERSION_0_49
+#define AMD_DBGAPI_VERSION_0_50
 
 /** @} */
 
@@ -885,9 +885,9 @@ typedef enum
    */
   AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID = -35,
   /**
-   * The shared library handle is invalid.
+   * Reserved error 36.
    */
-  AMD_DBGAPI_STATUS_ERROR_INVALID_SHARED_LIBRARY_ID = -36,
+  AMD_DBGAPI_STATUS_ERROR_RESERVED_36 = -36,
   /**
    * The breakpoint handle is invalid.
    */
@@ -914,9 +914,9 @@ typedef enum
    */
   AMD_DBGAPI_STATUS_ERROR_SYMBOL_NOT_FOUND = -42,
   /**
-   * The address is not within the shared library.
+   * Reserved error 43.
    */
-  AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS = -43,
+  AMD_DBGAPI_STATUS_ERROR_RESERVED_43 = -43,
   /**
    * The wave has an active displaced stepping buffer.
    */
@@ -1052,7 +1052,7 @@ amd_dbgapi_get_build_name (void) AMD_DBGAPI_VERSION_0_24;
  * error.  The library remains uninitialized.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_initialize (
-    amd_dbgapi_callbacks_t *callbacks) AMD_DBGAPI_VERSION_0_30;
+    amd_dbgapi_callbacks_t *callbacks) AMD_DBGAPI_VERSION_0_50;
 
 /**
  * Finalize the library.
@@ -2465,7 +2465,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_get_info (
     amd_dbgapi_queue_id_t queue_id, amd_dbgapi_queue_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_49;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_50;
 
 /**
  * Queue state.
@@ -3117,7 +3117,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_get_info (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_wave_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_49;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_50;
 
 /**
  * The execution state of a wave.
@@ -3660,7 +3660,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_resume (
   amd_dbgapi_wave_id_t wave_id, amd_dbgapi_resume_mode_t resume_mode,
-  amd_dbgapi_exceptions_t exceptions) AMD_DBGAPI_VERSION_0_49;
+  amd_dbgapi_exceptions_t exceptions) AMD_DBGAPI_VERSION_0_50;
 
 /** @} */
 
@@ -6227,7 +6227,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_event_get_info (
     amd_dbgapi_event_id_t event_id, amd_dbgapi_event_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_49;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_50;
 
 /**
  * Report that an event has been processed.
@@ -6339,142 +6339,6 @@ void AMD_DBGAPI amd_dbgapi_set_log_level (amd_dbgapi_log_level_t level)
  */
 
 /**
- * Opaque shared library handle.
- *
- * Only unique within a single process.
- *
- * The implementation of the library requests the client to notify it when a
- * specific shared library is loaded and unloaded.  This allows the library to
- * set breakpoints within the shared library and access global variable data
- * within it.
- */
-typedef struct
-{
-  uint64_t handle;
-} amd_dbgapi_shared_library_id_t;
-
-/**
- * The state of a shared library.
- */
-typedef enum
-{
-  /**
-   * The shared library is loaded.
-   */
-  AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED = 1,
-  /**
-   * The shared library is unloaded.
-   */
-  AMD_DBGAPI_SHARED_LIBRARY_STATE_UNLOADED = 2
-} amd_dbgapi_shared_library_state_t;
-
-/**
- * The NULL shared library handle.
- */
-#define AMD_DBGAPI_SHARED_LIBRARY_NONE ((amd_dbgapi_shared_library_id_t){ 0 })
-
-/**
- * Shared library queries that are supported by
- * ::amd_dbgapi_shared_library_get_info.
- *
- * Each query specifies the type of data returned in the \p value argument to
- * ::amd_dbgapi_shared_library_get_info.
- */
-typedef enum
-{
-  /**
-   * Return the process to which this shared library belongs.  The type of this
-   * attribute is ::amd_dbgapi_process_id_t.
-   */
-  AMD_DBGAPI_SHARED_LIBRARY_INFO_PROCESS = 1
-} amd_dbgapi_shared_library_info_t;
-
-/**
- * Query information about a shared library.
- *
- * ::amd_dbgapi_shared_library_info_t specifies the queries supported and the
- * type returned using the \p value argument.
- *
- * \param[in] shared_library_id The handle of the shared_library being queried.
- *
- * \param[in] query The query being requested.
- *
- * \param[in] value_size Size of the memory pointed to by \p value.  Must be
- * equal to the byte size of the query result.
- *
- * \param[out] value Pointer to memory where the query result is stored.
- *
- * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
- * successfully and the result is stored in \p value.
- *
- * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
- * left uninitialized and \p value is unaltered.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
- * initialized.  The library is left uninitialized and \p value is unaltered.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_SHARED_LIBRARY_ID \p
- * shared_library_id is invalid.  \p value is unaltered.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL or
- * \p query is invalid.  \p value is unaltered.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
- * value_size does not match the size of the \p query result.  \p value is
- * unaltered.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
- * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
- * allocate \p value returns NULL.  \p value is unaltered.
- */
-amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_shared_library_get_info (
-    amd_dbgapi_shared_library_id_t shared_library_id,
-    amd_dbgapi_shared_library_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_41;
-
-/**
- * Report that a shared library enabled by the
- * amd_dbgapi_callbacks_s::enable_notify_shared_library callback has been
- * loaded or unloaded.
- *
- * The thread that is performing the shared library load or unload must remain
- * halted while this function executes.  This allows the library to use the
- * amd_dbgapi_callbacks_s::get_symbol_address,
- * amd_dbgapi_callbacks_s::insert_breakpoint and
- * amd_dbgapi_callbacks_s::remove_breakpoint callbacks to add or remove
- * breakpoints on library load or unload respectively.  The breakpoints must be
- * inserted before any code can execute in the shared library.
- *
- * \param[in] shared_library_id The shared library that has been loaded or
- * unloaded.
- *
- * \param[in] shared_library_state The shared library state.
- *
- * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
- * successfully.
- *
- * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The amd-dbgapi
- * library is left uninitialized and \p resume is unaltered.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The amd-dbgapi library is
- * not initialized.  The amd-dbgapi library is left uninitialized.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_SHARED_LIBRARY_ID The \p
- * shared_library_id is invalid.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p shared_library_state
- * is invalid.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR \p shared_library_state is not consistent
- * with the previously reported load state.  For example, it is reported as
- * loaded when previously also reported as loaded.
- */
-amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_report_shared_library (
-    amd_dbgapi_shared_library_id_t shared_library_id,
-    amd_dbgapi_shared_library_state_t shared_library_state)
-    AMD_DBGAPI_VERSION_0_41;
-
-/**
  * Opaque breakpoint handle.
  *
  * Every breakpoint added within a process will have a unique handle.  Only
@@ -6505,15 +6369,10 @@ typedef struct
 typedef enum
 {
   /**
-   * Return the shared library to which this breakpoint belongs.  The type of
-   * this attribute is ::amd_dbgapi_shared_library_id_t.
-   */
-  AMD_DBGAPI_BREAKPOINT_INFO_SHARED_LIBRARY = 1,
-  /**
    * Return the process to which this breakpoint belongs.  The type of this
    * attribute is ::amd_dbgapi_process_id_t.
    */
-  AMD_DBGAPI_BREAKPOINT_INFO_PROCESS = 2
+  AMD_DBGAPI_BREAKPOINT_INFO_PROCESS = 1
 } amd_dbgapi_breakpoint_info_t;
 
 /**
@@ -6557,7 +6416,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_breakpoint_get_info (
     amd_dbgapi_breakpoint_id_t breakpoint_id,
     amd_dbgapi_breakpoint_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_41;
+    void *value) AMD_DBGAPI_VERSION_0_50;
 
 /**
  * The action to perform after reporting a breakpoint has been hit.
@@ -6699,108 +6558,6 @@ struct amd_dbgapi_callbacks_s
       amd_dbgapi_os_process_id_t *os_pid);
 
   /**
-   * Request to be notified when a shared library is loaded and unloaded.
-   *
-   * If multiple shared libraries match the name, then the client must only
-   * associate \p shared_library_id with a single shared library, and only
-   * invoke ::amd_dbgapi_report_shared_library for that single shared library.
-   *
-   * \p client_process_id is the client handle of the process in which loading
-   * of the shared library must be notified.
-   *
-   * \p shared_library_name is the name of the shared library being requested.
-   * The memory is owned by the library and is only valid while the callback
-   * executes.  On Linux this is the \p SONAME of the library.
-   *
-   * \p shared_library_id is the handle to identify this shared library which
-   * must be specified when ::amd_dbgapi_report_shared_library is used to
-   * report a shared library load or unload.
-   *
-   * \p shared_library_state must be set to a value that indicates whether the
-   * shared library is already loaded.
-   *
-   * Return ::AMD_DBGAPI_STATUS_SUCCESS if successful.
-   *
-   * Return ::AMD_DBGAPI_STATUS_ERROR_INVALID_CLIENT_PROCESS_ID if the
-   * \p client_process_id handle is invalid.
-   *
-   * Return ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT if
-   * \p shared_library_name or \p shared_library_state are NULL or
-   * \p shared_library_name is an invalid library name.
-   *
-   * Return ::AMD_DBGAPI_STATUS_ERROR if the \p shared_library_name shared
-   * library is already enabled for notifications or another error was
-   * encountered.
-   */
-  amd_dbgapi_status_t (*enable_notify_shared_library) (
-      amd_dbgapi_client_process_id_t client_process_id,
-      const char *shared_library_name,
-      amd_dbgapi_shared_library_id_t shared_library_id,
-      amd_dbgapi_shared_library_state_t *shared_library_state);
-
-  /**
-   * Request to stop being notified for a shared library previously set by
-   * amd_dbgapi_callbacks_s::enable_notify_shared_library.
-   *
-   * \p shared_library_id is invalidated.
-   *
-   * \p client_process_id is the client handle of the process in which loading
-   * of the shared library is being notified.
-   *
-   * \p shared_library_id is the handle of the shared library to stop being
-   * notified.
-   *
-   * Return ::AMD_DBGAPI_STATUS_SUCCESS if successful.
-   *
-   * Return ::AMD_DBGAPI_STATUS_ERROR_INVALID_CLIENT_PROCESS_ID if the
-   * \p client_process_id handle is invalid.
-   *
-   * Return ::AMD_DBGAPI_STATUS_ERROR_INVALID_SHARED_LIBRARY_ID if the
-   * \p shared_library_id handle is invalid.
-   *
-   * Return ::AMD_DBGAPI_STATUS_ERROR if an error was encountered.
-   */
-  amd_dbgapi_status_t (*disable_notify_shared_library) (
-      amd_dbgapi_client_process_id_t client_process_id,
-      amd_dbgapi_shared_library_id_t shared_library_id);
-  /**
-   * Return the address of a symbol in a shared library.
-   *
-   * \p client_process_id is the client handle of the process being queried.
-   *
-   * \p shared_library_id is the shared library that contains the symbol.
-   *
-   * \p symbol_name is the name of the symbol being requested.  The memory is
-   * owned by the library and is only valid while the callback executes.
-   *
-   * \p address must be updated with the address of the symbol.
-   *
-   * Return ::AMD_DBGAPI_STATUS_SUCCESS if successful.
-   *
-   * Return ::AMD_DBGAPI_STATUS_ERROR_INVALID_CLIENT_PROCESS_ID if the
-   * \p client_process_id handle is invalid.
-   *
-   * Return ::AMD_DBGAPI_STATUS_ERROR_INVALID_SHARED_LIBRARY_ID if the
-   * \p shared_library_id handle is invalid.
-   *
-   * Return ::AMD_DBGAPI_STATUS_ERROR_LIBRARY_NOT_LOADED if
-   * \p shared_library_id shared library is not currently loaded.
-   *
-   * Return ::AMD_DBGAPI_STATUS_ERROR_SYMBOL_NOT_FOUND if
-   * \p shared_library_id shared library is loaded but does not contain
-   * \p symbol_name.
-   *
-   * Return ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT if \p symbol_name or
-   * \p address are NULL.
-   *
-   * Return ::AMD_DBGAPI_STATUS_ERROR if an error was encountered.
-   */
-  amd_dbgapi_status_t (*get_symbol_address) (
-      amd_dbgapi_client_process_id_t client_process_id,
-      amd_dbgapi_shared_library_id_t shared_library_id,
-      const char *symbol_name, amd_dbgapi_global_address_t *address);
-
-  /**
    * Insert a breakpoint in a shared library using a global address.
    *
    * The library only inserts breakpoints in loaded shared libraries.  It will
@@ -6812,8 +6569,6 @@ struct amd_dbgapi_callbacks_s
    *
    * \p client_process_id is the client handle of the process in which the
    * breakpoint is to be added.
-   *
-   * \p shared_library_id is the shared library that contains the \p address.
    *
    * \p address is the global address to add the breakpoint.
    *
@@ -6831,16 +6586,6 @@ struct amd_dbgapi_callbacks_s
    * Return ::AMD_DBGAPI_STATUS_ERROR_INVALID_CLIENT_PROCESS_ID if the \p
    * client_process_id handle is invalid.  No breakpoint is added.
    *
-   * Return ::AMD_DBGAPI_STATUS_ERROR_INVALID_SHARED_LIBRARY_ID if the \p
-   * shared_library_id handle is invalid.  No breakpoint is added.
-   *
-   * Return ::AMD_DBGAPI_STATUS_ERROR_LIBRARY_NOT_LOADED if \p
-   * shared_library_id shared library is not currently loaded.  No breakpoint
-   * is added.
-   *
-   * Return ::AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS if \p address is not an
-   * address in shared library \p shared_library_id.  No breakpoint is added.
-   *
    * Return ::AMD_DBGAPI_STATUS_ERROR_INVALID_BREAKPOINT_ID if there is a
    * breakpoint already added with \p breakpoint_id.  No breakpoint is added.
    *
@@ -6849,7 +6594,6 @@ struct amd_dbgapi_callbacks_s
    */
   amd_dbgapi_status_t (*insert_breakpoint) (
       amd_dbgapi_client_process_id_t client_process_id,
-      amd_dbgapi_shared_library_id_t shared_library_id,
       amd_dbgapi_global_address_t address,
       amd_dbgapi_breakpoint_id_t breakpoint_id);
 

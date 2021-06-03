@@ -92,9 +92,6 @@ public:
   };
 
 private:
-  using notify_shared_library_callback_t = std::function<void (
-    amd_dbgapi_shared_library_id_t, amd_dbgapi_shared_library_state_t)>;
-
   static handle_object_set_t<process_t> s_process_map;
 
   amd_dbgapi_client_process_id_t const m_client_process_id;
@@ -128,12 +125,12 @@ private:
      will be deleted, as these code objects are not longer loaded.  */
   monotonic_counter_t<epoch_t, 1> m_next_code_object_mark{};
 
-  std::tuple<
-    handle_object_set_t<agent_t>, handle_object_set_t<breakpoint_t>,
-    handle_object_set_t<code_object_t>, handle_object_set_t<dispatch_t>,
-    handle_object_set_t<displaced_stepping_t>, handle_object_set_t<event_t>,
-    handle_object_set_t<queue_t>, handle_object_set_t<shared_library_t>,
-    handle_object_set_t<watchpoint_t>, handle_object_set_t<wave_t>>
+  std::tuple<handle_object_set_t<agent_t>, handle_object_set_t<breakpoint_t>,
+             handle_object_set_t<code_object_t>,
+             handle_object_set_t<dispatch_t>,
+             handle_object_set_t<displaced_stepping_t>,
+             handle_object_set_t<event_t>, handle_object_set_t<queue_t>,
+             handle_object_set_t<watchpoint_t>, handle_object_set_t<wave_t>>
     m_handle_object_sets{};
 
   std::pair<std::variant<process_t *, agent_t *, queue_t *>,
@@ -271,46 +268,13 @@ public:
   }
 
   amd_dbgapi_status_t
-  get_symbol_address (amd_dbgapi_shared_library_id_t library_id,
-                      const char *symbol_name,
-                      amd_dbgapi_global_address_t *address) const
-  {
-    TRACE_CALLBACK_BEGIN (param_in (library_id), param_in (symbol_name),
-                          param_in (address));
-    return detail::process_callbacks.get_symbol_address (
-      m_client_process_id, library_id, symbol_name, address);
-    TRACE_CALLBACK_END (make_hex (make_ref (param_out (address))));
-  }
-
-  amd_dbgapi_status_t enable_notify_shared_library (
-    const char *library_name, amd_dbgapi_shared_library_id_t library_id,
-    amd_dbgapi_shared_library_state_t *library_state)
-  {
-    TRACE_CALLBACK_BEGIN (param_in (library_name), param_in (library_id),
-                          param_in (library_state));
-    return detail::process_callbacks.enable_notify_shared_library (
-      m_client_process_id, library_name, library_id, library_state);
-    TRACE_CALLBACK_END (make_ref (param_out (library_state)));
-  }
-
-  amd_dbgapi_status_t
-  disable_notify_shared_library (amd_dbgapi_shared_library_id_t library_id)
-  {
-    TRACE_CALLBACK_BEGIN (param_in (library_id));
-    return detail::process_callbacks.disable_notify_shared_library (
-      m_client_process_id, library_id);
-    TRACE_CALLBACK_END ();
-  }
-
-  amd_dbgapi_status_t
-  insert_breakpoint (amd_dbgapi_shared_library_id_t shared_library_id,
-                     amd_dbgapi_global_address_t address,
+  insert_breakpoint (amd_dbgapi_global_address_t address,
                      amd_dbgapi_breakpoint_id_t breakpoint_id)
   {
     TRACE_CALLBACK_BEGIN (make_hex (param_in (address)),
                           param_in (breakpoint_id));
     return detail::process_callbacks.insert_breakpoint (
-      m_client_process_id, shared_library_id, address, breakpoint_id);
+      m_client_process_id, address, breakpoint_id);
     TRACE_CALLBACK_END ();
   }
 

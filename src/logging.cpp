@@ -255,23 +255,6 @@ to_string (amd_dbgapi_event_id_t event_id)
 
 template <>
 std::string
-to_string (amd_dbgapi_shared_library_id_t shared_library_id)
-{
-  if (shared_library_id == AMD_DBGAPI_SHARED_LIBRARY_NONE)
-    return "SHARED_LIBRARY_NONE";
-
-  std::string str
-    = string_printf ("shared_library_%ld", shared_library_id.handle);
-
-  if (shared_library_t *shared_library = find (shared_library_id);
-      shared_library)
-    str += " <\"" + shared_library->name () + "\">";
-
-  return str;
-}
-
-template <>
-std::string
 to_string (amd_dbgapi_breakpoint_id_t breakpoint_id)
 {
   if (breakpoint_id == AMD_DBGAPI_BREAKPOINT_NONE)
@@ -338,14 +321,14 @@ to_string (amd_dbgapi_status_t status)
       CASE (STATUS_ERROR_MEMORY_ACCESS);
       CASE (STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
       CASE (STATUS_ERROR_INVALID_EVENT_ID);
-      CASE (STATUS_ERROR_INVALID_SHARED_LIBRARY_ID);
+      CASE (STATUS_ERROR_RESERVED_36);
       CASE (STATUS_ERROR_INVALID_BREAKPOINT_ID);
       CASE (STATUS_ERROR_CLIENT_CALLBACK);
       CASE (STATUS_ERROR_INVALID_CLIENT_PROCESS_ID);
       CASE (STATUS_ERROR_PROCESS_EXITED);
       CASE (STATUS_ERROR_LIBRARY_NOT_LOADED);
       CASE (STATUS_ERROR_SYMBOL_NOT_FOUND);
-      CASE (STATUS_ERROR_INVALID_ADDRESS);
+      CASE (STATUS_ERROR_RESERVED_43);
       CASE (STATUS_ERROR_DISPLACED_STEPPING_ACTIVE);
       CASE (STATUS_ERROR_RESUME_DISPLACED_STEPPING);
     }
@@ -646,7 +629,6 @@ to_string (amd_dbgapi_breakpoint_info_t breakpoint_info)
 {
   switch (breakpoint_info)
     {
-      CASE (BREAKPOINT_INFO_SHARED_LIBRARY);
       CASE (BREAKPOINT_INFO_PROCESS);
     }
   return to_string (make_hex (breakpoint_info));
@@ -659,40 +641,11 @@ to_string (detail::query_ref<amd_dbgapi_breakpoint_info_t> ref)
   auto [query, value] = ref;
   switch (query)
     {
-    case AMD_DBGAPI_BREAKPOINT_INFO_SHARED_LIBRARY:
-      return to_string (make_ref (
-        static_cast<const amd_dbgapi_shared_library_id_t *> (value)));
     case AMD_DBGAPI_BREAKPOINT_INFO_PROCESS:
       return to_string (
         make_ref (static_cast<const amd_dbgapi_process_id_t *> (value)));
     }
   error ("unhandled amd_dbgapi_breakpoint_info_t query (%s)",
-         to_string (query).c_str ());
-}
-
-template <>
-std::string
-to_string (amd_dbgapi_shared_library_info_t shared_library_info)
-{
-  switch (shared_library_info)
-    {
-      CASE (SHARED_LIBRARY_INFO_PROCESS);
-    }
-  return to_string (make_hex (shared_library_info));
-}
-
-template <>
-std::string
-to_string (detail::query_ref<amd_dbgapi_shared_library_info_t> ref)
-{
-  auto [query, value] = ref;
-  switch (query)
-    {
-    case AMD_DBGAPI_SHARED_LIBRARY_INFO_PROCESS:
-      return to_string (
-        make_ref (static_cast<const amd_dbgapi_process_id_t *> (value)));
-    }
-  error ("unhandled amd_dbgapi_shared_library_info_t query (%s)",
          to_string (query).c_str ());
 }
 
@@ -1526,18 +1479,6 @@ to_string (amd_dbgapi_log_level_t level)
       CASE (LOG_LEVEL_VERBOSE);
     }
   return to_string (make_hex (level));
-}
-
-template <>
-std::string
-to_string (amd_dbgapi_shared_library_state_t library_state)
-{
-  switch (library_state)
-    {
-      CASE (SHARED_LIBRARY_STATE_LOADED);
-      CASE (SHARED_LIBRARY_STATE_UNLOADED);
-    }
-  return to_string (make_hex (library_state));
 }
 
 template <>

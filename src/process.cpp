@@ -213,8 +213,6 @@ process_t::detach ()
   /* Destruct the breakpoints before the shared libraries and code objects  */
   std::get<handle_object_set_t<breakpoint_t>> (m_handle_object_sets).clear ();
   std::get<handle_object_set_t<code_object_t>> (m_handle_object_sets).clear ();
-  std::get<handle_object_set_t<shared_library_t>> (m_handle_object_sets)
-    .clear ();
 
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "detached %s",
               to_string (id ()).c_str ());
@@ -1328,8 +1326,7 @@ process_t::runtime_enable ()
     return AMD_DBGAPI_STATUS_SUCCESS;
   };
 
-  create<breakpoint_t> (/* FIXME */ *range<shared_library_t> ().begin (),
-                        r_brk_address, r_brk_callback);
+  create<breakpoint_t> (*this, r_brk_address, r_brk_callback);
 
   status = update_code_objects ();
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -1399,11 +1396,19 @@ process_t::runtime_disable ()
 
   enqueue_event (create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
                                   AMD_DBGAPI_RUNTIME_STATE_UNLOADED));
+
+  /* Remove the breakpoints we've inserted when the runtime was enabled.  */
+  auto &&breakpoint_range = range<breakpoint_t> ();
+  for (auto it = breakpoint_range.begin (); it != breakpoint_range.end ();)
+    it = destroy (it);
 }
 
 amd_dbgapi_status_t
 process_t::attach ()
 {
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "attaching %s to process %d",
+              to_string (id ()).c_str (), m_os_process_id);
+
   /* When we first attach to the process, all waves already running need to be
      assigned new wave_ids.  This flag will be cleared after the first call
      to suspend the queues (and update the waves).  */
@@ -1413,46 +1418,23 @@ process_t::attach ()
     exception, so assume all queues reported by queue snapshot are new.  */
   clear_flag (flag_t::require_new_queue_bit);
 
-  auto on_runtime_load_callback = [] (const shared_library_t &library)
-  {
-    process_t &process = library.process ();
+  amd_dbgapi_status_t status = os_driver ().enable_debug (
+    os_exception_mask (os_exception_code_t::process_runtime_enable)
+      | os_exception_mask (os_exception_code_t::process_runtime_disable)
+      | os_exception_mask (os_exception_code_t::queue_trap)
+      | os_exception_mask (os_exception_code_t::queue_illegal_instruction)
+      | os_exception_mask (os_exception_code_t::queue_memory_violation)
+      | os_exception_mask (os_exception_code_t::queue_aperture_violation),
+    m_client_notifier_pipe.write_fd ());
+  if (status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
+    return status;
+  else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("enable_debug failed (rc=%d)", status);
 
-    amd_dbgapi_status_t status = process.os_driver ().enable_debug (
-      os_exception_mask (os_exception_code_t::process_runtime_enable)
-        | os_exception_mask (os_exception_code_t::process_runtime_disable)
-        | os_exception_mask (os_exception_code_t::queue_trap)
-        | os_exception_mask (os_exception_code_t::queue_illegal_instruction)
-        | os_exception_mask (os_exception_code_t::queue_memory_violation)
-        | os_exception_mask (os_exception_code_t::queue_aperture_violation),
-      process.m_client_notifier_pipe.write_fd ());
-    if (status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
-      {
-        process.enqueue_event (process.create<event_t> (
-          process, AMD_DBGAPI_EVENT_KIND_RUNTIME,
-          AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION));
-        return;
-      }
-    else if (status != AMD_DBGAPI_STATUS_SUCCESS)
-      error ("enable_debug failed (rc=%d)", status);
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "debugging is enabled for %s",
+              to_string (id ()).c_str ());
 
-    dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "debugging is enabled for %s",
-                to_string (process.id ()).c_str ());
-  };
-
-  auto on_runtime_unload_callback = [] (const shared_library_t &library)
-  {
-    process_t &process = library.process ();
-
-    /* Remove the breakpoints we've inserted when the library was loaded.  */
-    auto &&breakpoint_range = process.range<breakpoint_t> ();
-    for (auto it = breakpoint_range.begin (); it != breakpoint_range.end ();)
-      it = (it->shared_library () == library) ? process.destroy (it) : ++it;
-  };
-
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "attaching %s to process %d",
-              to_string (id ()).c_str (), m_os_process_id);
-
-  amd_dbgapi_status_t status = update_agents ();
+  status = update_agents ();
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     error ("update_agents failed (rc=%d)", status);
 
@@ -1462,14 +1444,6 @@ process_t::attach ()
 
   /* From now on, newly created queues raise a queue_new exception.  */
   set_flag (flag_t::require_new_queue_bit);
-
-  /* Set/remove internal breakpoints when the runtime is loaded/unloaded.  */
-  shared_library_t &shared_library = create<shared_library_t> (
-    *this, "libhsa-runtime64.so.1", on_runtime_load_callback,
-    on_runtime_unload_callback);
-
-  if (!shared_library.enable ())
-    error ("failed to enable %s", to_string (shared_library.id ()).c_str ());
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 }

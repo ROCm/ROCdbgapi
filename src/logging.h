@@ -466,9 +466,6 @@ to_string (detail::parameter_t<detail::query_ref<T>, name, kind> param)
   F (amd_dbgapi_register_info_t)                                              \
   F (amd_dbgapi_resume_mode_t)                                                \
   F (amd_dbgapi_runtime_state_t)                                              \
-  F (amd_dbgapi_shared_library_id_t)                                          \
-  F (amd_dbgapi_shared_library_info_t)                                        \
-  F (amd_dbgapi_shared_library_state_t)                                       \
   F (amd_dbgapi_status_t)                                                     \
   F (amd_dbgapi_wave_creation_t)                                              \
   F (amd_dbgapi_wave_id_t)                                                    \
@@ -493,7 +490,6 @@ to_string (detail::parameter_t<detail::query_ref<T>, name, kind> param)
   F (detail::query_ref<amd_dbgapi_queue_info_t>)                              \
   F (detail::query_ref<amd_dbgapi_register_info_t>)                           \
   F (detail::query_ref<amd_dbgapi_register_class_info_t>)                     \
-  F (detail::query_ref<amd_dbgapi_shared_library_info_t>)                     \
   F (detail::query_ref<amd_dbgapi_watchpoint_info_t>)                         \
   F (detail::query_ref<amd_dbgapi_wave_info_t>)
 

@@ -173,8 +173,7 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
     case AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID:
       string = "The event handle is invalid";
       break;
-    case AMD_DBGAPI_STATUS_ERROR_INVALID_SHARED_LIBRARY_ID:
-      string = "The shared library handle is invalid";
+    case AMD_DBGAPI_STATUS_ERROR_RESERVED_36:
       break;
     case AMD_DBGAPI_STATUS_ERROR_INVALID_BREAKPOINT_ID:
       string = "The breakpoint handle is invalid";
@@ -195,8 +194,7 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
     case AMD_DBGAPI_STATUS_ERROR_SYMBOL_NOT_FOUND:
       string = "The symbol was not found";
       break;
-    case AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS:
-      string = "The address is not within the shared library";
+    case AMD_DBGAPI_STATUS_ERROR_RESERVED_43:
       break;
     case AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_ACTIVE:
       string = "The wave has an active displaced stepping buffer";

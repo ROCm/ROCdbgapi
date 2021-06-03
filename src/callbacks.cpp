@@ -32,86 +32,14 @@
 namespace amd::dbgapi
 {
 
-shared_library_t::shared_library_t (amd_dbgapi_shared_library_id_t library_id,
-                                    process_t &process, std::string name,
-                                    notify_callback_t on_load,
-                                    notify_callback_t on_unload)
-  : handle_object (library_id), m_name (std::move (name)), m_on_load (on_load),
-    m_on_unload (on_unload), m_process (process)
-{
-}
-
-shared_library_t::~shared_library_t ()
-{
-  if (is_enabled ())
-    disable ();
-}
-
-bool
-shared_library_t::enable ()
-{
-  dbgapi_assert (!is_enabled () && "already enabled");
-
-  amd_dbgapi_shared_library_state_t state;
-  if (m_process.enable_notify_shared_library (m_name.c_str (), id (), &state)
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    return false;
-
-  set_state (state);
-  return true;
-}
-
-void
-shared_library_t::disable ()
-{
-  dbgapi_assert (is_enabled () && "not enabled");
-
-  m_process.disable_notify_shared_library (id ());
-  m_state.reset ();
-}
-
-amd_dbgapi_status_t
-shared_library_t::get_info (amd_dbgapi_shared_library_info_t query,
-                            size_t value_size, void *value) const
-{
-  switch (query)
-    {
-    case AMD_DBGAPI_SHARED_LIBRARY_INFO_PROCESS:
-      return utils::get_info (value_size, value, process ().id ());
-    }
-
-  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
-}
-
-void
-shared_library_t::set_state (amd_dbgapi_shared_library_state_t state)
-{
-  dbgapi_assert (state == AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED
-                 || state == AMD_DBGAPI_SHARED_LIBRARY_STATE_UNLOADED);
-
-  if (m_state && m_state == state)
-    return;
-
-  auto prev_state = m_state;
-  m_state.emplace (state);
-
-  /* Call the notifier since the state has changed.  */
-  if (state == AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED)
-    m_on_load (*this);
-  else if (prev_state /* Only call on_unload if the state
-                         was previously loaded  */)
-    m_on_unload (*this);
-}
-
 breakpoint_t::breakpoint_t (amd_dbgapi_breakpoint_id_t breakpoint_id,
-                            const shared_library_t &shared_library,
+                            process_t &process,
                             amd_dbgapi_global_address_t address,
                             action_callback_t action)
   : handle_object (breakpoint_id), m_address (address), m_action (action),
-    m_shared_library (shared_library)
+    m_process (process)
 {
-  m_inserted = process ().insert_breakpoint (shared_library.id (), address,
-                                             breakpoint_id)
+  m_inserted = m_process.insert_breakpoint (address, breakpoint_id)
                == AMD_DBGAPI_STATUS_SUCCESS;
 }
 
@@ -131,9 +59,6 @@ breakpoint_t::get_info (amd_dbgapi_breakpoint_info_t query, size_t value_size,
 {
   switch (query)
     {
-    case AMD_DBGAPI_BREAKPOINT_INFO_SHARED_LIBRARY:
-      return utils::get_info (value_size, value, shared_library ().id ());
-
     case AMD_DBGAPI_BREAKPOINT_INFO_PROCESS:
       return utils::get_info (value_size, value, process ().id ());
     }
@@ -144,57 +69,6 @@ breakpoint_t::get_info (amd_dbgapi_breakpoint_info_t query, size_t value_size,
 } /* namespace amd::dbgapi */
 
 using namespace amd::dbgapi;
-
-amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_report_shared_library (
-  amd_dbgapi_shared_library_id_t shared_library_id,
-  amd_dbgapi_shared_library_state_t shared_library_state)
-{
-  TRACE_BEGIN (param_in (shared_library_id), param_in (shared_library_state));
-  TRY;
-
-  if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
-
-  if (shared_library_state != AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED
-      && shared_library_state != AMD_DBGAPI_SHARED_LIBRARY_STATE_UNLOADED)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
-
-  shared_library_t *shared_library = find (shared_library_id);
-
-  if (!shared_library)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_SHARED_LIBRARY_ID;
-
-  shared_library->set_state (shared_library_state);
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
-
-  CATCH;
-  TRACE_END ();
-}
-
-amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_code_shared_library_get_info (
-  amd_dbgapi_shared_library_id_t shared_library_id,
-  amd_dbgapi_shared_library_info_t query, size_t value_size, void *value)
-{
-  TRACE_BEGIN (param_in (shared_library_id), param_in (query),
-               param_in (value_size), param_in (value));
-  TRY;
-
-  if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
-
-  shared_library_t *shared_library = find (shared_library_id);
-
-  if (!shared_library)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_SHARED_LIBRARY_ID;
-
-  return shared_library->get_info (query, value_size, value);
-
-  CATCH;
-  TRACE_END (make_query_ref (query, param_out (value)));
-}
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_report_breakpoint_hit (
