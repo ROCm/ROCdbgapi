@@ -286,17 +286,26 @@
  *
  * 1.  The following *_get_info queries are not yet implemented:
  *
- *     - AMD_DBGAPI_QUEUE_INFO_ERROR_REASON
- *     - AMD_DBGAPI_QUEUE_INFO_STATE
+ *     - ::AMD_DBGAPI_QUEUE_INFO_ERROR_REASON
+ *     - ::AMD_DBGAPI_QUEUE_INFO_STATE
  *
- * 2.  On a AMD_DBGAPI_STATUS_FATAL error the library does fully reset the
+ * 2.  On a ::AMD_DBGAPI_STATUS_FATAL error the library does fully reset the
  *     internal state and so subsequent functions may not operate correctly.
  *
- * 3.  amd_dbgapi_process_next_pending_event returns
- *     AMD_DBGAPI_EVENT_KIND_WAVE_STOP events only for AQL queues.  PM4 queues
- *     that launch wavefronts are not supported.
+ * 3.  ::amd_dbgapi_process_next_pending_event returns
+ *     ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP events only for AQL queues.  PM4
+ *     queues that launch wavefronts are not supported.
  *
- * 4.  amd_dbgapi_queue_packet_list returns packets only for AQL queues.
+ * 4.  ::amd_dbgapi_queue_packet_list returns packets only for AQL queues.
+ *
+ * 5.  ::amd_dbgapi_wave_resume does not implement \p exceptions values other
+ *     than ::AMD_DBGAPI_EXCEPTIONS_NONE.
+ *
+ * 6. Generation of the ::AMD_DBGAPI_EVENT_KIND_QUEUE_ERROR event, the
+ *    ::AMD_DBGAPI_EVENT_INFO_QUEUE query, and the generation of
+ *    ::AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED events for waves with
+ *    pending single step requests when a queue enters the queue error state,
+ *    have not been implemented.
  *
  * \section references References
  *
@@ -480,6 +489,12 @@ extern "C" {
  */
 #define AMD_DBGAPI_VERSION_0_47
 
+/**
+ * The function was introduced in version 0.49 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.49"``.
+ */
+#define AMD_DBGAPI_VERSION_0_49
+
 /** @} */
 
 /** \ingroup callbacks_group
@@ -497,9 +512,9 @@ typedef struct amd_dbgapi_callbacks_s amd_dbgapi_callbacks_t;
  * type used for enumeration types.  This interface requires that:
  *
  * - For the enumeration types \p amd_dbgapi_wave_stop_reason_t, \p
- *   amd_dbgapi_instruction_properties_t, and \p
- *   amd_dbgapi_queue_error_reason_t, the  underlying type used by the client
- *   will be \p unsigned \p long \p long with a size of 64 bits.
+ *   amd_dbgapi_instruction_properties_t, and \p amd_dbgapi_exceptions_t, the
+ *   underlying type used by the client will be \p unsigned \p long \p long
+ *   with a size of 64 bits.
  * - For all other enumeration types the underlying type used by the client
  *   will be \p int with a size of 32 bits.
  *
@@ -1699,8 +1714,8 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
  * ::AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED event is only reported when
  * a thread is in the process of changing the code object list.
  *
- * The ::AMD_DBGAPI_EVENT_KIND_RUNTIME event will be reported if the runtime
- * support is already enabled in process.
+ * The ::AMD_DBGAPI_EVENT_KIND_RUNTIME event will be reported if the inferior's
+ * runtime support is already enabled.
  *
  * If the associated native operating system process exits while the library is
  * attached to it, appropriate actions are taken to reflect that the inferior
@@ -1708,9 +1723,9 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
  * for wave command termination if there are pending wave stop or wave single
  * step requests; a pending code object list updated event is created if there
  * were codes objects previously loaded; a pending runtime event is created to
- * indicate the runtime support has been unloaded if previously loaded; and
- * queries on agents, queues, dispatches, waves, and code objects will report
- * none exist.  The process handle remains valid until
+ * indicate the inferior's runtime support has been unloaded if previously
+ * loaded; and queries on agents, queues, dispatches, waves, and code objects
+ * will report none exist.  The process handle remains valid until
  * ::amd_dbgapi_process_detach is used to detach from the client process.
  *
  * If the associated native operating system process has already exited when
@@ -2387,10 +2402,10 @@ typedef enum
    */
   AMD_DBGAPI_QUEUE_INFO_STATE = 5,
   /**
-   * Return the reason the queue is in error as a bit set. If the queue is not
-   * in the error state then ::AMD_DBGAPI_QUEUE_ERROR_REASON_NONE is returned.
-   * The type of this attribute is \p uint64_t with values defined by
-   * ::amd_dbgapi_queue_error_reason_t.
+   * Return the set of exceptions that caused the queue to enter the queue
+   * error state.  If the queue is not in the queue error state then
+   * ::AMD_DBGAPI_EXCEPTIONS_NONE is returned.  The type of this attribute is
+   * \p uint64_t with values defined by ::amd_dbgapi_exceptions_t.
    */
   AMD_DBGAPI_QUEUE_INFO_ERROR_REASON = 6,
   /**
@@ -2450,7 +2465,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_get_info (
     amd_dbgapi_queue_id_t queue_id, amd_dbgapi_queue_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_41;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_49;
 
 /**
  * Queue state.
@@ -2462,48 +2477,90 @@ typedef enum
    */
   AMD_DBGAPI_QUEUE_STATE_VALID = 1,
   /**
-   * Queue is in an error state.
+   * Queue is in the queue error state.
    *
-   * When a queue enters the error state, a wave stop event will be created for
-   * all non-stopped waves.  All waves of the queue will include the
-   * ::AMD_DBGAPI_WAVE_STOP_REASON_QUEUE_ERROR stop reason.
+   * No further waves will be started on the queue.  All waves that belong to
+   * the queue are inhibited from executing further instructions regardless of
+   * whether they are in the halt mode.
+   *
+   * When the inferior's runtime puts a queue into the queue error state, a
+   * ::AMD_DBGAPI_EVENT_KIND_QUEUE_ERROR event will be reported.  In addition,
+   * any waves that belong to the queue that have pending single step requests
+   * will cause a ::AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED event to be
+   * generated to indicate the single step has been cancelled.
    */
   AMD_DBGAPI_QUEUE_STATE_ERROR = 2
 } amd_dbgapi_queue_state_t;
 
 /**
- * A bit mask of the reasons that a queue is in error.
+ * A bit mask of the exceptions that can cause a queue to enter the queue error
+ * state.
  */
 typedef enum
 {
   /**
    * If none of the bits are set, then the queue is not in the error state.
    */
-  AMD_DBGAPI_QUEUE_ERROR_REASON_NONE = 0ULL,
+  AMD_DBGAPI_EXCEPTIONS_NONE = 0ULL,
   /**
-   * A packet on the queue is invalid.
+   * A packet on the queue has an invalid code.
    */
-  AMD_DBGAPI_QUEUE_ERROR_REASON_INVALID_PACKET = (1ULL << 0),
+  AMD_DBGAPI_EXCEPTIONS_PACKET_INVALID = (1ULL << 0),
   /**
-   * A wave on the queue had a memory violation.
+   * A packet on the queue has an invalid vendor code.
    */
-  AMD_DBGAPI_QUEUE_ERROR_REASON_MEMORY_VIOLATION = (1ULL << 1),
+  AMD_DBGAPI_EXCEPTIONS_PACKET_VENDOR_INVALID = (1ULL << 1),
   /**
-   * A wave on the queue had an assert trap.
+   * A dispatch packet on the queue has an invalid dimension.
    */
-  AMD_DBGAPI_QUEUE_ERROR_REASON_ASSERT_TRAP = (1ULL << 2),
+  AMD_DBGAPI_EXCEPTIONS_PACKET_DISPATCH_DIM_INVALID = (1ULL << 2),
   /**
-   * A wave on the queue executed an instruction that caused an error.  The
-   * ::AMD_DBGAPI_WAVE_INFO_STOP_REASON query can be used on the waves of the
-   * queue to determine the exact reason.
+   * A dispatch packet on the queue has an invalid or NULL code address.
    */
-  AMD_DBGAPI_QUEUE_ERROR_REASON_WAVE_ERROR = (1ULL << 3),
+  AMD_DBGAPI_EXCEPTIONS_PACKET_DISPATCH_CODE_INVALID = (1ULL << 3),
+  /**
+   * A dispatch packet on the queue has an invalid group segment size.
+   */
+  AMD_DBGAPI_EXCEPTIONS_PACKET_DISPATCH_GROUP_SEGMENT_SIZE_INVALID = (1ULL << 4),
+  /**
+   * A dispatch packet on the queue has an invalid work-group size.
+   */
+  AMD_DBGAPI_EXCEPTIONS_PACKET_DISPATCH_WORK_GROUP_SIZE_INVALID = (1ULL << 5),
+  /**
+   * A dispatch packet on the queue requires too many registers.
+   */
+  AMD_DBGAPI_EXCEPTIONS_PACKET_DISPATCH_REGISTER_COUNT_TOO_LARGE = (1ULL << 6),
+  /**
+   * A wave on the queue had a memory violation.  This happens when accessing a
+   * non-existent memory page or a page without the necessary permission (such
+   * as writing to a readonly page or executing a non-execute page).
+   */
+  AMD_DBGAPI_EXCEPTIONS_WAVE_MEMORY_VIOLATION = (1ULL << 7),
+  /**
+   * A wave on the queue had an aperture violation.  This happens when
+   * accessing a memory address outside the virtual memory address range.
+   */
+  AMD_DBGAPI_EXCEPTIONS_WAVE_APERTURE_VIOLATION = (1ULL << 8),
+  /**
+   * A wave on the queue executed an illegal instruction.
+   */
+  AMD_DBGAPI_EXCEPTIONS_WAVE_ILLEGAL_INSTRUCTION = (1ULL << 9),
+  /**
+   * A wave on the queue executed an instruction that caused an exception.
+   * This includes executing a trap instruction, executing a floating point or
+   * integer instruction that raises an enabled exception, executing an
+   * instruction that causes a fatal halt, executing an instruction that causes
+   * an ECC error, or executing an instruction that triggers a watchpoint
+   * (normally watchpoints are handled by the library and are never passed to
+   * the inferior's runtime to cause this exception).
+   */
+  AMD_DBGAPI_EXCEPTIONS_WAVE_EXCEPTION = (1ULL << 10),
   /**
    * A reserved value only present to ensure that the underlying representation
    * of this enumeration type is \p uint64_t.
    */
-  AMD_DBGAPI_QUEUE_ERROR_REASON_RESERVED = (1ULL << 63)
-} amd_dbgapi_queue_error_reason_t;
+  AMD_DBGAPI_EXCEPTIONS_RESERVED = (1ULL << 63)
+} amd_dbgapi_exceptions_t;
 
 /**
  * Return the list of queues.
@@ -3060,7 +3117,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_get_info (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_wave_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_41;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_49;
 
 /**
  * The execution state of a wave.
@@ -3127,52 +3184,68 @@ typedef enum
    */
   AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP = (1ULL << 2),
   /**
-   * The wave belongs to a queue that is in the error state.
-   *
-   * This is set in both waves that were stopped due to a queue error, as well
-   * as waves that were already stopped when the queue went into the queue
-   * error state.
-   *
-   * A wave that includes this stop reason cannot be resumed using
-   * ::amd_dbgapi_wave_resume.  The wave's queue will be in the queue error
-   * state.
-   */
-  AMD_DBGAPI_WAVE_STOP_REASON_QUEUE_ERROR = (1ULL << 3),
-  /**
    * The wave stopped due to triggering an enabled floating point input
    * denormal exception.
+   *
+   * This stop reason would normally put the wave's queue into the queue error
+   * state and include the ::AMD_DBGAPI_EXCEPTIONS_WAVE_EXCEPTION queue error
+   * reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_FP_INPUT_DENORMAL = (1ULL << 4),
+  AMD_DBGAPI_WAVE_STOP_REASON_FP_INPUT_DENORMAL = (1ULL << 3),
   /**
    * The wave stopped due to triggering an enabled floating point divide by
    * zero exception.
+   *
+   * This stop reason would normally put the wave's queue into the queue error
+   * state and include the ::AMD_DBGAPI_EXCEPTIONS_WAVE_EXCEPTION queue error
+   * reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_FP_DIVIDE_BY_0 = (1ULL << 5),
+  AMD_DBGAPI_WAVE_STOP_REASON_FP_DIVIDE_BY_0 = (1ULL << 4),
   /**
    * The wave stopped due to triggering an enabled floating point overflow
    * exception.
+   *
+   * This stop reason would normally put the wave's queue into the queue error
+   * state and include the ::AMD_DBGAPI_EXCEPTIONS_WAVE_EXCEPTION queue error
+   * reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_FP_OVERFLOW = (1ULL << 6),
+  AMD_DBGAPI_WAVE_STOP_REASON_FP_OVERFLOW = (1ULL << 5),
   /**
    * The wave stopped due to triggering an enabled floating point underflow
    * exception.
+   *
+   * This stop reason would normally put the wave's queue into the queue error
+   * state and include the ::AMD_DBGAPI_EXCEPTIONS_WAVE_EXCEPTION queue error
+   * reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_FP_UNDERFLOW = (1ULL << 7),
+  AMD_DBGAPI_WAVE_STOP_REASON_FP_UNDERFLOW = (1ULL << 6),
   /**
    * The wave stopped due to triggering an enabled floating point inexact
    * exception.
+   *
+   * This stop reason would normally put the wave's queue into the queue error
+   * state and include the ::AMD_DBGAPI_EXCEPTIONS_WAVE_EXCEPTION queue error
+   * reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_FP_INEXACT = (1ULL << 8),
+  AMD_DBGAPI_WAVE_STOP_REASON_FP_INEXACT = (1ULL << 7),
   /**
    * The wave stopped due to triggering an enabled floating point invalid
    * operation exception.
+   *
+   * This stop reason would normally put the wave's queue into the queue error
+   * state and include the ::AMD_DBGAPI_EXCEPTIONS_WAVE_EXCEPTION queue error
+   * reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_FP_INVALID_OPERATION = (1ULL << 9),
+  AMD_DBGAPI_WAVE_STOP_REASON_FP_INVALID_OPERATION = (1ULL << 8),
   /**
    * The wave stopped due to triggering an enabled integer divide by zero
    * exception.
+   *
+   * This stop reason would normally put the wave's queue into the queue error
+   * state and include the ::AMD_DBGAPI_EXCEPTIONS_WAVE_EXCEPTION queue error
+   * reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_INT_DIVIDE_BY_0 = (1ULL << 10),
+  AMD_DBGAPI_WAVE_STOP_REASON_INT_DIVIDE_BY_0 = (1ULL << 9),
   /**
    * The wave stopped due to executing a debug trap instruction.  The program
    * counter is left positioned after the trap instruction.  The wave can be
@@ -3187,7 +3260,7 @@ typedef enum
    * help debugging.  They behave as no operations if a debugger is not
    * connected and stop the wave if executed with the debugger attached.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_DEBUG_TRAP = (1ULL << 11),
+  AMD_DBGAPI_WAVE_STOP_REASON_DEBUG_TRAP = (1ULL << 10),
   /**
    * The wave stopped due to executing an assert trap instruction.  The program
    * counter is left positioned at the assert trap instruction.
@@ -3200,47 +3273,60 @@ typedef enum
    * An assert trap can be used to abort the execution of the dispatches
    * executing on a queue.
    *
-   * A wave that includes this stop reason cannot be resumed using
-   * ::amd_dbgapi_wave_resume.  The wave's queue will enter the queue error
-   * state and include the ::AMD_DBGAPI_QUEUE_ERROR_REASON_ASSERT_TRAP queue
-   * error reason.
+   * This stop reason would normally put the wave's queue into the queue error
+   * state and include the ::AMD_DBGAPI_EXCEPTIONS_WAVE_EXCEPTION queue error
+   * reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_ASSERT_TRAP = (1ULL << 12),
+  AMD_DBGAPI_WAVE_STOP_REASON_ASSERT_TRAP = (1ULL << 11),
   /**
    * The wave stopped due to executing an trap instruction other than the
    * ::AMD_DBGAPI_WAVE_STOP_REASON_DEBUG_TRAP or
    * ::AMD_DBGAPI_WAVE_STOP_REASON_ASSERT_TRAP trap instruction.  The program
    * counter is left positioned at the trap instruction.
    *
-   * A wave that includes this stop reason cannot be resumed using
-   * ::amd_dbgapi_wave_resume.  The wave's queue will enter the queue error
-   * state and include the ::AMD_DBGAPI_QUEUE_ERROR_REASON_WAVE_ERROR queue
-   * error reason.
+   * This stop reason would normally put the wave's queue into the queue error
+   * state and include the ::AMD_DBGAPI_EXCEPTIONS_WAVE_EXCEPTION queue error
+   * reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_TRAP = (1ULL << 13),
+  AMD_DBGAPI_WAVE_STOP_REASON_TRAP = (1ULL << 12),
   /**
-   * The wave stopped due to triggering a memory violation.
+   * The wave stopped due to a memory violation.  It indicates a non-existant
+   * page was accessed or a page without the necessary permission (such as
+   * writing to a readonly page or executing a non-execute page).
    *
    * The program counter may not be positioned at the instruction that caused
    * the memory violation as the AMD GPU can continue executing instructions
    * after initiating a memory operation.  If the architecture supports it, the
+   * ::amd_dbgapi_set_memory_precision can be used to control the memory
+   * exception reporting precision, but may significantly reduce performance.
+   *
+   * This stop reason would normally put the wave's queue into the queue error
+   * state and include the ::AMD_DBGAPI_EXCEPTIONS_WAVE_MEMORY_VIOLATION queue
+   * error reason.
+   */
+  AMD_DBGAPI_WAVE_STOP_REASON_MEMORY_VIOLATION = (1ULL << 13),
+  /**
+   * The wave stopped due to an aperture violation.  It indicates the memory
+   * address is outside the virtual address range.
+   *
+   * The program counter may not be positioned at the instruction that caused
+   * the aperture violation as the AMD GPU can continue executing instructions
+   * after initiating a memory operation.  If the architecture supports it, the
    * ::amd_dbgapi_set_memory_precision can be used to control the precision,
    * but may significantly reduce performance.
    *
-   * A wave that includes this stop reason cannot be resumed using
-   * ::amd_dbgapi_wave_resume.  The wave's queue will enter the queue error
-   * state and include the ::AMD_DBGAPI_QUEUE_ERROR_REASON_MEMORY_VIOLATION
+   * This stop reason would normally put the wave's queue into the queue error
+   * state and include the ::AMD_DBGAPI_EXCEPTIONS_WAVE_APERTURE_VIOLATION
    * queue error reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_MEMORY_VIOLATION = (1ULL << 14),
+  AMD_DBGAPI_WAVE_STOP_REASON_APERTURE_VIOLATION = (1ULL << 14),
   /**
    * The wave stopped due to executing an illegal instruction.  The program
    * counter is left positioned at the illegal instruction.
    *
-   * A wave that includes this stop reason cannot be resumed using
-   * ::amd_dbgapi_wave_resume.  The wave's queue will enter the queue error
-   * state and include the ::AMD_DBGAPI_QUEUE_ERROR_REASON_WAVE_ERROR queue
-   * error reason.
+   * This stop reason would normally put the wave's queue into the queue error
+   * state and include the ::AMD_DBGAPI_EXCEPTIONS_WAVE_ILLEGAL_INSTRUCTION
+   * queue error reason.
    */
   AMD_DBGAPI_WAVE_STOP_REASON_ILLEGAL_INSTRUCTION = (1ULL << 15),
   /**
@@ -3252,30 +3338,19 @@ typedef enum
    * ::amd_dbgapi_set_memory_precision can be used to control the precision,
    * but may significantly reduce performance.
    *
-   * A wave that includes this stop reason cannot be resumed using
-   * ::amd_dbgapi_wave_resume.  The wave's queue will enter the queue error
-   * state and include the ::AMD_DBGAPI_QUEUE_ERROR_REASON_WAVE_ERROR queue
-   * error reason.
+   * This stop reason would normally put the wave's queue into the queue error
+   * state and include the ::AMD_DBGAPI_EXCEPTIONS_WAVE_EXCEPTION queue error
+   * reason.
    */
   AMD_DBGAPI_WAVE_STOP_REASON_ECC_ERROR = (1ULL << 16),
   /**
    * The wave stopped after causing a hardware fatal halt.
    *
-   * A wave that includes this stop reason cannot be resumed using
-   * ::amd_dbgapi_wave_resume.  The wave's queue will enter the queue error
-   * state and include the ::AMD_DBGAPI_QUEUE_ERROR_REASON_WAVE_ERROR queue
-   * error reason.
+   * This stop reason would normally put the wave's queue into the queue error
+   * state and include the ::AMD_DBGAPI_EXCEPTIONS_WAVE_EXCEPTION queue error
+   * reason.
    */
   AMD_DBGAPI_WAVE_STOP_REASON_FATAL_HALT = (1ULL << 17),
-  /**
-   * The wave stopped with an XNACK error.
-   *
-   * A wave that includes this stop reason cannot be resumed using
-   * ::amd_dbgapi_wave_resume.  The wave's queue will enter the queue error
-   * state and include the ::AMD_DBGAPI_QUEUE_ERROR_REASON_WAVE_ERROR queue
-   * error reason.
-   */
-  AMD_DBGAPI_WAVE_STOP_REASON_XNACK_ERROR = (1ULL << 18),
   /**
    * A reserved value only present to ensure that the underlying representation
    * of this enumeration type is \p uint64_t.
@@ -3498,14 +3573,60 @@ typedef enum
  * termination instruction described above, no event is reported when the wave
  * terminates.
  *
- * Sending a resume request to a wave that includes a stop reason that cannot
- * be resumed will report an error.  See ::amd_dbgapi_wave_stop_reason_t.
+ * Resuming a wave that is in the halt mode or belongs to a queue that is in
+ * the queue error state will not result in it executing any further
+ * instructions.  Resuming a wave in single step mode that does not belong to a
+ * queue that is in the queue error state will therefore not report a
+ * ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP event that includes the
+ * ::AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP until the wave is no longer in the
+ * halt mode.
+ *
+ * Resuming a wave in single step mode that does belong to a queue that is in
+ * the queue error state, or if the queue enters the queue error state after
+ * the wave has been resumed in single step mode but before it actually
+ * executes an instruction, will report a
+ * ::AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED event to indicate that the
+ * single step request has been cancelled.  Waves in such queues are inhibited
+ * from executing any further instructions.  The application can delete the
+ * queue, which will result in all the associated waves to also be deleted, and
+ * then create a new queue.
+ *
+ * A wave may stop with stop reasons that would normally cause the inferior's
+ * runtime to put the queue into the queue error state (see
+ * ::amd_dbgapi_wave_stop_reason_t).  However, when the
+ * ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP event is reported, the inferior's runtime
+ * will not have been notified, and so the exception will not have caused the
+ * queue to enter the queue error state.  This allows the user to inspect the
+ * wave state before the inferior's runtime may cause the queue and all its
+ * waves to be deleted.
+ *
+ * In order to deliver the stop reason exceptions to the inferior's runtime,
+ * the client can resume the wave and specify the exceptions using the \p
+ * exceptions argument.  The client may use ::AMD_DBGAPI_EXCEPTIONS_NONE so no
+ * exceptions are delivered, effectively ignoring the exceptions, or the client
+ * may pass different exceptions.  The client may also pass exceptions to any
+ * wave even if it did not stop with a stop reason that includes any
+ * exceptions.  Note that resuming a wave and ignoring exceptions may result in
+ * unpredictable behavior.  For example, the
+ * ::AMD_DBGAPI_WAVE_STOP_REASON_ASSERT_TRAP stop reason assumes that execution
+ * will not be continued, and so the following bytes may not be legal
+ * instructions, or may be unrelated instructions.
  *
  * \param[in] wave_id The wave being requested to resume.
  *
  * \param[in] resume_mode If ::AMD_DBGAPI_RESUME_MODE_NORMAL, then resume
  * normal execution of the wave.  If ::AMD_DBGAPI_RESUME_MODE_SINGLE_STEP, then
  * resume the wave in single step mode.
+ *
+ * \param[in] exceptions If ::AMD_DBGAPI_EXCEPTIONS_NONE, indicates the wave
+ * execution is resumed without delivering any exceptions.  Any other value of
+ * ::amd_dbgapi_exceptions_t causes the wave to be put in the halt mode and the
+ * inferior's runtime notified of the specified exceptions.  The inferior's
+ * runtime will put the wave's queue into the queue error state such that the
+ * queue's ::AMD_DBGAPI_QUEUE_INFO_ERROR_REASON query will include the
+ * exceptions specified by \p exceptions.  See ::AMD_DBGAPI_QUEUE_STATE_ERROR
+ * for information in the events created when a queue is put in the queue error
+ * state.
  *
  * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
  * successfully and the wave will either terminate or be stopped.  In either
@@ -3520,27 +3641,26 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID \p wave_id is invalid.  No
  * wave is resumed.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p resume_mode is
- * invalid.  No wave is resumed.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p resume_mode is invalid
+ * or \p exceptions does not contain only wave exceptions.  No wave is resumed.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED \p wave_id is not
  * stopped.  The wave remains running.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_RESUMABLE \p wave_id is stopped
- * with a reason that includes one that cannot be resumed, or the event that
- * put it in the stop state has not yet been completed using the
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_RESUMABLE The event that put \p
+ * wave_id in the stop state has not yet been completed using the
  * ::amd_dbgapi_event_processed operation.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_RESUME_DISPLACED_STEPPING \p wave_id is
  * stopped and has an associated displaced stepping buffer. The \p resume_mode
- * is is either not ::AMD_DBGAPI_RESUME_MODE_SINGLE_STEP, or the \p wave_id has
+ * is either not ::AMD_DBGAPI_RESUME_MODE_SINGLE_STEP, or the \p wave_id has
  * already been single stepped by one instruction and so
  * ::amd_dbgapi_displaced_stepping_complete must be used before the wave can be
  * resumed.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_resume (
-    amd_dbgapi_wave_id_t wave_id,
-    amd_dbgapi_resume_mode_t resume_mode) AMD_DBGAPI_VERSION_0_46;
+  amd_dbgapi_wave_id_t wave_id, amd_dbgapi_resume_mode_t resume_mode,
+  amd_dbgapi_exceptions_t exceptions) AMD_DBGAPI_VERSION_0_49;
 
 /** @} */
 
@@ -5894,8 +6014,8 @@ typedef enum
    * When the event is reported as complete, a
    * ::AMD_DBGAPI_EVENT_KIND_BREAKPOINT_RESUME event may be created which must
    * be processed to resume the thread that caused the code object list to
-   * change.  Leaving the thread stopped may prevent the inferior runtime from
-   * servicing requests from other threads.
+   * change.  Leaving the thread stopped may prevent the inferior's runtime
+   * from servicing requests from other threads.
    */
   AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED = 3,
   /**
@@ -5922,39 +6042,37 @@ typedef enum
    */
   AMD_DBGAPI_EVENT_KIND_RUNTIME = 5,
   /**
-   * An event has occurred that is causing the queue to enter the error
-   * state.
+   * The inferior's runtime has put a queue into the queue error state due to
+   * exceptions being reported for the queue.
    *
-   * All non-stopped waves executing on the queue will have been stopped and a
-   * ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP event will proceed this event.  All
-   * waves on the queue will include the
-   * ::AMD_DBGAPI_WAVE_STOP_REASON_QUEUE_ERROR stop reason.  No further waves
-   * will be started on the queue.  The ::AMD_DBGAPI_QUEUE_INFO_ERROR_REASON
-   * query will include the union of the reasons that were reported.  Some
-   * waves may be stopped before they were able to report a queue error
-   * condition.  The wave stop reason will only include the reasons that were
-   * reported.
+   * No further waves will be started on the queue.  All waves that belong to
+   * the queue are inhibited from executing further instructions regardless of
+   * whether they are in the halt mode.  See ::AMD_DBGAPI_QUEUE_STATE_ERROR.
    *
-   * For example, if many waves encounter a memory violation at the same time,
-   * only some of the waves may report it before all the waves in the queue are
-   * stopped.  Only the waves that were able to report the memory violation
+   * The ::AMD_DBGAPI_QUEUE_INFO_ERROR_REASON query will include the union of
+   * the exceptions that were reported.  Some waves may be stopped before they
+   * were able to report a queue error condition.  The wave stop reason will
+   * only include the exceptions that were reported.  For example, if many
+   * waves encounter a memory violation at the same time, only some of the
+   * waves may report it before execution of all the waves in the queue is
+   * inhibited.  Only the waves that were able to report the memory violation
    * before all the waves were stopped will include the
    * ::AMD_DBGAPI_WAVE_STOP_REASON_MEMORY_VIOLATION stop reason.
    *
-   * The queue error will not be reported to the inferior runtime until this
-   * event is reported as complete by calling ::amd_dbgapi_event_processed.
-   * Once reported to the inferior runtime, it may cause the application to be
-   * notified which may delete and re-create the queue in order to continue
+   * Any waves that have a pending single step will report a
+   * ::AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED event to indicate that the
+   * single step has been cancelled.  Waves in such queues are inhibited from
+   * executing any further instructions.  The application can delete the queue,
+   * which will result in all the waves to also be deleted, and then create a
+   * new queue.
+   *
+   * The inferior's runtime will not notify the application of the queue error
+   * until this event is reported as complete by calling
+   * ::amd_dbgapi_event_processed.  Once the application is notified, it may
+   * abort, or it may delete and re-create the queue in order to continue
    * submitting dispatches to the AMD GPU.  If the application deletes a queue
    * then all information about the waves executing on the queue will be lost,
-   * preventing the user from determining if a wave caused the error.
-   *
-   * Therefore, the client may choose to stop inferior threads before reporting
-   * the event as complete.  This would prevent the queue error from causing
-   * the queue to be deleted, allowing the user to inspect all the waves in the
-   * queue.  Alternatively, the client may not report the event as complete
-   * until the user explicitly requests the queue error to be passed on to the
-   * inferior runtime.
+   * preventing the client from determining if a wave caused the error.
    */
   AMD_DBGAPI_EVENT_KIND_QUEUE_ERROR = 6
 } amd_dbgapi_event_kind_t;
@@ -5999,22 +6117,23 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_next_pending_event (
     amd_dbgapi_event_kind_t *kind) AMD_DBGAPI_VERSION_0_41;
 
 /**
- * Inferior runtime state.
+ * Inferior's runtime state.
  */
 typedef enum
 {
   /**
-   * The runtime has been loaded and debugging is supported by the library.
+   * The inferior's runtime has been loaded and debugging is supported by the
+   * library.
    */
   AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS = 1,
   /**
-   * The runtime has been unloaded.
+   * The inferior's runtime has been unloaded.
    */
   AMD_DBGAPI_RUNTIME_STATE_UNLOADED = 2,
   /**
-   * The runtime has been loaded but there is a restriction error that prevents
-   * debugging the process.  See ::AMD_DBGAPI_STATUS_ERROR_RESTRICTION for
-   * possible reasons.
+   * The inferior's runtime has been loaded but there is a restriction error
+   * that prevents debugging the process.  See
+   * ::AMD_DBGAPI_STATUS_ERROR_RESTRICTION for possible reasons.
    */
   AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION = 3
 } amd_dbgapi_runtime_state_t;
@@ -6059,7 +6178,12 @@ typedef enum
    * attribute is \p uint32_t with a value defined by
    * ::amd_dbgapi_runtime_state_t.
    */
-  AMD_DBGAPI_EVENT_INFO_RUNTIME_STATE = 6
+  AMD_DBGAPI_EVENT_INFO_RUNTIME_STATE = 6,
+  /**
+   * Return the queue of a ::AMD_DBGAPI_EVENT_KIND_QUEUE_ERROR event.  The type
+   * of this attribute is a ::amd_dbgapi_queue_id_t.
+   */
+  AMD_DBGAPI_EVENT_INFO_QUEUE = 7
 } amd_dbgapi_event_info_t;
 
 /**
@@ -6103,7 +6227,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_event_get_info (
     amd_dbgapi_event_id_t event_id, amd_dbgapi_event_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_41;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_49;
 
 /**
  * Report that an event has been processed.

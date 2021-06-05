@@ -232,6 +232,12 @@ event_t::get_info (amd_dbgapi_event_info_t query, size_t value_size,
 
       return utils::get_info (
         value_size, value, std::get<runtime_event_t> (m_data).runtime_state);
+
+    case AMD_DBGAPI_EVENT_INFO_QUEUE:
+      if (kind () != AMD_DBGAPI_EVENT_KIND_QUEUE_ERROR)
+        return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
+      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
     }
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }

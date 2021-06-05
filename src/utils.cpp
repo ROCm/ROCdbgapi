@@ -49,6 +49,10 @@ namespace detail
 using amd_dbgapi_enum_underlying_type32_t = uint32_t;
 using amd_dbgapi_enum_underlying_type64_t = uint64_t;
 
+/* Verify that all enum types used in the public interface as fields of a
+   struct or pointee of a pointer type are the size specified by the public
+   interface.
+ */
 static_assert (
   true
     && sizeof (amd_dbgapi_address_class_state_t)
@@ -71,7 +75,7 @@ static_assert (
          == sizeof (amd_dbgapi_enum_underlying_type64_t)
     && sizeof (amd_dbgapi_memory_precision_t)
          == sizeof (amd_dbgapi_enum_underlying_type32_t)
-    && sizeof (amd_dbgapi_queue_error_reason_t)
+    && sizeof (amd_dbgapi_exceptions_t)
          == sizeof (amd_dbgapi_enum_underlying_type64_t)
     && sizeof (amd_dbgapi_queue_state_t)
          == sizeof (amd_dbgapi_enum_underlying_type32_t)

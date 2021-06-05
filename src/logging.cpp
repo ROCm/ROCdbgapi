@@ -816,8 +816,8 @@ to_string (detail::query_ref<amd_dbgapi_queue_info_t> ref)
       return to_string (
         make_ref (static_cast<const amd_dbgapi_queue_state_t *> (value)));
     case AMD_DBGAPI_QUEUE_INFO_ERROR_REASON:
-      return to_string (make_ref (
-        static_cast<const amd_dbgapi_queue_error_reason_t *> (value)));
+      return to_string (
+        make_ref (static_cast<const amd_dbgapi_exceptions_t *> (value)));
     case AMD_DBGAPI_QUEUE_INFO_ADDRESS:
       return to_string (make_hex (
         make_ref (static_cast<const amd_dbgapi_global_address_t *> (value))));
@@ -865,20 +865,26 @@ namespace
 {
 
 inline std::string
-one_queue_error_reason_to_string (
-  amd_dbgapi_queue_error_reason_t queue_error_reason)
+one_queue_error_reason_to_string (amd_dbgapi_exceptions_t queue_error_reason)
 {
   dbgapi_assert (!(queue_error_reason & (queue_error_reason - 1))
                  && "only 1 bit");
 
   switch (queue_error_reason)
     {
-      CASE (QUEUE_ERROR_REASON_NONE);
-      CASE (QUEUE_ERROR_REASON_INVALID_PACKET);
-      CASE (QUEUE_ERROR_REASON_MEMORY_VIOLATION);
-      CASE (QUEUE_ERROR_REASON_ASSERT_TRAP);
-      CASE (QUEUE_ERROR_REASON_WAVE_ERROR);
-      CASE (QUEUE_ERROR_REASON_RESERVED);
+      CASE (EXCEPTIONS_NONE);
+      CASE (EXCEPTIONS_PACKET_INVALID);
+      CASE (EXCEPTIONS_PACKET_VENDOR_INVALID);
+      CASE (EXCEPTIONS_PACKET_DISPATCH_DIM_INVALID);
+      CASE (EXCEPTIONS_PACKET_DISPATCH_CODE_INVALID);
+      CASE (EXCEPTIONS_PACKET_DISPATCH_GROUP_SEGMENT_SIZE_INVALID);
+      CASE (EXCEPTIONS_PACKET_DISPATCH_WORK_GROUP_SIZE_INVALID);
+      CASE (EXCEPTIONS_PACKET_DISPATCH_REGISTER_COUNT_TOO_LARGE);
+      CASE (EXCEPTIONS_WAVE_MEMORY_VIOLATION);
+      CASE (EXCEPTIONS_WAVE_APERTURE_VIOLATION);
+      CASE (EXCEPTIONS_WAVE_ILLEGAL_INSTRUCTION);
+      CASE (EXCEPTIONS_WAVE_EXCEPTION);
+      CASE (EXCEPTIONS_RESERVED);
     }
   return to_string (make_hex (queue_error_reason));
 }
@@ -887,7 +893,7 @@ one_queue_error_reason_to_string (
 
 template <>
 std::string
-to_string (amd_dbgapi_queue_error_reason_t queue_error_reason)
+to_string (amd_dbgapi_exceptions_t queue_error_reason)
 {
   std::string str;
 
@@ -896,7 +902,7 @@ to_string (amd_dbgapi_queue_error_reason_t queue_error_reason)
 
   while (queue_error_reason)
     {
-      amd_dbgapi_queue_error_reason_t one_bit
+      amd_dbgapi_exceptions_t one_bit
         = queue_error_reason ^ (queue_error_reason & (queue_error_reason - 1));
 
       if (!str.empty ())
@@ -1115,7 +1121,6 @@ one_stop_reason_to_string (amd_dbgapi_wave_stop_reason_t stop_reason)
       CASE (WAVE_STOP_REASON_BREAKPOINT);
       CASE (WAVE_STOP_REASON_WATCHPOINT);
       CASE (WAVE_STOP_REASON_SINGLE_STEP);
-      CASE (WAVE_STOP_REASON_QUEUE_ERROR);
       CASE (WAVE_STOP_REASON_FP_INPUT_DENORMAL);
       CASE (WAVE_STOP_REASON_FP_DIVIDE_BY_0);
       CASE (WAVE_STOP_REASON_FP_OVERFLOW);
@@ -1127,10 +1132,10 @@ one_stop_reason_to_string (amd_dbgapi_wave_stop_reason_t stop_reason)
       CASE (WAVE_STOP_REASON_ASSERT_TRAP);
       CASE (WAVE_STOP_REASON_TRAP);
       CASE (WAVE_STOP_REASON_MEMORY_VIOLATION);
+      CASE (WAVE_STOP_REASON_APERTURE_VIOLATION);
       CASE (WAVE_STOP_REASON_ILLEGAL_INSTRUCTION);
       CASE (WAVE_STOP_REASON_ECC_ERROR);
       CASE (WAVE_STOP_REASON_FATAL_HALT);
-      CASE (WAVE_STOP_REASON_XNACK_ERROR);
       CASE (WAVE_STOP_REASON_RESERVED);
     }
   return to_string (make_hex (stop_reason));
@@ -1470,6 +1475,7 @@ to_string (amd_dbgapi_event_info_t event_info)
       CASE (EVENT_INFO_BREAKPOINT);
       CASE (EVENT_INFO_CLIENT_THREAD);
       CASE (EVENT_INFO_RUNTIME_STATE);
+      CASE (EVENT_INFO_QUEUE);
     }
   return to_string (make_hex (event_info));
 }
@@ -1499,6 +1505,9 @@ to_string (detail::query_ref<amd_dbgapi_event_info_t> ref)
     case AMD_DBGAPI_EVENT_INFO_RUNTIME_STATE:
       return to_string (
         make_ref (static_cast<const amd_dbgapi_runtime_state_t *> (value)));
+    case AMD_DBGAPI_EVENT_INFO_QUEUE:
+      return to_string (
+        make_ref (static_cast<const amd_dbgapi_queue_id_t *> (value)));
     }
   error ("unhandled amd_dbgapi_event_info_t query (%s)",
          to_string (query).c_str ());

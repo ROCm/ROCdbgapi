@@ -454,7 +454,7 @@ to_string (detail::parameter_t<detail::query_ref<T>, name, kind> param)
   F (amd_dbgapi_process_id_t)                                                 \
   F (amd_dbgapi_process_info_t)                                               \
   F (amd_dbgapi_progress_t)                                                   \
-  F (amd_dbgapi_queue_error_reason_t)                                         \
+  F (amd_dbgapi_exceptions_t)                                                 \
   F (amd_dbgapi_queue_id_t)                                                   \
   F (amd_dbgapi_queue_info_t)                                                 \
   F (amd_dbgapi_queue_state_t)                                                \
