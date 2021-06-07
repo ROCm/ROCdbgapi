@@ -205,7 +205,9 @@ public:
 
   amd_dbgapi_wave_state_t client_visible_state () const;
   amd_dbgapi_wave_state_t state () const { return m_state; }
-  void set_state (amd_dbgapi_wave_state_t state);
+  void set_state (amd_dbgapi_wave_state_t state,
+                  amd_dbgapi_exceptions_t exceptions
+                  = AMD_DBGAPI_EXCEPTIONS_NONE);
 
   bool stop_requested () const { return m_stop_requested; }
   amd_dbgapi_wave_stop_reason_t stop_reason () const

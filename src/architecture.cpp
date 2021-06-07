@@ -139,8 +139,11 @@ protected:
   static constexpr uint32_t sq_wave_trapsts_excp_hi_addr_watch1_mask = 1 << 12;
   static constexpr uint32_t sq_wave_trapsts_excp_hi_addr_watch2_mask = 1 << 13;
   static constexpr uint32_t sq_wave_trapsts_excp_hi_addr_watch3_mask = 1 << 14;
-
   static constexpr uint32_t sq_wave_trapsts_xnack_error_mask = 1 << 28;
+
+  static constexpr uint32_t sq_wave_trapsts_excp_mask = utils::bit_mask (0, 8);
+  static constexpr uint32_t sq_wave_trapsts_excp_hi_mask
+    = utils::bit_mask (12, 14);
 
   static constexpr uint32_t compute_relaunch_is_event (uint32_t x)
   {
@@ -210,8 +213,9 @@ public:
   void
   get_wave_state (wave_t &wave, amd_dbgapi_wave_state_t *state,
                   amd_dbgapi_wave_stop_reason_t *stop_reason) const override;
-  void set_wave_state (wave_t &wave,
-                       amd_dbgapi_wave_state_t state) const override;
+  void set_wave_state (wave_t &wave, amd_dbgapi_wave_state_t state,
+                       amd_dbgapi_exceptions_t exceptions
+                       = AMD_DBGAPI_EXCEPTIONS_NONE) const override;
 
   virtual uint32_t os_wave_launch_trap_mask_to_wave_mode (
     os_wave_launch_trap_mask_t mask) const;
@@ -1456,14 +1460,24 @@ amdgcn_architecture_t::get_wave_state (
 }
 
 void
-amdgcn_architecture_t::set_wave_state (wave_t &wave,
-                                       amd_dbgapi_wave_state_t state) const
+amdgcn_architecture_t::set_wave_state (
+  wave_t &wave, amd_dbgapi_wave_state_t state,
+  amd_dbgapi_exceptions_t exceptions) const
 {
   uint32_t status_reg, mode_reg, ttmp6;
 
   wave.read_register (amdgpu_regnum_t::status, &status_reg);
   wave.read_register (amdgpu_regnum_t::mode, &mode_reg);
   wave.read_register (amdgpu_regnum_t::ttmp6, &ttmp6);
+
+  dbgapi_assert ((exceptions == AMD_DBGAPI_EXCEPTIONS_NONE
+                  || state != AMD_DBGAPI_WAVE_STATE_STOP)
+                 && "raising an exception requires the wave to be resumed");
+
+  if (state != AMD_DBGAPI_WAVE_STATE_STOP
+      && exceptions != AMD_DBGAPI_EXCEPTIONS_NONE)
+    /* Halt the wave if resuming with an exception.  */
+    ttmp6 |= ttmp6_saved_status_halt_mask;
 
   switch (state)
     {
@@ -1515,19 +1529,19 @@ amdgcn_architecture_t::set_wave_state (wave_t &wave,
   wave.write_register (amdgpu_regnum_t::mode, &mode_reg);
   wave.write_register (amdgpu_regnum_t::ttmp6, &ttmp6);
 
-  /* If resuming the wave (run or single-step), clear the watchpoint exceptions
-     in trapsts.  */
+  /* If resuming the wave, clear all maskable exceptions.  */
   if (state != AMD_DBGAPI_WAVE_STATE_STOP
-      && wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
-      && wave.stop_reason () & AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT)
+      && wave.state () == AMD_DBGAPI_WAVE_STATE_STOP)
     {
       uint32_t trapsts;
       wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
 
-      trapsts &= ~(sq_wave_trapsts_excp_addr_watch0_mask
-                   | sq_wave_trapsts_excp_hi_addr_watch1_mask
-                   | sq_wave_trapsts_excp_hi_addr_watch2_mask
-                   | sq_wave_trapsts_excp_hi_addr_watch3_mask);
+      /* TODO: Only clear exceptions that cause the trap handler to be entered.
+         (clear trapsts.excp when the stop_reason is recorded, and ignore bits
+         that are not set in mode.excp_en).  */
+      trapsts &= ~(
+        sq_wave_trapsts_excp_mask | sq_wave_trapsts_illegal_inst_mask
+        | sq_wave_trapsts_excp_hi_mask | sq_wave_trapsts_xnack_error_mask);
 
       wave.write_register (amdgpu_regnum_t::trapsts, &trapsts);
     }

@@ -335,6 +335,7 @@ public:
 };
 
 template <> std::string to_string (os_wave_launch_mode_t mode);
+template <> std::string to_string (os_exception_code_t exception_code);
 template <> std::string to_string (os_exception_mask_t exception_mask);
 
 } /* namespace amd::dbgapi */

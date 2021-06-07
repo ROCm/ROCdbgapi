@@ -1683,15 +1683,10 @@ process_t::next_pending_event ()
             {
               /* Make sure the runtime receives the process_runtime_enable
                  event even if an exception is thrown.  */
-              utils::scope_exit send_runtime_event (
-                [this] ()
-                {
-                  amd_dbgapi_status_t status
-                    = os_driver ().send_runtime_event (
-                      os_exception_code_t::process_runtime_enable);
-                  if (status != AMD_DBGAPI_STATUS_SUCCESS
-                      && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-                    error ("send_runtime_event failed (rc=%d)", status);
+              utils::scope_exit send_runtime_enable_event (
+                [this] () {
+                  send_runtime_event (
+                    os_exception_code_t::process_runtime_enable, this);
                 });
 
               /* Retrieve the address of the rendez-vous structure
@@ -1717,15 +1712,10 @@ process_t::next_pending_event ()
             {
               /* Make sure the runtime receives the process_runtime_disable
                  event even if an exception is thrown.  */
-              utils::scope_exit send_runtime_event (
-                [this] ()
-                {
-                  amd_dbgapi_status_t status
-                    = os_driver ().send_runtime_event (
-                      os_exception_code_t::process_runtime_disable);
-                  if (status != AMD_DBGAPI_STATUS_SUCCESS
-                      && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-                    error ("send_runtime_event failed (rc=%d)", status);
+              utils::scope_exit send_runtime_disable_event (
+                [this] () {
+                  send_runtime_event (
+                    os_exception_code_t::process_runtime_disable, this);
                 });
 
               runtime_disable ();
@@ -1770,6 +1760,44 @@ process_t::next_pending_event ()
   event_t *event = m_pending_events.front ();
   m_pending_events.pop ();
   return event;
+}
+
+void
+process_t::send_runtime_event (
+  os_exception_code_t event,
+  std::variant<process_t *, agent_t *, queue_t *> source) const
+{
+  os_exception_mask_t exception = os_exception_mask (event);
+
+  os_source_id_t source_id;
+  if (is_os_exception_mask_type_queue (exception))
+    {
+      dbgapi_assert (std::holds_alternative<queue_t *> (source));
+      source_id.queue = std::get<queue_t *> (source)->os_queue_id ();
+    }
+  else if (is_os_exception_mask_type_device (exception))
+    {
+      dbgapi_assert (std::holds_alternative<agent_t *> (source));
+      source_id.agent = std::get<agent_t *> (source)->os_agent_id ();
+    }
+  else /* is_os_exception_mask_type_process (exception)  */
+    {
+      dbgapi_assert (std::holds_alternative<process_t *> (source));
+      source_id.raw = 0;
+    }
+
+  dbgapi_log (
+    AMD_DBGAPI_LOG_LEVEL_INFO, "%s sending runtime event %s (source=%s)",
+    to_string (id ()).c_str (), to_string (event).c_str (),
+    std::visit ([] (auto &&x) { return to_string (x->id ()); }, source)
+      .c_str ());
+
+  amd_dbgapi_status_t status
+    = os_driver ().send_runtime_event (event, source_id);
+
+  if (status != AMD_DBGAPI_STATUS_SUCCESS
+      && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    error ("send_runtime_event failed (rc=%d)", status);
 }
 
 } /* namespace amd::dbgapi */

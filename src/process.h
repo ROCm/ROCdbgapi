@@ -227,6 +227,10 @@ public:
   void runtime_enable ();
   void runtime_disable ();
 
+  void send_runtime_event (
+    os_exception_code_t event,
+    std::variant<process_t *, agent_t *, queue_t *> source) const;
+
   amd_dbgapi_status_t attach ();
   void detach ();
 

@@ -298,10 +298,7 @@
  *
  * 4.  ::amd_dbgapi_queue_packet_list returns packets only for AQL queues.
  *
- * 5.  ::amd_dbgapi_wave_resume does not implement \p exceptions values other
- *     than ::AMD_DBGAPI_EXCEPTIONS_NONE.
- *
- * 6. Generation of the ::AMD_DBGAPI_EVENT_KIND_QUEUE_ERROR event, the
+ * 5. Generation of the ::AMD_DBGAPI_EVENT_KIND_QUEUE_ERROR event, the
  *    ::AMD_DBGAPI_EVENT_INFO_QUEUE query, and the generation of
  *    ::AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED events for waves with
  *    pending single step requests when a queue enters the queue error state,

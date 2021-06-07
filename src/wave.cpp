@@ -414,8 +414,13 @@ wave_t::update (const wave_t &group_leader,
 }
 
 void
-wave_t::set_state (amd_dbgapi_wave_state_t state)
+wave_t::set_state (amd_dbgapi_wave_state_t state,
+                   amd_dbgapi_exceptions_t exceptions)
 {
+  dbgapi_assert ((exceptions == AMD_DBGAPI_EXCEPTIONS_NONE
+                  || state != AMD_DBGAPI_WAVE_STATE_STOP)
+                 && "raising an exception requires the wave to be resumed");
+
   amd_dbgapi_wave_state_t prev_state = m_state;
 
   if (state == prev_state)
@@ -425,16 +430,13 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
     (!m_displaced_stepping || state != AMD_DBGAPI_WAVE_STATE_RUN)
     && "displaced-stepping waves can only be stopped or single-stepped");
 
-  dbgapi_assert ((state == AMD_DBGAPI_WAVE_STATE_STOP
-                  || !(m_stop_reason & ~resumable_stop_reason_mask))
-                 && "cannot resume a wave with fatal exceptions");
-
   m_stop_requested = state == AMD_DBGAPI_WAVE_STATE_STOP;
 
   /* A wave single-stepping an s_endpgm instruction does not generate a trap
      exception upon executing the instruction, so we need to immediately
      terminate the wave and enqueue an aborted command event.  */
-  if (state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
+  if (state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
+      && exceptions == AMD_DBGAPI_EXCEPTIONS_NONE)
     {
       auto instruction = instruction_at_pc ();
       bool is_endpgm
@@ -455,13 +457,18 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
 
   if (visibility () == visibility_t::visible)
     dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                "changing %s's state from %s to %s (pc=%#lx)",
+                "changing %s's state from %s to %s %s(pc=%#lx)",
                 to_string (id ()).c_str (), to_string (prev_state).c_str (),
-                to_string (state).c_str (), pc ());
+                to_string (state).c_str (),
+                exceptions != AMD_DBGAPI_EXCEPTIONS_NONE
+                  ? ("with " + to_string (exceptions) + " ").c_str ()
+                  : "",
+                pc ());
 
   /* Single-stepping a simulated displaced instruction does not require the
      wave to run, simulate resuming of the wave as well.  */
-  if (state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP && m_displaced_stepping
+  if (state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
+      && exceptions == AMD_DBGAPI_EXCEPTIONS_NONE && m_displaced_stepping
       && m_displaced_stepping->is_simulated ())
     {
       if (architecture ().simulate_instruction (
@@ -476,7 +483,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
         }
     }
 
-  architecture ().set_wave_state (*this, state);
+  architecture ().set_wave_state (*this, state, exceptions);
   m_state = state;
 
   if (!architecture ().can_halt_at_endpgm ())
@@ -514,6 +521,32 @@ wave_t::set_state (amd_dbgapi_wave_state_t state)
       raise_event (prev_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
                      ? AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED
                      : AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
+    }
+
+  if (exceptions != AMD_DBGAPI_EXCEPTIONS_NONE)
+    {
+      auto [event, source]
+        = [&] () -> std::pair<os_exception_code_t,
+                              std::variant<process_t *, agent_t *, queue_t *>>
+      {
+        /* FIXME: exceptions are a mask, there could be more than one
+           exception set at a time.  */
+        if (exceptions == AMD_DBGAPI_EXCEPTIONS_WAVE_MEMORY_VIOLATION)
+          return { os_exception_code_t::queue_memory_violation, &queue () };
+
+        if (exceptions == AMD_DBGAPI_EXCEPTIONS_WAVE_APERTURE_VIOLATION)
+          return { os_exception_code_t::queue_aperture_violation, &queue () };
+
+        if (exceptions == AMD_DBGAPI_EXCEPTIONS_WAVE_ILLEGAL_INSTRUCTION)
+          return { os_exception_code_t::queue_illegal_instruction, &queue () };
+
+        if (exceptions == AMD_DBGAPI_EXCEPTIONS_WAVE_EXCEPTION)
+          return { os_exception_code_t::queue_trap, &queue () };
+
+        error ("unhandled exceptions %s", to_string (exceptions).c_str ());
+      }();
+
+      process ().send_runtime_event (event, source);
     }
 }
 
@@ -998,14 +1031,8 @@ amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
       != AMD_DBGAPI_EXCEPTIONS_NONE)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
-  if (exceptions != AMD_DBGAPI_EXCEPTIONS_NONE)
-    return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
-
   if (wave->client_visible_state () != AMD_DBGAPI_WAVE_STATE_STOP)
     return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED;
-
-  if (wave->stop_reason () & ~wave_t::resumable_stop_reason_mask)
-    return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_RESUMABLE;
 
   /* The wave is not resumable if the stop event is not yet processed.  */
   if (const event_t *event = wave->last_stop_event ();
@@ -1024,7 +1051,8 @@ amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
 
   wave->set_state (resume_mode == AMD_DBGAPI_RESUME_MODE_SINGLE_STEP
                      ? AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
-                     : AMD_DBGAPI_WAVE_STATE_RUN);
+                     : AMD_DBGAPI_WAVE_STATE_RUN,
+                   exceptions);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
