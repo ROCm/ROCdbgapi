@@ -1421,6 +1421,7 @@ process_t::attach ()
   amd_dbgapi_status_t status = os_driver ().enable_debug (
     os_exception_mask (os_exception_code_t::process_runtime_enable)
       | os_exception_mask (os_exception_code_t::process_runtime_disable)
+      | os_exception_mask (os_exception_code_t::device_memory_violation)
       | os_exception_mask (os_exception_code_t::queue_trap)
       | os_exception_mask (os_exception_code_t::queue_illegal_instruction)
       | os_exception_mask (os_exception_code_t::queue_memory_violation)
@@ -1639,12 +1640,14 @@ process_t::next_pending_event ()
         {
           auto [source, exceptions] = query_debug_event (
             os_exception_mask (os_exception_code_t::process_runtime_disable)
+            | os_exception_mask (os_exception_code_t::device_memory_violation)
+            | os_exception_mask (os_exception_code_t::queue_new)
             | os_exception_mask (os_exception_code_t::queue_trap)
             | os_exception_mask (
               os_exception_code_t::queue_illegal_instruction)
             | os_exception_mask (os_exception_code_t::queue_memory_violation)
-            | os_exception_mask (os_exception_code_t::queue_aperture_violation)
-            | os_exception_mask (os_exception_code_t::queue_new));
+            | os_exception_mask (
+              os_exception_code_t::queue_aperture_violation));
           dbgapi_assert (
             std::visit ([] (auto &&x) -> bool { return x; }, source)
             && "source cannot be null");
@@ -1657,6 +1660,22 @@ process_t::next_pending_event ()
             std::visit ([] (auto &&x) { return to_string (x->id ()); }, source)
               .c_str (),
             to_string (exceptions).c_str ());
+
+          if (has_os_exception (exceptions,
+                                os_exception_code_t::device_memory_violation))
+            {
+              agent_t *agent = std::get<agent_t *> (source);
+              agent->set_exception (
+                os_exception_code_t::device_memory_violation);
+
+              update_queues ();
+
+              /* All queues on the device should be suspended to inspect the
+                 state.  */
+              for (auto &&queue : range<queue_t> ())
+                if (!queue.is_suspended () && queue.agent () == *agent)
+                  queues_needing_suspend.emplace (&queue);
+            }
 
           if (has_os_exception (exceptions, os_exception_code_t::queue_trap)
               || has_os_exception (
@@ -1751,6 +1770,38 @@ process_t::next_pending_event ()
         queues_needing_resume.insert (queues_needing_resume.end (),
                                       queues.begin (), queues.end ());
     }
+
+  for (auto &agent : range<agent_t> ())
+    if (agent.has_exception (os_exception_code_t::device_memory_violation))
+      {
+        bool send_device_memory_violation_event = true;
+
+        for (auto &&wave : range<wave_t> ())
+          if (wave.agent () == agent
+              && wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
+              && (wave.stop_reason ()
+                  & AMD_DBGAPI_WAVE_STOP_REASON_MEMORY_VIOLATION))
+            {
+              /* Found a wave with a memory violation which has or will be
+                 reported to the debugger.  Defer reporting the device memory
+                 violation to the runtime until the wave is resumed.  */
+              send_device_memory_violation_event = false;
+              break;
+            }
+
+        /* There are no waves on this agent with a memory violation.  This
+           exception must have been raised either by CP or by a DMA engine.
+           Let the runtime handle the exception.  */
+        if (send_device_memory_violation_event)
+          {
+            send_runtime_event (os_exception_code_t::device_memory_violation,
+                                &agent);
+
+            /* Clear the exception since the runtime is now handling it.  */
+            agent.clear_exception (
+              os_exception_code_t::device_memory_violation);
+          }
+      }
 
   resume_queues (queues_needing_resume, "next pending event");
 

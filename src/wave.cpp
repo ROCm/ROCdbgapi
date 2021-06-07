@@ -531,8 +531,17 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
       {
         /* FIXME: exceptions are a mask, there could be more than one
            exception set at a time.  */
+
         if (exceptions == AMD_DBGAPI_EXCEPTIONS_WAVE_MEMORY_VIOLATION)
-          return { os_exception_code_t::queue_memory_violation, &queue () };
+          {
+            if (agent ().has_exception (
+                  os_exception_code_t::device_memory_violation))
+              return { os_exception_code_t::device_memory_violation,
+                       &agent () };
+            else
+              return { os_exception_code_t::queue_memory_violation,
+                       &queue () };
+          }
 
         if (exceptions == AMD_DBGAPI_EXCEPTIONS_WAVE_APERTURE_VIOLATION)
           return { os_exception_code_t::queue_aperture_violation, &queue () };
@@ -547,6 +556,28 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
       }();
 
       process ().send_runtime_event (event, source);
+    }
+
+  if (state != AMD_DBGAPI_WAVE_STATE_STOP
+      && agent ().has_exception (os_exception_code_t::device_memory_violation))
+    {
+      bool clear_device_memory_violation = true;
+
+      for (auto &&wave : process ().range<wave_t> ())
+        if (wave.agent () == agent ()
+            && wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
+            && (wave.stop_reason ()
+                & AMD_DBGAPI_WAVE_STOP_REASON_MEMORY_VIOLATION))
+          {
+            clear_device_memory_violation = false;
+            break;
+          }
+
+      /* There are no more waves on this agent with a memory violation.  Clear
+         this exception so that it isn't attributed to CP or a DMA engine.  */
+      if (clear_device_memory_violation)
+        agent ().clear_exception (
+          os_exception_code_t::device_memory_violation);
     }
 }
 

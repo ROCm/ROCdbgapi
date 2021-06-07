@@ -40,6 +40,7 @@ class agent_t : public detail::handle_object<amd_dbgapi_agent_id_t>
 {
 private:
   os_agent_snapshot_entry_t const m_os_agent_info;
+  os_exception_mask_t m_exceptions{ os_exception_mask_t::none };
 
   const architecture_t &m_architecture;
   process_t &m_process;
@@ -51,6 +52,10 @@ public:
   ~agent_t ();
 
   os_agent_id_t os_agent_id () const { return m_os_agent_info.os_agent_id; }
+
+  void set_exception (os_exception_code_t exception_code);
+  void clear_exception (os_exception_code_t exception_code);
+  bool has_exception (os_exception_code_t exception_code) const;
 
   amd_dbgapi_status_t get_info (amd_dbgapi_agent_info_t query,
                                 size_t value_size, void *value) const;

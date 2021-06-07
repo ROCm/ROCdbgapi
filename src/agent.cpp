@@ -44,6 +44,24 @@ agent_t::agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
 
 agent_t::~agent_t () {}
 
+void
+agent_t::set_exception (os_exception_code_t exception_code)
+{
+  m_exceptions |= os_exception_mask (exception_code);
+}
+
+void
+agent_t::clear_exception (os_exception_code_t exception_code)
+{
+  m_exceptions &= ~os_exception_mask (exception_code);
+}
+
+bool
+agent_t::has_exception (os_exception_code_t exception_code) const
+{
+  return (m_exceptions & os_exception_mask (exception_code)) != 0;
+}
+
 amd_dbgapi_status_t
 agent_t::get_info (amd_dbgapi_agent_info_t query, size_t value_size,
                    void *value) const
