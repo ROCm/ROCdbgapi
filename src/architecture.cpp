@@ -1387,20 +1387,28 @@ amdgcn_architecture_t::get_wave_state (
         error ("trap exception not raised by a trap instruction");
     }
 
-  /* Check for exceptions.  */
-  if (trapsts & sq_wave_trapsts_excp_invalid_mask)
+  /* Check for exceptions.  Maskable exceptions may be mis-reported if
+     trapsts.excp[x] is not cleared when mode.excp_en[x] is set.  */
+  if (trapsts & sq_wave_trapsts_excp_invalid_mask
+      && mode_reg & sq_wave_mode_excp_en_invalid_mask)
     reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_FP_INVALID_OPERATION;
-  if (trapsts & sq_wave_trapsts_excp_input_denorm_mask)
+  if (trapsts & sq_wave_trapsts_excp_input_denorm_mask
+      && mode_reg & sq_wave_mode_excp_en_input_denorm_mask)
     reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_FP_INPUT_DENORMAL;
-  if (trapsts & sq_wave_trapsts_excp_div0_mask)
+  if (trapsts & sq_wave_trapsts_excp_div0_mask
+      && mode_reg & sq_wave_mode_excp_en_div0_mask)
     reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_FP_DIVIDE_BY_0;
-  if (trapsts & sq_wave_trapsts_excp_overflow_mask)
+  if (trapsts & sq_wave_trapsts_excp_overflow_mask
+      && mode_reg & sq_wave_mode_excp_en_overflow_mask)
     reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_FP_OVERFLOW;
-  if (trapsts & sq_wave_trapsts_excp_underflow_mask)
+  if (trapsts & sq_wave_trapsts_excp_underflow_mask
+      && mode_reg & sq_wave_mode_excp_en_underflow_mask)
     reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_FP_UNDERFLOW;
-  if (trapsts & sq_wave_trapsts_excp_inexact_mask)
+  if (trapsts & sq_wave_trapsts_excp_inexact_mask
+      && mode_reg & sq_wave_mode_excp_en_inexact_mask)
     reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_FP_INEXACT;
-  if (trapsts & sq_wave_trapsts_excp_int_div0_mask)
+  if (trapsts & sq_wave_trapsts_excp_int_div0_mask
+      && mode_reg & sq_wave_mode_excp_en_int_div0_mask)
     reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_INT_DIVIDE_BY_0;
   if (trapsts & sq_wave_trapsts_xnack_error_mask)
     reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_MEMORY_VIOLATION;
@@ -1409,10 +1417,11 @@ amdgcn_architecture_t::get_wave_state (
   if (trapsts & sq_wave_trapsts_illegal_inst_mask)
     reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_ILLEGAL_INSTRUCTION;
   if (trapsts
-      & (sq_wave_trapsts_excp_addr_watch0_mask
-         | sq_wave_trapsts_excp_hi_addr_watch1_mask
-         | sq_wave_trapsts_excp_hi_addr_watch2_mask
-         | sq_wave_trapsts_excp_hi_addr_watch3_mask))
+        & (sq_wave_trapsts_excp_addr_watch0_mask
+           | sq_wave_trapsts_excp_hi_addr_watch1_mask
+           | sq_wave_trapsts_excp_hi_addr_watch2_mask
+           | sq_wave_trapsts_excp_hi_addr_watch3_mask)
+      && mode_reg & sq_wave_mode_excp_en_addr_watch_mask)
     reason_mask |= AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT;
 
   /* Check for spurious single-step events. A context save/restore before
@@ -1529,20 +1538,46 @@ amdgcn_architecture_t::set_wave_state (
   wave.write_register (amdgpu_regnum_t::mode, &mode_reg);
   wave.write_register (amdgpu_regnum_t::ttmp6, &ttmp6);
 
-  /* If resuming the wave, clear all maskable exceptions.  */
+  /* If resuming the wave, clear exceptions that have already been reported in
+     a stop event.  */
   if (state != AMD_DBGAPI_WAVE_STATE_STOP
-      && wave.state () == AMD_DBGAPI_WAVE_STATE_STOP)
+      && wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
+      && wave.stop_reason () != AMD_DBGAPI_WAVE_STOP_REASON_NONE)
     {
       uint32_t trapsts;
       wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
 
-      /* TODO: Only clear exceptions that cause the trap handler to be entered.
-         (clear trapsts.excp when the stop_reason is recorded, and ignore bits
-         that are not set in mode.excp_en).  */
-      trapsts &= ~(
-        sq_wave_trapsts_excp_mask | sq_wave_trapsts_illegal_inst_mask
-        | sq_wave_trapsts_excp_hi_mask | sq_wave_trapsts_xnack_error_mask);
+      /* Always clear these exceptions as they are not maskable and will always
+         cause the wave to enter the trap handler.  */
+      uint32_t clear_exceptions = sq_wave_trapsts_excp_mem_viol_mask
+                                  | sq_wave_trapsts_illegal_inst_mask
+                                  | sq_wave_trapsts_xnack_error_mask;
 
+      amd_dbgapi_wave_stop_reasons_t reason_mask = wave.stop_reason ();
+
+      /* Only clear maskable exceptions if they have caused the wave to enter
+         the trap handler.  */
+      if (reason_mask & AMD_DBGAPI_WAVE_STOP_REASON_FP_INVALID_OPERATION)
+        clear_exceptions |= sq_wave_trapsts_excp_invalid_mask;
+      if (reason_mask & AMD_DBGAPI_WAVE_STOP_REASON_FP_INPUT_DENORMAL)
+        clear_exceptions |= sq_wave_trapsts_excp_input_denorm_mask;
+      if (reason_mask & AMD_DBGAPI_WAVE_STOP_REASON_FP_DIVIDE_BY_0)
+        clear_exceptions |= sq_wave_trapsts_excp_div0_mask;
+      if (reason_mask & AMD_DBGAPI_WAVE_STOP_REASON_FP_OVERFLOW)
+        clear_exceptions |= sq_wave_trapsts_excp_overflow_mask;
+      if (reason_mask & AMD_DBGAPI_WAVE_STOP_REASON_FP_UNDERFLOW)
+        clear_exceptions |= sq_wave_trapsts_excp_underflow_mask;
+      if (reason_mask & AMD_DBGAPI_WAVE_STOP_REASON_FP_INEXACT)
+        clear_exceptions |= sq_wave_trapsts_excp_inexact_mask;
+      if (reason_mask & AMD_DBGAPI_WAVE_STOP_REASON_INT_DIVIDE_BY_0)
+        clear_exceptions |= sq_wave_trapsts_excp_int_div0_mask;
+      if (reason_mask & AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT)
+        clear_exceptions |= sq_wave_trapsts_excp_addr_watch0_mask
+                            | sq_wave_trapsts_excp_hi_addr_watch1_mask
+                            | sq_wave_trapsts_excp_hi_addr_watch2_mask
+                            | sq_wave_trapsts_excp_hi_addr_watch3_mask;
+
+      trapsts &= ~clear_exceptions;
       wave.write_register (amdgpu_regnum_t::trapsts, &trapsts);
     }
 }
