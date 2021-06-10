@@ -2553,7 +2553,12 @@ typedef enum
    */
   AMD_DBGAPI_EXCEPTION_PACKET_VENDOR_UNSUPPORTED = (1ULL << 23),
   /**
-   * There was an error preempting the queue.
+   * There was an error preempting the queue.  When the AMD GPU device driver
+   * generates this error it may cause all waves associated with the queue to
+   * be killed.  Killing a wave causes it to be terminated immediately without
+   * reporting any exceptions.  Any killed waves that have a pending single
+   * step will report a ::AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED event
+   * to indicate that the single step has been cancelled.
    */
   AMD_DBGAPI_EXCEPTION_QUEUE_PREEMPTION_ERROR = (1ULL << 31),
   /**
