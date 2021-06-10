@@ -825,19 +825,20 @@ one_queue_error_reason_to_string (amd_dbgapi_exceptions_t queue_error_reason)
 
   switch (queue_error_reason)
     {
-      CASE (EXCEPTIONS_NONE);
-      CASE (EXCEPTIONS_PACKET_INVALID);
-      CASE (EXCEPTIONS_PACKET_VENDOR_INVALID);
-      CASE (EXCEPTIONS_PACKET_DISPATCH_DIM_INVALID);
-      CASE (EXCEPTIONS_PACKET_DISPATCH_CODE_INVALID);
-      CASE (EXCEPTIONS_PACKET_DISPATCH_GROUP_SEGMENT_SIZE_INVALID);
-      CASE (EXCEPTIONS_PACKET_DISPATCH_WORK_GROUP_SIZE_INVALID);
-      CASE (EXCEPTIONS_PACKET_DISPATCH_REGISTER_COUNT_TOO_LARGE);
-      CASE (EXCEPTIONS_WAVE_MEMORY_VIOLATION);
-      CASE (EXCEPTIONS_WAVE_APERTURE_VIOLATION);
-      CASE (EXCEPTIONS_WAVE_ILLEGAL_INSTRUCTION);
-      CASE (EXCEPTIONS_WAVE_EXCEPTION);
-      CASE (EXCEPTIONS_RESERVED);
+      CASE (EXCEPTION_NONE);
+      CASE (EXCEPTION_WAVE_EXCEPTION);
+      CASE (EXCEPTION_WAVE_ILLEGAL_INSTRUCTION);
+      CASE (EXCEPTION_WAVE_MEMORY_VIOLATION);
+      CASE (EXCEPTION_WAVE_APERTURE_VIOLATION);
+      CASE (EXCEPTION_PACKET_DISPATCH_DIM_INVALID);
+      CASE (EXCEPTION_PACKET_DISPATCH_GROUP_SEGMENT_SIZE_INVALID);
+      CASE (EXCEPTION_PACKET_DISPATCH_CODE_INVALID);
+      CASE (EXCEPTION_PACKET_UNSUPPORTED);
+      CASE (EXCEPTION_PACKET_DISPATCH_WORK_GROUP_SIZE_INVALID);
+      CASE (EXCEPTION_PACKET_DISPATCH_REGISTER_COUNT_TOO_LARGE);
+      CASE (EXCEPTION_PACKET_VENDOR_UNSUPPORTED);
+      CASE (EXCEPTION_QUEUE_PREEMPTION_ERROR);
+      CASE (EXCEPTION_RESERVED);
     }
   return to_string (make_hex (queue_error_reason));
 }
@@ -1004,8 +1005,8 @@ to_string (detail::query_ref<amd_dbgapi_wave_info_t> ref)
       return to_string (
         make_ref (static_cast<const amd_dbgapi_wave_state_t *> (value)));
     case AMD_DBGAPI_WAVE_INFO_STOP_REASON:
-      return to_string (
-        make_ref (static_cast<const amd_dbgapi_wave_stop_reason_t *> (value)));
+      return to_string (make_ref (
+        static_cast<const amd_dbgapi_wave_stop_reasons_t *> (value)));
     case AMD_DBGAPI_WAVE_INFO_WATCHPOINTS:
       {
         const auto *list
@@ -1064,7 +1065,7 @@ namespace
 {
 
 inline std::string
-one_stop_reason_to_string (amd_dbgapi_wave_stop_reason_t stop_reason)
+one_stop_reason_to_string (amd_dbgapi_wave_stop_reasons_t stop_reason)
 {
   dbgapi_assert (!(stop_reason & (stop_reason - 1)) && "only 1 bit");
 
@@ -1098,7 +1099,7 @@ one_stop_reason_to_string (amd_dbgapi_wave_stop_reason_t stop_reason)
 
 template <>
 std::string
-to_string (amd_dbgapi_wave_stop_reason_t stop_reason)
+to_string (amd_dbgapi_wave_stop_reasons_t stop_reason)
 {
   std::string str;
 
@@ -1107,7 +1108,7 @@ to_string (amd_dbgapi_wave_stop_reason_t stop_reason)
 
   while (stop_reason)
     {
-      amd_dbgapi_wave_stop_reason_t one_bit
+      amd_dbgapi_wave_stop_reasons_t one_bit
         = stop_reason ^ (stop_reason & (stop_reason - 1));
 
       if (!str.empty ())

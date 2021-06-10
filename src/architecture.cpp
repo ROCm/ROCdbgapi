@@ -212,10 +212,10 @@ public:
 
   void
   get_wave_state (wave_t &wave, amd_dbgapi_wave_state_t *state,
-                  amd_dbgapi_wave_stop_reason_t *stop_reason) const override;
+                  amd_dbgapi_wave_stop_reasons_t *stop_reason) const override;
   void set_wave_state (wave_t &wave, amd_dbgapi_wave_state_t state,
                        amd_dbgapi_exceptions_t exceptions
-                       = AMD_DBGAPI_EXCEPTIONS_NONE) const override;
+                       = AMD_DBGAPI_EXCEPTION_NONE) const override;
 
   virtual uint32_t os_wave_launch_trap_mask_to_wave_mode (
     os_wave_launch_trap_mask_t mask) const;
@@ -1278,7 +1278,7 @@ amdgcn_architecture_t::simulate_instruction (
 void
 amdgcn_architecture_t::get_wave_state (
   wave_t &wave, amd_dbgapi_wave_state_t *state,
-  amd_dbgapi_wave_stop_reason_t *stop_reason) const
+  amd_dbgapi_wave_stop_reasons_t *stop_reason) const
 {
   dbgapi_assert (state && stop_reason && "Invalid parameter");
 
@@ -1317,7 +1317,7 @@ amdgcn_architecture_t::get_wave_state (
   mode_reg &= ~sq_wave_mode_debug_en_mask;
   wave.write_register (amdgpu_regnum_t::mode, &mode_reg);
 
-  amd_dbgapi_wave_stop_reason_t reason_mask
+  amd_dbgapi_wave_stop_reasons_t reason_mask
     = (prev_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
         ? AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP
         : AMD_DBGAPI_WAVE_STOP_REASON_NONE;
@@ -1470,12 +1470,12 @@ amdgcn_architecture_t::set_wave_state (
   wave.read_register (amdgpu_regnum_t::mode, &mode_reg);
   wave.read_register (amdgpu_regnum_t::ttmp6, &ttmp6);
 
-  dbgapi_assert ((exceptions == AMD_DBGAPI_EXCEPTIONS_NONE
+  dbgapi_assert ((exceptions == AMD_DBGAPI_EXCEPTION_NONE
                   || state != AMD_DBGAPI_WAVE_STATE_STOP)
                  && "raising an exception requires the wave to be resumed");
 
   if (state != AMD_DBGAPI_WAVE_STATE_STOP
-      && exceptions != AMD_DBGAPI_EXCEPTIONS_NONE)
+      && exceptions != AMD_DBGAPI_EXCEPTION_NONE)
     /* Halt the wave if resuming with an exception.  */
     ttmp6 |= ttmp6_saved_status_halt_mask;
 

@@ -730,8 +730,8 @@ operator+= (T &lhs, int rhs)
   return lhs = lhs + rhs;
 }
 
-/* Enable bitwise operations for amd_dbgapi_wave_stop_reason_t.  */
-template <> struct is_flag<amd_dbgapi_wave_stop_reason_t> : std::true_type
+/* Enable bitwise operations for amd_dbgapi_wave_stop_reasons_t.  */
+template <> struct is_flag<amd_dbgapi_wave_stop_reasons_t> : std::true_type
 {
 };
 

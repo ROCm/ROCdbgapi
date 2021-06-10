@@ -471,7 +471,7 @@ to_string (detail::parameter_t<detail::query_ref<T>, name, kind> param)
   F (amd_dbgapi_wave_id_t)                                                    \
   F (amd_dbgapi_wave_info_t)                                                  \
   F (amd_dbgapi_wave_state_t)                                                 \
-  F (amd_dbgapi_wave_stop_reason_t)                                           \
+  F (amd_dbgapi_wave_stop_reasons_t)                                          \
   F (amd_dbgapi_watchpoint_id_t)                                              \
   F (amd_dbgapi_watchpoint_info_t)                                            \
   F (amd_dbgapi_watchpoint_kind_t)                                            \

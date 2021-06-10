@@ -417,7 +417,7 @@ void
 wave_t::set_state (amd_dbgapi_wave_state_t state,
                    amd_dbgapi_exceptions_t exceptions)
 {
-  dbgapi_assert ((exceptions == AMD_DBGAPI_EXCEPTIONS_NONE
+  dbgapi_assert ((exceptions == AMD_DBGAPI_EXCEPTION_NONE
                   || state != AMD_DBGAPI_WAVE_STATE_STOP)
                  && "raising an exception requires the wave to be resumed");
 
@@ -436,7 +436,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
      exception upon executing the instruction, so we need to immediately
      terminate the wave and enqueue an aborted command event.  */
   if (state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
-      && exceptions == AMD_DBGAPI_EXCEPTIONS_NONE)
+      && exceptions == AMD_DBGAPI_EXCEPTION_NONE)
     {
       auto instruction = instruction_at_pc ();
       bool is_endpgm
@@ -460,7 +460,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
                 "changing %s's state from %s to %s %s(pc=%#lx)",
                 to_string (id ()).c_str (), to_string (prev_state).c_str (),
                 to_string (state).c_str (),
-                exceptions != AMD_DBGAPI_EXCEPTIONS_NONE
+                exceptions != AMD_DBGAPI_EXCEPTION_NONE
                   ? ("with " + to_string (exceptions) + " ").c_str ()
                   : "",
                 pc ());
@@ -468,7 +468,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
   /* Single-stepping a simulated displaced instruction does not require the
      wave to run, simulate resuming of the wave as well.  */
   if (state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
-      && exceptions == AMD_DBGAPI_EXCEPTIONS_NONE && m_displaced_stepping
+      && exceptions == AMD_DBGAPI_EXCEPTION_NONE && m_displaced_stepping
       && m_displaced_stepping->is_simulated ())
     {
       if (architecture ().simulate_instruction (
@@ -523,7 +523,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
                      : AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
     }
 
-  if (exceptions != AMD_DBGAPI_EXCEPTIONS_NONE)
+  if (exceptions != AMD_DBGAPI_EXCEPTION_NONE)
     {
       auto [event, source]
         = [&] () -> std::pair<os_exception_code_t,
@@ -532,7 +532,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
         /* FIXME: exceptions are a mask, there could be more than one
            exception set at a time.  */
 
-        if (exceptions == AMD_DBGAPI_EXCEPTIONS_WAVE_MEMORY_VIOLATION)
+        if (exceptions == AMD_DBGAPI_EXCEPTION_WAVE_MEMORY_VIOLATION)
           {
             if (agent ().has_exception (
                   os_exception_code_t::device_memory_violation))
@@ -543,13 +543,13 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
                        &queue () };
           }
 
-        if (exceptions == AMD_DBGAPI_EXCEPTIONS_WAVE_APERTURE_VIOLATION)
+        if (exceptions == AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION)
           return { os_exception_code_t::queue_aperture_violation, &queue () };
 
-        if (exceptions == AMD_DBGAPI_EXCEPTIONS_WAVE_ILLEGAL_INSTRUCTION)
+        if (exceptions == AMD_DBGAPI_EXCEPTION_WAVE_ILLEGAL_INSTRUCTION)
           return { os_exception_code_t::queue_illegal_instruction, &queue () };
 
-        if (exceptions == AMD_DBGAPI_EXCEPTIONS_WAVE_EXCEPTION)
+        if (exceptions == AMD_DBGAPI_EXCEPTION_WAVE_EXCEPTION)
           return { os_exception_code_t::queue_trap, &queue () };
 
         error ("unhandled exceptions %s", to_string (exceptions).c_str ());
@@ -1055,11 +1055,11 @@ amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   if ((exceptions
-       & ~(AMD_DBGAPI_EXCEPTIONS_WAVE_MEMORY_VIOLATION
-           | AMD_DBGAPI_EXCEPTIONS_WAVE_APERTURE_VIOLATION
-           | AMD_DBGAPI_EXCEPTIONS_WAVE_ILLEGAL_INSTRUCTION
-           | AMD_DBGAPI_EXCEPTIONS_WAVE_EXCEPTION))
-      != AMD_DBGAPI_EXCEPTIONS_NONE)
+       & ~(AMD_DBGAPI_EXCEPTION_WAVE_MEMORY_VIOLATION
+           | AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION
+           | AMD_DBGAPI_EXCEPTION_WAVE_ILLEGAL_INSTRUCTION
+           | AMD_DBGAPI_EXCEPTION_WAVE_EXCEPTION))
+      != AMD_DBGAPI_EXCEPTION_NONE)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   if (wave->client_visible_state () != AMD_DBGAPI_WAVE_STATE_STOP)

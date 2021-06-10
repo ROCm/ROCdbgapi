@@ -61,7 +61,7 @@ public:
 
   /* Mask of stop reasons a wave can have and still be resumed. These stop
      reasons are not fatal, and are cleared when the wave is resumed.  */
-  static constexpr amd_dbgapi_wave_stop_reason_t resumable_stop_reason_mask
+  static constexpr amd_dbgapi_wave_stop_reasons_t resumable_stop_reason_mask
     = AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT
       | AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT
       | AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP
@@ -103,7 +103,7 @@ public:
 private:
   amd_dbgapi_wave_state_t m_state{ AMD_DBGAPI_WAVE_STATE_RUN };
   bool m_stop_requested{ false };
-  amd_dbgapi_wave_stop_reason_t m_stop_reason{};
+  amd_dbgapi_wave_stop_reasons_t m_stop_reason{};
   amd_dbgapi_global_address_t m_parked_pc{ 0 };
   amd_dbgapi_global_address_t m_last_stopped_pc{ 0 };
   epoch_t m_mark{ 0 };
@@ -207,10 +207,10 @@ public:
   amd_dbgapi_wave_state_t state () const { return m_state; }
   void set_state (amd_dbgapi_wave_state_t state,
                   amd_dbgapi_exceptions_t exceptions
-                  = AMD_DBGAPI_EXCEPTIONS_NONE);
+                  = AMD_DBGAPI_EXCEPTION_NONE);
 
   bool stop_requested () const { return m_stop_requested; }
-  amd_dbgapi_wave_stop_reason_t stop_reason () const
+  amd_dbgapi_wave_stop_reasons_t stop_reason () const
   {
     dbgapi_assert (state () == AMD_DBGAPI_WAVE_STATE_STOP);
     return m_stop_reason;

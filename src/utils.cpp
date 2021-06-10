@@ -89,7 +89,7 @@ static_assert (
          == sizeof (amd_dbgapi_enum_underlying_type32_t)
     && sizeof (amd_dbgapi_wave_state_t)
          == sizeof (amd_dbgapi_enum_underlying_type32_t)
-    && sizeof (amd_dbgapi_wave_stop_reason_t)
+    && sizeof (amd_dbgapi_wave_stop_reasons_t)
          == sizeof (amd_dbgapi_enum_underlying_type64_t),
   "an enum type is not compatible with the dbgapi enum underlying type");
 

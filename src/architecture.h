@@ -255,10 +255,10 @@ public:
 
   virtual void
   get_wave_state (wave_t &wave, amd_dbgapi_wave_state_t *state,
-                  amd_dbgapi_wave_stop_reason_t *stop_reason) const = 0;
+                  amd_dbgapi_wave_stop_reasons_t *stop_reason) const = 0;
   virtual void set_wave_state (wave_t &wave, amd_dbgapi_wave_state_t state,
                                amd_dbgapi_exceptions_t exceptions
-                               = AMD_DBGAPI_EXCEPTIONS_NONE) const = 0;
+                               = AMD_DBGAPI_EXCEPTION_NONE) const = 0;
 
   virtual void enable_wave_traps (wave_t &wave,
                                   os_wave_launch_trap_mask_t mask) const = 0;
