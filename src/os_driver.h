@@ -145,6 +145,15 @@ template <> struct is_flag<os_exception_mask_t> : std::true_type
 {
 };
 
+static constexpr os_exception_mask_t os_queue_exception_mask
+  = os_exception_mask_t{ KFD_EC_MASK_QUEUE };
+
+static constexpr os_exception_mask_t os_agent_exception_mask
+  = os_exception_mask_t{ KFD_EC_MASK_DEVICE };
+
+static constexpr os_exception_mask_t os_process_exception_mask
+  = os_exception_mask_t{ KFD_EC_MASK_PROCESS };
+
 constexpr os_exception_mask_t
 os_exception_mask (os_exception_code_t os_exception_code)
 {
@@ -155,46 +164,15 @@ os_exception_mask (os_exception_code_t os_exception_code)
     static_cast<int> (os_exception_code)) };
 }
 
-constexpr bool
-has_os_exception (os_exception_mask_t mask, os_exception_code_t code)
+/* Helper function to build an os_exception_mask_t from a list of
+   os_exception_code_t.  */
+template <typename... ExceptionCodes>
+constexpr std::enable_if_t<std::conjunction_v<std::is_convertible<
+                             ExceptionCodes, os_exception_code_t>...>,
+                           os_exception_mask_t>
+os_exception_mask (ExceptionCodes... exception_codes)
 {
-  return (mask & os_exception_mask (code)) != 0;
-}
-
-constexpr bool
-is_os_exception_mask_type_queue (os_exception_mask_t os_exception_mask)
-{
-  constexpr os_exception_mask_t queue_exception_mask{ KFD_EC_MASK_QUEUE };
-
-  dbgapi_assert (!(os_exception_mask & queue_exception_mask)
-                   != !(os_exception_mask & ~queue_exception_mask)
-                 && "invalid exception mask: mixed sources");
-
-  return (os_exception_mask & queue_exception_mask) != 0;
-}
-
-constexpr bool
-is_os_exception_mask_type_device (os_exception_mask_t os_exception_mask)
-{
-  constexpr os_exception_mask_t device_exception_mask{ KFD_EC_MASK_DEVICE };
-
-  dbgapi_assert (!(os_exception_mask & device_exception_mask)
-                   != !(os_exception_mask & ~device_exception_mask)
-                 && "invalid exception mask: mixed sources");
-
-  return (os_exception_mask & device_exception_mask) != 0;
-}
-
-constexpr bool
-is_os_exception_mask_type_process (os_exception_mask_t os_exception_mask)
-{
-  constexpr os_exception_mask_t process_exception_mask{ KFD_EC_MASK_PROCESS };
-
-  dbgapi_assert (!(os_exception_mask & process_exception_mask)
-                   != !(os_exception_mask & ~process_exception_mask)
-                 && "invalid exception mask: mixed sources");
-
-  return (os_exception_mask & process_exception_mask) != 0;
+  return (os_exception_mask (exception_codes) | ...);
 }
 
 enum class os_wave_launch_trap_override_t : uint32_t
