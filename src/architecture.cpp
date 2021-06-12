@@ -94,9 +94,9 @@ protected:
   enum class trap_id_t : uint8_t
   {
     reserved = 0x0,
+    breakpoint = 0x1,
     assert_trap = 0x2,
     debug_trap = 0x3,
-    breakpoint = 0x7
   };
 
   /* The trap handler only saves 4 bits of the original trap_id.  trap_id 0
