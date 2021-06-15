@@ -77,11 +77,11 @@ public:
        not be reported to the client until the launch mode is changed to
        os_wave_launch_mode_t::NORMAL.  */
     hidden_halted_at_launch,
-    /* Waves with hidden_at_endpgm visibility are waves that are terminating
-       (about to execute a s_endpgm instruction). These waves should never be
-       reported to the client and will be destroyed in the next mark and sweep
-       when they finally terminate.  */
-    hidden_at_endpgm
+    /* Waves with hidden_at_terminating_instruction visibility are waves that
+       are terminating (about to execute a terminating instruction). These
+       waves should never be reported to the client and will be destroyed in
+       the next mark and sweep when they finally terminate.  */
+    hidden_at_terminating_instruction
   };
 
   struct callbacks_t
@@ -94,8 +94,9 @@ public:
     std::function<instruction_buffer_t ()> allocate_instruction_buffer{};
     /* Return the address of a park instruction.  */
     std::function<amd_dbgapi_global_address_t ()> park_instruction_address{};
-    /* Return the address of an endpgm instruction.  */
-    std::function<amd_dbgapi_global_address_t ()> endpgm_instruction_address{};
+    /* Return the address of a terminating instruction.  */
+    std::function<amd_dbgapi_global_address_t ()>
+      terminating_instruction_address{};
     /* Insert the given cache into the queue's dirty cache list.  */
     std::function<void (memory_cache_t &)> register_dirty_cache{};
   };

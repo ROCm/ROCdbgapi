@@ -228,13 +228,12 @@ public:
                       os_wave_launch_trap_mask_t mask) const override final;
 
   size_t minimum_instruction_alignment () const override;
-  instruction_t nop_instruction () const override;
   virtual instruction_t trap_instruction (std::optional<trap_id_t> trap_id
                                           = std::nullopt) const;
   instruction_t breakpoint_instruction () const override;
   instruction_t assert_instruction () const override;
   instruction_t debug_trap_instruction () const override;
-  instruction_t endpgm_instruction () const override;
+  instruction_t terminating_instruction () const override;
   size_t breakpoint_instruction_pc_adjust () const override;
 
 protected:
@@ -271,12 +270,15 @@ protected:
   virtual bool is_cbranch_i_fork (const instruction_t &instruction) const = 0;
   virtual bool is_cbranch_g_fork (const instruction_t &instruction) const = 0;
   virtual bool is_cbranch_join (const instruction_t &instruction) const = 0;
-  virtual bool is_nop (const instruction_t &instruction) const = 0;
   virtual bool is_trap (const instruction_t &instruction,
                         trap_id_t *trap_id = nullptr) const = 0;
+  virtual bool is_endpgm (const instruction_t &instruction) const = 0;
 
-  bool is_endpgm (const instruction_t &instruction) const override = 0;
-  bool is_breakpoint (const instruction_t &instruction) const override = 0;
+  bool
+  is_terminating_instruction (const instruction_t &instruction) const override;
+
+  virtual bool can_halt_at_endpgm () const = 0;
+  bool park_stopped_waves () const override { return !can_halt_at_endpgm (); }
 
   virtual bool is_cbranch_taken (wave_t &wave,
                                  const instruction_t &instruction) const;
@@ -693,16 +695,6 @@ amdgcn_architecture_t::minimum_instruction_alignment () const
 }
 
 instruction_t
-amdgcn_architecture_t::nop_instruction () const
-{
-  return instruction_t (
-    legal_instruction, *this,
-    std::vector<std::byte> ({ /* s_nop 0  */ std::byte{ 0x00 },
-                              std::byte{ 0x00 }, std::byte{ 0x80 },
-                              std::byte{ 0xBF } }));
-}
-
-instruction_t
 amdgcn_architecture_t::trap_instruction (
   std::optional<trap_id_t> trap_id) const
 {
@@ -733,7 +725,7 @@ amdgcn_architecture_t::debug_trap_instruction () const
 }
 
 instruction_t
-amdgcn_architecture_t::endpgm_instruction () const
+amdgcn_architecture_t::terminating_instruction () const
 {
   return instruction_t (
     legal_instruction, *this,
@@ -747,6 +739,13 @@ amdgcn_architecture_t::breakpoint_instruction_pc_adjust () const
 {
   return breakpoint_instruction ().size ();
 }
+
+bool
+amdgcn_architecture_t::is_terminating_instruction (
+  const instruction_t &instruction) const
+{
+  return is_endpgm (instruction);
+};
 
 bool
 amdgcn_architecture_t::is_cbranch_taken (
@@ -1068,9 +1067,8 @@ amdgcn_architecture_t::can_simulate (const instruction_t &instruction) const
     return !(encoding_ssrc0 (instruction) & 1)
            && !(encoding_ssrc1 (instruction) & 1);
 
-  return is_nop (instruction) || is_branch (instruction)
-         || is_cbranch (instruction) || is_cbranch_join (instruction)
-         || is_endpgm (instruction);
+  return is_branch (instruction) || is_cbranch (instruction)
+         || is_cbranch_join (instruction) || is_endpgm (instruction);
 }
 
 bool
@@ -1090,11 +1088,7 @@ amdgcn_architecture_t::simulate_instruction (
 
   amd_dbgapi_global_address_t new_pc;
 
-  if (is_nop (instruction))
-    {
-      new_pc = pc + nop_instruction ().size ();
-    }
-  else if (is_endpgm (instruction))
+  if (is_endpgm (instruction))
     {
       wave.terminate ();
       return true;
@@ -1342,7 +1336,7 @@ amdgcn_architecture_t::get_wave_state (
 
   amd_dbgapi_global_address_t pc = wave.pc ();
 
-  if (!can_halt_at_endpgm ())
+  if (park_stopped_waves ())
     {
       /* The trap handler "parked" the wave and saved the PC in ttmp11[22:7]
          and ttmp7[31:0]  */
@@ -2073,11 +2067,9 @@ public:
   bool is_cbranch_i_fork (const instruction_t &instruction) const override;
   bool is_cbranch_g_fork (const instruction_t &instruction) const override;
   bool is_cbranch_join (const instruction_t &instruction) const override;
-  bool is_nop (const instruction_t &instruction) const override;
   bool is_trap (const instruction_t &instruction,
                 trap_id_t *trap_id = nullptr) const override;
   bool is_endpgm (const instruction_t &instruction) const override;
-  bool is_breakpoint (const instruction_t &instruction) const override;
 
   bool can_halt_at_endpgm () const override { return false; }
   size_t largest_instruction_size () const override { return 8; }
@@ -2227,24 +2219,10 @@ gfx9_base_t::cbranch_condition_code (const instruction_t &instruction) const
 }
 
 bool
-gfx9_base_t::is_nop (const instruction_t &instruction) const
-{
-  /* s_nop: SOPP Opcode 0  */
-  return is_sopp_instruction (instruction, 0);
-}
-
-bool
 gfx9_base_t::is_endpgm (const instruction_t &instruction) const
 {
   /* s_endpgm: SOPP Opcode 1  */
   return is_sopp_instruction (instruction, 1);
-}
-
-bool
-gfx9_base_t::is_breakpoint (const instruction_t &instruction) const
-{
-  trap_id_t trap_id;
-  return is_trap (instruction, &trap_id) && trap_id == trap_id_t::breakpoint;
 }
 
 bool

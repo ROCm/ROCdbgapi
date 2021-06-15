@@ -128,10 +128,10 @@ wave_t::park ()
 
   dbgapi_assert (!m_is_parked && "already parked");
 
-  /* On architectures that do not support halting at an s_endpgm instruction,
-     when a wave is stopped, we change its pc to point to an immutable trap
-     instruction.  This guarantees that the wave will never be halted at an
-     s_endpgm.  */
+  /* On architectures that do not support halting at certain instructions when
+     a wave is stopped, for example a terminating instruction, we change its pc
+     to point to an immutable trap instruction.  This guarantees that the
+     wave will never be halted at such instructions.  */
   m_parked_pc = pc ();
 
   amd_dbgapi_global_address_t parked_pc
@@ -175,18 +175,18 @@ wave_t::terminate ()
       m_displaced_stepping = nullptr;
     }
 
-  /* Mark the wave as invalid and un-halt it at an s_endpgm instruction. This
+  /* Mark the wave as invalid and un-halt it at a terminating instruction. This
      allows the hardware to terminate the wave, while ensuring that the wave is
      never reported to the client as existing.  */
 
   amd_dbgapi_global_address_t terminate_pc
-    = m_callbacks.endpgm_instruction_address ();
+    = m_callbacks.terminating_instruction_address ();
 
-  /* Make the PC point to an immutable s_endpgm instruction.  */
+  /* Make the PC point to an immutable terminating instruction.  */
   write_register (amdgpu_regnum_t::pc, &terminate_pc);
 
   /* Hide this wave so that it isn't reported to the client.  */
-  set_visibility (wave_t::visibility_t::hidden_at_endpgm);
+  set_visibility (wave_t::visibility_t::hidden_at_terminating_instruction);
 
   set_state (AMD_DBGAPI_WAVE_STATE_RUN);
 }
@@ -367,9 +367,9 @@ wave_t::update (const wave_t &group_leader,
   if (prev_state != AMD_DBGAPI_WAVE_STATE_STOP
       && m_state == AMD_DBGAPI_WAVE_STATE_STOP)
     {
-      /* Park the wave if the architecture does not support halting at an
-         endpgm instruction.  */
-      if (!architecture ().can_halt_at_endpgm ())
+      /* Park the wave if the architecture does not support halting at certain
+         instructions.  */
+      if (architecture ().park_stopped_waves ())
         park ();
 
       if (visibility () == visibility_t::visible
@@ -421,22 +421,23 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
 
   m_stop_requested = state == AMD_DBGAPI_WAVE_STATE_STOP;
 
-  /* A wave single-stepping an s_endpgm instruction does not generate a trap
+  /* A wave single-stepping a terminating instruction does not generate a trap
      exception upon executing the instruction, so we need to immediately
      terminate the wave and enqueue an aborted command event.  */
   if (state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
       && exceptions == AMD_DBGAPI_EXCEPTION_NONE)
     {
       auto instruction = instruction_at_pc ();
-      bool is_endpgm
-        = /* the simulated displaced instruction is s_endpgm */ (
+      bool is_terminating
+        = /* The displaced instruction is a terminating instruction.  */ (
             m_displaced_stepping && m_displaced_stepping->is_simulated ()
-            && architecture ().is_endpgm (
+            && architecture ().is_terminating_instruction (
               m_displaced_stepping->original_instruction ()))
-          || /* the current instruction at pc is s_endpgm  */ (
-            instruction && architecture ().is_endpgm (*instruction));
+          || /* The current instruction at pc is a terminating instruction.  */
+          (instruction
+           && architecture ().is_terminating_instruction (*instruction));
 
-      if (is_endpgm)
+      if (is_terminating)
         {
           terminate ();
           raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED);
@@ -475,7 +476,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
   architecture ().set_wave_state (*this, state, exceptions);
   m_state = state;
 
-  if (!architecture ().can_halt_at_endpgm ())
+  if (architecture ().park_stopped_waves ())
     {
       if (state == AMD_DBGAPI_WAVE_STATE_STOP)
         park ();

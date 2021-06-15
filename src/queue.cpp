@@ -131,7 +131,7 @@ private:
   std::vector<uint16_t> m_debugger_memory_free_chunks{};
 
   instruction_buffer_t m_park_instruction_buffer{};
-  instruction_buffer_t m_endpgm_instruction_buffer{};
+  instruction_buffer_t m_terminating_instruction_buffer{};
 
   utils::doubly_linked_list_t<memory_cache_t> m_dirty_caches{};
 
@@ -203,15 +203,16 @@ aql_queue_impl_t::aql_queue_impl_t (
 
   /* Reserve 2 instruction buffers for parking, and terminating waves.  */
   m_park_instruction_buffer = allocate_instruction_buffer ();
-  m_endpgm_instruction_buffer = allocate_instruction_buffer ();
+  m_terminating_instruction_buffer = allocate_instruction_buffer ();
 
-  auto endpgm_instruction = architecture.endpgm_instruction ();
-  m_endpgm_instruction_buffer->resize (endpgm_instruction.size ());
-  if (process.write_global_memory (m_endpgm_instruction_buffer->begin (),
-                                   endpgm_instruction.data (),
-                                   endpgm_instruction.size ())
+  auto terminating_instruction = architecture.terminating_instruction ();
+  m_terminating_instruction_buffer->resize (terminating_instruction.size ());
+  if (process.write_global_memory (m_terminating_instruction_buffer->begin (),
+                                   terminating_instruction.data (),
+                                   terminating_instruction.size ())
       != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not write the endpgm instruction to the debugger memory");
+    error (
+      "Could not write the terminating instruction to the debugger memory");
 
   /* Read the hsa_queue_t at the top of the amd_queue_t. Since the amd_queue_t
     structure could change, it can only be accessed by calculating its address
@@ -254,8 +255,8 @@ aql_queue_impl_t::aql_queue_impl_t (
     [&] () { return allocate_instruction_buffer (); },
     /* Return the address of a park instruction.  */
     [&] () { return m_park_instruction_buffer->begin (); },
-    /* Return the address of an endpgm instruction.  */
-    [&] () { return m_endpgm_instruction_buffer->begin (); },
+    /* Return the address of a terminating instruction.  */
+    [&] () { return m_terminating_instruction_buffer->begin (); },
     /* Insert the given register cache into the queue's dirty cache list.  */
     [&] (memory_cache_t &cache)
     {

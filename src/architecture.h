@@ -297,20 +297,19 @@ public:
   virtual size_t largest_instruction_size () const = 0;
   virtual size_t minimum_instruction_alignment () const = 0;
   virtual size_t breakpoint_instruction_pc_adjust () const = 0;
-  virtual instruction_t nop_instruction () const = 0;
   virtual instruction_t breakpoint_instruction () const = 0;
   virtual instruction_t assert_instruction () const = 0;
   virtual instruction_t debug_trap_instruction () const = 0;
-  virtual instruction_t endpgm_instruction () const = 0;
+  virtual instruction_t terminating_instruction () const = 0;
 
-  virtual bool is_breakpoint (const instruction_t &instruction) const = 0;
-  virtual bool is_endpgm (const instruction_t &instruction) const = 0;
+  virtual bool
+  is_terminating_instruction (const instruction_t &instruction) const = 0;
 
   virtual bool
   can_execute_displaced (const instruction_t &instruction) const = 0;
   virtual bool can_simulate (const instruction_t &instruction) const = 0;
 
-  virtual bool can_halt_at_endpgm () const = 0;
+  virtual bool park_stopped_waves () const = 0;
 
   amd_dbgapi_size_t instruction_size (const instruction_t &instruction) const;
 
