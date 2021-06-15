@@ -111,8 +111,8 @@ enum class os_exception_code_t : uint32_t
   queue_illegal_instruction = EC_QUEUE_ILLEGAL_INSTRUCTION,
   queue_memory_violation = EC_QUEUE_MEMORY_VIOLATION,
   queue_aperture_violation = EC_QUEUE_APERTURE_VIOLATION,
-  queue_math_error = EC_QUEUE_TRAP, /* FIXME: EC_QUEUE_MATH_ERROR,  */
-  queue_abort = EC_QUEUE_TRAP, /* FIXME: EC_QUEUE_ABORT,  */
+  queue_math_error = EC_QUEUE_MATH_ERROR,
+  queue_abort = EC_QUEUE_ABORT,
   queue_packet_dispatch_dim_invalid = EC_QUEUE_PACKET_DISPATCH_DIM_INVALID,
   queue_packet_dispatch_group_segment_size_invalid
   = EC_QUEUE_PACKET_DISPATCH_GROUP_SEGMENT_SIZE_INVALID,
@@ -264,9 +264,9 @@ public:
   virtual amd_dbgapi_status_t disable_debug () = 0;
   virtual bool is_debug_enabled () const = 0;
 
-  virtual amd_dbgapi_status_t send_runtime_event (os_exception_code_t event,
-                                                  os_source_id_t os_source_id
-                                                  = {}) const = 0;
+  virtual amd_dbgapi_status_t send_exceptions (os_exception_mask_t exceptions,
+                                               os_source_id_t os_source_id
+                                               = {}) const = 0;
 
   virtual amd_dbgapi_status_t
   query_debug_event (os_exception_mask_t *exceptions_present,

@@ -175,8 +175,8 @@ public:
   bool is_debug_enabled () const override { return m_is_debug_enabled; }
 
   amd_dbgapi_status_t
-  send_runtime_event (os_exception_code_t event,
-                      os_source_id_t os_source_id) const override;
+  send_exceptions (os_exception_mask_t exceptions,
+                   os_source_id_t os_source_id) const override;
 
   amd_dbgapi_status_t
   query_debug_event (os_exception_mask_t *exceptions_present,
@@ -550,8 +550,8 @@ kfd_driver_t::disable_debug ()
 }
 
 amd_dbgapi_status_t
-kfd_driver_t::send_runtime_event (os_exception_code_t event,
-                                  os_source_id_t os_source_id) const
+kfd_driver_t::send_exceptions (os_exception_mask_t exceptions,
+                               os_source_id_t os_source_id) const
 {
   dbgapi_assert (is_debug_enabled () && "debug is not enabled");
 
@@ -560,8 +560,8 @@ kfd_driver_t::send_runtime_event (os_exception_code_t event,
      data2: [in] event to send  */
 
   kfd_ioctl_dbg_trap_args args{};
+  args.exception_mask = static_cast<uint64_t> (exceptions);
   args.data1 = os_source_id.raw;
-  args.data2 = static_cast<uint32_t> (event);
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SEND_RUNTIME_EVENT, &args);
   if (err == -ESRCH)
@@ -640,11 +640,11 @@ kfd_driver_t::query_exception_info (os_exception_code_t exception,
   if (err == -ESRCH)
     return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
   else if (err < 0)
-    return exception_info_size > args.data4
-             ? AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY
-             : AMD_DBGAPI_STATUS_ERROR;
+    return AMD_DBGAPI_STATUS_ERROR;
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+  return exception_info_size > args.data4
+           ? AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY
+           : AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 size_t
@@ -894,8 +894,8 @@ public:
   bool is_debug_enabled () const override { return false; }
 
   amd_dbgapi_status_t
-    send_runtime_event (os_exception_code_t /* event  */,
-                        os_source_id_t /* os_source_id  */) const override
+    send_exceptions (os_exception_mask_t /* exceptions  */,
+                     os_source_id_t /* os_source_id  */) const override
   {
     return AMD_DBGAPI_STATUS_ERROR;
   }

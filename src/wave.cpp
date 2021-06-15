@@ -525,43 +525,78 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
 
   if (exceptions != AMD_DBGAPI_EXCEPTION_NONE)
     {
-      auto [event, source]
-        = [&] () -> std::pair<os_exception_code_t,
-                              std::variant<process_t *, agent_t *, queue_t *>>
+      auto convert_one_exception = [&] (amd_dbgapi_exceptions_t one_exception)
       {
-        /* FIXME: exceptions are a mask, there could be more than one
-           exception set at a time.  */
+        if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_EXCEPTION)
+          return os_exception_mask (os_exception_code_t::queue_trap);
 
-        if (exceptions == AMD_DBGAPI_EXCEPTION_WAVE_EXCEPTION)
-          return { os_exception_code_t::queue_trap, &queue () };
+        if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_ILLEGAL_INSTRUCTION)
+          return os_exception_mask (
+            os_exception_code_t::queue_illegal_instruction);
 
-        if (exceptions == AMD_DBGAPI_EXCEPTION_WAVE_ILLEGAL_INSTRUCTION)
-          return { os_exception_code_t::queue_illegal_instruction, &queue () };
+        if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_MATH_ERROR)
+          return os_exception_mask (os_exception_code_t::queue_math_error);
 
-        if (exceptions == AMD_DBGAPI_EXCEPTION_WAVE_MEMORY_VIOLATION)
-          {
-            if (agent ().has_exception (
-                  os_exception_code_t::device_memory_violation))
-              return { os_exception_code_t::device_memory_violation,
-                       &agent () };
-            else
-              return { os_exception_code_t::queue_memory_violation,
-                       &queue () };
-          }
+        if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_ABORT)
+          return os_exception_mask (os_exception_code_t::queue_abort);
 
-        if (exceptions == AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION)
-          return { os_exception_code_t::queue_aperture_violation, &queue () };
+        if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION)
+          return os_exception_mask (
+            os_exception_code_t::queue_aperture_violation);
 
-        if (exceptions == AMD_DBGAPI_EXCEPTION_WAVE_MATH_ERROR)
-          return { os_exception_code_t::queue_math_error, &queue () };
+        if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_MEMORY_VIOLATION
+            && agent ().has_exception (
+              os_exception_code_t::device_memory_violation))
+          return os_exception_mask (
+            os_exception_code_t::queue_memory_violation,
+            os_exception_code_t::device_memory_violation);
 
-        if (exceptions == AMD_DBGAPI_EXCEPTION_WAVE_ABORT)
-          return { os_exception_code_t::queue_abort, &queue () };
+        if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_MEMORY_VIOLATION)
+          return os_exception_mask (
+            os_exception_code_t::queue_memory_violation);
 
-        error ("unhandled exceptions %s", to_string (exceptions).c_str ());
-      }();
+        dbgapi_assert (!"not a valid exception");
+      };
 
-      process ().send_runtime_event (event, source);
+      /* Convert an amd_dbgapi_exception_t into an os_exception_mask_t.  */
+      os_exception_mask_t os_exceptions = os_exception_mask_t::none;
+
+      while (exceptions)
+        {
+          auto one_exception = exceptions ^ (exceptions & (exceptions - 1));
+          os_exceptions |= convert_one_exception (one_exception);
+          exceptions ^= one_exception;
+        }
+
+      /* Assign a source for these exceptions.  Always use the most precise
+         source (queue, then agent, then process) if exceptions of that
+         source are present.  */
+      std::variant<process_t *, agent_t *, queue_t *> source;
+      if ((os_exceptions & os_queue_exception_mask)
+          != os_exception_mask_t::none)
+        source = &queue ();
+      else if ((os_exceptions & os_agent_exception_mask)
+               != os_exception_mask_t::none)
+        source = &agent ();
+      else if ((os_exceptions & os_process_exception_mask)
+               != os_exception_mask_t::none)
+        source = &process ();
+
+      /* FIXME: KFD does not yet accept exceptions from multiple sources.
+         Remove this code when fixed.  */
+      os_exception_mask_t original_os_exceptions = os_exceptions;
+      if (std::holds_alternative<process_t *> (source))
+        os_exceptions &= os_process_exception_mask;
+      if (std::holds_alternative<agent_t *> (source))
+        os_exceptions &= os_agent_exception_mask;
+      if (std::holds_alternative<queue_t *> (source))
+        os_exceptions &= os_queue_exception_mask;
+      if (original_os_exceptions != os_exceptions)
+        warning ("%s filtering out exceptions [ %s ] (os driver limitation)",
+                 to_string (process ().id ()).c_str (),
+                 to_string (original_os_exceptions & ~os_exceptions).c_str ());
+
+      process ().send_exceptions (os_exceptions, source);
     }
 
   if (state != AMD_DBGAPI_WAVE_STATE_STOP

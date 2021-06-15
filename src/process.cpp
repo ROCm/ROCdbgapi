@@ -1708,9 +1708,12 @@ process_t::next_pending_event ()
               /* Make sure the runtime receives the process_runtime_enable
                  event even if an exception is thrown.  */
               utils::scope_exit send_runtime_enable_event (
-                [this] () {
-                  send_runtime_event (
-                    os_exception_code_t::process_runtime_enable, this);
+                [this] ()
+                {
+                  send_exceptions (
+                    os_exception_mask (
+                      os_exception_code_t::process_runtime_enable),
+                    this);
                 });
 
               /* Retrieve the address of the rendez-vous structure
@@ -1739,9 +1742,12 @@ process_t::next_pending_event ()
               /* Make sure the runtime receives the process_runtime_disable
                  event even if an exception is thrown.  */
               utils::scope_exit send_runtime_disable_event (
-                [this] () {
-                  send_runtime_event (
-                    os_exception_code_t::process_runtime_disable, this);
+                [this] ()
+                {
+                  send_exceptions (
+                    os_exception_mask (
+                      os_exception_code_t::process_runtime_disable),
+                    this);
                 });
 
               runtime_disable ();
@@ -1801,8 +1807,9 @@ process_t::next_pending_event ()
            Let the runtime handle the exception.  */
         if (send_device_memory_violation_event)
           {
-            send_runtime_event (os_exception_code_t::device_memory_violation,
-                                &agent);
+            send_exceptions (
+              os_exception_mask (os_exception_code_t::device_memory_violation),
+              &agent);
 
             /* Clear the exception since the runtime is now handling it.  */
             agent.clear_exception (
@@ -1821,8 +1828,8 @@ process_t::next_pending_event ()
 }
 
 void
-process_t::send_runtime_event (
-  os_exception_code_t event,
+process_t::send_exceptions (
+  os_exception_mask_t exceptions,
   std::variant<process_t *, agent_t *, queue_t *> source) const
 {
   os_source_id_t source_id;
@@ -1836,17 +1843,18 @@ process_t::send_runtime_event (
     error ("invalid source_id");
 
   dbgapi_log (
-    AMD_DBGAPI_LOG_LEVEL_INFO, "%s sending runtime event %s (source=%s)",
-    to_string (id ()).c_str (), to_string (event).c_str (),
+    AMD_DBGAPI_LOG_LEVEL_INFO,
+    "%s sending runtime exceptions [ %s ] (source=%s)",
+    to_string (id ()).c_str (), to_string (exceptions).c_str (),
     std::visit ([] (auto &&x) { return to_string (x->id ()); }, source)
       .c_str ());
 
   amd_dbgapi_status_t status
-    = os_driver ().send_runtime_event (event, source_id);
+    = os_driver ().send_exceptions (exceptions, source_id);
 
   if (status != AMD_DBGAPI_STATUS_SUCCESS
       && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-    error ("send_runtime_event failed (rc=%d)", status);
+    error ("send_exceptions failed (rc=%d)", status);
 }
 
 } /* namespace amd::dbgapi */
