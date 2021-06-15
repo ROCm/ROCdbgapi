@@ -654,7 +654,7 @@ process_t::insert_watchpoint (const watchpoint_t &watchpoint,
       suspend_queues (queues, "insert watchpoint");
 
       for (auto &&wave : range<wave_t> ())
-        wave.architecture ().enable_wave_traps (
+        wave.architecture ().wave_enable_traps (
           wave, os_wave_launch_trap_mask_t::address_watch);
 
       if (forward_progress_needed ())
@@ -838,7 +838,7 @@ process_t::remove_watchpoint (const watchpoint_t &watchpoint)
       suspend_queues (queues, "remove watchpoint");
 
       for (auto &&wave : range<wave_t> ())
-        wave.architecture ().disable_wave_traps (
+        wave.architecture ().wave_disable_traps (
           wave, os_wave_launch_trap_mask_t::address_watch);
 
       if (forward_progress_needed ())

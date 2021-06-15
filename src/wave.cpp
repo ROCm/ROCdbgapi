@@ -345,7 +345,7 @@ wave_t::update (const wave_t &group_leader,
       m_register_cache.reset (*register_cache_begin,
                               register_cache_end - *register_cache_begin);
 
-      architecture ().get_wave_state (*this, &m_state, &m_stop_reason);
+      architecture ().wave_get_state (*this, &m_state, &m_stop_reason);
     }
   else
     {
@@ -473,7 +473,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
         }
     }
 
-  architecture ().set_wave_state (*this, state, exceptions);
+  architecture ().wave_set_state (*this, state, exceptions);
   m_state = state;
 
   if (architecture ().park_stopped_waves ())

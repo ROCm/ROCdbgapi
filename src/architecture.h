@@ -331,15 +331,15 @@ public:
                         const instruction_t &instruction) const = 0;
 
   virtual void
-  get_wave_state (wave_t &wave, amd_dbgapi_wave_state_t *state,
+  wave_get_state (wave_t &wave, amd_dbgapi_wave_state_t *state,
                   amd_dbgapi_wave_stop_reasons_t *stop_reason) const = 0;
-  virtual void set_wave_state (wave_t &wave, amd_dbgapi_wave_state_t state,
+  virtual void wave_set_state (wave_t &wave, amd_dbgapi_wave_state_t state,
                                amd_dbgapi_exceptions_t exceptions
                                = AMD_DBGAPI_EXCEPTION_NONE) const = 0;
 
-  virtual void enable_wave_traps (wave_t &wave,
+  virtual void wave_enable_traps (wave_t &wave,
                                   os_wave_launch_trap_mask_t mask) const = 0;
-  virtual void disable_wave_traps (wave_t &wave,
+  virtual void wave_disable_traps (wave_t &wave,
                                    os_wave_launch_trap_mask_t mask) const = 0;
 
   amd_dbgapi_architecture_id_t id () const { return m_architecture_id; }

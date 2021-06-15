@@ -211,9 +211,9 @@ public:
                               const void *value) const override;
 
   void
-  get_wave_state (wave_t &wave, amd_dbgapi_wave_state_t *state,
+  wave_get_state (wave_t &wave, amd_dbgapi_wave_state_t *state,
                   amd_dbgapi_wave_stop_reasons_t *stop_reason) const override;
-  void set_wave_state (wave_t &wave, amd_dbgapi_wave_state_t state,
+  void wave_set_state (wave_t &wave, amd_dbgapi_wave_state_t state,
                        amd_dbgapi_exceptions_t exceptions
                        = AMD_DBGAPI_EXCEPTION_NONE) const override;
 
@@ -221,10 +221,10 @@ public:
     os_wave_launch_trap_mask_t mask) const;
 
   void
-  enable_wave_traps (wave_t &wave,
+  wave_enable_traps (wave_t &wave,
                      os_wave_launch_trap_mask_t mask) const override final;
   void
-  disable_wave_traps (wave_t &wave,
+  wave_disable_traps (wave_t &wave,
                       os_wave_launch_trap_mask_t mask) const override final;
 
   size_t minimum_instruction_alignment () const override;
@@ -1285,7 +1285,7 @@ amdgcn_architecture_t::simulate_instruction (
 }
 
 void
-amdgcn_architecture_t::get_wave_state (
+amdgcn_architecture_t::wave_get_state (
   wave_t &wave, amd_dbgapi_wave_state_t *state,
   amd_dbgapi_wave_stop_reasons_t *stop_reason) const
 {
@@ -1450,7 +1450,7 @@ amdgcn_architecture_t::get_wave_state (
                   to_string (wave.id ()).c_str (), pc);
 
       /* Place the wave back into single-stepping state.  */
-      set_wave_state (wave, AMD_DBGAPI_WAVE_STATE_SINGLE_STEP);
+      wave_set_state (wave, AMD_DBGAPI_WAVE_STATE_SINGLE_STEP);
 
       *state = AMD_DBGAPI_WAVE_STATE_SINGLE_STEP;
       *stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
@@ -1462,7 +1462,7 @@ amdgcn_architecture_t::get_wave_state (
 }
 
 void
-amdgcn_architecture_t::set_wave_state (
+amdgcn_architecture_t::wave_set_state (
   wave_t &wave, amd_dbgapi_wave_state_t state,
   amd_dbgapi_exceptions_t exceptions) const
 {
@@ -1604,7 +1604,7 @@ amdgcn_architecture_t::os_wave_launch_trap_mask_to_wave_mode (
 }
 
 void
-amdgcn_architecture_t::enable_wave_traps (
+amdgcn_architecture_t::wave_enable_traps (
   wave_t &wave, os_wave_launch_trap_mask_t mask) const
 {
   uint32_t mode;
@@ -1617,7 +1617,7 @@ amdgcn_architecture_t::enable_wave_traps (
 }
 
 void
-amdgcn_architecture_t::disable_wave_traps (
+amdgcn_architecture_t::wave_disable_traps (
   wave_t &wave, os_wave_launch_trap_mask_t mask) const
 {
   uint32_t mode;
