@@ -273,6 +273,7 @@ protected:
   virtual bool is_trap (const instruction_t &instruction,
                         trap_id_t *trap_id = nullptr) const = 0;
   virtual bool is_endpgm (const instruction_t &instruction) const = 0;
+  virtual bool is_non_sequential (const instruction_t &instruction) const;
 
   bool
   is_terminating_instruction (const instruction_t &instruction) const override;
@@ -280,8 +281,8 @@ protected:
   virtual bool can_halt_at_endpgm () const = 0;
   bool park_stopped_waves () const override { return !can_halt_at_endpgm (); }
 
-  virtual bool is_cbranch_taken (wave_t &wave,
-                                 const instruction_t &instruction) const;
+  virtual bool is_branch_taken (wave_t &wave,
+                                const instruction_t &instruction) const;
 
   virtual amd_dbgapi_global_address_t
   branch_target (wave_t &wave, amd_dbgapi_global_address_t pc,
@@ -741,6 +742,16 @@ amdgcn_architecture_t::breakpoint_instruction_pc_adjust () const
 }
 
 bool
+amdgcn_architecture_t::is_non_sequential (
+  const instruction_t &instruction) const
+{
+  return is_branch (instruction) || is_call (instruction)
+         || is_setpc (instruction) || is_swappc (instruction)
+         || is_cbranch (instruction) || is_cbranch_i_fork (instruction)
+         || is_cbranch_g_fork (instruction) || is_cbranch_join (instruction);
+}
+
+bool
 amdgcn_architecture_t::is_terminating_instruction (
   const instruction_t &instruction) const
 {
@@ -748,8 +759,8 @@ amdgcn_architecture_t::is_terminating_instruction (
 };
 
 bool
-amdgcn_architecture_t::is_cbranch_taken (
-  wave_t &wave, const instruction_t &instruction) const
+amdgcn_architecture_t::is_branch_taken (wave_t &wave,
+                                        const instruction_t &instruction) const
 {
   if (is_cbranch (instruction))
     {
@@ -838,6 +849,11 @@ amdgcn_architecture_t::is_cbranch_taken (
       return csp != mask;
     }
 
+  /* Always taken branch.  */
+  if (is_branch (instruction) || is_call (instruction)
+      || is_setpc (instruction) || is_swappc (instruction))
+    return true;
+
   dbgapi_assert_not_reached ("not a branch instruction");
 }
 
@@ -866,6 +882,57 @@ amdgcn_architecture_t::branch_target (wave_t &wave,
       uint32_t pc_lo, pc_hi;
       wave.read_register (regnum + 0, &pc_lo);
       wave.read_register (regnum + 1, &pc_hi);
+
+      return (static_cast<uint64_t> (pc_hi) << 32) | pc_lo;
+    }
+
+  if (is_setpc (instruction) || is_swappc (instruction))
+    {
+      amdgpu_regnum_t ssrc_regnum
+        = scalar_operand_to_regnum (encoding_ssrc0 (instruction));
+
+      /* The hardware requires a 64-bit address register pair to have the
+         lower register number be even.  */
+      dbgapi_assert ((ssrc_regnum & -2) == ssrc_regnum);
+
+      /* If the source register pair is out of range of the allocated
+         registers, then the hardware reads from s[0:1].  */
+      if (!wave.is_register_available (ssrc_regnum))
+        ssrc_regnum = amdgpu_regnum_t::s0;
+
+      bool ssrc_is_null = ssrc_regnum == amdgpu_regnum_t::null;
+
+      /* Reading a ttmp source when not in priviledged mode returns 0.  */
+      if (ssrc_regnum >= amdgpu_regnum_t::first_ttmp
+          && ssrc_regnum <= amdgpu_regnum_t::last_ttmp)
+        {
+          uint32_t status;
+          wave.read_register (amdgpu_regnum_t::status, &status);
+          ssrc_is_null = !(status & sq_wave_status_priv_mask);
+        }
+
+      uint32_t ssrc_lo = 0, ssrc_hi = 0;
+
+      if (!ssrc_is_null)
+        {
+          wave.read_register (ssrc_regnum + 0, &ssrc_lo);
+          wave.read_register (ssrc_regnum + 1, &ssrc_hi);
+        }
+
+      return amd_dbgapi_global_address_t{ ssrc_lo }
+             | amd_dbgapi_global_address_t{ ssrc_hi } << 32;
+    }
+
+  if (is_cbranch_join (instruction))
+    {
+      uint32_t csp;
+      wave.read_register (amdgpu_regnum_t::csp, &csp);
+
+      amdgpu_regnum_t regnum = amdgpu_regnum_t::s0 + --csp * 4;
+
+      uint32_t pc_lo, pc_hi;
+      wave.read_register (regnum + 2, &pc_lo);
+      wave.read_register (regnum + 3, &pc_hi);
 
       return (static_cast<uint64_t> (pc_hi) << 32) | pc_lo;
     }
@@ -1086,22 +1153,14 @@ amdgcn_architecture_t::simulate_instruction (
   if (ttmp6 & ttmp6_saved_status_halt_mask)
     return false;
 
-  amd_dbgapi_global_address_t new_pc;
-
-  if (is_endpgm (instruction))
+  if (is_branch (instruction) || is_cbranch (instruction))
+    {
+      /* Only the pc is modified.  */
+    }
+  else if (is_endpgm (instruction))
     {
       wave.terminate ();
       return true;
-    }
-  else if (is_branch (instruction))
-    {
-      new_pc = branch_target (wave, pc, instruction);
-    }
-  else if (is_cbranch (instruction))
-    {
-      new_pc = is_cbranch_taken (wave, instruction)
-                 ? branch_target (wave, pc, instruction)
-                 : pc + instruction.size ();
     }
   else if (is_cbranch_i_fork (instruction) || is_cbranch_g_fork (instruction))
     {
@@ -1126,15 +1185,9 @@ amdgcn_architecture_t::simulate_instruction (
       mask_pass = mask & exec;
       mask_fail = ~mask & exec;
 
-      if (mask_pass == exec || mask_fail == exec)
+      if (mask_pass != exec && mask_fail != exec)
         {
-          new_pc = is_cbranch_taken (wave, instruction)
-                     ? branch_target (wave, pc, instruction)
-                     : pc + instruction.size ();
-        }
-      else
-        {
-          bool taken = is_cbranch_taken (wave, instruction);
+          bool taken = is_branch_taken (wave, instruction);
 
           uint64_t saved_pc = taken ? pc + instruction.size ()
                                     : branch_target (wave, pc, instruction);
@@ -1153,9 +1206,6 @@ amdgcn_architecture_t::simulate_instruction (
           wave.write_register (regnum + 2, &saved_pc_lo);
           wave.write_register (regnum + 3, &saved_pc_hi);
 
-          new_pc = taken ? branch_target (wave, pc, instruction)
-                         : pc + instruction.size ();
-
           wave.write_register (amdgpu_regnum_t::csp, &csp);
           wave.write_register (amdgpu_regnum_t::exec_64,
                                taken ? &mask_pass : &mask_fail);
@@ -1165,28 +1215,21 @@ amdgcn_architecture_t::simulate_instruction (
     {
       dbgapi_assert (wave.lane_count () == 64);
 
-      if (is_cbranch_taken (wave, instruction))
+      if (is_branch_taken (wave, instruction))
         {
           uint32_t csp;
           wave.read_register (amdgpu_regnum_t::csp, &csp);
 
           amdgpu_regnum_t regnum = amdgpu_regnum_t::s0 + --csp * 4;
 
-          uint32_t pc_lo, pc_hi, exec_lo, exec_hi;
+          uint32_t exec_lo, exec_hi;
           wave.read_register (regnum + 0, &exec_lo);
           wave.read_register (regnum + 1, &exec_hi);
-          wave.read_register (regnum + 2, &pc_lo);
-          wave.read_register (regnum + 3, &pc_hi);
 
-          new_pc = (static_cast<uint64_t> (pc_hi) << 32) | pc_lo;
           uint64_t exec = (static_cast<uint64_t> (exec_hi) << 32) | exec_lo;
 
           wave.write_register (amdgpu_regnum_t::csp, &csp);
           wave.write_register (amdgpu_regnum_t::exec_64, &exec);
-        }
-      else
-        {
-          new_pc = pc + instruction.size ();
         }
     }
   else if (is_call (instruction) || is_getpc (instruction)
@@ -1223,47 +1266,6 @@ amdgcn_architecture_t::simulate_instruction (
               wave.write_register (sdst_regnum + 0, &sdst_lo);
               wave.write_register (sdst_regnum + 1, &sdst_hi);
             }
-
-          new_pc = is_call (instruction)
-                     ? branch_target (wave, pc, instruction)
-                     : pc + instruction.size ();
-        }
-
-      if (is_setpc (instruction) || is_swappc (instruction))
-        {
-          amdgpu_regnum_t ssrc_regnum
-            = scalar_operand_to_regnum (encoding_ssrc0 (instruction));
-
-          /* The hardware requires a 64-bit address register pair to have the
-             lower register number be even.  */
-          dbgapi_assert ((ssrc_regnum & -2) == ssrc_regnum);
-
-          /* If the source register pair is out of range of the allocated
-             registers, then the hardware reads from s[0:1].  */
-          if (!wave.is_register_available (ssrc_regnum))
-            ssrc_regnum = amdgpu_regnum_t::s0;
-
-          bool ssrc_is_null = ssrc_regnum == amdgpu_regnum_t::null;
-
-          /* Reading a ttmp source when not in priviledged mode returns 0.  */
-          if (ssrc_regnum >= amdgpu_regnum_t::first_ttmp
-              && ssrc_regnum <= amdgpu_regnum_t::last_ttmp)
-            {
-              uint32_t status;
-              wave.read_register (amdgpu_regnum_t::status, &status);
-              ssrc_is_null = !(status & sq_wave_status_priv_mask);
-            }
-
-          uint32_t ssrc_lo = 0, ssrc_hi = 0;
-
-          if (!ssrc_is_null)
-            {
-              wave.read_register (ssrc_regnum + 0, &ssrc_lo);
-              wave.read_register (ssrc_regnum + 1, &ssrc_hi);
-            }
-
-          new_pc = amd_dbgapi_global_address_t{ ssrc_lo }
-                   | amd_dbgapi_global_address_t{ ssrc_hi } << 32;
         }
     }
   else
@@ -1271,6 +1273,11 @@ amdgcn_architecture_t::simulate_instruction (
       /* We don't know how to simulate this instruction.  */
       dbgapi_assert_not_reached ("cannot simulate instruction");
     }
+
+  amd_dbgapi_global_address_t new_pc
+    = (is_non_sequential (instruction) && is_branch_taken (wave, instruction))
+        ? branch_target (wave, pc, instruction)
+        : pc + instruction.size ();
 
   wave.write_register (amdgpu_regnum_t::pc, &new_pc);
 
