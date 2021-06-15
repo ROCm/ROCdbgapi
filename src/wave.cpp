@@ -532,6 +532,12 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
         /* FIXME: exceptions are a mask, there could be more than one
            exception set at a time.  */
 
+        if (exceptions == AMD_DBGAPI_EXCEPTION_WAVE_EXCEPTION)
+          return { os_exception_code_t::queue_trap, &queue () };
+
+        if (exceptions == AMD_DBGAPI_EXCEPTION_WAVE_ILLEGAL_INSTRUCTION)
+          return { os_exception_code_t::queue_illegal_instruction, &queue () };
+
         if (exceptions == AMD_DBGAPI_EXCEPTION_WAVE_MEMORY_VIOLATION)
           {
             if (agent ().has_exception (
@@ -546,11 +552,11 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
         if (exceptions == AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION)
           return { os_exception_code_t::queue_aperture_violation, &queue () };
 
-        if (exceptions == AMD_DBGAPI_EXCEPTION_WAVE_ILLEGAL_INSTRUCTION)
-          return { os_exception_code_t::queue_illegal_instruction, &queue () };
+        if (exceptions == AMD_DBGAPI_EXCEPTION_WAVE_MATH_ERROR)
+          return { os_exception_code_t::queue_math_error, &queue () };
 
-        if (exceptions == AMD_DBGAPI_EXCEPTION_WAVE_EXCEPTION)
-          return { os_exception_code_t::queue_trap, &queue () };
+        if (exceptions == AMD_DBGAPI_EXCEPTION_WAVE_ABORT)
+          return { os_exception_code_t::queue_abort, &queue () };
 
         error ("unhandled exceptions %s", to_string (exceptions).c_str ());
       }();
@@ -1055,10 +1061,12 @@ amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   if ((exceptions
-       & ~(AMD_DBGAPI_EXCEPTION_WAVE_MEMORY_VIOLATION
-           | AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION
+       & ~(AMD_DBGAPI_EXCEPTION_WAVE_EXCEPTION
            | AMD_DBGAPI_EXCEPTION_WAVE_ILLEGAL_INSTRUCTION
-           | AMD_DBGAPI_EXCEPTION_WAVE_EXCEPTION))
+           | AMD_DBGAPI_EXCEPTION_WAVE_MEMORY_VIOLATION
+           | AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION
+           | AMD_DBGAPI_EXCEPTION_WAVE_MATH_ERROR
+           | AMD_DBGAPI_EXCEPTION_WAVE_ABORT))
       != AMD_DBGAPI_EXCEPTION_NONE)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 

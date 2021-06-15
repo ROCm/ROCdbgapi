@@ -2501,12 +2501,12 @@ typedef enum
   AMD_DBGAPI_EXCEPTION_NONE = 0ULL,
   /**
    * A wave on the queue executed an instruction that caused an exception.
-   * This includes executing a trap instruction, executing a floating point or
-   * integer instruction that raises an enabled exception, executing an
-   * instruction that causes a fatal halt, executing an instruction that causes
-   * an ECC error, or executing an instruction that triggers a watchpoint
-   * (normally watchpoints are handled by the library and are never passed to
-   * the inferior's runtime to cause this exception).
+   * This includes executing a trap instruction (other than the trap repported
+   * as ::AMD_DBGAPI_EXCEPTION_WAVE_ABORT), executing an instruction that
+   * causes a fatal halt, executing an instruction that causes an ECC error, or
+   * executing an instruction that triggers a watchpoint (normally watchpoints
+   * are handled by the library and are never passed to the inferior's runtime
+   * to cause this exception).
    */
   AMD_DBGAPI_EXCEPTION_WAVE_EXCEPTION = (1ULL << 2),
   /**
@@ -2524,6 +2524,26 @@ typedef enum
    * accessing a memory address outside the virtual memory address range.
    */
   AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION = (1ULL << 5),
+  /**
+   * A wave on the queue executed an instruction that had a floating point or
+   * integer enabled exception condition.  The conditions include:
+   *
+   * - Floating point operation is invalid.
+   * - Floating point operation had subnormal input that was
+   *   rounded to zero.
+   * - Floating point operation performed a division by zero.
+   * - Floating point operation produced an overflow result.
+   *   The result was rounded to infinity.
+   * - Floating point operation produced an underflow result.
+   *   A subnormal result was rounded to zero.
+   * - Floating point operation produced an inexact result.
+   * - Integer operation performed a division by zero.
+   */
+  AMD_DBGAPI_EXCEPTION_WAVE_MATH_ERROR = (1ULL << 6),
+  /**
+   * A wave on the queue executed a trap instruction used to abort a dispatch.
+   */
+  AMD_DBGAPI_EXCEPTION_WAVE_ABORT = (1ULL << 7),
   /**
    * A dispatch packet on the queue has an invalid dimension.
    */
