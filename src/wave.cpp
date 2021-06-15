@@ -103,21 +103,21 @@ wave_t::pc () const
   return pc;
 }
 
-std::optional<std::vector<uint8_t>>
+std::optional<instruction_t>
 wave_t::instruction_at_pc (size_t pc_adjust) const
 {
   size_t size = architecture ().largest_instruction_size ();
-  std::vector<uint8_t> instruction_bytes (size);
+  std::vector<std::byte> instruction_bytes (size);
 
   amd_dbgapi_status_t status = process ().read_global_memory_partial (
     pc () + pc_adjust, instruction_bytes.data (), &size);
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     return {};
 
-  /* Trim unread bytes.  */
+  /* Trim partial and unread words.  */
   instruction_bytes.resize (size);
 
-  return instruction_bytes;
+  return instruction_t (architecture (), std::move (instruction_bytes));
 }
 
 void
@@ -214,36 +214,25 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
          wave, create a new one.  */
 
       /* Reconstitute the original instruction bytes.  */
-      std::vector<uint8_t> original_instruction (
+      std::vector<std::byte> original_instruction_bytes (
         architecture ().largest_instruction_size ());
 
-      memcpy (original_instruction.data (), saved_instruction_bytes,
+      memcpy (original_instruction_bytes.data (), saved_instruction_bytes,
               architecture ().breakpoint_instruction ().size ());
 
       size_t offset = architecture ().breakpoint_instruction ().size ();
-      size_t remaining_size = original_instruction.size () - offset;
+      size_t remaining = original_instruction_bytes.size () - offset;
 
       amd_dbgapi_status_t status = process ().read_global_memory_partial (
-        pc () + offset, original_instruction.data () + offset,
-        &remaining_size);
+        pc () + offset, &original_instruction_bytes[offset], &remaining);
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         throw exception_t (status);
 
-      /* Trim unread bytes.  */
-      original_instruction.resize (offset + remaining_size);
+      /* Trim partial/unread bytes.  */
+      original_instruction_bytes.resize (offset + remaining);
 
-      /* Trim to size of instruction.  */
-      size_t instruction_size
-        = architecture ().instruction_size (original_instruction);
-
-      if (!instruction_size)
-        {
-          /* If instruction_size is 0, the disassembler did not recognize the
-             instruction.  This instruction may be non-sequencial, and we won't
-             be able to tell if the jump is relative or absolute.  */
-          throw exception_t (AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION);
-        }
-      original_instruction.resize (instruction_size);
+      instruction_t original_instruction (
+        architecture (), std::move (original_instruction_bytes));
 
       bool simulate = architecture ().can_simulate (original_instruction);
 

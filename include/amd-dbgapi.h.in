@@ -1324,7 +1324,9 @@ typedef struct amd_dbgapi_symbolizer_id_s *amd_dbgapi_symbolizer_id_t;
  * is invalid.  \p size and \p instruction_text are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p size or \p memory are
- * NULL; or \p *size is 0.  \p size and \p instruction_text are unaltered.
+ * NULL, \p *size is 0, or \p address is not aligned on the value returned by
+ * the ::AMD_DBGAPI_ARCHITECTURE_INFO_MINIMUM_INSTRUCTION_ALIGNMENT query.  \p
+ * size and \p * instruction_text are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR Encountered an error disassembling the
  * instruction, a \p symbolizer callback returned ::AMD_DBGAPI_STATUS_SUCCESS
@@ -1537,8 +1539,11 @@ typedef enum
  * instruction_information are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p size, \p memory, or \p
- * instruction_kind are NULL; or \p size is 0.  \p size, \p instruction_kind,
- * \p instruction_properties, and \p instruction_information are unaltered.
+ * instruction_kind are NULL, \p size is 0, or \p address is not aligned on the
+ * value returned by the
+ * ::AMD_DBGAPI_ARCHITECTURE_INFO_MINIMUM_INSTRUCTION_ALIGNMENT query.  \p
+ * size, \p instruction_kind, \p instruction_properties, and \p
+ * instruction_information are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR Encountered an error disassembling the
  * instruction.  The bytes may or may not be a legal instruction.  \p size, \p

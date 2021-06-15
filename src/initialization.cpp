@@ -27,7 +27,6 @@
 #include <dlfcn.h>
 
 #include <cstddef>
-#include <optional>
 
 namespace amd::dbgapi::detail
 {

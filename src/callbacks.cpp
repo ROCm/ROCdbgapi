@@ -26,8 +26,6 @@
 #include "utils.h"
 
 #include <functional>
-#include <string>
-#include <utility>
 
 namespace amd::dbgapi
 {

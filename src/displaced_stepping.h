@@ -23,17 +23,15 @@
 
 #include "agent.h"
 #include "amd-dbgapi.h"
+#include "architecture.h"
 #include "handle_object.h"
 #include "queue.h"
 
 #include <cstddef>
-#include <cstdint>
-#include <vector>
 
 namespace amd::dbgapi
 {
 
-class architecture_t;
 class process_t;
 
 /* AMD Debugger API Displaced Stepping.  */
@@ -47,14 +45,14 @@ private:
 
   amd_dbgapi_global_address_t const m_from;
   instruction_buffer_t m_instruction_buffer;
-  std::vector<uint8_t> m_original_instruction;
+  instruction_t const m_original_instruction;
   queue_t &m_queue;
 
 public:
   displaced_stepping_t (
     amd_dbgapi_displaced_stepping_id_t displaced_stepping_id, queue_t &queue,
     amd_dbgapi_global_address_t original_pc,
-    std::vector<uint8_t> original_instruction, bool simulate,
+    instruction_t original_instruction, bool simulate,
     instruction_buffer_t instruction_buffer);
 
   ~displaced_stepping_t ();
@@ -69,7 +67,7 @@ public:
                                 : amd_dbgapi_global_address_t{};
   }
 
-  const std::vector<uint8_t> &original_instruction () const
+  const instruction_t &original_instruction () const
   {
     return m_original_instruction;
   }

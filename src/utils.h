@@ -28,6 +28,7 @@
 #include <cstdarg>
 #include <cstdint>
 #include <cstring>
+#include <exception>
 #include <functional>
 #include <iterator>
 #include <optional>
@@ -86,6 +87,7 @@
 namespace amd::dbgapi
 {
 
+class instruction_t;
 class process_t;
 
 using epoch_t = uint64_t;
@@ -619,6 +621,10 @@ get_info (size_t value_size, void *ret, const T &value)
 template <>
 amd_dbgapi_status_t get_info (size_t value_size, void *ret,
                               const std::string &value);
+
+template <>
+amd_dbgapi_status_t get_info (size_t value_size, void *ret,
+                              const instruction_t &value);
 
 template <typename T>
 amd_dbgapi_status_t get_info (size_t value_size, void *ret,

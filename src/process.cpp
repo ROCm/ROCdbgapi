@@ -1883,7 +1883,7 @@ process_t::next_pending_event ()
     if ((agent.exceptions () & os_exception_mask_t::device_memory_violation)
         != os_exception_mask_t::none)
       {
-        bool send_device_memory_violation_event = true;
+        bool send_device_memory_violation = true;
 
         for (auto &&wave : range<wave_t> ())
           if (wave.agent () == agent
@@ -1894,7 +1894,7 @@ process_t::next_pending_event ()
               /* Found a wave with a memory violation which has or will be
                  reported to the debugger.  Defer reporting the device memory
                  violation to the runtime until the wave is resumed.  */
-              send_device_memory_violation_event = false;
+              send_device_memory_violation = false;
               break;
             }
 
@@ -1908,7 +1908,7 @@ process_t::next_pending_event ()
            a grace period could be used, if memory violation exceptions are
            seen, to try to attribute all memory violation exceptions to their
            originating event.  */
-        if (send_device_memory_violation_event)
+        if (send_device_memory_violation)
           {
             send_exceptions (os_exception_mask_t::device_memory_violation,
                              &agent);

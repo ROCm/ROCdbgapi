@@ -185,8 +185,7 @@ public:
     dbgapi_assert (state () != AMD_DBGAPI_WAVE_STATE_STOP && "not running");
     return m_last_stopped_pc;
   }
-  std::optional<std::vector<uint8_t>> instruction_at_pc (size_t pc_adjust
-                                                         = 0) const;
+  std::optional<instruction_t> instruction_at_pc (size_t pc_adjust = 0) const;
 
   void terminate ();
   void displaced_stepping_start (const void *saved_instruction_bytes);

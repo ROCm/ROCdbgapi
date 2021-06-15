@@ -22,6 +22,7 @@
 #define AMD_DBGAPI_LOGGING_H 1
 
 #include "amd-dbgapi.h"
+#include "debug.h"
 #include "utils.h"
 
 #include <cstdarg>

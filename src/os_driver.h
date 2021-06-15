@@ -31,6 +31,7 @@
 #include <memory>
 #include <string>
 #include <type_traits>
+#include <utility>
 
 namespace amd::dbgapi
 {
@@ -247,7 +248,8 @@ constexpr std::enable_if_t<std::conjunction_v<std::is_convertible<
                            os_exception_mask_t>
 os_exception_mask (ExceptionCodes... exception_codes)
 {
-  return (os_exception_mask (exception_codes) | ...);
+  return (os_exception_mask (std::forward<ExceptionCodes> (exception_codes))
+          | ...);
 }
 
 enum class os_wave_launch_trap_override_t : uint32_t

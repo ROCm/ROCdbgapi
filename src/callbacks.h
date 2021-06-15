@@ -26,8 +26,6 @@
 
 #include <cstddef>
 #include <functional>
-#include <optional>
-#include <string>
 
 namespace amd::dbgapi
 {

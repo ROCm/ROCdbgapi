@@ -21,8 +21,9 @@
 #ifndef AMD_DBGAPI_ARCHITECTURE_H
 #define AMD_DBGAPI_ARCHITECTURE_H 1
 
-#include "agent.h"
 #include "amd-dbgapi.h"
+
+#include "agent.h"
 #include "handle_object.h"
 #include "memory.h"
 #include "os_driver.h"
@@ -63,6 +64,74 @@ namespace detail
 extern const architecture_t *last_found_architecture;
 
 } /* namespace detail */
+
+class architecture_t;
+
+struct legal_instruction_t
+{
+  explicit legal_instruction_t () = default;
+};
+inline constexpr legal_instruction_t legal_instruction{};
+
+/* Holds one instruction's words. A word is the smallest type on which the
+   instruction is aligned.  The ::instruction_t is associated with an
+   architecture, and can be validated for that architecture.  Once validated,
+   the exact instruction size is known if it is a valid encoding for that
+   architecture.  */
+class instruction_t
+{
+private:
+  std::vector<std::byte> m_bytes;
+  mutable std::optional<size_t> m_size{};
+  std::reference_wrapper<const architecture_t> m_architecture;
+
+public:
+  instruction_t (const architecture_t &architecture,
+                 std::vector<std::byte> bytes)
+    : m_bytes (std::move (bytes)), m_architecture (architecture)
+  {
+  }
+  instruction_t (legal_instruction_t, const architecture_t &architecture,
+                 std::vector<std::byte> bytes)
+    : m_bytes (std::move (bytes)), m_architecture (architecture)
+  {
+    /* The instruction is guaranteed to be valid, and its byte size is exactly
+       that of the bytes vector passed in.  */
+    m_size.emplace (m_bytes.size ());
+  }
+
+  instruction_t (const instruction_t &instruction) = default;
+  instruction_t (instruction_t &&instruction) = default;
+
+  instruction_t &operator= (const instruction_t &instruction) = default;
+  instruction_t &operator= (instruction_t &&instruction) = default;
+
+  /* The number of bytes reserved in the instruction bytes storage.  Not all
+     bytes in the storage belong to the instruction, the instruction could have
+     been created from memory for the largest instruction byte size the
+     architecture supports.  */
+  size_t capacity () const { return m_bytes.size (); }
+
+  /* The instruction size in bytes, or 0 if the instruction is invalid.  An
+     instruction is invalid if the architecture's disassembler does not
+     recognize the instruction, or if the instruction's encoding is known to be
+     invalid (for example, misaligned register pair index).  */
+  size_t size () const;
+
+  /* Return a pointer to the instruction bytes.  */
+  const void *data () const { return m_bytes.data (); }
+
+  /* A valid instruction has a non-zero size.  */
+  bool is_valid () const { return size () != 0; }
+
+  /* Return the Nth instruction word.  */
+  template <size_t pos> uint32_t word () const
+  {
+    dbgapi_assert (capacity () >= sizeof (uint32_t[pos + 1]));
+    return *std::launder (
+      reinterpret_cast<const uint32_t *> (&m_bytes[pos * sizeof (uint32_t)]));
+  }
+};
 
 /* Architecture.  */
 
@@ -182,14 +251,6 @@ public:
   virtual amd_dbgapi_global_address_t
   dispatch_packet_address (const cwsr_record_t &cwsr_record) const = 0;
 
-  virtual bool can_halt_at_endpgm () const = 0;
-  virtual bool is_endpgm (const std::vector<uint8_t> &bytes) const = 0;
-  virtual bool is_breakpoint (const std::vector<uint8_t> &bytes) const = 0;
-
-  virtual bool
-  can_execute_displaced (const std::vector<uint8_t> &bytes) const = 0;
-  virtual bool can_simulate (const std::vector<uint8_t> &bytes) const = 0;
-
   virtual amd_dbgapi_status_t
   convert_address_space (const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
                          const address_space_t &from_address_space,
@@ -236,22 +297,39 @@ public:
   virtual size_t largest_instruction_size () const = 0;
   virtual size_t minimum_instruction_alignment () const = 0;
   virtual size_t breakpoint_instruction_pc_adjust () const = 0;
-  virtual std::vector<uint8_t> nop_instruction () const = 0;
-  virtual std::vector<uint8_t> breakpoint_instruction () const = 0;
-  virtual std::vector<uint8_t> assert_instruction () const = 0;
-  virtual std::vector<uint8_t> debug_trap_instruction () const = 0;
-  virtual std::vector<uint8_t> endpgm_instruction () const = 0;
+  virtual instruction_t nop_instruction () const = 0;
+  virtual instruction_t breakpoint_instruction () const = 0;
+  virtual instruction_t assert_instruction () const = 0;
+  virtual instruction_t debug_trap_instruction () const = 0;
+  virtual instruction_t endpgm_instruction () const = 0;
+
+  virtual bool is_breakpoint (const instruction_t &instruction) const = 0;
+  virtual bool is_endpgm (const instruction_t &instruction) const = 0;
+
+  virtual bool
+  can_execute_displaced (const instruction_t &instruction) const = 0;
+  virtual bool can_simulate (const instruction_t &instruction) const = 0;
+
+  virtual bool can_halt_at_endpgm () const = 0;
+
+  amd_dbgapi_size_t instruction_size (const instruction_t &instruction) const;
 
   virtual std::tuple<amd_dbgapi_instruction_kind_t /* instruction_kind  */,
                      amd_dbgapi_instruction_properties_t /* properties  */,
                      size_t /* instruction_size  */,
                      std::vector<uint64_t> /* information  */>
-  classify_instruction (const std::vector<uint8_t> &instruction,
-                        amd_dbgapi_global_address_t address) const = 0;
+  classify_instruction (amd_dbgapi_global_address_t address,
+                        const instruction_t &instruction) const = 0;
+
+  std::tuple<amd_dbgapi_size_t /* instruction_size  */,
+             std::string /* instruction_text  */,
+             std::vector<amd_dbgapi_global_address_t> /* address_operands  */>
+  disassemble_instruction (amd_dbgapi_global_address_t address,
+                           const instruction_t &instruction) const;
 
   virtual bool
   simulate_instruction (wave_t &wave, amd_dbgapi_global_address_t pc,
-                        const std::vector<uint8_t> &instruction) const = 0;
+                        const instruction_t &instruction) const = 0;
 
   virtual void
   get_wave_state (wave_t &wave, amd_dbgapi_wave_state_t *state,
@@ -322,20 +400,6 @@ public:
   virtual void write_pseudo_register (wave_t &wave, amdgpu_regnum_t regnum,
                                       size_t offset, size_t value_size,
                                       const void *value) const = 0;
-
-  amd_dbgapi_size_t instruction_size (const void *instruction_bytes,
-                                      size_t size) const;
-
-  amd_dbgapi_size_t instruction_size (const std::vector<uint8_t> &bytes) const
-  {
-    return instruction_size (bytes.data (), bytes.size ());
-  }
-
-  std::tuple<amd_dbgapi_size_t /* instruction_size  */,
-             std::string /* instruction_text  */,
-             std::vector<amd_dbgapi_global_address_t> /* address_operands  */>
-  disassemble_instruction (amd_dbgapi_global_address_t address,
-                           const void *instruction_bytes, size_t size) const;
 
   amd_dbgapi_status_t get_info (amd_dbgapi_architecture_info_t query,
                                 size_t value_size, void *value) const;

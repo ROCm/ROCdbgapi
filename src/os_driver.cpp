@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <limits>
 #include <optional>
 #include <type_traits>
 #include <unordered_set>

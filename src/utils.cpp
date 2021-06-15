@@ -19,6 +19,7 @@
  THE SOFTWARE. */
 
 #include "utils.h"
+#include "architecture.h"
 #include "handle_object.h"
 #include "process.h"
 
@@ -116,6 +117,29 @@ get_info (size_t value_size, void *ret, const std::string &value)
   retval[size] = '\0';
 
   *static_cast<decltype (retval) *> (ret) = retval;
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
+template <>
+amd_dbgapi_status_t
+get_info (size_t value_size, void *ret, const instruction_t &value)
+{
+  uint8_t *retval;
+
+  if (!ret)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
+  if (value_size != sizeof (retval))
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
+
+  const size_t size = value.size ();
+  retval = static_cast<uint8_t *> (amd::dbgapi::allocate_memory (size));
+  if (size && !retval)
+    return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
+
+  memcpy (retval, value.data (), size);
+
+  *static_cast<uint8_t **> (ret) = retval;
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 

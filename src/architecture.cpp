@@ -228,26 +228,26 @@ public:
                       os_wave_launch_trap_mask_t mask) const override final;
 
   size_t minimum_instruction_alignment () const override;
-  std::vector<uint8_t> nop_instruction () const override;
-  virtual std::vector<uint8_t>
-  trap_instruction (std::optional<trap_id_t> trap_id = std::nullopt) const;
-  std::vector<uint8_t> breakpoint_instruction () const override;
-  std::vector<uint8_t> assert_instruction () const override;
-  std::vector<uint8_t> debug_trap_instruction () const override;
-  std::vector<uint8_t> endpgm_instruction () const override;
+  instruction_t nop_instruction () const override;
+  virtual instruction_t trap_instruction (std::optional<trap_id_t> trap_id
+                                          = std::nullopt) const;
+  instruction_t breakpoint_instruction () const override;
+  instruction_t assert_instruction () const override;
+  instruction_t debug_trap_instruction () const override;
+  instruction_t endpgm_instruction () const override;
   size_t breakpoint_instruction_pc_adjust () const override;
 
 protected:
-  static uint8_t encoding_ssrc0 (const std::vector<uint8_t> &bytes);
-  static uint8_t encoding_ssrc1 (const std::vector<uint8_t> &bytes);
-  static uint8_t encoding_sdst (const std::vector<uint8_t> &bytes);
-  static uint8_t encoding_op7 (const std::vector<uint8_t> &bytes);
-  static int encoding_simm16 (const std::vector<uint8_t> &bytes);
+  static uint8_t encoding_ssrc0 (const instruction_t &instruction);
+  static uint8_t encoding_ssrc1 (const instruction_t &instruction);
+  static uint8_t encoding_sdst (const instruction_t &instruction);
+  static uint8_t encoding_op7 (const instruction_t &instruction);
+  static int encoding_simm16 (const instruction_t &instruction);
 
-  static bool is_sopk_instruction (const std::vector<uint8_t> &bytes, int op5);
-  static bool is_sop1_instruction (const std::vector<uint8_t> &bytes, int op8);
-  static bool is_sop2_instruction (const std::vector<uint8_t> &bytes, int op7);
-  static bool is_sopp_instruction (const std::vector<uint8_t> &bytes, int op7);
+  static bool is_sopk_instruction (const instruction_t &instruction, int op5);
+  static bool is_sop1_instruction (const instruction_t &instruction, int op8);
+  static bool is_sop2_instruction (const instruction_t &instruction, int op7);
+  static bool is_sopp_instruction (const instruction_t &instruction, int op7);
 
   /* Return the regnum for a scalar register operand.  */
   virtual amdgpu_regnum_t scalar_operand_to_regnum (int operand) const = 0;
@@ -256,50 +256,47 @@ protected:
 
   /* Return the condition code for the given conditional branch.  */
   virtual cbranch_cond_t
-  cbranch_condition_code (const std::vector<uint8_t> &bytes) const = 0;
+  cbranch_condition_code (const instruction_t &instruction) const = 0;
 
-  virtual bool is_sethalt (const std::vector<uint8_t> &bytes) const = 0;
-  virtual bool is_barrier (const std::vector<uint8_t> &bytes) const = 0;
-  virtual bool is_sleep (const std::vector<uint8_t> &bytes) const = 0;
-  virtual bool is_code_end (const std::vector<uint8_t> &bytes) const = 0;
-  virtual bool is_call (const std::vector<uint8_t> &bytes) const = 0;
-  virtual bool is_getpc (const std::vector<uint8_t> &bytes) const = 0;
-  virtual bool is_setpc (const std::vector<uint8_t> &bytes) const = 0;
-  virtual bool is_swappc (const std::vector<uint8_t> &bytes) const = 0;
-  virtual bool is_branch (const std::vector<uint8_t> &bytes) const = 0;
-  virtual bool is_cbranch (const std::vector<uint8_t> &bytes) const = 0;
-  virtual bool is_cbranch_i_fork (const std::vector<uint8_t> &bytes) const = 0;
-  virtual bool is_cbranch_g_fork (const std::vector<uint8_t> &bytes) const = 0;
-  virtual bool is_cbranch_join (const std::vector<uint8_t> &bytes) const = 0;
-  virtual bool is_nop (const std::vector<uint8_t> &bytes) const = 0;
-  virtual bool is_trap (const std::vector<uint8_t> &bytes,
+  virtual bool is_sethalt (const instruction_t &instruction) const = 0;
+  virtual bool is_barrier (const instruction_t &instruction) const = 0;
+  virtual bool is_sleep (const instruction_t &instruction) const = 0;
+  virtual bool is_code_end (const instruction_t &instruction) const = 0;
+  virtual bool is_call (const instruction_t &instruction) const = 0;
+  virtual bool is_getpc (const instruction_t &instruction) const = 0;
+  virtual bool is_setpc (const instruction_t &instruction) const = 0;
+  virtual bool is_swappc (const instruction_t &instruction) const = 0;
+  virtual bool is_branch (const instruction_t &instruction) const = 0;
+  virtual bool is_cbranch (const instruction_t &instruction) const = 0;
+  virtual bool is_cbranch_i_fork (const instruction_t &instruction) const = 0;
+  virtual bool is_cbranch_g_fork (const instruction_t &instruction) const = 0;
+  virtual bool is_cbranch_join (const instruction_t &instruction) const = 0;
+  virtual bool is_nop (const instruction_t &instruction) const = 0;
+  virtual bool is_trap (const instruction_t &instruction,
                         trap_id_t *trap_id = nullptr) const = 0;
 
-  bool is_endpgm (const std::vector<uint8_t> &bytes) const override = 0;
-  bool is_breakpoint (const std::vector<uint8_t> &bytes) const override = 0;
+  bool is_endpgm (const instruction_t &instruction) const override = 0;
+  bool is_breakpoint (const instruction_t &instruction) const override = 0;
 
-  virtual bool
-  is_cbranch_taken (wave_t &wave,
-                    const std::vector<uint8_t> &instruction) const;
+  virtual bool is_cbranch_taken (wave_t &wave,
+                                 const instruction_t &instruction) const;
 
   virtual amd_dbgapi_global_address_t
   branch_target (wave_t &wave, amd_dbgapi_global_address_t pc,
-                 const std::vector<uint8_t> &instruction) const;
+                 const instruction_t &instruction) const;
 
   std::tuple<amd_dbgapi_instruction_kind_t,       /* instruction_kind  */
              amd_dbgapi_instruction_properties_t, /* instruction_properties  */
              size_t,                              /* instruction_size  */
              std::vector<uint64_t> /* instruction_information  */>
-  classify_instruction (const std::vector<uint8_t> &instruction,
-                        amd_dbgapi_global_address_t address) const override;
+  classify_instruction (amd_dbgapi_global_address_t address,
+                        const instruction_t &instruction) const override;
 
-  bool
-  can_execute_displaced (const std::vector<uint8_t> &bytes) const override;
-  bool can_simulate (const std::vector<uint8_t> &bytes) const override;
+  bool can_execute_displaced (const instruction_t &instruction) const override;
+  bool can_simulate (const instruction_t &instruction) const override;
 
-  bool simulate_instruction (
-    wave_t &wave, amd_dbgapi_global_address_t pc,
-    const std::vector<uint8_t> &instruction) const override;
+  bool simulate_instruction (wave_t &wave, amd_dbgapi_global_address_t pc,
+                             const instruction_t &instruction) const override;
 };
 
 void
@@ -695,46 +692,54 @@ amdgcn_architecture_t::minimum_instruction_alignment () const
   return sizeof (uint32_t);
 }
 
-std::vector<uint8_t>
+instruction_t
 amdgcn_architecture_t::nop_instruction () const
 {
-  return std::vector<uint8_t> ({
-    0x00, 0x00, 0x80, 0xBF /* s_nop 0 */
-  });
+  return instruction_t (
+    legal_instruction, *this,
+    std::vector<std::byte> ({ /* s_nop 0  */ std::byte{ 0x00 },
+                              std::byte{ 0x00 }, std::byte{ 0x80 },
+                              std::byte{ 0xBF } }));
 }
 
-std::vector<uint8_t>
+instruction_t
 amdgcn_architecture_t::trap_instruction (
   std::optional<trap_id_t> trap_id) const
 {
   uint8_t imm8 = static_cast<uint8_t> (trap_id.value_or (trap_id_t::reserved));
-  return std::vector<uint8_t> ({ imm8, 0x00, 0x92, 0xBF /* s_trap #imm8 */ });
+  return instruction_t (
+    legal_instruction, *this,
+    std::vector<std::byte> ({ /* s_trap #imm8  */ std::byte{ imm8 },
+                              std::byte{ 0x00 }, std::byte{ 0x92 },
+                              std::byte{ 0xBF } }));
 }
 
-std::vector<uint8_t>
+instruction_t
 amdgcn_architecture_t::breakpoint_instruction () const
 {
   return trap_instruction (trap_id_t::breakpoint);
 }
 
-std::vector<uint8_t>
+instruction_t
 amdgcn_architecture_t::assert_instruction () const
 {
   return trap_instruction (trap_id_t::assert_trap);
 }
 
-std::vector<uint8_t>
+instruction_t
 amdgcn_architecture_t::debug_trap_instruction () const
 {
   return trap_instruction (trap_id_t::debug_trap);
 }
 
-std::vector<uint8_t>
+instruction_t
 amdgcn_architecture_t::endpgm_instruction () const
 {
-  return std::vector<uint8_t> ({
-    0x00, 0x00, 0x81, 0xBF /* s_endpgm 0 */
-  });
+  return instruction_t (
+    legal_instruction, *this,
+    std::vector<std::byte> ({ /* s_endpgm 0  */ std::byte{ 0x00 },
+                              std::byte{ 0x00 }, std::byte{ 0x81 },
+                              std::byte{ 0xBF } }));
 }
 
 size_t
@@ -745,7 +750,7 @@ amdgcn_architecture_t::breakpoint_instruction_pc_adjust () const
 
 bool
 amdgcn_architecture_t::is_cbranch_taken (
-  wave_t &wave, const std::vector<uint8_t> &instruction) const
+  wave_t &wave, const instruction_t &instruction) const
 {
   if (is_cbranch (instruction))
     {
@@ -838,10 +843,12 @@ amdgcn_architecture_t::is_cbranch_taken (
 }
 
 amd_dbgapi_global_address_t
-amdgcn_architecture_t::branch_target (
-  wave_t &wave, amd_dbgapi_global_address_t pc,
-  const std::vector<uint8_t> &instruction) const
+amdgcn_architecture_t::branch_target (wave_t &wave,
+                                      amd_dbgapi_global_address_t pc,
+                                      const instruction_t &instruction) const
 {
+  dbgapi_assert (instruction.is_valid ());
+
   if (is_branch (instruction) || is_call (instruction)
       || is_cbranch (instruction) || is_cbranch_i_fork (instruction))
     {
@@ -870,9 +877,10 @@ amdgcn_architecture_t::branch_target (
 std::tuple<amd_dbgapi_instruction_kind_t, amd_dbgapi_instruction_properties_t,
            size_t, std::vector<uint64_t>>
 amdgcn_architecture_t::classify_instruction (
-  const std::vector<uint8_t> &instruction,
-  amd_dbgapi_global_address_t address) const
+  amd_dbgapi_global_address_t address, const instruction_t &instruction) const
 {
+  dbgapi_assert (instruction.is_valid ());
+
   enum class information_kind_t
   {
     none = 0,
@@ -886,10 +894,6 @@ amdgcn_architecture_t::classify_instruction (
     = AMD_DBGAPI_INSTRUCTION_PROPERTY_NONE;
 
   std::optional<amdgpu_regnum_t> ssrc_regnum, sdst_regnum;
-
-  size_t size = instruction_size (instruction);
-  if (!size)
-    throw AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION;
 
   if (is_branch (instruction))
     {
@@ -975,7 +979,7 @@ amdgcn_architecture_t::classify_instruction (
   if (information_kind == information_kind_t::pc_direct)
     {
       ssize_t branch_offset = encoding_simm16 (instruction) << 2;
-      information.emplace_back (address + size + branch_offset);
+      information.emplace_back (address + instruction.size () + branch_offset);
 
       if (sdst_regnum.has_value ())
         {
@@ -1007,62 +1011,72 @@ amdgcn_architecture_t::classify_instruction (
         utils::bit_extract (encoding_simm16 (instruction), 0, 7));
     }
 
-  return { instruction_kind, instruction_properties, size,
+  return { instruction_kind, instruction_properties, instruction.size (),
            std::move (information) };
 }
 
 bool
 amdgcn_architecture_t::can_execute_displaced (
-  const std::vector<uint8_t> &bytes) const
+  const instruction_t &instruction) const
 {
+  if (!instruction.is_valid ())
+    return false;
+
   /* PC relative branch instructions cannot be displaced as a wave cannot be
      halted with a PC pointing at random or unmapped memory if the branch is
      taken.  */
-  if (is_branch (bytes) || is_cbranch (bytes) || is_cbranch_i_fork (bytes)
-      || is_call (bytes))
+  if (is_branch (instruction) || is_cbranch (instruction)
+      || is_cbranch_i_fork (instruction) || is_call (instruction))
     return false;
 
   /* All PC reading/modifying instructions are simulated, so no attempt is made
      to fixup the state after instruction is displaced-stepped.  */
-  return !(is_cbranch_g_fork (bytes) || is_cbranch_join (bytes)
-           || is_getpc (bytes) || is_setpc (bytes) || is_swappc (bytes));
+  return !(is_cbranch_g_fork (instruction) || is_cbranch_join (instruction)
+           || is_getpc (instruction) || is_setpc (instruction)
+           || is_swappc (instruction));
 }
 
 bool
-amdgcn_architecture_t::can_simulate (const std::vector<uint8_t> &bytes) const
+amdgcn_architecture_t::can_simulate (const instruction_t &instruction) const
 {
+  if (!instruction.is_valid ())
+    return false;
+
   /* s_call_b64 must have even aligned sdst.  */
-  if (is_call (bytes))
-    return !(encoding_sdst (bytes) & 1);
+  if (is_call (instruction))
+    return !(encoding_sdst (instruction) & 1);
 
   /* s_getpc_b64 must have even aligned sdst.  */
-  if (is_getpc (bytes))
-    return !(encoding_sdst (bytes) & 1);
+  if (is_getpc (instruction))
+    return !(encoding_sdst (instruction) & 1);
 
   /* s_setpc_b64 must have even aligned ssrc.  */
-  if (is_setpc (bytes))
-    return !(encoding_ssrc0 (bytes) & 1);
+  if (is_setpc (instruction))
+    return !(encoding_ssrc0 (instruction) & 1);
 
   /* s_swappc_b64 must have even aligned ssrc and sdst.  */
-  if (is_swappc (bytes))
-    return !(encoding_ssrc0 (bytes) & 1) && !(encoding_sdst (bytes) & 1);
+  if (is_swappc (instruction))
+    return !(encoding_ssrc0 (instruction) & 1)
+           && !(encoding_sdst (instruction) & 1);
 
   /* s_cbranch_i_fork must have even aligned arg0.  */
-  if (is_cbranch_i_fork (bytes))
-    return !(encoding_sdst (bytes) & 1);
+  if (is_cbranch_i_fork (instruction))
+    return !(encoding_sdst (instruction) & 1);
 
   /* s_cbranch_i_fork must have even aligned arg0 & arg1.  */
-  if (is_cbranch_g_fork (bytes))
-    return !(encoding_ssrc0 (bytes) & 1) && !(encoding_ssrc1 (bytes) & 1);
+  if (is_cbranch_g_fork (instruction))
+    return !(encoding_ssrc0 (instruction) & 1)
+           && !(encoding_ssrc1 (instruction) & 1);
 
-  return is_nop (bytes) || is_branch (bytes) || is_cbranch (bytes)
-         || is_cbranch_join (bytes) || is_endpgm (bytes);
+  return is_nop (instruction) || is_branch (instruction)
+         || is_cbranch (instruction) || is_cbranch_join (instruction)
+         || is_endpgm (instruction);
 }
 
 bool
 amdgcn_architecture_t::simulate_instruction (
   wave_t &wave, amd_dbgapi_global_address_t pc,
-  const std::vector<uint8_t> &instruction) const
+  const instruction_t &instruction) const
 {
   uint32_t ttmp6;
   wave.read_register (amdgpu_regnum_t::ttmp6, &ttmp6);
@@ -1268,8 +1282,8 @@ amdgcn_architecture_t::simulate_instruction (
 
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "%s simulated \"%s\" (pc=%#lx)",
               to_string (wave.id ()).c_str (),
-              std::get<1> (wave.architecture ().disassemble_instruction (
-                             pc, instruction.data (), instruction.size ()))
+              std::get<1> (
+                wave.architecture ().disassemble_instruction (pc, instruction))
                 .c_str (),
               pc);
 
@@ -1426,10 +1440,6 @@ amdgcn_architecture_t::get_wave_state (
       if (auto instruction = wave.instruction_at_pc ();
           instruction && can_simulate (*instruction))
         {
-          /* Trim to size of instruction, simulate_instruction needs the
-             exact instruction bytes.  */
-          instruction->resize (instruction_size (*instruction));
-
           if (!simulate_instruction (wave, pc, *instruction))
             dbgapi_assert_not_reached (
               "halted waves cannot raise spurious events");
@@ -1627,90 +1637,82 @@ amdgcn_architecture_t::disable_wave_traps (
 }
 
 uint8_t
-amdgcn_architecture_t::encoding_ssrc0 (const std::vector<uint8_t> &bytes)
+amdgcn_architecture_t::encoding_ssrc0 (const instruction_t &instruction)
 {
-  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
-  return utils::bit_extract (encoding, 0, 7);
+  return utils::bit_extract (instruction.word<0> (), 0, 7);
 }
 
 uint8_t
-amdgcn_architecture_t::encoding_ssrc1 (const std::vector<uint8_t> &bytes)
+amdgcn_architecture_t::encoding_ssrc1 (const instruction_t &instruction)
 {
-  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
-  return utils::bit_extract (encoding, 8, 15);
+  return utils::bit_extract (instruction.word<0> (), 8, 15);
 }
 
 uint8_t
-amdgcn_architecture_t::encoding_sdst (const std::vector<uint8_t> &bytes)
+amdgcn_architecture_t::encoding_sdst (const instruction_t &instruction)
 {
-  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
-  return utils::bit_extract (encoding, 16, 22);
+  return utils::bit_extract (instruction.word<0> (), 16, 22);
 }
 
 uint8_t
-amdgcn_architecture_t::encoding_op7 (const std::vector<uint8_t> &bytes)
+amdgcn_architecture_t::encoding_op7 (const instruction_t &instruction)
 {
-  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
-  return utils::bit_extract (encoding, 16, 22);
+  return utils::bit_extract (instruction.word<0> (), 16, 22);
 }
 
 int
-amdgcn_architecture_t::encoding_simm16 (const std::vector<uint8_t> &bytes)
+amdgcn_architecture_t::encoding_simm16 (const instruction_t &instruction)
 {
-  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
-  return utils::sign_extend (utils::bit_extract (encoding, 0, 15), 16);
+  return utils::sign_extend (
+    utils::bit_extract (instruction.word<0> (), 0, 15), 16);
 }
 
 bool
-amdgcn_architecture_t::is_sopk_instruction (const std::vector<uint8_t> &bytes,
+amdgcn_architecture_t::is_sopk_instruction (const instruction_t &instruction,
                                             int op5)
 {
-  if (bytes.size () < sizeof (uint32_t))
+  if (instruction.capacity () < sizeof (instruction.word<0> ()))
     return false;
-
-  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
 
   /* SOPK [1011 OP5 SDST7 SIMM16] */
-  return (encoding & 0xFF800000) == (0xB0000000 | (op5 & 0x1F) << 23);
+  return (instruction.word<0> () & 0xFF800000)
+         == (0xB0000000 | (op5 & 0x1F) << 23);
 }
 
 bool
-amdgcn_architecture_t::is_sop1_instruction (const std::vector<uint8_t> &bytes,
+amdgcn_architecture_t::is_sop1_instruction (const instruction_t &instruction,
                                             int op8)
 {
-  if (bytes.size () < sizeof (uint32_t))
+  if (instruction.capacity () < sizeof (instruction.word<0> ()))
     return false;
-
-  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
 
   /* SOP1 [10111110 1 SDST7 OP8 SSRC08] */
-  return (encoding & 0xFF80FF00) == (0xBE800000 | (op8 & 0xFF) << 8);
+  return (instruction.word<0> () & 0xFF80FF00)
+         == (0xBE800000 | (op8 & 0xFF) << 8);
 }
 
 bool
-amdgcn_architecture_t::is_sop2_instruction (const std::vector<uint8_t> &bytes,
+amdgcn_architecture_t::is_sop2_instruction (const instruction_t &instruction,
                                             int op7)
 {
-  if (bytes.size () < sizeof (uint32_t))
+  if (instruction.capacity () < sizeof (instruction.word<0> ()))
     return false;
-
-  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
 
   /* SOP2 [10 OP7 SDST7 SSRC18 SSRC08] */
-  return (encoding & 0xFF800000) == (0x80000000 | (op7 & 0x7F) << 23);
+  return (instruction.word<0> () & 0xFF800000)
+         == (0x80000000 | (op7 & 0x7F) << 23);
 }
 
 bool
-amdgcn_architecture_t::is_sopp_instruction (const std::vector<uint8_t> &bytes,
+amdgcn_architecture_t::is_sopp_instruction (const instruction_t &instruction,
                                             int op7)
 {
-  if (bytes.size () < sizeof (uint32_t))
+  if (instruction.capacity () < sizeof (instruction.word<0> ()))
     return false;
 
-  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
-
   /* SOPP [101111111 OP7 SIMM16]  */
-  return (encoding & 0xFFFF0000) == (0xBF800000 | (op7 & 0x7F) << 16);
+  return (instruction.word<0> () & 0xFFFF0000)
+         == (0xBF800000 | (op7 & 0x7F) << 16);
 }
 
 bool
@@ -2056,26 +2058,26 @@ public:
   bool has_acc_vgprs () const override { return false; }
 
   cbranch_cond_t
-  cbranch_condition_code (const std::vector<uint8_t> &bytes) const override;
+  cbranch_condition_code (const instruction_t &instruction) const override;
 
-  bool is_sethalt (const std::vector<uint8_t> &bytes) const override;
-  bool is_barrier (const std::vector<uint8_t> &bytes) const override;
-  bool is_sleep (const std::vector<uint8_t> &bytes) const override;
-  bool is_code_end (const std::vector<uint8_t> &bytes) const override;
-  bool is_call (const std::vector<uint8_t> &bytes) const override;
-  bool is_getpc (const std::vector<uint8_t> &bytes) const override;
-  bool is_setpc (const std::vector<uint8_t> &bytes) const override;
-  bool is_swappc (const std::vector<uint8_t> &bytes) const override;
-  bool is_branch (const std::vector<uint8_t> &bytes) const override;
-  bool is_cbranch (const std::vector<uint8_t> &bytes) const override;
-  bool is_cbranch_i_fork (const std::vector<uint8_t> &bytes) const override;
-  bool is_cbranch_g_fork (const std::vector<uint8_t> &bytes) const override;
-  bool is_cbranch_join (const std::vector<uint8_t> &bytes) const override;
-  bool is_nop (const std::vector<uint8_t> &bytes) const override;
-  bool is_trap (const std::vector<uint8_t> &bytes,
+  bool is_sethalt (const instruction_t &instruction) const override;
+  bool is_barrier (const instruction_t &instruction) const override;
+  bool is_sleep (const instruction_t &instruction) const override;
+  bool is_code_end (const instruction_t &instruction) const override;
+  bool is_call (const instruction_t &instruction) const override;
+  bool is_getpc (const instruction_t &instruction) const override;
+  bool is_setpc (const instruction_t &instruction) const override;
+  bool is_swappc (const instruction_t &instruction) const override;
+  bool is_branch (const instruction_t &instruction) const override;
+  bool is_cbranch (const instruction_t &instruction) const override;
+  bool is_cbranch_i_fork (const instruction_t &instruction) const override;
+  bool is_cbranch_g_fork (const instruction_t &instruction) const override;
+  bool is_cbranch_join (const instruction_t &instruction) const override;
+  bool is_nop (const instruction_t &instruction) const override;
+  bool is_trap (const instruction_t &instruction,
                 trap_id_t *trap_id = nullptr) const override;
-  bool is_endpgm (const std::vector<uint8_t> &bytes) const override;
-  bool is_breakpoint (const std::vector<uint8_t> &bytes) const override;
+  bool is_endpgm (const instruction_t &instruction) const override;
+  bool is_breakpoint (const instruction_t &instruction) const override;
 
   bool can_halt_at_endpgm () const override { return false; }
   size_t largest_instruction_size () const override { return 8; }
@@ -2218,117 +2220,115 @@ decltype (gfx9_base_t::cbranch_opcodes_map) gfx9_base_t::cbranch_opcodes_map{
 };
 
 amdgcn_architecture_t::cbranch_cond_t
-gfx9_base_t::cbranch_condition_code (const std::vector<uint8_t> &bytes) const
+gfx9_base_t::cbranch_condition_code (const instruction_t &instruction) const
 {
-  dbgapi_assert (is_cbranch (bytes));
-  return cbranch_opcodes_map.find (encoding_op7 (bytes))->second;
+  dbgapi_assert (is_cbranch (instruction));
+  return cbranch_opcodes_map.find (encoding_op7 (instruction))->second;
 }
 
 bool
-gfx9_base_t::is_nop (const std::vector<uint8_t> &bytes) const
+gfx9_base_t::is_nop (const instruction_t &instruction) const
 {
   /* s_nop: SOPP Opcode 0  */
-  return is_sopp_instruction (bytes, 0);
+  return is_sopp_instruction (instruction, 0);
 }
 
 bool
-gfx9_base_t::is_endpgm (const std::vector<uint8_t> &bytes) const
+gfx9_base_t::is_endpgm (const instruction_t &instruction) const
 {
   /* s_endpgm: SOPP Opcode 1  */
-  return is_sopp_instruction (bytes, 1);
+  return is_sopp_instruction (instruction, 1);
 }
 
 bool
-gfx9_base_t::is_breakpoint (const std::vector<uint8_t> &bytes) const
+gfx9_base_t::is_breakpoint (const instruction_t &instruction) const
 {
   trap_id_t trap_id;
-  return is_trap (bytes, &trap_id) && trap_id == trap_id_t::breakpoint;
+  return is_trap (instruction, &trap_id) && trap_id == trap_id_t::breakpoint;
 }
 
 bool
-gfx9_base_t::is_trap (const std::vector<uint8_t> &bytes,
+gfx9_base_t::is_trap (const instruction_t &instruction,
                       trap_id_t *trap_id) const
 {
   /* s_trap: SOPP Opcode 18  */
-  if (is_sopp_instruction (bytes, 18))
+  if (is_sopp_instruction (instruction, 18))
     {
       if (trap_id != nullptr)
         *trap_id = trap_id_t{ static_cast<std::underlying_type_t<trap_id_t>> (
-          utils::bit_extract (encoding_simm16 (bytes), 0, 7)) };
+          utils::bit_extract (encoding_simm16 (instruction), 0, 7)) };
       return true;
     }
   return false;
 }
 
 bool
-gfx9_base_t::is_sethalt (const std::vector<uint8_t> &bytes) const
+gfx9_base_t::is_sethalt (const instruction_t &instruction) const
 {
   /* s_sethalt: SOPP Opcode 13  */
-  return is_sopp_instruction (bytes, 13);
+  return is_sopp_instruction (instruction, 13);
 }
 
 bool
-gfx9_base_t::is_barrier (const std::vector<uint8_t> &bytes) const
+gfx9_base_t::is_barrier (const instruction_t &instruction) const
 {
   /* s_barrier: SOPP Opcode 10  */
-  return is_sopp_instruction (bytes, 10);
+  return is_sopp_instruction (instruction, 10);
 }
 
 bool
-gfx9_base_t::is_sleep (const std::vector<uint8_t> &bytes) const
+gfx9_base_t::is_sleep (const instruction_t &instruction) const
 {
   /* s_sleep: SOPP Opcode 14  */
-  return is_sopp_instruction (bytes, 14);
+  return is_sopp_instruction (instruction, 14);
 }
 
 bool
-gfx9_base_t::is_code_end (const std::vector<uint8_t> & /* bytes  */) const
+gfx9_base_t::is_code_end (const instruction_t & /* instruction  */) const
 {
   return false;
 }
 
 bool
-gfx9_base_t::is_call (const std::vector<uint8_t> &bytes) const
+gfx9_base_t::is_call (const instruction_t &instruction) const
 {
   /* s_call: SOPK Opcode 21  */
-  return is_sopk_instruction (bytes, 21);
+  return is_sopk_instruction (instruction, 21);
 }
 
 bool
-gfx9_base_t::is_getpc (const std::vector<uint8_t> &bytes) const
+gfx9_base_t::is_getpc (const instruction_t &instruction) const
 {
   /* s_getpc: SOP1 Opcode 28  */
-  return is_sop1_instruction (bytes, 28);
+  return is_sop1_instruction (instruction, 28);
 }
 
 bool
-gfx9_base_t::is_setpc (const std::vector<uint8_t> &bytes) const
+gfx9_base_t::is_setpc (const instruction_t &instruction) const
 {
   /* s_setpc: SOP1 Opcode 29  */
-  return is_sop1_instruction (bytes, 29);
+  return is_sop1_instruction (instruction, 29);
 }
 
 bool
-gfx9_base_t::is_swappc (const std::vector<uint8_t> &bytes) const
+gfx9_base_t::is_swappc (const instruction_t &instruction) const
 {
   /* s_swappc: SOP1 Opcode 30  */
-  return is_sop1_instruction (bytes, 30);
+  return is_sop1_instruction (instruction, 30);
 }
 
 bool
-gfx9_base_t::is_branch (const std::vector<uint8_t> &bytes) const
+gfx9_base_t::is_branch (const instruction_t &instruction) const
 {
   /* s_sleep: SOPP Opcode 2  */
-  return is_sopp_instruction (bytes, 2);
+  return is_sopp_instruction (instruction, 2);
 }
 
 bool
-gfx9_base_t::is_cbranch (const std::vector<uint8_t> &bytes) const
+gfx9_base_t::is_cbranch (const instruction_t &instruction) const
 {
-  if (bytes.size () < sizeof (uint32_t))
+  if (instruction.capacity () < sizeof (instruction.word<0> ()))
     return false;
-
-  uint32_t encoding = *reinterpret_cast<const uint32_t *> (bytes.data ());
 
   /* s_cbranch_scc0:             SOPP Opcode 4  [10111111 10000100 SIMM16]
      s_cbranch_scc1:             SOPP Opcode 5  [10111111 10000101 SIMM16]
@@ -2340,32 +2340,32 @@ gfx9_base_t::is_cbranch (const std::vector<uint8_t> &bytes) const
      s_cbranch_cdbguser:         SOPP Opcode 24 [10111111 10011000 SIMM16]
      s_cbranch_cdbgsys_or_user:  SOPP Opcode 25 [10111111 10011001 SIMM16]
      s_cbranch_cdbgsys_and_user: SOPP Opcode 26 [10111111 10011010 SIMM16] */
-  if ((encoding & 0xFF800000) != 0xBF800000)
+  if ((instruction.word<0> () & 0xFF800000) != 0xBF800000)
     return false;
 
-  return gfx9_base_t::cbranch_opcodes_map.find (encoding_op7 (bytes))
+  return gfx9_base_t::cbranch_opcodes_map.find (encoding_op7 (instruction))
          != gfx9_base_t::cbranch_opcodes_map.end ();
 }
 
 bool
-gfx9_base_t::is_cbranch_i_fork (const std::vector<uint8_t> &bytes) const
+gfx9_base_t::is_cbranch_i_fork (const instruction_t &instruction) const
 {
   /* s_cbranch_i_fork: SOPK Opcode 16  */
-  return is_sopk_instruction (bytes, 16);
+  return is_sopk_instruction (instruction, 16);
 }
 
 bool
-gfx9_base_t::is_cbranch_g_fork (const std::vector<uint8_t> &bytes) const
+gfx9_base_t::is_cbranch_g_fork (const instruction_t &instruction) const
 {
   /* s_cbranch_g_fork: SOP2 Opcode 41  */
-  return is_sop2_instruction (bytes, 41);
+  return is_sop2_instruction (instruction, 41);
 }
 
 bool
-gfx9_base_t::is_cbranch_join (const std::vector<uint8_t> &bytes) const
+gfx9_base_t::is_cbranch_join (const instruction_t &instruction) const
 {
   /* s_cbranch_join: SOP1 Opcode 46  */
-  return is_sop1_instruction (bytes, 46);
+  return is_sop1_instruction (instruction, 46);
 }
 
 std::optional<amd_dbgapi_global_address_t>
@@ -2834,14 +2834,14 @@ public:
   bool has_wave64_vgprs () const override { return true; }
   bool has_acc_vgprs () const override { return false; }
 
-  bool is_code_end (const std::vector<uint8_t> &bytes) const override;
-  bool is_call (const std::vector<uint8_t> &bytes) const override;
-  bool is_getpc (const std::vector<uint8_t> &bytes) const override;
-  bool is_setpc (const std::vector<uint8_t> &bytes) const override;
-  bool is_swappc (const std::vector<uint8_t> &bytes) const override;
-  bool is_cbranch_i_fork (const std::vector<uint8_t> &bytes) const override;
-  bool is_cbranch_g_fork (const std::vector<uint8_t> &bytes) const override;
-  bool is_cbranch_join (const std::vector<uint8_t> &bytes) const override;
+  bool is_code_end (const instruction_t &instruction) const override;
+  bool is_call (const instruction_t &instruction) const override;
+  bool is_getpc (const instruction_t &instruction) const override;
+  bool is_setpc (const instruction_t &instruction) const override;
+  bool is_swappc (const instruction_t &instruction) const override;
+  bool is_cbranch_i_fork (const instruction_t &instruction) const override;
+  bool is_cbranch_g_fork (const instruction_t &instruction) const override;
+  bool is_cbranch_join (const instruction_t &instruction) const override;
 
   void control_stack_iterate (
     queue_t &queue, const uint32_t *control_stack, size_t control_stack_words,
@@ -2926,56 +2926,56 @@ gfx10_base_t::cwsr_record_t::register_address (amdgpu_regnum_t regnum) const
 }
 
 bool
-gfx10_base_t::is_code_end (const std::vector<uint8_t> &bytes) const
+gfx10_base_t::is_code_end (const instruction_t &instruction) const
 {
   /* s_code_end: SOPP Opcode 31  */
-  return is_sopp_instruction (bytes, 31);
+  return is_sopp_instruction (instruction, 31);
 }
 
 bool
-gfx10_base_t::is_call (const std::vector<uint8_t> &bytes) const
+gfx10_base_t::is_call (const instruction_t &instruction) const
 {
   /* s_call: SOPK Opcode 22  */
-  return is_sopk_instruction (bytes, 22);
+  return is_sopk_instruction (instruction, 22);
 }
 
 bool
-gfx10_base_t::is_getpc (const std::vector<uint8_t> &bytes) const
+gfx10_base_t::is_getpc (const instruction_t &instruction) const
 {
   /* s_getpc: SOP1 Opcode 31  */
-  return is_sop1_instruction (bytes, 31);
+  return is_sop1_instruction (instruction, 31);
 }
 
 bool
-gfx10_base_t::is_setpc (const std::vector<uint8_t> &bytes) const
+gfx10_base_t::is_setpc (const instruction_t &instruction) const
 {
   /* s_setpc: SOP1 Opcode 32  */
-  return is_sop1_instruction (bytes, 32);
+  return is_sop1_instruction (instruction, 32);
 }
 
 bool
-gfx10_base_t::is_swappc (const std::vector<uint8_t> &bytes) const
+gfx10_base_t::is_swappc (const instruction_t &instruction) const
 {
   /* s_swappc: SOP1 Opcode 33  */
-  return is_sop1_instruction (bytes, 33);
+  return is_sop1_instruction (instruction, 33);
 }
 
 bool
 gfx10_base_t::is_cbranch_i_fork (
-  const std::vector<uint8_t> & /* bytes  */) const
+  const instruction_t & /* instruction  */) const
 {
   return false;
 }
 
 bool
 gfx10_base_t::is_cbranch_g_fork (
-  const std::vector<uint8_t> & /* bytes  */) const
+  const instruction_t & /* instruction  */) const
 {
   return false;
 }
 
 bool
-gfx10_base_t::is_cbranch_join (const std::vector<uint8_t> & /* bytes  */) const
+gfx10_base_t::is_cbranch_join (const instruction_t & /* instruction  */) const
 {
   return false;
 }
@@ -3588,15 +3588,15 @@ architecture_t::disassembly_info () const
 }
 
 amd_dbgapi_size_t
-architecture_t::instruction_size (const void *instruction_bytes,
-                                  size_t size) const
+architecture_t::instruction_size (const instruction_t &instruction) const
 {
   struct detail::disassembly_user_data_t user_data
-    = { /* .memory =  */ instruction_bytes,
+    = { /* .memory =  */ instruction.data (),
         /* .offset =  */ 0,
-        /* .size =  */ size,
+        /* .size =  */ instruction.capacity (),
         /* .instruction =  */ nullptr,
         /* .operands =  */ nullptr };
+  size_t size;
 
   /* Disassemble one instruction.  */
   if (amd_comgr_disassemble_instruction (disassembly_info (), 0, &user_data,
@@ -3610,17 +3610,17 @@ architecture_t::instruction_size (const void *instruction_bytes,
 std::tuple<amd_dbgapi_size_t /* instruction_size  */,
            std::string /* instruction_text  */,
            std::vector<amd_dbgapi_global_address_t> /* address_operands  */>
-architecture_t::disassemble_instruction (amd_dbgapi_global_address_t address,
-                                         const void *instruction_bytes,
-                                         size_t size) const
+architecture_t::disassemble_instruction (
+  amd_dbgapi_global_address_t address, const instruction_t &instruction) const
 {
   std::string instruction_text;
   std::vector<uint64_t> address_operands;
+  size_t size;
 
   struct detail::disassembly_user_data_t user_data
-    = { /* .memory =  */ instruction_bytes,
+    = { /* .memory =  */ instruction.data (),
         /* .offset =  */ address,
-        /* .size =  */ size,
+        /* .size =  */ instruction.capacity (),
         /* .instruction =  */ &instruction_text,
         /* .operands =  */ &address_operands };
 
@@ -3629,7 +3629,7 @@ architecture_t::disassemble_instruction (amd_dbgapi_global_address_t address,
                                          static_cast<uint64_t> (address),
                                          &user_data, &size)
       != AMD_COMGR_STATUS_SUCCESS)
-    throw exception_t (AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION);
+    return { 0, "<illegal instruction>", {} };
 
   return std::make_tuple (size, instruction_text, address_operands);
 }
@@ -3700,6 +3700,20 @@ decltype (architecture_t::s_architecture_map)
       return map;
     }()
   };
+
+size_t
+instruction_t::size () const
+{
+  if (!m_size.has_value ())
+    {
+      /* The disassembler may return zero if the instruction is not valid. */
+      size_t instruction_size = m_architecture.get ().instruction_size (*this);
+
+      m_size.emplace (instruction_size);
+    }
+
+  return *m_size;
+}
 
 } /* namespace amd::dbgapi */
 
@@ -3783,14 +3797,35 @@ amd_dbgapi_disassemble_instruction (
   if (!architecture)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID;
 
+  if (utils::align_down (address,
+                         architecture->minimum_instruction_alignment ())
+      != address)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
+  instruction_t instruction (
+    *architecture,
+    std::vector<std::byte> (static_cast<const std::byte *> (memory),
+                            static_cast<const std::byte *> (memory) + *size));
+
   if (!instruction_text)
     {
-      *size = architecture->instruction_size (memory, *size);
+      if (!instruction.is_valid ())
+        return AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION;
+
+      *size = instruction.size ();
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
 
+  /* Don't call instruction_t::is_valid () as we would end-up calling the
+     disassembler twice, first to validate the instruction's size, and a
+     second time to disassemble the instruction.  Instead, check that the
+     returned instruction size is not 0.  */
+
   auto [instruction_size, instruction_str, address_operands]
-    = architecture->disassemble_instruction (address, memory, *size);
+    = architecture->disassemble_instruction (address, instruction);
+
+  if (!instruction_size)
+    return AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION;
 
   std::string address_operands_str;
   for (auto &&operand : address_operands)
@@ -3871,12 +3906,21 @@ amd_dbgapi_classify_instruction (
   if (!architecture)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID;
 
-  std::vector<uint8_t> instruction (static_cast<const uint8_t *> (memory),
-                                    static_cast<const uint8_t *> (memory)
-                                      + *size_p);
+  if (utils::align_down (address,
+                         architecture->minimum_instruction_alignment ())
+      != address)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
+  instruction_t instruction (
+    *architecture, std::vector<std::byte> (
+                     static_cast<const std::byte *> (memory),
+                     static_cast<const std::byte *> (memory) + *size_p));
+
+  if (!instruction.is_valid ())
+    return AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION;
 
   auto [kind, properties, size, information]
-    = architecture->classify_instruction (instruction, address);
+    = architecture->classify_instruction (address, instruction);
 
   if (instruction_information_p)
     {
