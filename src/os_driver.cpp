@@ -184,7 +184,8 @@ public:
                   os_exception_mask_t exceptions_cleared) const override;
 
   amd_dbgapi_status_t enable_debug (os_exception_mask_t exceptions_reported,
-                                    file_desc_t notifier) override;
+                                    file_desc_t notifier,
+                                    os_runtime_info_t *runtime_info) override;
   amd_dbgapi_status_t disable_debug () override;
   bool is_debug_enabled () const override { return m_is_debug_enabled; }
 
@@ -516,41 +517,41 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
 
 amd_dbgapi_status_t
 kfd_driver_t::enable_debug (os_exception_mask_t exceptions_reported,
-                            file_desc_t notifier)
+                            file_desc_t notifier,
+                            os_runtime_info_t *runtime_info)
 {
-  TRACE_DRIVER_BEGIN (param_in (exceptions_reported), param_in (notifier));
+  TRACE_DRIVER_BEGIN (param_in (exceptions_reported), param_in (notifier),
+                      param_in (runtime_info));
 
   dbgapi_assert (!is_debug_enabled () && "debug is already enabled");
 
   /* KFD_IOC_DBG_TRAP_ENABLE (#0):
      exception_mask: [in] exceptions to be reported to the debugger
+     ptr:   [in] runtime info buffer to copy to
      data1: [in] 0=disable, 1=enable
-     data2: [out] poll_fd
-     data3: [out] ttmps setup enabled (0=disabled, 1=enabled)  */
+     data2: [in] poll_fd
+     data3: [in/out] runtime info size  */
 
   kfd_ioctl_dbg_trap_args args{};
+  args.ptr = reinterpret_cast<uintptr_t> (runtime_info);
   args.data1 = 1; /* enable  */
   args.data2 = notifier;
+  args.data3 = sizeof (*runtime_info);
   args.exception_mask = static_cast<uint64_t> (exceptions_reported);
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_ENABLE, &args);
   if (err == -ESRCH)
     return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
-  else if (err == -EBUSY)
-    {
-      /* An agent does not support multi-process debugging and already has
-         debug trap enabled by another process.  */
-      warning ("At least one agent is busy (debugging may be enabled by "
-               "another process)");
-      return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
-    }
   else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
+
+  if (sizeof (*runtime_info) > args.data3)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
 
   m_is_debug_enabled = true;
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  TRACE_DRIVER_END ();
+  TRACE_DRIVER_END (make_ref (param_out (runtime_info)));
 }
 
 amd_dbgapi_status_t
@@ -588,7 +589,7 @@ kfd_driver_t::send_exceptions (os_exception_mask_t exceptions,
   dbgapi_assert (is_debug_enabled () && "debug is not enabled");
 
   /* KFD_IOC_DBG_TRAP_SEND_RUNTIME_EVENT (#14):
-     data1: [in] source id (queue or device)
+     data1: [in] destination (queue or device)
      data2: [in] event to send  */
 
   kfd_ioctl_dbg_trap_args args{};
@@ -976,8 +977,9 @@ public:
   }
 
   amd_dbgapi_status_t
-    enable_debug (os_exception_mask_t /* exceptions_reported  */,
-                  file_desc_t /* notifier  */) override
+  enable_debug (os_exception_mask_t /* exceptions_reported  */,
+                file_desc_t /* notifier  */,
+                os_runtime_info_t * /* runtime_info  */) override
   {
     return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
   }
@@ -1173,10 +1175,8 @@ one_os_exception_to_string (os_exception_mask_t exception_mask)
       return "DEVICE_FATAL_HALT";
     case os_exception_mask_t::device_new:
       return "DEVICE_NEW";
-    case os_exception_mask_t::process_runtime_enable:
-      return "PROCESS_RUNTIME_ENABLE";
-    case os_exception_mask_t::process_runtime_disable:
-      return "PROCESS_RUNTIME_DISABLE";
+    case os_exception_mask_t::process_runtime:
+      return "PROCESS_RUNTIME";
     case os_exception_mask_t::process_device_remove:
       return "PROCESS_REMOVE";
     }
@@ -1237,6 +1237,38 @@ to_string (os_agent_snapshot_entry_t snapshot)
 
 template <>
 std::string
+to_string (os_runtime_state_t runtime_state)
+{
+  switch (runtime_state)
+    {
+    case os_runtime_state_t::disabled:
+      return "DISABLED";
+    case os_runtime_state_t::enabled:
+      return "ENABLED";
+    case os_runtime_state_t::enabled_busy:
+      return "ENABLED_BUSY";
+    case os_runtime_state_t::enabled_error:
+      return "ENABLED_ERROR";
+    }
+  return to_string (
+    make_hex (static_cast<std::underlying_type_t<decltype (runtime_state)>> (
+      runtime_state)));
+}
+
+template <>
+std::string
+to_string (os_runtime_info_t runtime_info)
+{
+  return string_printf (
+    "{ .r_debug=%#llx, .runtime_state=%s, .ttmp_setup=%d }",
+    runtime_info.r_debug,
+    to_string (static_cast<os_runtime_state_t> (runtime_info.runtime_state))
+      .c_str (),
+    runtime_info.ttmp_setup);
+}
+
+template <>
+std::string
 to_string (os_wave_launch_trap_override_t override)
 {
   switch (override)
@@ -1292,8 +1324,15 @@ to_string (os_watch_mode_t watch_mode)
 }
 
 template <>
-std::string to_string (detail::query_ref<os_exception_code_t> /* ref  */)
+std::string
+to_string (detail::query_ref<os_exception_code_t> ref)
 {
+  auto [query, value] = ref;
+
+  if (query == os_exception_code_t::process_runtime)
+    return to_string (
+      make_ref (static_cast<const os_runtime_info_t *> (value)));
+
   return {};
 }
 

@@ -96,7 +96,11 @@ private:
 
   amd_dbgapi_client_process_id_t const m_client_process_id;
   amd_dbgapi_os_process_id_t m_os_process_id{};
-  std::optional<amd_dbgapi_global_address_t> m_r_debug_address;
+
+  os_runtime_info_t m_runtime_info{};
+  amd_dbgapi_runtime_state_t m_runtime_state{
+    AMD_DBGAPI_RUNTIME_STATE_UNLOADED
+  };
 
   std::unique_ptr<os_driver_t> m_os_driver{};
   flag_t m_flags{};
@@ -224,8 +228,7 @@ public:
   amd_dbgapi_status_t update_queues ();
   amd_dbgapi_status_t update_code_objects ();
 
-  void runtime_enable ();
-  void runtime_disable ();
+  void runtime_enable (os_runtime_info_t runtime_info);
 
   void send_exceptions (
     os_exception_mask_t exceptions,

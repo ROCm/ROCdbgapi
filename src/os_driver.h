@@ -134,10 +134,45 @@ enum class os_exception_code_t : uint32_t
   device_new = EC_DEVICE_NEW,
 
   /* per process exceptions  */
-  process_runtime_enable = EC_PROCESS_RUNTIME_ENABLE,
-  process_runtime_disable = EC_PROCESS_RUNTIME_DISABLE,
+  process_runtime = EC_PROCESS_RUNTIME,
   process_device_remove = EC_PROCESS_DEVICE_REMOVE,
 };
+
+using os_runtime_info_t = kfd_runtime_info;
+
+enum class os_runtime_state_t : uint32_t
+{
+  disabled = DEBUG_RUNTIME_STATE_DISABLED,
+  enabled = DEBUG_RUNTIME_STATE_ENABLED,
+  enabled_busy = DEBUG_RUNTIME_STATE_ENABLED_BUSY,
+  enabled_error = DEBUG_RUNTIME_STATE_ENABLED_ERROR,
+};
+
+constexpr bool
+operator== (std::underlying_type_t<os_runtime_state_t> lhs,
+            os_runtime_state_t rhs)
+{
+  return lhs == static_cast<std::underlying_type_t<decltype (rhs)>> (rhs);
+}
+constexpr bool
+operator== (os_runtime_state_t lhs,
+            std::underlying_type_t<os_runtime_state_t> rhs)
+{
+  return rhs == lhs;
+}
+
+constexpr bool
+operator!= (std::underlying_type_t<os_runtime_state_t> lhs,
+            os_runtime_state_t rhs)
+{
+  return !(lhs == rhs);
+}
+constexpr bool
+operator!= (os_runtime_state_t lhs,
+            std::underlying_type_t<os_runtime_state_t> rhs)
+{
+  return rhs != lhs;
+}
 
 enum class os_exception_mask_t : uint64_t
 {
@@ -174,8 +209,7 @@ enum class os_exception_mask_t : uint64_t
   device_new = KFD_EC_MASK (EC_DEVICE_NEW),
 
   /* per process exceptions  */
-  process_runtime_enable = KFD_EC_MASK (EC_PROCESS_RUNTIME_ENABLE),
-  process_runtime_disable = KFD_EC_MASK (EC_PROCESS_RUNTIME_DISABLE),
+  process_runtime = KFD_EC_MASK (EC_PROCESS_RUNTIME),
   process_device_remove = KFD_EC_MASK (EC_PROCESS_DEVICE_REMOVE),
 };
 template <> struct is_flag<os_exception_mask_t> : std::true_type
@@ -294,7 +328,8 @@ public:
                   os_exception_mask_t exceptions_cleared) const = 0;
 
   virtual amd_dbgapi_status_t
-  enable_debug (os_exception_mask_t exceptions_reported, file_desc_t notifier)
+  enable_debug (os_exception_mask_t exceptions_reported, file_desc_t notifier,
+                os_runtime_info_t *runtime_info)
     = 0;
   virtual amd_dbgapi_status_t disable_debug () = 0;
   virtual bool is_debug_enabled () const = 0;
@@ -355,6 +390,8 @@ template <> std::string to_string (os_agent_snapshot_entry_t snapshot);
 template <> std::string to_string (os_exception_code_t exception_code);
 template <> std::string to_string (os_exception_mask_t exception_mask);
 template <> std::string to_string (os_queue_snapshot_entry_t snapshot);
+template <> std::string to_string (os_runtime_info_t runtime_info);
+template <> std::string to_string (os_runtime_state_t runtime_state);
 template <> std::string to_string (os_source_id_t source_id);
 template <> std::string to_string (os_watch_mode_t watch_mode);
 template <> std::string to_string (os_wave_launch_mode_t mode);
