@@ -527,22 +527,18 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
     {
       auto convert_one_exception = [&] (amd_dbgapi_exceptions_t one_exception)
       {
-        if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_EXCEPTION)
-          return os_exception_mask (os_exception_code_t::queue_trap);
+        if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_ABORT)
+          return os_exception_mask (os_exception_code_t::queue_abort);
 
-        if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_ILLEGAL_INSTRUCTION)
-          return os_exception_mask (
-            os_exception_code_t::queue_illegal_instruction);
+        if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_TRAP)
+          return os_exception_mask (os_exception_code_t::queue_trap);
 
         if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_MATH_ERROR)
           return os_exception_mask (os_exception_code_t::queue_math_error);
 
-        if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_ABORT)
-          return os_exception_mask (os_exception_code_t::queue_abort);
-
-        if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION)
+        if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_ILLEGAL_INSTRUCTION)
           return os_exception_mask (
-            os_exception_code_t::queue_aperture_violation);
+            os_exception_code_t::queue_illegal_instruction);
 
         if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_MEMORY_VIOLATION
             && agent ().has_exception (
@@ -555,7 +551,12 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
           return os_exception_mask (
             os_exception_code_t::queue_memory_violation);
 
+        if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION)
+          return os_exception_mask (
+            os_exception_code_t::queue_aperture_violation);
+
         dbgapi_assert (!"not a valid exception");
+        return os_exception_mask_t::none;
       };
 
       /* Convert an amd_dbgapi_exception_t into an os_exception_mask_t.  */
@@ -1096,12 +1097,11 @@ amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   if ((exceptions
-       & ~(AMD_DBGAPI_EXCEPTION_WAVE_EXCEPTION
+       & ~(AMD_DBGAPI_EXCEPTION_WAVE_ABORT | AMD_DBGAPI_EXCEPTION_WAVE_TRAP
+           | AMD_DBGAPI_EXCEPTION_WAVE_MATH_ERROR
            | AMD_DBGAPI_EXCEPTION_WAVE_ILLEGAL_INSTRUCTION
            | AMD_DBGAPI_EXCEPTION_WAVE_MEMORY_VIOLATION
-           | AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION
-           | AMD_DBGAPI_EXCEPTION_WAVE_MATH_ERROR
-           | AMD_DBGAPI_EXCEPTION_WAVE_ABORT))
+           | AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION))
       != AMD_DBGAPI_EXCEPTION_NONE)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 

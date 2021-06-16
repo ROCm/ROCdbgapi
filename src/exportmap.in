@@ -73,7 +73,7 @@ global: amd_dbgapi_address_class_get_info;
 global: amd_dbgapi_process_set_progress;
 } @AMD_DBGAPI_NAME@_0.46;
 
-@AMD_DBGAPI_NAME@_0.51 {
+@AMD_DBGAPI_NAME@_0.52 {
 global: amd_dbgapi_breakpoint_get_info;
         amd_dbgapi_event_get_info;
         amd_dbgapi_initialize;
