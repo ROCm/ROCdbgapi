@@ -45,21 +45,15 @@ agent_t::agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
 agent_t::~agent_t () {}
 
 void
-agent_t::set_exception (os_exception_code_t exception_code)
+agent_t::set_exceptions (os_exception_mask_t exceptions)
 {
-  m_exceptions |= os_exception_mask (exception_code);
+  m_exceptions |= exceptions;
 }
 
 void
-agent_t::clear_exception (os_exception_code_t exception_code)
+agent_t::clear_exceptions (os_exception_mask_t exceptions)
 {
-  m_exceptions &= ~os_exception_mask (exception_code);
-}
-
-bool
-agent_t::has_exception (os_exception_code_t exception_code) const
-{
-  return (m_exceptions & os_exception_mask (exception_code)) != 0;
+  m_exceptions &= ~exceptions;
 }
 
 amd_dbgapi_status_t

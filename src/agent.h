@@ -53,9 +53,9 @@ public:
 
   os_agent_id_t os_agent_id () const { return m_os_agent_info.os_agent_id; }
 
-  void set_exception (os_exception_code_t exception_code);
-  void clear_exception (os_exception_code_t exception_code);
-  bool has_exception (os_exception_code_t exception_code) const;
+  void set_exceptions (os_exception_mask_t exceptions);
+  void clear_exceptions (os_exception_mask_t exceptions);
+  os_exception_mask_t exceptions () const { return m_exceptions; }
 
   amd_dbgapi_status_t get_info (amd_dbgapi_agent_info_t query,
                                 size_t value_size, void *value) const;

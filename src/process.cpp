@@ -879,10 +879,11 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
 
   int ret = os_driver ().suspend_queues (
     queue_ids.data (), queue_ids.size (),
-    os_exception_mask (os_exception_code_t::queue_trap,
-                       os_exception_code_t::queue_illegal_instruction,
-                       os_exception_code_t::queue_memory_violation,
-                       os_exception_code_t::queue_aperture_violation));
+    os_exception_mask_t::queue_abort | os_exception_mask_t::queue_trap
+      | os_exception_mask_t::queue_math_error
+      | os_exception_mask_t::queue_illegal_instruction
+      | os_exception_mask_t::queue_memory_violation
+      | os_exception_mask_t::queue_aperture_violation);
   if (ret == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
     {
       for (auto &&queue : queues)
@@ -1032,7 +1033,7 @@ process_t::update_queues ()
 
       amd_dbgapi_status_t status = os_driver ().queue_snapshot (
         snapshots.data (), snapshot_count, &queue_count,
-        os_exception_mask (os_exception_code_t::queue_new));
+        os_exception_mask_t::queue_new);
 
       if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
         {
@@ -1060,7 +1061,7 @@ process_t::update_queues ()
                        { return x.os_queue_id () == queue_info.queue_id; });
 
           if ((os_queue_exception_status (queue_info)
-               & os_exception_mask (os_exception_code_t::queue_new))
+               & os_exception_mask_t::queue_new)
               != os_exception_mask_t::none)
             {
               /* If there is a stale queue with the same os_queue_id,
@@ -1420,13 +1421,14 @@ process_t::attach ()
   clear_flag (flag_t::require_new_queue_bit);
 
   amd_dbgapi_status_t status = os_driver ().enable_debug (
-    os_exception_mask (os_exception_code_t::process_runtime_enable,
-                       os_exception_code_t::process_runtime_disable,
-                       os_exception_code_t::device_memory_violation,
-                       os_exception_code_t::queue_trap,
-                       os_exception_code_t::queue_illegal_instruction,
-                       os_exception_code_t::queue_memory_violation,
-                       os_exception_code_t::queue_aperture_violation),
+    os_exception_mask_t::queue_abort | os_exception_mask_t::queue_trap
+      | os_exception_mask_t::queue_math_error
+      | os_exception_mask_t::queue_illegal_instruction
+      | os_exception_mask_t::queue_memory_violation
+      | os_exception_mask_t::queue_aperture_violation
+      | os_exception_mask_t::device_memory_violation
+      | os_exception_mask_t::process_runtime_disable
+      | os_exception_mask_t::process_runtime_enable,
     m_client_notifier_pipe.write_fd ());
   if (status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
     return status;
@@ -1549,7 +1551,7 @@ process_t::query_debug_event (os_exception_mask_t cleared_exceptions)
 
       /* If this is a new queue, update the queues to make sure we don't
          return a stale queue with the same os_queue_id.  */
-      if ((exceptions & os_exception_mask (os_exception_code_t::queue_new))
+      if ((exceptions & os_exception_mask_t::queue_new)
           != os_exception_mask_t::none)
         {
           /* If there is a stale queue with the same os_queue_id, destroy it.
@@ -1642,18 +1644,20 @@ process_t::next_pending_event ()
 
       while (true)
         {
-          auto [source, exceptions] = query_debug_event (os_exception_mask (
-            os_exception_code_t::process_runtime_disable,
-            os_exception_code_t::device_memory_violation,
-            os_exception_code_t::queue_new, os_exception_code_t::queue_trap,
-            os_exception_code_t::queue_illegal_instruction,
-            os_exception_code_t::queue_memory_violation,
-            os_exception_code_t::queue_aperture_violation));
+          auto [source, exceptions] = query_debug_event (
+            os_exception_mask_t::queue_abort | os_exception_mask_t::queue_trap
+            | os_exception_mask_t::queue_math_error
+            | os_exception_mask_t::queue_illegal_instruction
+            | os_exception_mask_t::queue_memory_violation
+            | os_exception_mask_t::queue_aperture_violation
+            | os_exception_mask_t::queue_new
+            | os_exception_mask_t::device_memory_violation
+            | os_exception_mask_t::process_runtime_disable);
           dbgapi_assert (
             std::visit ([] (auto &&x) -> bool { return x; }, source)
             && "source cannot be null");
 
-          if (!exceptions)
+          if (exceptions == os_exception_mask_t::none)
             break;
 
           dbgapi_log (
@@ -1662,14 +1666,12 @@ process_t::next_pending_event ()
               .c_str (),
             to_string (exceptions).c_str ());
 
-          if ((exceptions
-               & os_exception_mask (
-                 os_exception_code_t::device_memory_violation))
+          if ((exceptions & os_exception_mask_t::device_memory_violation)
               != os_exception_mask_t::none)
             {
               agent_t *agent = std::get<agent_t *> (source);
-              agent->set_exception (
-                os_exception_code_t::device_memory_violation);
+              agent->set_exceptions (
+                os_exception_mask_t::device_memory_violation);
 
               update_queues ();
 
@@ -1681,11 +1683,12 @@ process_t::next_pending_event ()
             }
 
           if ((exceptions
-               & os_exception_mask (
-                 os_exception_code_t::queue_trap,
-                 os_exception_code_t::queue_illegal_instruction,
-                 os_exception_code_t::queue_memory_violation,
-                 os_exception_code_t::queue_aperture_violation))
+               & (os_exception_mask_t::queue_trap
+                  | os_exception_mask_t::queue_illegal_instruction
+                  | os_exception_mask_t::queue_memory_violation
+                  | os_exception_mask_t::queue_aperture_violation
+                  | os_exception_mask_t::queue_math_error
+                  | os_exception_mask_t::queue_abort))
               != os_exception_mask_t::none)
             {
               queue_t *queue = std::get<queue_t *> (source);
@@ -1700,20 +1703,15 @@ process_t::next_pending_event ()
                 queues_needing_suspend.emplace (queue);
             }
 
-          if ((exceptions
-               & os_exception_mask (
-                 os_exception_code_t::process_runtime_enable))
+          if ((exceptions & os_exception_mask_t::process_runtime_enable)
               != os_exception_mask_t::none)
             {
               /* Make sure the runtime receives the process_runtime_enable
                  event even if an exception is thrown.  */
               utils::scope_exit send_runtime_enable_event (
-                [this] ()
-                {
-                  send_exceptions (
-                    os_exception_mask (
-                      os_exception_code_t::process_runtime_enable),
-                    this);
+                [this] () {
+                  send_exceptions (os_exception_mask_t::process_runtime_enable,
+                                   this);
                 });
 
               /* Retrieve the address of the rendez-vous structure
@@ -1734,20 +1732,15 @@ process_t::next_pending_event ()
                        to_string (id ()).c_str (), status);
             }
 
-          if ((exceptions
-               & os_exception_mask (
-                 os_exception_code_t::process_runtime_disable))
+          if ((exceptions & os_exception_mask_t::process_runtime_disable)
               != os_exception_mask_t::none)
             {
               /* Make sure the runtime receives the process_runtime_disable
                  event even if an exception is thrown.  */
               utils::scope_exit send_runtime_disable_event (
-                [this] ()
-                {
+                [this] () {
                   send_exceptions (
-                    os_exception_mask (
-                      os_exception_code_t::process_runtime_disable),
-                    this);
+                    os_exception_mask_t::process_runtime_disable, this);
                 });
 
               runtime_disable ();
@@ -1785,7 +1778,8 @@ process_t::next_pending_event ()
     }
 
   for (auto &agent : range<agent_t> ())
-    if (agent.has_exception (os_exception_code_t::device_memory_violation))
+    if ((agent.exceptions () & os_exception_mask_t::device_memory_violation)
+        != os_exception_mask_t::none)
       {
         bool send_device_memory_violation_event = true;
 
@@ -1807,13 +1801,12 @@ process_t::next_pending_event ()
            Let the runtime handle the exception.  */
         if (send_device_memory_violation_event)
           {
-            send_exceptions (
-              os_exception_mask (os_exception_code_t::device_memory_violation),
-              &agent);
+            send_exceptions (os_exception_mask_t::device_memory_violation,
+                             &agent);
 
             /* Clear the exception since the runtime is now handling it.  */
-            agent.clear_exception (
-              os_exception_code_t::device_memory_violation);
+            agent.clear_exceptions (
+              os_exception_mask_t::device_memory_violation);
           }
       }
 

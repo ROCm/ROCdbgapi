@@ -106,13 +106,12 @@ enum class os_exception_code_t : uint32_t
   none = EC_NONE,
 
   /* per queue exceptions  */
-  queue_new = EC_QUEUE_NEW,
+  queue_abort = EC_QUEUE_ABORT,
   queue_trap = EC_QUEUE_TRAP,
+  queue_math_error = EC_QUEUE_MATH_ERROR,
   queue_illegal_instruction = EC_QUEUE_ILLEGAL_INSTRUCTION,
   queue_memory_violation = EC_QUEUE_MEMORY_VIOLATION,
   queue_aperture_violation = EC_QUEUE_APERTURE_VIOLATION,
-  queue_math_error = EC_QUEUE_MATH_ERROR,
-  queue_abort = EC_QUEUE_ABORT,
   queue_packet_dispatch_dim_invalid = EC_QUEUE_PACKET_DISPATCH_DIM_INVALID,
   queue_packet_dispatch_group_segment_size_invalid
   = EC_QUEUE_PACKET_DISPATCH_GROUP_SEGMENT_SIZE_INVALID,
@@ -125,6 +124,7 @@ enum class os_exception_code_t : uint32_t
   queue_packet_dispatch_vendor_unsupported
   = EC_QUEUE_PACKET_VENDOR_UNSUPPORTED,
   queue_preemption_error = EC_QUEUE_PREEMPTION_ERROR,
+  queue_new = EC_QUEUE_NEW,
 
   /* per device exceptions  */
   device_queue_delete = EC_DEVICE_QUEUE_DELETE,
@@ -142,6 +142,41 @@ enum class os_exception_code_t : uint32_t
 enum class os_exception_mask_t : uint64_t
 {
   none = 0,
+
+  /* per queue exceptions  */
+  queue_abort = KFD_EC_MASK (EC_QUEUE_ABORT),
+  queue_trap = KFD_EC_MASK (EC_QUEUE_TRAP),
+  queue_math_error = KFD_EC_MASK (EC_QUEUE_MATH_ERROR),
+  queue_illegal_instruction = KFD_EC_MASK (EC_QUEUE_ILLEGAL_INSTRUCTION),
+  queue_memory_violation = KFD_EC_MASK (EC_QUEUE_MEMORY_VIOLATION),
+  queue_aperture_violation = KFD_EC_MASK (EC_QUEUE_APERTURE_VIOLATION),
+  queue_packet_dispatch_dim_invalid
+  = KFD_EC_MASK (EC_QUEUE_PACKET_DISPATCH_DIM_INVALID),
+  queue_packet_dispatch_group_segment_size_invalid
+  = KFD_EC_MASK (EC_QUEUE_PACKET_DISPATCH_GROUP_SEGMENT_SIZE_INVALID),
+  queue_packet_dispatch_code_invalid
+  = KFD_EC_MASK (EC_QUEUE_PACKET_DISPATCH_CODE_INVALID),
+  queue_packet_unsupported = KFD_EC_MASK (EC_QUEUE_PACKET_UNSUPPORTED),
+  queue_packet_dispatch_work_group_size_invalid
+  = KFD_EC_MASK (EC_QUEUE_PACKET_DISPATCH_WORK_GROUP_SIZE_INVALID),
+  queue_packet_dispatch_register_invalid
+  = KFD_EC_MASK (EC_QUEUE_PACKET_DISPATCH_REGISTER_INVALID),
+  queue_packet_dispatch_vendor_unsupported
+  = KFD_EC_MASK (EC_QUEUE_PACKET_VENDOR_UNSUPPORTED),
+  queue_preemption_error = KFD_EC_MASK (EC_QUEUE_PREEMPTION_ERROR),
+  queue_new = KFD_EC_MASK (EC_QUEUE_NEW),
+
+  /* per device exceptions  */
+  device_queue_delete = KFD_EC_MASK (EC_DEVICE_QUEUE_DELETE),
+  device_memory_violation = KFD_EC_MASK (EC_DEVICE_MEMORY_VIOLATION),
+  device_ras_error = KFD_EC_MASK (EC_DEVICE_RAS_ERROR),
+  device_fatal_halt = KFD_EC_MASK (EC_DEVICE_FATAL_HALT),
+  device_new = KFD_EC_MASK (EC_DEVICE_NEW),
+
+  /* per process exceptions  */
+  process_runtime_enable = KFD_EC_MASK (EC_PROCESS_RUNTIME_ENABLE),
+  process_runtime_disable = KFD_EC_MASK (EC_PROCESS_RUNTIME_DISABLE),
+  process_device_remove = KFD_EC_MASK (EC_PROCESS_DEVICE_REMOVE),
 };
 template <> struct is_flag<os_exception_mask_t> : std::true_type
 {

@@ -1022,97 +1022,57 @@ one_os_exception_to_string (os_exception_mask_t exception_mask)
 {
   dbgapi_assert (!(exception_mask & (exception_mask - 1)) && "only 1 bit");
 
-  if (exception_mask == os_exception_mask_t::none)
-    return "NONE";
-
-  if ((exception_mask & os_exception_mask (os_exception_code_t::queue_new))
-      != os_exception_mask_t::none)
-    return "QUEUE_NEW";
-  if ((exception_mask & os_exception_mask (os_exception_code_t::queue_trap))
-      != os_exception_mask_t::none)
-    return "QUEUE_TRAP";
-  if ((exception_mask
-       & os_exception_mask (os_exception_code_t::queue_illegal_instruction))
-      != os_exception_mask_t::none)
-    return "QUEUE_ILLEGAL_INSTRUCTION";
-  if ((exception_mask
-       & os_exception_mask (os_exception_code_t::queue_memory_violation))
-      != os_exception_mask_t::none)
-    return "QUEUE_MEMORY_VIOLATION";
-  if ((exception_mask
-       & os_exception_mask (os_exception_code_t::queue_aperture_violation))
-      != os_exception_mask_t::none)
-    return "QUEUE_APERTURE_VIOLATION";
-  if ((exception_mask
-       & os_exception_mask (
-         os_exception_code_t::queue_packet_dispatch_dim_invalid))
-      != os_exception_mask_t::none)
-    return "QUEUE_PACKET_DISPATCH_DIM_INVALID";
-  if ((exception_mask
-       & os_exception_mask (
-         os_exception_code_t::
-           queue_packet_dispatch_group_segment_size_invalid))
-      != os_exception_mask_t::none)
-    return "QUEUE_PACKET_DISPATCH_GROUP_SEGMENT_SIZE_INVALID";
-  if ((exception_mask
-       & os_exception_mask (
-         os_exception_code_t::queue_packet_dispatch_code_invalid))
-      != os_exception_mask_t::none)
-    return "QUEUE_PACKET_DISPATCH_CODE_INVALID";
-  if ((exception_mask
-       & os_exception_mask (os_exception_code_t::queue_packet_unsupported))
-      != os_exception_mask_t::none)
-    return "QUEUE_PACKET_UNSUPPORTED";
-  if ((exception_mask
-       & os_exception_mask (
-         os_exception_code_t::queue_packet_dispatch_work_group_size_invalid))
-      != os_exception_mask_t::none)
-    return "QUEUE_PACKET_DISPATCH_WORK_GROUP_SIZE_INVALID";
-  if ((exception_mask
-       & os_exception_mask (
-         os_exception_code_t::queue_packet_dispatch_register_invalid))
-      != os_exception_mask_t::none)
-    return "QUEUE_PACKET_DISPATCH_REGISTER_INVALID";
-  if ((exception_mask
-       & os_exception_mask (
-         os_exception_code_t::queue_packet_dispatch_vendor_unsupported))
-      != os_exception_mask_t::none)
-    return "QUEUE_PACKET_DISPATCH_VENDOR_UNSUPPORTED";
-  if ((exception_mask
-       & os_exception_mask (os_exception_code_t::queue_preemption_error))
-      != os_exception_mask_t::none)
-    return "QUEUE_PREEMPTION_ERROR";
-  if ((exception_mask
-       & os_exception_mask (os_exception_code_t::device_queue_delete))
-      != os_exception_mask_t::none)
-    return "DEVICE_QUEUE_DELETE";
-  if ((exception_mask
-       & os_exception_mask (os_exception_code_t::device_memory_violation))
-      != os_exception_mask_t::none)
-    return "DEVICE_MEMORY_VIOLATION";
-  if ((exception_mask
-       & os_exception_mask (os_exception_code_t::device_ras_error))
-      != os_exception_mask_t::none)
-    return "DEVICE_RAS_ERROR";
-  if ((exception_mask
-       & os_exception_mask (os_exception_code_t::device_fatal_halt))
-      != os_exception_mask_t::none)
-    return "DEVICE_FATAL_HALT";
-  if ((exception_mask & os_exception_mask (os_exception_code_t::device_new))
-      != os_exception_mask_t::none)
-    return "DEVICE_NEW";
-  if ((exception_mask
-       & os_exception_mask (os_exception_code_t::process_runtime_enable))
-      != os_exception_mask_t::none)
-    return "PROCESS_RUNTIME_ENABLE";
-  if ((exception_mask
-       & os_exception_mask (os_exception_code_t::process_runtime_disable))
-      != os_exception_mask_t::none)
-    return "PROCESS_RUNTIME_DISABLE";
-  if ((exception_mask
-       & os_exception_mask (os_exception_code_t::process_device_remove))
-      != os_exception_mask_t::none)
-    return "PROCESS_REMOVE";
+  switch (exception_mask)
+    {
+    case os_exception_mask_t::none:
+      return "NONE";
+    case os_exception_mask_t::queue_abort:
+      return "QUEUE_ABORT";
+    case os_exception_mask_t::queue_trap:
+      return "QUEUE_TRAP";
+    case os_exception_mask_t::queue_math_error:
+      return "QUEUE_MATH_ERROR";
+    case os_exception_mask_t::queue_illegal_instruction:
+      return "QUEUE_ILLEGAL_INSTRUCTION";
+    case os_exception_mask_t::queue_memory_violation:
+      return "QUEUE_MEMORY_VIOLATION";
+    case os_exception_mask_t::queue_aperture_violation:
+      return "QUEUE_APERTURE_VIOLATION";
+    case os_exception_mask_t::queue_packet_dispatch_dim_invalid:
+      return "QUEUE_PACKET_DISPATCH_DIM_INVALID";
+    case os_exception_mask_t::queue_packet_dispatch_group_segment_size_invalid:
+      return "QUEUE_PACKET_DISPATCH_GROUP_SEGMENT_SIZE_INVALID";
+    case os_exception_mask_t::queue_packet_dispatch_code_invalid:
+      return "QUEUE_PACKET_DISPATCH_CODE_INVALID";
+    case os_exception_mask_t::queue_packet_unsupported:
+      return "QUEUE_PACKET_UNSUPPORTED";
+    case os_exception_mask_t::queue_packet_dispatch_work_group_size_invalid:
+      return "QUEUE_PACKET_DISPATCH_WORK_GROUP_SIZE_INVALID";
+    case os_exception_mask_t::queue_packet_dispatch_register_invalid:
+      return "QUEUE_PACKET_DISPATCH_REGISTER_INVALID";
+    case os_exception_mask_t::queue_packet_dispatch_vendor_unsupported:
+      return "QUEUE_PACKET_DISPATCH_VENDOR_UNSUPPORTED";
+    case os_exception_mask_t::queue_preemption_error:
+      return "QUEUE_PREEMPTION_ERROR";
+    case os_exception_mask_t::queue_new:
+      return "QUEUE_NEW";
+    case os_exception_mask_t::device_queue_delete:
+      return "DEVICE_QUEUE_DELETE";
+    case os_exception_mask_t::device_memory_violation:
+      return "DEVICE_MEMORY_VIOLATION";
+    case os_exception_mask_t::device_ras_error:
+      return "DEVICE_RAS_ERROR";
+    case os_exception_mask_t::device_fatal_halt:
+      return "DEVICE_FATAL_HALT";
+    case os_exception_mask_t::device_new:
+      return "DEVICE_NEW";
+    case os_exception_mask_t::process_runtime_enable:
+      return "PROCESS_RUNTIME_ENABLE";
+    case os_exception_mask_t::process_runtime_disable:
+      return "PROCESS_RUNTIME_DISABLE";
+    case os_exception_mask_t::process_device_remove:
+      return "PROCESS_REMOVE";
+    }
 
   return to_string (
     make_hex (static_cast<std::underlying_type_t<decltype (exception_mask)>> (
