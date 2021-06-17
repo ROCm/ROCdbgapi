@@ -1891,15 +1891,27 @@ process_t::send_exceptions (
   os_exception_mask_t exceptions,
   std::variant<process_t *, agent_t *, queue_t *> source) const
 {
-  os_source_id_t source_id;
+  os_agent_id_t agent_id = os_invalid_agentid;
+  os_queue_id_t queue_id = os_invalid_queueid;
+
   if (std::holds_alternative<queue_t *> (source))
-    source_id.queue = std::get<queue_t *> (source)->os_queue_id ();
+    {
+      queue_id = std::get<queue_t *> (source)->os_queue_id ();
+      agent_id = std::get<queue_t *> (source)->agent ().os_agent_id ();
+    }
   else if (std::holds_alternative<agent_t *> (source))
-    source_id.agent = std::get<agent_t *> (source)->os_agent_id ();
-  else if (std::holds_alternative<process_t *> (source))
-    source_id.raw = 0;
+    {
+      dbgapi_assert ((exceptions & os_queue_exception_mask) == 0
+                     && "should only have device or process exceptions");
+      agent_id = std::get<agent_t *> (source)->os_agent_id ();
+    }
   else
-    error ("invalid source_id");
+    {
+      dbgapi_assert (std::holds_alternative<process_t *> (source));
+      dbgapi_assert ((exceptions & ~os_process_exception_mask) == 0
+                     && "should only have process exceptions");
+      /* Process exceptions do not need a source_id.  */
+    }
 
   dbgapi_log (
     AMD_DBGAPI_LOG_LEVEL_INFO,
@@ -1909,7 +1921,7 @@ process_t::send_exceptions (
       .c_str ());
 
   amd_dbgapi_status_t status
-    = os_driver ().send_exceptions (exceptions, source_id);
+    = os_driver ().send_exceptions (exceptions, agent_id, queue_id);
 
   if (status != AMD_DBGAPI_STATUS_SUCCESS
       && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)

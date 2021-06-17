@@ -537,8 +537,8 @@ struct kfd_runtime_info {
 /* KFD_IOC_DBG_TRAP_SEND_RUNTIME_EVENT
  * exception_mask: exception to send
  * ptr:   unused
- * data1: destination (queue or device)
- * data2: unused
+ * data1: destination device id
+ * data2: destination queue id
  * data3: usused
  * data4: unused
  */

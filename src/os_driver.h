@@ -54,6 +54,8 @@ enum elf_amdgpu_machine_t : uint32_t
 
 using os_agent_id_t = uint32_t;
 
+constexpr os_agent_id_t os_invalid_agentid = 0;
+
 struct os_agent_snapshot_entry_t
 {
   /* Agent Id assigned by the driver.  */
@@ -334,9 +336,9 @@ public:
   virtual amd_dbgapi_status_t disable_debug () = 0;
   virtual bool is_debug_enabled () const = 0;
 
-  virtual amd_dbgapi_status_t send_exceptions (os_exception_mask_t exceptions,
-                                               os_source_id_t os_source_id
-                                               = {}) const = 0;
+  virtual amd_dbgapi_status_t
+  send_exceptions (os_exception_mask_t exceptions, os_agent_id_t agent_id,
+                   os_queue_id_t queue_id) const = 0;
 
   virtual amd_dbgapi_status_t
   query_debug_event (os_exception_mask_t *exceptions_present,

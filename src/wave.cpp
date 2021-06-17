@@ -560,35 +560,11 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
           exceptions ^= one_exception;
         }
 
-      /* Assign a source for these exceptions.  Always use the most precise
-         source (queue, then agent, then process) if exceptions of that
-         source are present.  */
-      std::variant<process_t *, agent_t *, queue_t *> source;
-      if ((os_exceptions & os_queue_exception_mask)
-          != os_exception_mask_t::none)
-        source = &queue ();
-      else if ((os_exceptions & os_agent_exception_mask)
-               != os_exception_mask_t::none)
-        source = &agent ();
-      else if ((os_exceptions & os_process_exception_mask)
-               != os_exception_mask_t::none)
-        source = &process ();
+      /* A wave should only send queue exceptions, sometimes combined with a
+         device_memory_exception.  */
+      dbgapi_assert ((os_exceptions & os_queue_exception_mask) != 0);
 
-      /* FIXME: KFD does not yet accept exceptions from multiple sources.
-         Remove this code when fixed.  */
-      os_exception_mask_t original_os_exceptions = os_exceptions;
-      if (std::holds_alternative<process_t *> (source))
-        os_exceptions &= os_process_exception_mask;
-      if (std::holds_alternative<agent_t *> (source))
-        os_exceptions &= os_agent_exception_mask;
-      if (std::holds_alternative<queue_t *> (source))
-        os_exceptions &= os_queue_exception_mask;
-      if (original_os_exceptions != os_exceptions)
-        warning ("%s filtering out exceptions [ %s ] (os driver limitation)",
-                 to_string (process ().id ()).c_str (),
-                 to_string (original_os_exceptions & ~os_exceptions).c_str ());
-
-      process ().send_exceptions (os_exceptions, source);
+      process ().send_exceptions (os_exceptions, &queue ());
     }
 
   if (state != AMD_DBGAPI_WAVE_STATE_STOP

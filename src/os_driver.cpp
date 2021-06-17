@@ -189,9 +189,9 @@ public:
   amd_dbgapi_status_t disable_debug () override;
   bool is_debug_enabled () const override { return m_is_debug_enabled; }
 
-  amd_dbgapi_status_t
-  send_exceptions (os_exception_mask_t exceptions,
-                   os_source_id_t os_source_id) const override;
+  amd_dbgapi_status_t send_exceptions (os_exception_mask_t exceptions,
+                                       os_agent_id_t agent_id,
+                                       os_queue_id_t queue_id) const override;
 
   amd_dbgapi_status_t
   query_debug_event (os_exception_mask_t *exceptions_present,
@@ -582,19 +582,23 @@ kfd_driver_t::disable_debug ()
 
 amd_dbgapi_status_t
 kfd_driver_t::send_exceptions (os_exception_mask_t exceptions,
-                               os_source_id_t os_source_id) const
+                               os_agent_id_t agent_id,
+                               os_queue_id_t queue_id) const
 {
-  TRACE_DRIVER_BEGIN (param_in (exceptions), param_in (os_source_id));
+  TRACE_DRIVER_BEGIN (param_in (exceptions), param_in (agent_id),
+                      param_in (queue_id));
 
   dbgapi_assert (is_debug_enabled () && "debug is not enabled");
 
   /* KFD_IOC_DBG_TRAP_SEND_RUNTIME_EVENT (#14):
-     data1: [in] destination (queue or device)
-     data2: [in] event to send  */
+     exception_mask: [in] exceptions to send
+     data1: [in] destination device id
+     data2: [in] destination queue id  */
 
   kfd_ioctl_dbg_trap_args args{};
   args.exception_mask = static_cast<uint64_t> (exceptions);
-  args.data1 = os_source_id.raw;
+  args.data1 = agent_id;
+  args.data2 = queue_id;
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SEND_RUNTIME_EVENT, &args);
   if (err == -ESRCH)
@@ -994,7 +998,8 @@ public:
 
   amd_dbgapi_status_t
     send_exceptions (os_exception_mask_t /* exceptions  */,
-                     os_source_id_t /* os_source_id  */) const override
+                     os_agent_id_t /* agent_id  */,
+                     os_queue_id_t /* queue_id  */) const override
   {
     return AMD_DBGAPI_STATUS_ERROR;
   }
