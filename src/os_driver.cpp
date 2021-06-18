@@ -193,6 +193,9 @@ public:
                                        os_agent_id_t agent_id,
                                        os_queue_id_t queue_id) const override;
 
+  amd_dbgapi_status_t set_exceptions_reported (
+    os_exception_mask_t exceptions_reported) const override;
+
   amd_dbgapi_status_t
   query_debug_event (os_exception_mask_t *exceptions_present,
                      os_source_id_t *os_source_id,
@@ -575,6 +578,30 @@ kfd_driver_t::disable_debug ()
     return AMD_DBGAPI_STATUS_ERROR;
 
   m_is_debug_enabled = false;
+  return AMD_DBGAPI_STATUS_SUCCESS;
+
+  TRACE_DRIVER_END ();
+}
+
+amd_dbgapi_status_t
+kfd_driver_t::set_exceptions_reported (
+  os_exception_mask_t exceptions_reported) const
+{
+  TRACE_DRIVER_BEGIN (exceptions_reported);
+
+  /* KFD_IOC_DBG_TRAP_SET_EXCEPTIONS_ENABLED (#15):
+     exception_mask: exceptions to report  */
+
+  kfd_ioctl_dbg_trap_args args{};
+  args.exception_mask = static_cast<uint64_t> (exceptions_reported);
+
+  int err
+    = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_EXCEPTIONS_ENABLED, &args);
+  if (err == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err < 0)
+    return AMD_DBGAPI_STATUS_ERROR;
+
   return AMD_DBGAPI_STATUS_SUCCESS;
 
   TRACE_DRIVER_END ();
@@ -995,6 +1022,12 @@ public:
   }
 
   bool is_debug_enabled () const override { return false; }
+
+  amd_dbgapi_status_t set_exceptions_reported (
+    os_exception_mask_t /* exceptions_reported  */) const override
+  {
+    return AMD_DBGAPI_STATUS_SUCCESS;
+  }
 
   amd_dbgapi_status_t
     send_exceptions (os_exception_mask_t /* exceptions  */,

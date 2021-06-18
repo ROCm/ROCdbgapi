@@ -1286,6 +1286,14 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
 
     if (runtime_info.runtime_state == os_runtime_state_t::disabled)
       {
+        /* From now on, and until the runtime is enabled again, only runtime
+           events should be reported.  */
+        status = os_driver ().set_exceptions_reported (
+          os_exception_mask_t::process_runtime);
+        if (status != AMD_DBGAPI_STATUS_SUCCESS)
+          error ("os_driver_t::set_exceptions_reported failed (rc=%d)",
+                 status);
+
         /* Destruct the code objects.  */
         std::get<handle_object_set_t<code_object_t>> (m_handle_object_sets)
           .clear ();
@@ -1335,6 +1343,19 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
   auto reset_runtime_state = utils::make_scope_fail (
     [this] ()
     { m_runtime_state = AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION; });
+
+  /* Now that the runtime is enabled, request notifications for all supported
+     events.  */
+  status = os_driver ().set_exceptions_reported (
+    os_exception_mask_t::queue_abort | os_exception_mask_t::queue_trap
+    | os_exception_mask_t::queue_math_error
+    | os_exception_mask_t::queue_illegal_instruction
+    | os_exception_mask_t::queue_memory_violation
+    | os_exception_mask_t::queue_aperture_violation
+    | os_exception_mask_t::device_memory_violation
+    | os_exception_mask_t::process_runtime);
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("os_driver_t::set_exceptions_reported failed (rc=%d)", status);
 
   /* Install a breakpoint at _amd_r_debug.r_brk.  The runtime calls this
      function before updating the code object list, and after completing
@@ -1456,14 +1477,8 @@ process_t::attach ()
 
   os_runtime_info_t runtime_info;
   amd_dbgapi_status_t status = os_driver ().enable_debug (
-    os_exception_mask_t::queue_abort | os_exception_mask_t::queue_trap
-      | os_exception_mask_t::queue_math_error
-      | os_exception_mask_t::queue_illegal_instruction
-      | os_exception_mask_t::queue_memory_violation
-      | os_exception_mask_t::queue_aperture_violation
-      | os_exception_mask_t::device_memory_violation
-      | os_exception_mask_t::process_runtime,
-    m_client_notifier_pipe.write_fd (), &runtime_info);
+    os_exception_mask_t::process_runtime, m_client_notifier_pipe.write_fd (),
+    &runtime_info);
   if (status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
     return status;
   else if (status != AMD_DBGAPI_STATUS_SUCCESS)

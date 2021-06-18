@@ -61,9 +61,10 @@
  * 7.1 - Add KFD_IOC_DBG_TRAP_RUNTIME_ENABLE
  * 7.2 - Add KFD_IOC_DBG_TRAP_SEND_RUNTIME_EVENT
  * 8.0 - Expand runtime information given to the debugger
+ * 8.1 - Allow the debugger to set the exception mask
  */
 #define KFD_IOCTL_DBG_MAJOR_VERSION	8
-#define KFD_IOCTL_DBG_MINOR_VERSION	0
+#define KFD_IOCTL_DBG_MINOR_VERSION	1
 
 struct kfd_ioctl_get_version_args {
 	__u32 major_version;	/* from KFD */
@@ -256,6 +257,7 @@ struct kfd_ioctl_dbg_wave_control_args {
 #define KFD_DBG_QUEUE_INVALID_MASK	(1 << KFD_DBG_QUEUE_INVALID_BIT)
 
 #define KFD_INVALID_QUEUEID	0xffffffff
+#define KFD_INVALID_GPUID	0xffffffff
 
 enum kfd_dbg_trap_override_mode {
 	KFD_DBG_TRAP_OVERRIDE_OR = 0,
@@ -543,6 +545,16 @@ struct kfd_runtime_info {
  * data4: unused
  */
 #define KFD_IOC_DBG_TRAP_SEND_RUNTIME_EVENT 14
+
+/* KFD_IOC_DBG_TRAP_SET_EXCEPTION_ENABLED
+ * exception_mask: exception to set
+ * ptr:   unused
+ * data1: unused
+ * data2: unused
+ * data3: usused
+ * data4: unused
+ */
+#define KFD_IOC_DBG_TRAP_SET_EXCEPTIONS_ENABLED 15
 
 struct kfd_ioctl_dbg_trap_args {
 	__u64 exception_mask; /* to KFD */
