@@ -1428,16 +1428,16 @@ typedef enum
   AMD_DBGAPI_INSTRUCTION_KIND_TERMINATE = 8,
   /**
    * The instruction enters the trap handler.  The trap handler may return to
-   * resume execution, may halt the wave and create an event for
-   * ::amd_dbgapi_process_next_pending_event to report, or may terminate the
-   * wave.  The library cannot report execution in the trap handler.  If single
-   * stepping the trap instruction reports the
+   * resume execution, may put the wave into the halt state and create an event
+   * for ::amd_dbgapi_process_next_pending_event to report, or may terminate
+   * the wave.  The library cannot report execution in the trap handler.  If
+   * single stepping the trap instruction reports the
    * ::AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP reason, then the program counter
    * will be at the instruction following the trap instruction, it will not be
    * at the first instruction of the trap handler. It is undefined to set a
    * breakpoint in the trap handler, and will likely cause the inferior to
-   * report errors and stop executing correctly.  The instruction information is
-   * of type \p uint64_t with the value of the trap code.
+   * report errors and stop executing correctly.  The instruction information
+   * is of type \p uint64_t with the value of the trap code.
    */
   AMD_DBGAPI_INSTRUCTION_KIND_TRAP = 9,
   /**
@@ -2478,7 +2478,7 @@ typedef enum
    *
    * No further waves will be started on the queue.  All waves that belong to
    * the queue are inhibited from executing further instructions regardless of
-   * whether they are in the halt mode.
+   * whether they are in the halt state.
    *
    * When the inferior's runtime puts a queue into the queue error state, a
    * ::AMD_DBGAPI_EVENT_KIND_QUEUE_ERROR event will be reported.  In addition,
@@ -3588,13 +3588,13 @@ typedef enum
  * termination instruction described above, no event is reported when the wave
  * terminates.
  *
- * Resuming a wave that is in the halt mode or belongs to a queue that is in
+ * Resuming a wave that is in the halt state or belongs to a queue that is in
  * the queue error state will not result in it executing any further
  * instructions.  Resuming a wave in single step mode that does not belong to a
  * queue that is in the queue error state will therefore not report a
  * ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP event that includes the
  * ::AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP until the wave is no longer in the
- * halt mode.
+ * halt state.
  *
  * Resuming a wave in single step mode that does belong to a queue that is in
  * the queue error state, or if the queue enters the queue error state after
@@ -3635,8 +3635,8 @@ typedef enum
  *
  * \param[in] exceptions If ::AMD_DBGAPI_EXCEPTION_NONE, indicates the wave
  * execution is resumed without delivering any exceptions.  Any other value of
- * ::amd_dbgapi_exceptions_t causes the wave to be put in the halt mode and the
- * inferior's runtime notified of the specified exceptions.  The inferior's
+ * ::amd_dbgapi_exceptions_t causes the wave to be put in the halt state and
+ * the inferior's runtime notified of the specified exceptions.  The inferior's
  * runtime will put the wave's queue into the queue error state such that the
  * queue's ::AMD_DBGAPI_QUEUE_INFO_ERROR_REASON query will include the
  * exceptions specified by \p exceptions.  See ::AMD_DBGAPI_QUEUE_STATE_ERROR
@@ -6062,7 +6062,7 @@ typedef enum
    *
    * No further waves will be started on the queue.  All waves that belong to
    * the queue are inhibited from executing further instructions regardless of
-   * whether they are in the halt mode.  See ::AMD_DBGAPI_QUEUE_STATE_ERROR.
+   * whether they are in the halt state.  See ::AMD_DBGAPI_QUEUE_STATE_ERROR.
    *
    * The ::AMD_DBGAPI_QUEUE_INFO_ERROR_REASON query will include the union of
    * the exceptions that were reported.  Some waves may be stopped before they
