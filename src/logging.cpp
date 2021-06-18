@@ -1479,6 +1479,7 @@ to_string (amd_dbgapi_log_level_t level)
       CASE (LOG_LEVEL_FATAL_ERROR);
       CASE (LOG_LEVEL_WARNING);
       CASE (LOG_LEVEL_INFO);
+      CASE (LOG_LEVEL_TRACE);
       CASE (LOG_LEVEL_VERBOSE);
     }
   return to_string (make_hex (level));
