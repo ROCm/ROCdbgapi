@@ -351,9 +351,15 @@ public:
                               const void *write, size_t *size) const = 0;
 };
 
-template <> std::string to_string (os_wave_launch_mode_t mode);
+template <> std::string to_string (os_agent_snapshot_entry_t snapshot);
 template <> std::string to_string (os_exception_code_t exception_code);
 template <> std::string to_string (os_exception_mask_t exception_mask);
+template <> std::string to_string (os_queue_snapshot_entry_t snapshot);
+template <> std::string to_string (os_source_id_t source_id);
+template <> std::string to_string (os_watch_mode_t watch_mode);
+template <> std::string to_string (os_wave_launch_mode_t mode);
+template <> std::string to_string (os_wave_launch_trap_override_t override);
+template <> std::string to_string (detail::query_ref<os_exception_code_t> ref);
 
 } /* namespace amd::dbgapi */
 

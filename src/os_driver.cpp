@@ -38,6 +38,20 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
+#if defined(WITH_API_TRACING)
+
+#define TRACE_DRIVER_BEGIN(...)                                               \
+  TRACE_BEGIN_HELPER (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "driver: ", __VA_ARGS__)
+
+#define TRACE_DRIVER_END(...) TRACE_END_HELPER (__VA_ARGS__)
+
+#else /* !defined (WITH_API_TRACING) */
+
+#define TRACE_DRIVER_BEGIN(...)
+#define TRACE_DRIVER_END(...)
+
+#endif /* !defined (WITH_API_TRACING) */
+
 using namespace std::string_literals;
 
 namespace amd::dbgapi
@@ -337,6 +351,9 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
                               size_t snapshot_count, size_t *agent_count,
                               os_exception_mask_t exceptions_cleared) const
 {
+  TRACE_DRIVER_BEGIN (param_in (snapshots), param_in (snapshot_count),
+                      param_in (agent_count), param_in (exceptions_cleared));
+
   dbgapi_assert (snapshots && agent_count && "must not be null");
   dbgapi_assert (snapshot_count <= std::numeric_limits<uint32_t>::max ()
                  && "invalid argument");
@@ -491,12 +508,18 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
     error ("not all agents found in the sysfs topology");
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
+  TRACE_DRIVER_END (
+    make_ref (param_out (snapshots), std::min (snapshot_count, *agent_count)),
+    make_ref (param_out (agent_count)));
 }
 
 amd_dbgapi_status_t
 kfd_driver_t::enable_debug (os_exception_mask_t exceptions_reported,
                             file_desc_t notifier)
 {
+  TRACE_DRIVER_BEGIN (param_in (exceptions_reported), param_in (notifier));
+
   dbgapi_assert (!is_debug_enabled () && "debug is already enabled");
 
   /* KFD_IOC_DBG_TRAP_ENABLE (#0):
@@ -526,11 +549,15 @@ kfd_driver_t::enable_debug (os_exception_mask_t exceptions_reported,
 
   m_is_debug_enabled = true;
   return AMD_DBGAPI_STATUS_SUCCESS;
+
+  TRACE_DRIVER_END ();
 }
 
 amd_dbgapi_status_t
 kfd_driver_t::disable_debug ()
 {
+  TRACE_DRIVER_BEGIN ();
+
   if (!is_debug_enabled ())
     return AMD_DBGAPI_STATUS_SUCCESS;
 
@@ -548,12 +575,16 @@ kfd_driver_t::disable_debug ()
 
   m_is_debug_enabled = false;
   return AMD_DBGAPI_STATUS_SUCCESS;
+
+  TRACE_DRIVER_END ();
 }
 
 amd_dbgapi_status_t
 kfd_driver_t::send_exceptions (os_exception_mask_t exceptions,
                                os_source_id_t os_source_id) const
 {
+  TRACE_DRIVER_BEGIN (param_in (exceptions), param_in (os_source_id));
+
   dbgapi_assert (is_debug_enabled () && "debug is not enabled");
 
   /* KFD_IOC_DBG_TRAP_SEND_RUNTIME_EVENT (#14):
@@ -571,6 +602,8 @@ kfd_driver_t::send_exceptions (os_exception_mask_t exceptions,
     return AMD_DBGAPI_STATUS_ERROR;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
+  TRACE_DRIVER_END ();
 }
 
 amd_dbgapi_status_t
@@ -578,6 +611,9 @@ kfd_driver_t::query_debug_event (os_exception_mask_t *exceptions_present,
                                  os_source_id_t *os_source_id,
                                  os_exception_mask_t exceptions_cleared)
 {
+  TRACE_DRIVER_BEGIN (param_in (exceptions_present), param_in (os_source_id),
+                      param_in (exceptions_cleared));
+
   dbgapi_assert (exceptions_present && os_source_id && "must not be null");
 
   if (!is_debug_enabled ())
@@ -612,6 +648,9 @@ kfd_driver_t::query_debug_event (os_exception_mask_t *exceptions_present,
   os_source_id->raw = args.data1;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
+  TRACE_DRIVER_END (make_ref (param_out (exceptions_present)),
+                    make_ref (param_out (os_source_id)));
 }
 
 amd_dbgapi_status_t
@@ -621,6 +660,10 @@ kfd_driver_t::query_exception_info (os_exception_code_t exception,
                                     size_t exception_info_size,
                                     bool clear_exception) const
 {
+  TRACE_DRIVER_BEGIN (
+    param_in (exception), param_in (os_source_id), param_in (exception_info),
+    param_in (exception_info_size), param_in (clear_exception));
+
   dbgapi_assert (is_debug_enabled () && "debug is not enabled");
 
   /* KFD_IOC_DBG_TRAP_QUERY_EXCEPTION_INFO (#11)
@@ -646,6 +689,8 @@ kfd_driver_t::query_exception_info (os_exception_code_t exception,
   return exception_info_size > args.data4
            ? AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY
            : AMD_DBGAPI_STATUS_SUCCESS;
+
+  TRACE_DRIVER_END (make_query_ref (exception, param_out (exception_info)));
 }
 
 amd_dbgapi_status_t
@@ -653,6 +698,10 @@ kfd_driver_t::suspend_queues (os_queue_id_t *queues, size_t queue_count,
                               os_exception_mask_t exceptions_cleared,
                               size_t *suspended_count) const
 {
+  TRACE_DRIVER_BEGIN (param_in (queues), param_in (queue_count),
+                      param_in (exceptions_cleared),
+                      param_in (suspended_count));
+
   dbgapi_assert (suspended_count != nullptr);
   dbgapi_assert (queue_count <= std::numeric_limits<uint32_t>::max ());
 
@@ -675,12 +724,19 @@ kfd_driver_t::suspend_queues (os_queue_id_t *queues, size_t queue_count,
 
   *suspended_count = ret;
   return AMD_DBGAPI_STATUS_SUCCESS;
+
+  TRACE_DRIVER_END (
+    make_ref (param_out (queues), std::min (queue_count, *suspended_count)),
+    make_ref (param_out (suspended_count)));
 }
 
 amd_dbgapi_status_t
 kfd_driver_t::resume_queues (os_queue_id_t *queues, size_t queue_count,
                              size_t *resumed_count) const
 {
+  TRACE_DRIVER_BEGIN (param_in (queues), param_in (queue_count),
+                      param_in (resumed_count));
+
   dbgapi_assert (resumed_count != nullptr);
   dbgapi_assert (queue_count <= std::numeric_limits<uint32_t>::max ());
 
@@ -700,6 +756,10 @@ kfd_driver_t::resume_queues (os_queue_id_t *queues, size_t queue_count,
 
   *resumed_count = ret;
   return AMD_DBGAPI_STATUS_SUCCESS;
+
+  TRACE_DRIVER_END (
+    make_ref (param_out (queues), std::min (queue_count, *resumed_count)),
+    make_ref (param_out (resumed_count)));
 }
 
 amd_dbgapi_status_t
@@ -707,6 +767,9 @@ kfd_driver_t::queue_snapshot (os_queue_snapshot_entry_t *snapshots,
                               size_t snapshot_count, size_t *queue_count,
                               os_exception_mask_t exceptions_cleared) const
 {
+  TRACE_DRIVER_BEGIN (param_in (snapshots), param_in (snapshot_count),
+                      param_in (queue_count), param_in (exceptions_cleared));
+
   dbgapi_assert (snapshots && queue_count && "must not be null");
   dbgapi_assert (snapshot_count <= std::numeric_limits<uint32_t>::max ()
                  && "invalid argument");
@@ -739,6 +802,10 @@ kfd_driver_t::queue_snapshot (os_queue_snapshot_entry_t *snapshots,
   *queue_count = args.data1;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
+  TRACE_DRIVER_END (
+    make_ref (param_out (snapshots), std::min (snapshot_count, *queue_count)),
+    make_ref (param_out (queue_count)));
 }
 
 amd_dbgapi_status_t
@@ -747,6 +814,9 @@ kfd_driver_t::set_address_watch (amd_dbgapi_global_address_t address,
                                  os_watch_mode_t os_watch_mode,
                                  os_watch_id_t *os_watch_id) const
 {
+  TRACE_DRIVER_BEGIN (param_in (address), param_in (mask),
+                      param_in (os_watch_mode), param_in (os_watch_id));
+
   dbgapi_assert (os_watch_id && "must not be null");
 
   /* KFD_IOC_DBG_TRAP_SET_ADDRESS_WATCH (#9)
@@ -772,11 +842,15 @@ kfd_driver_t::set_address_watch (amd_dbgapi_global_address_t address,
   *os_watch_id = args.data1;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
+  TRACE_DRIVER_END (make_ref (param_out (os_watch_id)));
 }
 
 amd_dbgapi_status_t
 kfd_driver_t::clear_address_watch (os_watch_id_t os_watch_id) const
 {
+  TRACE_DRIVER_BEGIN (param_in (os_watch_id));
+
   /* KFD_IOC_DBG_TRAP_CLEAR_ADDRESS_WATCH (#8)
      data1: [in] watch ID  */
 
@@ -790,11 +864,15 @@ kfd_driver_t::clear_address_watch (os_watch_id_t os_watch_id) const
     return AMD_DBGAPI_STATUS_ERROR;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
+  TRACE_DRIVER_END ();
 }
 
 amd_dbgapi_status_t
 kfd_driver_t::set_wave_launch_mode (os_wave_launch_mode_t mode) const
 {
+  TRACE_DRIVER_BEGIN (param_in (mode));
+
   /* KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_MODE (#2)
      data1: mode (0=normal, 1=halt, 2=kill, 3=single-step, 4=disable)  */
 
@@ -808,6 +886,8 @@ kfd_driver_t::set_wave_launch_mode (os_wave_launch_mode_t mode) const
     return AMD_DBGAPI_STATUS_ERROR;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
+  TRACE_DRIVER_END ();
 }
 
 amd_dbgapi_status_t
@@ -816,6 +896,9 @@ kfd_driver_t::set_wave_launch_trap_override (
   os_wave_launch_trap_mask_t mask, os_wave_launch_trap_mask_t *previous_value,
   os_wave_launch_trap_mask_t *supported_mask) const
 {
+  TRACE_DRIVER_BEGIN (param_in (override), param_in (value), param_in (mask),
+                      param_in (previous_value), param_in (supported_mask));
+
   /* KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_OVERRIDE (#1)
      data1: [in] override mode (see enum kfd_dbg_trap_override_mode)
      data2: [in/out] trap mask (see enum kfd_dbg_trap_mask)
@@ -842,11 +925,16 @@ kfd_driver_t::set_wave_launch_trap_override (
     *supported_mask = static_cast<os_wave_launch_trap_mask_t> (args.data3);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
+  TRACE_DRIVER_END (make_ref (param_out (previous_value)),
+                    make_ref (param_out (supported_mask)));
 }
 
 amd_dbgapi_status_t
 kfd_driver_t::set_precise_memory (bool enabled) const
 {
+  TRACE_DRIVER_BEGIN (param_in (enabled));
+
   /* KFD_IOC_DBG_TRAP_SET_PRECISE_MEM_OPS (#10)
      data1: 0=disable, 1=enable  */
 
@@ -860,6 +948,8 @@ kfd_driver_t::set_precise_memory (bool enabled) const
     return AMD_DBGAPI_STATUS_ERROR;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
+
+  TRACE_DRIVER_END ();
 }
 
 class no_agents_driver_t : public linux_driver_t
@@ -1127,6 +1217,84 @@ std::string
 to_string (os_exception_code_t exception_code)
 {
   return one_os_exception_to_string (os_exception_mask (exception_code));
+}
+
+template <>
+std::string
+to_string (os_agent_snapshot_entry_t snapshot)
+{
+  return string_printf (
+    "{ .os_agent_id=%d, .name=%s, .location_id=%d, .simd_count=%ld, "
+    ".max_waves_per_simd=%ld, .vendor_id=%#x, .device_id=%#x, .fw_version=%d, "
+    ".fw_version_required=%d, .local_address_space_aperture=%#lx, "
+    ".private_address_space_aperture=%#lx, .e_machine=%#x }",
+    snapshot.os_agent_id, snapshot.name.c_str (), snapshot.location_id,
+    snapshot.simd_count, snapshot.max_waves_per_simd, snapshot.vendor_id,
+    snapshot.device_id, snapshot.fw_version, snapshot.fw_version_required,
+    snapshot.local_address_space_aperture,
+    snapshot.private_address_space_aperture, snapshot.e_machine);
+}
+
+template <>
+std::string
+to_string (os_wave_launch_trap_override_t override)
+{
+  switch (override)
+    {
+    case os_wave_launch_trap_override_t::apply:
+      return "APPLY";
+    case os_wave_launch_trap_override_t::replace:
+      return "REPLACED";
+    }
+  return to_string (make_hex (
+    static_cast<std::underlying_type_t<decltype (override)>> (override)));
+}
+
+template <>
+std::string
+to_string (os_source_id_t source_id)
+{
+  return to_string (source_id.raw);
+}
+
+template <>
+std::string
+to_string (os_queue_snapshot_entry_t snapshot)
+{
+  return string_printf (
+    "{ .exception_status=%#llx, .ring_base_address=%#llx, "
+    ".write_pointer_address=%#llx, .read_pointer_address=%#llx, "
+    ".ctx_save_restore_address=%#llx, .queue_id=%d, .gpu_id=%d, "
+    ".ring_size=%d, .queue_type=%d }",
+    snapshot.exception_status, snapshot.ring_base_address,
+    snapshot.write_pointer_address, snapshot.read_pointer_address,
+    snapshot.ctx_save_restore_address, snapshot.queue_id, snapshot.gpu_id,
+    snapshot.ring_size, snapshot.queue_type);
+}
+
+template <>
+std::string
+to_string (os_watch_mode_t watch_mode)
+{
+  switch (watch_mode)
+    {
+    case os_watch_mode_t::all:
+      return "ALL";
+    case os_watch_mode_t::atomic:
+      return "ATOMIC";
+    case os_watch_mode_t::nonread:
+      return "NONREAD";
+    case os_watch_mode_t::read:
+      return "READ";
+    }
+  return to_string (make_hex (
+    static_cast<std::underlying_type_t<decltype (watch_mode)>> (watch_mode)));
+}
+
+template <>
+std::string to_string (detail::query_ref<os_exception_code_t> /* ref  */)
+{
+  return {};
 }
 
 } /* namespace amd::dbgapi */
