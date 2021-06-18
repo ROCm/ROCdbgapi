@@ -189,11 +189,12 @@ public:
                         size_t exception_info_size,
                         bool clear_exception) const override;
 
-  size_t
-  suspend_queues (os_queue_id_t *queues, size_t queue_count,
-                  os_exception_mask_t exceptions_cleared) const override;
-  size_t resume_queues (os_queue_id_t *queues,
-                        size_t queue_count) const override;
+  amd_dbgapi_status_t suspend_queues (os_queue_id_t *queues,
+                                      size_t queue_count,
+                                      os_exception_mask_t exceptions_cleared,
+                                      size_t *suspended_count) const override;
+  amd_dbgapi_status_t resume_queues (os_queue_id_t *queues, size_t queue_count,
+                                     size_t *resumed_count) const override;
 
   amd_dbgapi_status_t
   queue_snapshot (os_queue_snapshot_entry_t *snapshots, size_t snapshot_count,
@@ -647,10 +648,12 @@ kfd_driver_t::query_exception_info (os_exception_code_t exception,
            : AMD_DBGAPI_STATUS_SUCCESS;
 }
 
-size_t
+amd_dbgapi_status_t
 kfd_driver_t::suspend_queues (os_queue_id_t *queues, size_t queue_count,
-                              os_exception_mask_t exceptions_cleared) const
+                              os_exception_mask_t exceptions_cleared,
+                              size_t *suspended_count) const
 {
+  dbgapi_assert (suspended_count != nullptr);
   dbgapi_assert (queue_count <= std::numeric_limits<uint32_t>::max ());
 
   /* KFD_IOC_DBG_TRAP_NODE_SUSPEND (#3):
@@ -670,12 +673,15 @@ kfd_driver_t::suspend_queues (os_queue_id_t *queues, size_t queue_count,
   else if (ret < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
-  return ret;
+  *suspended_count = ret;
+  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
-size_t
-kfd_driver_t::resume_queues (os_queue_id_t *queues, size_t queue_count) const
+amd_dbgapi_status_t
+kfd_driver_t::resume_queues (os_queue_id_t *queues, size_t queue_count,
+                             size_t *resumed_count) const
 {
+  dbgapi_assert (resumed_count != nullptr);
   dbgapi_assert (queue_count <= std::numeric_limits<uint32_t>::max ());
 
   /* KFD_IOC_DBG_TRAP_NODE_RESUME (#4):
@@ -692,7 +698,8 @@ kfd_driver_t::resume_queues (os_queue_id_t *queues, size_t queue_count) const
   else if (ret < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
-  return ret;
+  *resumed_count = ret;
+  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 amd_dbgapi_status_t
@@ -918,20 +925,30 @@ public:
     return AMD_DBGAPI_STATUS_ERROR;
   }
 
-  size_t
+  amd_dbgapi_status_t
   suspend_queues (os_queue_id_t * /* queues  */, size_t queue_count,
-                  os_exception_mask_t /* exceptions_cleared  */) const override
+                  os_exception_mask_t /* exceptions_cleared  */,
+                  size_t *suspended_count) const override
   {
+    dbgapi_assert (suspended_count != nullptr);
+
     if (queue_count > 0)
       error ("should not call this, null_driver does not have any queues");
+
+    *suspended_count = 0;
     return AMD_DBGAPI_STATUS_SUCCESS;
   }
 
-  size_t resume_queues (os_queue_id_t * /* queues  */,
-                        size_t queue_count) const override
+  amd_dbgapi_status_t resume_queues (os_queue_id_t * /* queues  */,
+                                     size_t queue_count,
+                                     size_t *resumed_count) const override
   {
+    dbgapi_assert (resumed_count != nullptr);
+
     if (queue_count > 0)
       error ("should not call this, null_driver does not have any queues");
+
+    *resumed_count = 0;
     return AMD_DBGAPI_STATUS_SUCCESS;
   }
 

@@ -877,23 +877,24 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
       queue_ids.emplace_back (queue->os_queue_id ());
     }
 
-  int ret = os_driver ().suspend_queues (
+  size_t num_suspended_queues;
+  amd_dbgapi_status_t status = os_driver ().suspend_queues (
     queue_ids.data (), queue_ids.size (),
     os_exception_mask_t::queue_abort | os_exception_mask_t::queue_trap
       | os_exception_mask_t::queue_math_error
       | os_exception_mask_t::queue_illegal_instruction
       | os_exception_mask_t::queue_memory_violation
-      | os_exception_mask_t::queue_aperture_violation);
-  if (ret == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+      | os_exception_mask_t::queue_aperture_violation,
+    &num_suspended_queues);
+  if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
     {
       for (auto &&queue : queues)
         queue->set_state (queue_t::state_t::invalid);
       return 0;
     }
-  else if (ret < 0)
-    error ("os_driver::suspend_queues failed (rc=%d)", ret);
+  else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("os_driver::suspend_queues failed (rc=%d)", status);
 
-  size_t num_suspended_queues = ret;
   size_t num_invalid_queues = 0;
   for (size_t i = 0; i < queue_ids.size (); ++i)
     {
@@ -971,17 +972,18 @@ process_t::resume_queues (const std::vector<queue_t *> &queues,
       .c_str (),
     reason);
 
-  int ret = os_driver ().resume_queues (queue_ids.data (), queue_ids.size ());
-  if (ret == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+  size_t num_resumed_queues;
+  amd_dbgapi_status_t status = os_driver ().resume_queues (
+    queue_ids.data (), queue_ids.size (), &num_resumed_queues);
+  if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
     {
       for (auto &&queue : queues)
         queue->set_state (queue_t::state_t::invalid);
       return 0;
     }
-  else if (ret < 0)
-    error ("os_driver::resume_queues failed (rc=%d)", ret);
+  else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("os_driver::resume_queues failed (rc=%d)", status);
 
-  size_t num_resumed_queues = ret;
   size_t num_invalid_queues = 0;
   for (size_t i = 0; i < queue_ids.size (); ++i)
     {

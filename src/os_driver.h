@@ -315,11 +315,13 @@ public:
                         size_t exception_info_size,
                         bool clear_exception) const = 0;
 
-  virtual size_t
+  virtual amd_dbgapi_status_t
   suspend_queues (os_queue_id_t *queues, size_t queue_count,
-                  os_exception_mask_t exceptions_cleared) const = 0;
-  virtual size_t resume_queues (os_queue_id_t *queues,
-                                size_t queue_count) const = 0;
+                  os_exception_mask_t exceptions_cleared,
+                  size_t *suspended_count) const = 0;
+  virtual amd_dbgapi_status_t resume_queues (os_queue_id_t *queues,
+                                             size_t queue_count,
+                                             size_t *resumed_count) const = 0;
 
   virtual amd_dbgapi_status_t
   queue_snapshot (os_queue_snapshot_entry_t *snapshots, size_t snapshot_count,
