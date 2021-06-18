@@ -47,6 +47,20 @@
 
 #include <link.h>
 
+#if defined(WITH_API_TRACING)
+
+#define TRACE_CALLBACK_BEGIN(...)                                             \
+  TRACE_BEGIN_HELPER (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "callback: ", __VA_ARGS__)
+
+#define TRACE_CALLBACK_END(...) TRACE_END_HELPER (__VA_ARGS__)
+
+#else /* !defined (WITH_API_TRACING) */
+
+#define TRACE_CALLBACK_BEGIN(...)
+#define TRACE_CALLBACK_END(...)
+
+#endif /* !defined (WITH_API_TRACING) */
+
 namespace amd::dbgapi
 {
 
@@ -1850,6 +1864,50 @@ process_t::send_exceptions (
   if (status != AMD_DBGAPI_STATUS_SUCCESS
       && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
     error ("send_exceptions failed (rc=%d)", status);
+}
+
+amd_dbgapi_status_t
+process_t::get_os_pid (amd_dbgapi_os_process_id_t *pid) const
+{
+  TRACE_CALLBACK_BEGIN (param_in (pid));
+  return detail::process_callbacks.get_os_pid (m_client_process_id, pid);
+  TRACE_CALLBACK_END (make_ref (param_out (pid)));
+}
+
+amd_dbgapi_status_t
+process_t::insert_breakpoint (amd_dbgapi_global_address_t address,
+                              amd_dbgapi_breakpoint_id_t breakpoint_id)
+{
+  TRACE_CALLBACK_BEGIN (make_hex (param_in (address)),
+                        param_in (breakpoint_id));
+  return detail::process_callbacks.insert_breakpoint (m_client_process_id,
+                                                      address, breakpoint_id);
+  TRACE_CALLBACK_END ();
+}
+
+amd_dbgapi_status_t
+process_t::remove_breakpoint (amd_dbgapi_breakpoint_id_t breakpoint_id)
+{
+  TRACE_CALLBACK_BEGIN (param_in (breakpoint_id));
+  return detail::process_callbacks.remove_breakpoint (m_client_process_id,
+                                                      breakpoint_id);
+  TRACE_CALLBACK_END ();
+}
+
+void *
+allocate_memory (size_t byte_size)
+{
+  TRACE_CALLBACK_BEGIN (byte_size);
+  return detail::process_callbacks.allocate_memory (byte_size);
+  TRACE_CALLBACK_END ();
+}
+
+void
+deallocate_memory (void *data)
+{
+  TRACE_CALLBACK_BEGIN (data);
+  detail::process_callbacks.deallocate_memory (data);
+  TRACE_CALLBACK_END ();
 }
 
 } /* namespace amd::dbgapi */

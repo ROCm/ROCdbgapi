@@ -550,15 +550,18 @@ template <typename Functor> struct tracer_closure<Functor, void>
 
 } /* namespace detail */
 
+template <amd_dbgapi_log_level_t LogLevel = AMD_DBGAPI_LOG_LEVEL_TRACE>
 class tracer
 {
 private:
-  const char *m_prefix;
-  const char *m_function;
+  const char *const m_prefix;
+  const char *const m_function;
+  bool const m_logging_enabled;
 
 public:
   tracer (const char *prefix, const char *function)
-    : m_prefix (prefix), m_function (function)
+    : m_prefix (prefix), m_function (function),
+      m_logging_enabled (log_level >= LogLevel)
   {
   }
 
@@ -569,18 +572,19 @@ public:
   template <typename... Args, typename Functor>
   decltype (std::declval<Functor> () ())
   leave (std::tuple<Args...> &&out_args,
-         const detail::tracer_closure<Functor> &closure);
+         detail::tracer_closure<Functor> &&closure);
 };
 
+template <amd_dbgapi_log_level_t LogLevel>
 template <typename... Args, typename Functor>
 detail::tracer_closure<Functor>
-tracer::enter (std::tuple<Args...> &&in_args, Functor &&func)
+tracer<LogLevel>::enter (std::tuple<Args...> &&in_args, Functor &&func)
 {
-  if (log_level != AMD_DBGAPI_LOG_LEVEL_VERBOSE)
+  if (!m_logging_enabled)
     return detail::tracer_closure (std::forward<Functor> (func));
 
-  detail::log (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "%s%s (%s) {", m_prefix,
-               m_function, to_string (std::move (in_args)).c_str ());
+  detail::log (LogLevel, "%s%s (%s) {", m_prefix, m_function,
+               to_string (std::move (in_args)).c_str ());
   ++detail::log_indent_depth;
 
   try
@@ -590,59 +594,58 @@ tracer::enter (std::tuple<Args...> &&in_args, Functor &&func)
   catch (...)
     {
       --detail::log_indent_depth;
-      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "%s} throw", m_prefix);
+      dbgapi_log (LogLevel, "%s} throw", m_prefix);
       throw;
     }
 }
 
+template <amd_dbgapi_log_level_t LogLevel>
 template <typename... Args, typename Functor>
 decltype (std::declval<Functor> () ())
-tracer::leave (std::tuple<Args...> &&out_args,
-               const detail::tracer_closure<Functor> &closure)
+tracer<LogLevel>::leave (std::tuple<Args...> &&out_args,
+                         detail::tracer_closure<Functor> &&result)
 {
-  if (log_level != AMD_DBGAPI_LOG_LEVEL_VERBOSE)
-    return closure ();
+  if (m_logging_enabled)
+    {
+      std::string results_str = result;
 
-  /* Print the outargs unless the return type is amd_dbgapi_status_t and the
-     result is not AMD_DBGAPI_STATUS_SUCCESS.  */
-  bool print_out_args = true;
-  if constexpr (std::is_same_v<decltype (closure ()), amd_dbgapi_status_t>)
-    print_out_args = closure () == AMD_DBGAPI_STATUS_SUCCESS;
+      /* Print the outargs unless the return type is amd_dbgapi_status_t and
+         the result is not AMD_DBGAPI_STATUS_SUCCESS.  */
+      bool print_out_args = true;
+      if constexpr (std::is_same_v<decltype (result ()), amd_dbgapi_status_t>)
+        print_out_args = result () == AMD_DBGAPI_STATUS_SUCCESS;
 
-  std::string results = closure;
-  if (print_out_args && std::tuple_size_v<std::tuple<Args...>> != 0)
-    results += ", " + to_string (std::move (out_args));
+      if (print_out_args && sizeof...(Args) != 0)
+        if (auto &&out_args_str = to_string (std::move (out_args));
+            !out_args_str.empty ())
+          results_str += ", " + out_args_str;
 
-  --detail::log_indent_depth;
-  detail::log (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "%s} = %s", m_prefix,
-               results.c_str ());
+      --detail::log_indent_depth;
+      detail::log (LogLevel, "%s} = %s", m_prefix, results_str.c_str ());
+    }
 
-  return closure ();
+  return result ();
 }
 
 #if defined(WITH_API_TRACING)
 
-#define _TRACE_BEGIN(prefix, ...)                                             \
-  amd::dbgapi::tracer _tracer (prefix, __FUNCTION__);                         \
-  auto _closure = _tracer.enter (std::make_tuple (__VA_ARGS__), [&] () {
+#define TRACE_BEGIN_HELPER(level, prefix, ...)                                \
+  amd::dbgapi::tracer<level> _tracer (prefix, __FUNCTION__);                  \
+  auto&& _closure = _tracer.enter (std::make_tuple (__VA_ARGS__), [&] () {
 
-#define _TRACE_END(...)                                                       \
+#define TRACE_END_HELPER(...)                                                 \
   });                                                                         \
-  return _tracer.leave (std::make_tuple (__VA_ARGS__), _closure);
+  return _tracer.leave (std::make_tuple (__VA_ARGS__), std::move (_closure));
 
-#define TRACE_BEGIN(...) _TRACE_BEGIN ("", __VA_ARGS__)
-#define TRACE_END(...) _TRACE_END (__VA_ARGS__)
+#define TRACE_BEGIN(...)                                                      \
+  TRACE_BEGIN_HELPER (AMD_DBGAPI_LOG_LEVEL_TRACE, "", __VA_ARGS__)
 
-#define TRACE_CALLBACK_BEGIN(...) _TRACE_BEGIN ("callback: ", __VA_ARGS__)
-#define TRACE_CALLBACK_END(...) _TRACE_END (__VA_ARGS__)
+#define TRACE_END(...) TRACE_END_HELPER (__VA_ARGS__)
 
 #else /* !defined (WITH_API_TRACING) */
 
 #define TRACE_BEGIN(...)
 #define TRACE_END(...)
-
-#define TRACE_CALLBACK_BEGIN(...)
-#define TRACE_CALLBACK_END(...)
 
 #endif /* !defined (WITH_API_TRACING) */
 

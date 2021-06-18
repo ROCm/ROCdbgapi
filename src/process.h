@@ -264,32 +264,12 @@ public:
   amd_dbgapi_status_t get_info (amd_dbgapi_process_info_t query,
                                 size_t value_size, void *value) const;
 
-  amd_dbgapi_status_t get_os_pid (amd_dbgapi_os_process_id_t *pid) const
-  {
-    TRACE_CALLBACK_BEGIN (param_in (pid));
-    return detail::process_callbacks.get_os_pid (m_client_process_id, pid);
-    TRACE_CALLBACK_END (make_ref (param_out (pid)));
-  }
-
+  amd_dbgapi_status_t get_os_pid (amd_dbgapi_os_process_id_t *pid) const;
   amd_dbgapi_status_t
   insert_breakpoint (amd_dbgapi_global_address_t address,
-                     amd_dbgapi_breakpoint_id_t breakpoint_id)
-  {
-    TRACE_CALLBACK_BEGIN (make_hex (param_in (address)),
-                          param_in (breakpoint_id));
-    return detail::process_callbacks.insert_breakpoint (
-      m_client_process_id, address, breakpoint_id);
-    TRACE_CALLBACK_END ();
-  }
-
+                     amd_dbgapi_breakpoint_id_t breakpoint_id);
   amd_dbgapi_status_t
-  remove_breakpoint (amd_dbgapi_breakpoint_id_t breakpoint_id)
-  {
-    TRACE_CALLBACK_BEGIN (param_in (breakpoint_id));
-    return detail::process_callbacks.remove_breakpoint (m_client_process_id,
-                                                        breakpoint_id);
-    TRACE_CALLBACK_END ();
-  }
+  remove_breakpoint (amd_dbgapi_breakpoint_id_t breakpoint_id);
 
   template <typename Object, typename... Args> auto &create (Args &&...args)
   {
@@ -435,38 +415,8 @@ process_t::is_flag_set (flag_t flag) const
   return (m_flags & flag) != 0;
 }
 
-inline void *
-allocate_memory (size_t byte_size)
-{
-  TRACE_CALLBACK_BEGIN (byte_size);
-  return detail::process_callbacks.allocate_memory (byte_size);
-  TRACE_CALLBACK_END ();
-}
-
-template <typename T>
-inline void
-deallocate_memory (T *&&data)
-{
-  TRACE_CALLBACK_BEGIN (data);
-  detail::process_callbacks.deallocate_memory (data);
-  TRACE_CALLBACK_END ();
-}
-
-template <typename T>
-inline void
-deallocate_memory (T *&data)
-{
-  TRACE_CALLBACK_BEGIN (data);
-  detail::process_callbacks.deallocate_memory (data);
-  data = nullptr;
-  TRACE_CALLBACK_END ();
-}
-
-inline void
-log_message (amd_dbgapi_log_level_t level, const char *message)
-{
-  return detail::process_callbacks.log_message (level, message);
-}
+void *allocate_memory (size_t byte_size);
+void deallocate_memory (void *data);
 
 } /* namespace amd::dbgapi */
 
