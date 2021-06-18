@@ -785,7 +785,8 @@ amdgcn_architecture_t::is_cbranch_taken (
             return (status_reg & mask) == mask;
           }
         }
-      error ("should not reach here: invalid cbranch_cond_t");
+      dbgapi_assert_not_reached (
+        "illegal instruction: invalid cbranch_cond_t");
     }
 
   if (is_cbranch_i_fork (instruction) || is_cbranch_g_fork (instruction))
@@ -833,7 +834,7 @@ amdgcn_architecture_t::is_cbranch_taken (
       return csp != mask;
     }
 
-  error ("Invalid instruction");
+  dbgapi_assert_not_reached ("not a branch instruction");
 }
 
 amd_dbgapi_global_address_t
@@ -863,7 +864,7 @@ amdgcn_architecture_t::branch_target (
       return (static_cast<uint64_t> (pc_hi) << 32) | pc_lo;
     }
 
-  error ("Invalid instruction");
+  dbgapi_assert_not_reached ("not a branch instruction");
 }
 
 std::tuple<amd_dbgapi_instruction_kind_t, amd_dbgapi_instruction_properties_t,
@@ -1260,7 +1261,7 @@ amdgcn_architecture_t::simulate_instruction (
   else
     {
       /* We don't know how to simulate this instruction.  */
-      dbgapi_assert (!"Cannot simulate instruction");
+      dbgapi_assert_not_reached ("cannot simulate instruction");
     }
 
   wave.write_register (amdgpu_regnum_t::pc, &new_pc);
@@ -1443,7 +1444,8 @@ amdgcn_architecture_t::get_wave_state (
           instruction->resize (instruction_size (*instruction));
 
           if (!simulate_instruction (wave, pc, *instruction))
-            dbgapi_assert (!"halted waves cannot raise spurious events");
+            dbgapi_assert_not_reached (
+              "halted waves cannot raise spurious events");
 
           /* The instruction was simulated, report the single-step event.
            */
@@ -1531,7 +1533,7 @@ amdgcn_architecture_t::set_wave_state (
       break;
 
     default:
-      dbgapi_assert (!"Invalid wave state");
+      dbgapi_assert_not_reached ("Invalid wave state");
     }
 
   wave.write_register (amdgpu_regnum_t::status, &status_reg);

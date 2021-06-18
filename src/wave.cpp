@@ -547,8 +547,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
         if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION)
           return os_exception_mask_t::queue_aperture_violation;
 
-        dbgapi_assert (!"not a valid exception");
-        return os_exception_mask_t::none;
+        dbgapi_assert_not_reached ("not a valid exception");
       };
 
       /* Convert an amd_dbgapi_exception_t into an os_exception_mask_t.  */

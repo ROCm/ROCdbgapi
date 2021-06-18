@@ -28,18 +28,22 @@
 #include <utility>
 
 #if defined(NDEBUG)
+
 #define dbgapi_assert(expr) ((void)0)
+#define dbgapi_assert_not_reached(message) __builtin_trap ()
+
 #else /* !defined (NDEBUG) */
+
 #define dbgapi_assert(expr)                                                   \
   ((void)((expr) ? 0 : (dbgapi_assert_fail (#expr, __FILE__, __LINE__), 0)))
-#endif /* !defined(NDEBUG) */
-
-#define dbgapi_assert_fail(assertion, file, line)                             \
-  amd::dbgapi::error ("%s:%d: Assertion `%s' failed.", file, line, assertion)
 
 #define dbgapi_assert_not_reached(message)                                    \
   amd::dbgapi::error ("%s:%d: Should not reach here: " message, __FILE__,     \
                       __LINE__)
+#endif /* !defined(NDEBUG) */
+
+#define dbgapi_assert_fail(assertion, file, line)                             \
+  amd::dbgapi::error ("%s:%d: Assertion `%s' failed.", file, line, assertion)
 
 namespace amd::dbgapi
 {
