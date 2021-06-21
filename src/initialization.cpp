@@ -80,7 +80,12 @@ amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_finalize ()
 {
   /* Reset the callbacks only after the tracer is done logging.  */
-  std::optional<utils::scope_exit> reset_callbacks;
+  auto reset_callbacks = utils::make_scope_exit (
+    [] ()
+    {
+      detail::process_callbacks = {};
+      detail::is_initialized = false;
+    });
 
   TRACE_BEGIN ();
   TRY;
@@ -96,14 +101,6 @@ amd_dbgapi_finalize ()
       process.detach ();
       process_t::destroy_process (&process);
     }
-
-  /* Reset the callbacks only after the tracer is done logging.  */
-  reset_callbacks.emplace (
-    [] ()
-    {
-      detail::process_callbacks = {};
-      detail::is_initialized = false;
-    });
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 

@@ -1724,7 +1724,7 @@ process_t::next_pending_event ()
             {
               /* Make sure the runtime receives the process_runtime_enable
                  event even if an exception is thrown.  */
-              utils::scope_exit send_runtime_enable_event (
+              auto send_runtime_enable_event = utils::make_scope_exit (
                 [this] () {
                   send_exceptions (os_exception_mask_t::process_runtime_enable,
                                    this);
@@ -1753,7 +1753,7 @@ process_t::next_pending_event ()
             {
               /* Make sure the runtime receives the process_runtime_disable
                  event even if an exception is thrown.  */
-              utils::scope_exit send_runtime_disable_event (
+              auto send_runtime_disable_event = utils::make_scope_exit (
                 [this] () {
                   send_exceptions (
                     os_exception_mask_t::process_runtime_disable, this);

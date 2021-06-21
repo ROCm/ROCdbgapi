@@ -216,59 +216,177 @@ align_up (Integral x, int alignment)
 namespace detail
 {
 
-class not_copyable
+class not_copyable_t
 {
 protected:
-  constexpr not_copyable () = default;
-  ~not_copyable () = default;
+  constexpr not_copyable_t () = default;
+  ~not_copyable_t () = default;
 
-  not_copyable (const not_copyable &) = delete;
-  not_copyable &operator= (const not_copyable &) = delete;
+  not_copyable_t (const not_copyable_t &) = delete;
+  not_copyable_t &operator= (const not_copyable_t &) = delete;
 };
 
 } /* namespace detail */
 
-using not_copyable = detail::not_copyable;
+using not_copyable_t = detail::not_copyable_t;
 
-class scope_exit : private not_copyable
+template <typename Functor,
+          std::enable_if_t<std::is_invocable_v<Functor>, int> = 0>
+class scope_exit_t : private not_copyable_t
 {
 private:
-  std::function<void ()> m_func;
+  Functor m_functor{};
   bool m_is_released{ false };
 
 public:
-  explicit scope_exit (std::function<void ()> func) : m_func (std::move (func))
-  {
-  }
-  scope_exit (scope_exit &&other) : m_func ()
+  template <typename Other,
+            std::enable_if_t<std::is_constructible_v<Functor, Other>, int> = 0>
+  explicit scope_exit_t (Other &&other)
+  try : m_functor (std::forward<Other> (other))
+    {
+    }
+  catch (...)
+    {
+      other ();
+    } /* there is an implicit "throw;" here.  */
+
+  scope_exit_t (scope_exit_t &&other)
   {
     if (!other.m_is_released)
       {
-        m_func = std::move (other.m_func);
+        m_functor = std::move (other.m_functor);
         other.release ();
       }
   }
-  scope_exit (const scope_exit &) = delete;
-  scope_exit &operator= (const scope_exit &) = delete;
-  scope_exit &operator= (scope_exit &&) = delete;
 
-  ~scope_exit ()
+  scope_exit_t (const scope_exit_t &) = delete;
+
+  ~scope_exit_t ()
   {
     if (!m_is_released)
       {
         m_is_released = true;
-        m_func ();
+        m_functor ();
       }
   }
 
   void release () { m_is_released = true; }
 };
 
+template <typename Functor>
+auto
+make_scope_exit (Functor &&func)
+{
+  return scope_exit_t<std::decay_t<Functor>> (std::forward<Functor> (func));
+}
+
+template <typename Functor,
+          std::enable_if_t<std::is_invocable_v<Functor>, int> = 0>
+class scope_success_t
+{
+private:
+  Functor m_functor{};
+  bool m_is_released{ false };
+  int m_uncaught_exceptions{ 0 };
+
+public:
+  template <typename Other,
+            std::enable_if_t<std::is_constructible_v<Functor, Other>, int> = 0>
+  explicit scope_success_t (Other &&other)
+    : m_functor (std::forward<Other> (other)),
+      m_uncaught_exceptions (std::uncaught_exceptions ())
+  {
+  }
+
+  scope_success_t (scope_success_t &&other)
+    : m_uncaught_exceptions (other.m_uncaught_exceptions)
+  {
+    if (!other.m_is_released)
+      {
+        m_functor = std::move (other.m_functor);
+        other.release ();
+      }
+  }
+
+  scope_success_t (const scope_success_t &) = delete;
+
+  ~scope_success_t ()
+  {
+    if (!m_is_released && std::uncaught_exceptions () <= m_uncaught_exceptions)
+      {
+        m_is_released = true;
+        m_functor ();
+      }
+  }
+
+  void release () { m_is_released = true; }
+};
+
+template <typename Functor>
+auto
+make_scope_success (Functor &&func)
+{
+  return scope_success_t<std::decay_t<Functor>> (std::forward<Functor> (func));
+}
+
+template <typename Functor,
+          std::enable_if_t<std::is_invocable_v<Functor>, int> = 0>
+class scope_fail_t
+{
+private:
+  Functor m_functor{};
+  bool m_is_released{ false };
+  int m_uncaught_exceptions{ 0 };
+
+public:
+  template <typename Other,
+            std::enable_if_t<std::is_constructible_v<Functor, Other>, int> = 0>
+  explicit scope_fail_t (Other &&other)
+  try : m_functor (std::forward<Other> (other)),
+    m_uncaught_exceptions (std::uncaught_exceptions ())
+    {
+    }
+  catch (...)
+    {
+      other ();
+    } /* there is an implicit "throw;" here.  */
+
+  scope_fail_t (scope_fail_t &&other)
+    : m_uncaught_exceptions (other.m_uncaught_exceptions)
+  {
+    if (!other.m_is_released)
+      {
+        m_functor = std::move (other.m_functor);
+        other.release ();
+      }
+  }
+
+  scope_fail_t (const scope_fail_t &) = delete;
+
+  ~scope_fail_t ()
+  {
+    if (!m_is_released && std::uncaught_exceptions () > m_uncaught_exceptions)
+      {
+        m_is_released = true;
+        m_functor ();
+      }
+  }
+
+  void release () { m_is_released = true; }
+};
+
+template <typename Functor>
+auto
+make_scope_fail (Functor &&func)
+{
+  return scope_fail_t<std::decay_t<Functor>> (std::forward<Functor> (func));
+}
+
 namespace detail
 {
 
 template <typename T, typename Tag>
-struct doubly_linked_entry_t : private not_copyable
+struct doubly_linked_entry_t : private not_copyable_t
 {
   doubly_linked_entry_t<T, Tag> *m_prev{ nullptr };
   doubly_linked_entry_t<T, Tag> *m_next{ nullptr };
@@ -297,7 +415,7 @@ struct doubly_linked_entry_t : private not_copyable
 } /* namespace detail */
 
 template <typename T, typename Tag = void>
-class doubly_linked_list_t : private not_copyable
+class doubly_linked_list_t : private not_copyable_t
 {
 public:
   /* T must be derived from entry_type.  */
