@@ -1344,19 +1344,6 @@ amdgcn_architecture_t::get_wave_state (
       wave.write_register (amdgpu_regnum_t::pc, &pc);
     }
 
-  if ((trapsts & sq_wave_trapsts_excp_mem_viol_mask
-       || trapsts & sq_wave_trapsts_illegal_inst_mask)
-      /* FIXME: If the wave was single-stepping when the exception occurred,
-         the first level trap handler did not decrement the PC as it took the
-         SINGLE_STEP_WORKAROUND path.  */
-      && prev_state != AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
-    {
-      /* The first-level trap handler subtracts 8 from the PC, so we add it
-         back here.  */
-      pc += 8;
-      wave.write_register (amdgpu_regnum_t::pc, &pc);
-    }
-
   /* Check for traps caused by an s_trap instruction.  */
   if (auto trap_id = ttmp6_saved_trap_id (ttmp6); trap_id)
     {
