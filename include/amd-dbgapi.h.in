@@ -6047,13 +6047,18 @@ typedef enum
    */
   AMD_DBGAPI_EVENT_KIND_BREAKPOINT_RESUME = 4,
   /**
-   * The runtime support in the inferior is enabled or disabled.  Until it has
-   * been successfully enabled no code objects will be loaded and no waves will
-   * be created.  The client can use this event to determine when to activate
-   * and deactivate AMD GPU debugging functionality.  This event reports the
-   * enabled status, the version, and if it is compatible with this library.  If
-   * it is not compatible, then no code objects or waves will be reported to
-   * exist.
+   * The runtime support in the inferior is enabled or disabled.
+   *
+   * The client can use this event to determine when to activate and deactivate
+   * AMD GPU debugging functionality.  The status of the inferior's runtime
+   * support can be queried by ::amd_dbgapi_event_get_info using
+   * ::AMD_DBGAPI_EVENT_INFO_RUNTIME_STATE.  If not enabled
+   * (::AMD_DBGAPI_RUNTIME_STATE_UNLOADED), or enabled but not compatible
+   * (::AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION), then no code
+   * objects, queues, or waves will be reported to exist, and the only event
+   * that will be reported is ::AMD_DBGAPI_EVENT_KIND_RUNTIME.  If enabled
+   * successfully (::AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS) full debugging is
+   * supported by the library.
    */
   AMD_DBGAPI_EVENT_KIND_RUNTIME = 5,
   /**
