@@ -1173,18 +1173,18 @@ one_os_exception_to_string (os_exception_mask_t exception_mask)
     {
     case os_exception_mask_t::none:
       return "NONE";
-    case os_exception_mask_t::queue_abort:
-      return "QUEUE_ABORT";
-    case os_exception_mask_t::queue_trap:
-      return "QUEUE_TRAP";
-    case os_exception_mask_t::queue_math_error:
-      return "QUEUE_MATH_ERROR";
-    case os_exception_mask_t::queue_illegal_instruction:
-      return "QUEUE_ILLEGAL_INSTRUCTION";
-    case os_exception_mask_t::queue_memory_violation:
-      return "QUEUE_MEMORY_VIOLATION";
-    case os_exception_mask_t::queue_aperture_violation:
-      return "QUEUE_APERTURE_VIOLATION";
+    case os_exception_mask_t::queue_wave_abort:
+      return "QUEUE_WAVE_ABORT";
+    case os_exception_mask_t::queue_wave_trap:
+      return "QUEUE_WAVE_TRAP";
+    case os_exception_mask_t::queue_wave_math_error:
+      return "QUEUE_WAVE_MATH_ERROR";
+    case os_exception_mask_t::queue_wave_illegal_instruction:
+      return "QUEUE_WAVE_ILLEGAL_INSTRUCTION";
+    case os_exception_mask_t::queue_wave_memory_violation:
+      return "QUEUE_WAVE_MEMORY_VIOLATION";
+    case os_exception_mask_t::queue_wave_aperture_violation:
+      return "QUEUE_WAVE_APERTURE_VIOLATION";
     case os_exception_mask_t::queue_packet_dispatch_dim_invalid:
       return "QUEUE_PACKET_DISPATCH_DIM_INVALID";
     case os_exception_mask_t::queue_packet_dispatch_group_segment_size_invalid:

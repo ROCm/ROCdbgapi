@@ -528,24 +528,24 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
       auto convert_one_exception = [&] (amd_dbgapi_exceptions_t one_exception)
       {
         if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_ABORT)
-          return os_exception_mask_t::queue_abort;
+          return os_exception_mask_t::queue_wave_abort;
 
         if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_TRAP)
-          return os_exception_mask_t::queue_trap;
+          return os_exception_mask_t::queue_wave_trap;
 
         if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_MATH_ERROR)
-          return os_exception_mask_t::queue_math_error;
+          return os_exception_mask_t::queue_wave_math_error;
 
         if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_ILLEGAL_INSTRUCTION)
-          return os_exception_mask_t::queue_illegal_instruction;
+          return os_exception_mask_t::queue_wave_illegal_instruction;
 
         if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_MEMORY_VIOLATION)
-          return os_exception_mask_t::queue_memory_violation
+          return os_exception_mask_t::queue_wave_memory_violation
                  | (agent ().exceptions ()
                     & os_exception_mask_t::device_memory_violation);
 
         if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION)
-          return os_exception_mask_t::queue_aperture_violation;
+          return os_exception_mask_t::queue_wave_aperture_violation;
 
         dbgapi_assert_not_reached ("not a valid exception");
       };

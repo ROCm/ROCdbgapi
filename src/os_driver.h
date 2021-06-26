@@ -108,12 +108,12 @@ enum class os_exception_code_t : uint32_t
   none = EC_NONE,
 
   /* per queue exceptions  */
-  queue_abort = EC_QUEUE_ABORT,
-  queue_trap = EC_QUEUE_TRAP,
-  queue_math_error = EC_QUEUE_MATH_ERROR,
-  queue_illegal_instruction = EC_QUEUE_ILLEGAL_INSTRUCTION,
-  queue_memory_violation = EC_QUEUE_MEMORY_VIOLATION,
-  queue_aperture_violation = EC_QUEUE_APERTURE_VIOLATION,
+  queue_wave_abort = EC_QUEUE_WAVE_ABORT,
+  queue_wave_trap = EC_QUEUE_WAVE_TRAP,
+  queue_wave_math_error = EC_QUEUE_WAVE_MATH_ERROR,
+  queue_wave_illegal_instruction = EC_QUEUE_WAVE_ILLEGAL_INSTRUCTION,
+  queue_wave_memory_violation = EC_QUEUE_WAVE_MEMORY_VIOLATION,
+  queue_wave_aperture_violation = EC_QUEUE_WAVE_APERTURE_VIOLATION,
   queue_packet_dispatch_dim_invalid = EC_QUEUE_PACKET_DISPATCH_DIM_INVALID,
   queue_packet_dispatch_group_segment_size_invalid
   = EC_QUEUE_PACKET_DISPATCH_GROUP_SEGMENT_SIZE_INVALID,
@@ -181,12 +181,14 @@ enum class os_exception_mask_t : uint64_t
   none = 0,
 
   /* per queue exceptions  */
-  queue_abort = KFD_EC_MASK (EC_QUEUE_ABORT),
-  queue_trap = KFD_EC_MASK (EC_QUEUE_TRAP),
-  queue_math_error = KFD_EC_MASK (EC_QUEUE_MATH_ERROR),
-  queue_illegal_instruction = KFD_EC_MASK (EC_QUEUE_ILLEGAL_INSTRUCTION),
-  queue_memory_violation = KFD_EC_MASK (EC_QUEUE_MEMORY_VIOLATION),
-  queue_aperture_violation = KFD_EC_MASK (EC_QUEUE_APERTURE_VIOLATION),
+  queue_wave_abort = KFD_EC_MASK (EC_QUEUE_WAVE_ABORT),
+  queue_wave_trap = KFD_EC_MASK (EC_QUEUE_WAVE_TRAP),
+  queue_wave_math_error = KFD_EC_MASK (EC_QUEUE_WAVE_MATH_ERROR),
+  queue_wave_illegal_instruction
+  = KFD_EC_MASK (EC_QUEUE_WAVE_ILLEGAL_INSTRUCTION),
+  queue_wave_memory_violation = KFD_EC_MASK (EC_QUEUE_WAVE_MEMORY_VIOLATION),
+  queue_wave_aperture_violation
+  = KFD_EC_MASK (EC_QUEUE_WAVE_APERTURE_VIOLATION),
   queue_packet_dispatch_dim_invalid
   = KFD_EC_MASK (EC_QUEUE_PACKET_DISPATCH_DIM_INVALID),
   queue_packet_dispatch_group_segment_size_invalid

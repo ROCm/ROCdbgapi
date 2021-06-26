@@ -894,11 +894,12 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
   size_t num_suspended_queues;
   amd_dbgapi_status_t status = os_driver ().suspend_queues (
     queue_ids.data (), queue_ids.size (),
-    os_exception_mask_t::queue_abort | os_exception_mask_t::queue_trap
-      | os_exception_mask_t::queue_math_error
-      | os_exception_mask_t::queue_illegal_instruction
-      | os_exception_mask_t::queue_memory_violation
-      | os_exception_mask_t::queue_aperture_violation,
+    os_exception_mask_t::queue_wave_abort
+      | os_exception_mask_t::queue_wave_trap
+      | os_exception_mask_t::queue_wave_math_error
+      | os_exception_mask_t::queue_wave_illegal_instruction
+      | os_exception_mask_t::queue_wave_memory_violation
+      | os_exception_mask_t::queue_wave_aperture_violation,
     &num_suspended_queues);
   if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
     {
@@ -1347,11 +1348,12 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
   /* Now that the runtime is enabled, request notifications for all supported
      events.  */
   status = os_driver ().set_exceptions_reported (
-    os_exception_mask_t::queue_abort | os_exception_mask_t::queue_trap
-    | os_exception_mask_t::queue_math_error
-    | os_exception_mask_t::queue_illegal_instruction
-    | os_exception_mask_t::queue_memory_violation
-    | os_exception_mask_t::queue_aperture_violation
+    os_exception_mask_t::queue_wave_abort
+    | os_exception_mask_t::queue_wave_trap
+    | os_exception_mask_t::queue_wave_math_error
+    | os_exception_mask_t::queue_wave_illegal_instruction
+    | os_exception_mask_t::queue_wave_memory_violation
+    | os_exception_mask_t::queue_wave_aperture_violation
     | os_exception_mask_t::device_memory_violation
     | os_exception_mask_t::process_runtime);
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -1727,11 +1729,12 @@ process_t::next_pending_event ()
       while (true)
         {
           auto [source, exceptions] = query_debug_event (
-            os_exception_mask_t::queue_abort | os_exception_mask_t::queue_trap
-            | os_exception_mask_t::queue_math_error
-            | os_exception_mask_t::queue_illegal_instruction
-            | os_exception_mask_t::queue_memory_violation
-            | os_exception_mask_t::queue_aperture_violation
+            os_exception_mask_t::queue_wave_abort
+            | os_exception_mask_t::queue_wave_trap
+            | os_exception_mask_t::queue_wave_math_error
+            | os_exception_mask_t::queue_wave_illegal_instruction
+            | os_exception_mask_t::queue_wave_memory_violation
+            | os_exception_mask_t::queue_wave_aperture_violation
             | os_exception_mask_t::device_memory_violation);
           dbgapi_assert (
             std::visit ([] (auto &&x) -> bool { return x; }, source)
@@ -1763,12 +1766,12 @@ process_t::next_pending_event ()
             }
 
           if ((exceptions
-               & (os_exception_mask_t::queue_trap
-                  | os_exception_mask_t::queue_illegal_instruction
-                  | os_exception_mask_t::queue_memory_violation
-                  | os_exception_mask_t::queue_aperture_violation
-                  | os_exception_mask_t::queue_math_error
-                  | os_exception_mask_t::queue_abort))
+               & (os_exception_mask_t::queue_wave_trap
+                  | os_exception_mask_t::queue_wave_illegal_instruction
+                  | os_exception_mask_t::queue_wave_memory_violation
+                  | os_exception_mask_t::queue_wave_aperture_violation
+                  | os_exception_mask_t::queue_wave_math_error
+                  | os_exception_mask_t::queue_wave_abort))
               != os_exception_mask_t::none)
             {
               queue_t *queue = std::get<queue_t *> (source);
