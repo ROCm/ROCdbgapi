@@ -1341,23 +1341,9 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
   if (m_runtime_state != AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS)
     return;
 
-  auto reset_runtime_state = utils::make_scope_fail (
+  auto loaded_error_restriction = utils::make_scope_fail (
     [this] ()
     { m_runtime_state = AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION; });
-
-  /* Now that the runtime is enabled, request notifications for all supported
-     events.  */
-  status = os_driver ().set_exceptions_reported (
-    os_exception_mask_t::queue_wave_abort
-    | os_exception_mask_t::queue_wave_trap
-    | os_exception_mask_t::queue_wave_math_error
-    | os_exception_mask_t::queue_wave_illegal_instruction
-    | os_exception_mask_t::queue_wave_memory_violation
-    | os_exception_mask_t::queue_wave_aperture_violation
-    | os_exception_mask_t::device_memory_violation
-    | os_exception_mask_t::process_runtime);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("os_driver_t::set_exceptions_reported failed (rc=%d)", status);
 
   /* Install a breakpoint at _amd_r_debug.r_brk.  The runtime calls this
      function before updating the code object list, and after completing
@@ -1408,7 +1394,28 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
     return AMD_DBGAPI_STATUS_SUCCESS;
   };
 
-  create<breakpoint_t> (*this, r_brk_address, r_brk_callback);
+  if (!create<breakpoint_t> (*this, r_brk_address, r_brk_callback)
+         .is_inserted ())
+    {
+      warning ("Could not insert breakpoint at r_debug.r_brk (%#lx)",
+               r_brk_address);
+      m_runtime_state = AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION;
+      return;
+    }
+
+  /* Now that the runtime is enabled, request notifications for all supported
+     events.  */
+  status = os_driver ().set_exceptions_reported (
+    os_exception_mask_t::queue_wave_abort
+    | os_exception_mask_t::queue_wave_trap
+    | os_exception_mask_t::queue_wave_math_error
+    | os_exception_mask_t::queue_wave_illegal_instruction
+    | os_exception_mask_t::queue_wave_memory_violation
+    | os_exception_mask_t::queue_wave_aperture_violation
+    | os_exception_mask_t::device_memory_violation
+    | os_exception_mask_t::process_runtime);
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("os_driver_t::set_exceptions_reported failed (rc=%d)", status);
 
   status = update_code_objects ();
   if (status != AMD_DBGAPI_STATUS_SUCCESS)

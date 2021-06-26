@@ -54,7 +54,7 @@ public:
 
   ~breakpoint_t ();
 
-  bool is_valid () const { return m_inserted; }
+  bool is_inserted () const { return m_inserted; }
 
   amd_dbgapi_global_address_t address () const { return m_address; }
   action_callback_t action () const { return m_action; }
