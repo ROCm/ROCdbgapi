@@ -2612,11 +2612,11 @@ gfx9_base_t::dispatch_packet_address (
   const amd_dbgapi_global_address_t ttmp6_address
     = cwsr_record.register_address (amdgpu_regnum_t::ttmp6).value ();
 
-  uint64_t ttmp6;
+  uint32_t ttmp6;
   status = cwsr_record.process ().read_global_memory (ttmp6_address, &ttmp6,
                                                       sizeof (ttmp6));
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not read the 'ttmp6:7' registers (rc=%d)", status);
+    error ("Could not read the 'ttmp6' register (rc=%d)", status);
 
   amd_dbgapi_os_queue_packet_id_t os_queue_packet_id
     = ttmp6_queue_packet_id (ttmp6);
