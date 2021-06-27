@@ -496,11 +496,9 @@ process_t::find (amd_dbgapi_client_process_id_t client_process_id)
 amd_dbgapi_status_t
 process_t::update_agents ()
 {
-  size_t agent_count = count<agent_t> ();
-  bool first_update = agent_count == 0;
-
+  const epoch_t agent_mark = m_next_agent_mark ();
   std::vector<os_agent_snapshot_entry_t> agent_infos;
-  agent_count += 16;
+  size_t agent_count = count<agent_t> () + 16;
 
   do
     {
@@ -512,12 +510,18 @@ process_t::update_agents ()
       if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
         agent_count = 0;
       else if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
+        error ("os_driver_t::agent_snapshot failed (rc=%d)", status);
     }
   while (agent_infos.size () < agent_count);
   agent_infos.resize (agent_count);
 
-  m_supports_precise_memory = true;
+  /* If at least one agent has restrictions (architecture is not supported, or
+     firmware version does not match the requirements), update_agent () should
+     return an error, as debugging in this process is not possible.  */
+  bool agent_restrictions = false;
+
+  /* Precise memory reporting is not supported if there are no agents.  */
+  m_supports_precise_memory = (agent_infos.size () != 0);
 
   /* Add new agents to the process.  */
   for (auto &&agent_info : agent_infos)
@@ -526,49 +530,45 @@ process_t::update_agents ()
         = find_if ([&] (const agent_t &a)
                    { return a.os_agent_id () == agent_info.os_agent_id; });
 
-      if (agent)
+      if (!agent)
         {
-          m_supports_precise_memory
-            &= agent->architecture ().supports_precise_memory ();
-          continue;
+          const architecture_t *architecture
+            = architecture_t::find (agent_info.e_machine);
+
+          if (!architecture)
+            {
+              /* FIXME: Add an 'unknown' architecture so that we could create
+                 and report this agent.  */
+              warning ("os_agent_id %d: `%s' architecture not supported.",
+                       agent_info.os_agent_id, agent_info.name.c_str ());
+
+              agent_restrictions = true;
+              m_supports_precise_memory = false;
+              continue;
+            }
+
+          if (agent_mark != 1)
+            error ("gpu hot pluging is not supported");
+
+          agent = &create<agent_t> (*this,         /* process  */
+                                    *architecture, /* architecture  */
+                                    agent_info);   /* os_agent_info  */
         }
 
-      const architecture_t *architecture
-        = architecture_t::find (agent_info.e_machine);
+      agent->set_mark (agent_mark);
 
-      /* FIXME: May want to have a state for an agent so it can be listed as
-         present, but marked as unsupported.  We would then remove the
-         errors below.  */
-
-      if (!architecture)
-        {
-          if (first_update)
-            warning ("os_agent_id %d: `%s' architecture not supported.",
-                     agent_info.os_agent_id, agent_info.name.c_str ());
-          continue;
-        }
-
-      if (agent_info.fw_version < agent_info.fw_version_required)
-        {
-          if (first_update)
-            warning ("os_agent_id %d: firmware version %d does not match "
-                     "%d+ requirement",
-                     agent_info.os_agent_id, agent_info.fw_version,
-                     agent_info.fw_version_required);
-          continue;
-        }
-
-      if (!first_update)
-        error ("gpu hot pluging is not supported");
-
-      create<agent_t> (*this,         /* process  */
-                       *architecture, /* architecture  */
-                       agent_info);   /* os_agent_info  */
-
-      m_supports_precise_memory &= architecture->supports_precise_memory ();
+      agent_restrictions |= !agent->supports_debugging ();
+      m_supports_precise_memory
+        &= agent->architecture ().supports_precise_memory ();
     }
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+  /* Sweep and remove agents that are no longer online.  */
+  for (auto &&agent : range<agent_t> ())
+    if (agent.mark () < agent_mark)
+      error ("gpu hot pluging is not supported");
+
+  return agent_restrictions ? AMD_DBGAPI_STATUS_ERROR_RESTRICTION
+                            : AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 size_t
@@ -1286,28 +1286,7 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
       = utils::make_scope_success ([&] () { m_runtime_info = runtime_info; });
 
     if (runtime_info.runtime_state == os_runtime_state_t::disabled)
-      {
-        /* From now on, and until the runtime is enabled again, only runtime
-           events should be reported.  */
-        status = os_driver ().set_exceptions_reported (
-          os_exception_mask_t::process_runtime);
-        if (status != AMD_DBGAPI_STATUS_SUCCESS)
-          error ("os_driver_t::set_exceptions_reported failed (rc=%d)",
-                 status);
-
-        /* Destruct the code objects.  */
-        std::get<handle_object_set_t<code_object_t>> (m_handle_object_sets)
-          .clear ();
-
-        /* Remove the breakpoints we've inserted when the runtime was loaded.
-         */
-        auto &&breakpoint_range = range<breakpoint_t> ();
-        for (auto it = breakpoint_range.begin ();
-             it != breakpoint_range.end ();)
-          it = destroy (it);
-
-        return AMD_DBGAPI_RUNTIME_STATE_UNLOADED;
-      }
+      return AMD_DBGAPI_RUNTIME_STATE_UNLOADED;
 
     if (runtime_info.runtime_state == os_runtime_state_t::enabled_busy)
       warning ("At least one agent is busy (debugging may be enabled by "
@@ -1329,8 +1308,8 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
 
     if (r_version != ROCR_RDEBUG_VERSION)
       {
-        warning ("AMD GPU runtime _amdgpu_r_debug.r_version %d does not"
-                 " match %d requirement",
+        warning ("AMD GPU runtime _amdgpu_r_debug.r_version %d does not "
+                 "match %d requirement",
                  r_version, ROCR_RDEBUG_VERSION);
         return AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION;
       }
@@ -1338,26 +1317,59 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
     return AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS;
   }();
 
+  if (m_runtime_state == AMD_DBGAPI_RUNTIME_STATE_UNLOADED)
+    {
+      /* From now on, and until the runtime is enabled again, only runtime
+         events should be reported.  */
+      status = os_driver ().set_exceptions_reported (
+        os_exception_mask_t::process_runtime);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS)
+        error ("os_driver_t::set_exceptions_reported failed (rc=%d)", status);
+
+      /* Destruct the code objects.  */
+      std::get<handle_object_set_t<code_object_t>> (m_handle_object_sets)
+        .clear ();
+
+      /* Remove the breakpoints we've inserted when the runtime was loaded.
+       */
+      auto &&breakpoint_range = range<breakpoint_t> ();
+      for (auto it = breakpoint_range.begin (); it != breakpoint_range.end ();)
+        it = destroy (it);
+    }
+
+  /* If the runtime is loaded but debugging is not available, nothing more
+     needs to be done.  The only exception that should be reported is the
+     runtime unloaded exception.  */
   if (m_runtime_state != AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS)
     return;
 
-  auto loaded_error_restriction = utils::make_scope_fail (
+  /* Early exits (exceptions and returns) result in restriction errors.  */
+  auto restriction_error = utils::make_scope_exit (
     [this] ()
-    { m_runtime_state = AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION; });
+    {
+      os_driver ().set_exceptions_reported (
+        os_exception_mask_t::process_runtime);
+      m_runtime_state = AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION;
+    });
+
+  /* Now that the runtime is enabled, request notifications for all supported
+     events.  */
+  status = os_driver ().set_exceptions_reported (
+    os_exception_mask_t::queue_wave_abort
+    | os_exception_mask_t::queue_wave_trap
+    | os_exception_mask_t::queue_wave_math_error
+    | os_exception_mask_t::queue_wave_illegal_instruction
+    | os_exception_mask_t::queue_wave_memory_violation
+    | os_exception_mask_t::queue_wave_aperture_violation
+    | os_exception_mask_t::device_memory_violation
+    | os_exception_mask_t::process_runtime);
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("os_driver_t::set_exceptions_reported failed (rc=%d)", status);
 
   /* Install a breakpoint at _amd_r_debug.r_brk.  The runtime calls this
      function before updating the code object list, and after completing
      updating the code object list.  */
 
-  amd_dbgapi_global_address_t r_brk_address;
-  status = read_global_memory (m_runtime_info.r_debug
-                                 + offsetof (struct r_debug, r_brk),
-                               &r_brk_address, sizeof (r_brk_address));
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("read_global_memory failed (rc=%d)", status);
-
-  /* This function gets called when the client reports that the breakpoint has
-     been hit.  */
   auto r_brk_callback = [this] (breakpoint_t &breakpoint,
                                 amd_dbgapi_client_thread_id_t client_thread_id,
                                 amd_dbgapi_breakpoint_action_t *action)
@@ -1394,28 +1406,23 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
     return AMD_DBGAPI_STATUS_SUCCESS;
   };
 
+  amd_dbgapi_global_address_t r_brk_address;
+  status = read_global_memory (m_runtime_info.r_debug
+                                 + offsetof (struct r_debug, r_brk),
+                               &r_brk_address, sizeof (r_brk_address));
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("read_global_memory failed (rc=%d)", status);
+
   if (!create<breakpoint_t> (*this, r_brk_address, r_brk_callback)
          .is_inserted ())
-    {
-      warning ("Could not insert breakpoint at r_debug.r_brk (%#lx)",
-               r_brk_address);
-      m_runtime_state = AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION;
-      return;
-    }
+    return;
 
-  /* Now that the runtime is enabled, request notifications for all supported
-     events.  */
-  status = os_driver ().set_exceptions_reported (
-    os_exception_mask_t::queue_wave_abort
-    | os_exception_mask_t::queue_wave_trap
-    | os_exception_mask_t::queue_wave_math_error
-    | os_exception_mask_t::queue_wave_illegal_instruction
-    | os_exception_mask_t::queue_wave_memory_violation
-    | os_exception_mask_t::queue_wave_aperture_violation
-    | os_exception_mask_t::device_memory_violation
-    | os_exception_mask_t::process_runtime);
+  status = update_queues ();
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("os_driver_t::set_exceptions_reported failed (rc=%d)", status);
+    error ("update_queues failed (rc=%d)", status);
+
+  /* From now on, newly created queues raise a queue_new exception.  */
+  set_flag (flag_t::require_new_queue_bit);
 
   status = update_code_objects ();
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -1467,6 +1474,8 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
   suspend_queues (queues, "attach to process");
   clear_flag (flag_t::assign_new_ids_to_all_waves);
   resume_queues (queues, "attach to process");
+
+  restriction_error.release ();
 }
 
 amd_dbgapi_status_t
@@ -1485,38 +1494,47 @@ process_t::attach ()
   clear_flag (flag_t::require_new_queue_bit);
 
   os_runtime_info_t runtime_info;
-  amd_dbgapi_status_t status = os_driver ().enable_debug (
-    os_exception_mask_t::process_runtime, m_client_notifier_pipe.write_fd (),
-    &runtime_info);
-  if (status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
+  if (auto status = os_driver ().enable_debug (
+        os_exception_mask_t::process_runtime,
+        m_client_notifier_pipe.write_fd (), &runtime_info);
+      status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION
+      || status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
     return status;
   else if (status != AMD_DBGAPI_STATUS_SUCCESS)
     error ("enable_debug failed (rc=%d)", status);
 
-  status = update_agents ();
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+  auto disable_debug = utils::make_scope_exit (
+    [this] ()
+    {
+      if (auto status = os_driver ().disable_debug ();
+          status != AMD_DBGAPI_STATUS_SUCCESS
+          && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+        error ("disable_debug failed (rc=%d)", status);
+    });
+
+  /* Update the agent now, regardless of the runtime state, so that agents can
+     be reported as soon as the process is attached.  */
+  if (auto status = update_agents ();
+      status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
+    return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
+  else if (status != AMD_DBGAPI_STATUS_SUCCESS)
     error ("update_agents failed (rc=%d)", status);
 
-  status = update_queues ();
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("update_queues failed (rc=%d)", status);
+  if (runtime_info.runtime_state != os_runtime_state_t::disabled)
+    {
+      runtime_enable (runtime_info);
 
-  /* From now on, newly created queues raise a queue_new exception.  */
-  set_flag (flag_t::require_new_queue_bit);
+      if (m_runtime_state != AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS)
+        return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
 
-  if (runtime_info.runtime_state == os_runtime_state_t::disabled)
-    return AMD_DBGAPI_STATUS_SUCCESS;
+      enqueue_event (create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
+                                      m_runtime_state));
+    }
 
-  runtime_enable (runtime_info);
-
-  enqueue_event (
-    create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME, m_runtime_state));
-
-  if (m_runtime_state != AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS)
-    return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
-
+  disable_debug.release ();
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "debugging is enabled for %s",
               to_string (id ()).c_str ());
+
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 

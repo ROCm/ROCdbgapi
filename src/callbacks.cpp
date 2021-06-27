@@ -41,6 +41,9 @@ breakpoint_t::breakpoint_t (amd_dbgapi_breakpoint_id_t breakpoint_id,
 {
   m_inserted = m_process.insert_breakpoint (address, breakpoint_id)
                == AMD_DBGAPI_STATUS_SUCCESS;
+
+  if (!m_inserted)
+    warning ("Could not insert breakpoint at %#lx", address);
 }
 
 breakpoint_t::~breakpoint_t ()

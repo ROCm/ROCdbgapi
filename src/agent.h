@@ -41,6 +41,7 @@ class agent_t : public detail::handle_object<amd_dbgapi_agent_id_t>
 private:
   os_agent_snapshot_entry_t const m_os_agent_info;
   os_exception_mask_t m_exceptions{ os_exception_mask_t::none };
+  epoch_t m_mark{ 0 };
 
   const architecture_t &m_architecture;
   process_t &m_process;
@@ -52,6 +53,13 @@ public:
   ~agent_t ();
 
   os_agent_id_t os_agent_id () const { return m_os_agent_info.os_agent_id; }
+  bool supports_debugging () const
+  {
+    return m_os_agent_info.fw_version >= m_os_agent_info.fw_version_required;
+  }
+
+  epoch_t mark () const { return m_mark; }
+  void set_mark (epoch_t mark) { m_mark = mark; }
 
   void set_exceptions (os_exception_mask_t exceptions);
   void clear_exceptions (os_exception_mask_t exceptions);

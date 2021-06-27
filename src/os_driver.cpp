@@ -165,7 +165,13 @@ public:
        handled.  */
   }
 
-  ~kfd_driver_t () override { close_kfd (); }
+  ~kfd_driver_t () override
+  {
+    if (is_debug_enabled ())
+      disable_debug ();
+
+    close_kfd ();
+  }
 
   /* Disable copies.  */
   kfd_driver_t (const kfd_driver_t &) = delete;

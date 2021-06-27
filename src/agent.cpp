@@ -40,6 +40,11 @@ agent_t::agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
   : handle_object (agent_id), m_os_agent_info (os_agent_info),
     m_architecture (architecture), m_process (process)
 {
+  if (m_os_agent_info.fw_version < m_os_agent_info.fw_version_required)
+    warning ("os_agent_id %d: firmware version %d does not match "
+             "%d+ requirement",
+             m_os_agent_info.os_agent_id, m_os_agent_info.fw_version,
+             m_os_agent_info.fw_version_required);
 }
 
 agent_t::~agent_t () {}
@@ -144,7 +149,8 @@ amd_dbgapi_process_agent_list (amd_dbgapi_process_id_t process_id,
         return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
       if (amd_dbgapi_status_t status = process->update_agents ();
-          status != AMD_DBGAPI_STATUS_SUCCESS)
+          status != AMD_DBGAPI_STATUS_ERROR_RESTRICTION
+          && status != AMD_DBGAPI_STATUS_SUCCESS)
         error ("process_t::update_agents failed (rc=%d)", status);
 
       processes.emplace_back (process);
@@ -154,7 +160,8 @@ amd_dbgapi_process_agent_list (amd_dbgapi_process_id_t process_id,
       for (auto &&process : process_t::all ())
         {
           if (amd_dbgapi_status_t status = process.update_agents ();
-              status != AMD_DBGAPI_STATUS_SUCCESS)
+              status != AMD_DBGAPI_STATUS_ERROR_RESTRICTION
+              && status != AMD_DBGAPI_STATUS_SUCCESS)
             error ("process_t::update_agents failed (rc=%d)", status);
 
           processes.emplace_back (&process);

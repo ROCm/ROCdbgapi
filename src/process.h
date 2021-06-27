@@ -119,6 +119,11 @@ private:
 
   std::queue<event_t *> m_pending_events{};
 
+  /* Value used to mark agents that are reported by KFD. When sweeping, any
+     agent found with a mark less than the current mark will be deleted, as
+     these agents are no longer active.  */
+  monotonic_counter_t<epoch_t, 1> m_next_agent_mark{};
+
   /* Value used to mark queues that are reported by KFD. When sweeping, any
      queue found with a mark less than the current mark will be deleted, as
      these queues are no longer active.  */
