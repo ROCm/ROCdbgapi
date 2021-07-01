@@ -139,9 +139,9 @@ private:
         { "vega20", EF_AMDGPU_MACH_AMDGCN_GFX906, 455 },
         { "arcturus", EF_AMDGPU_MACH_AMDGCN_GFX908, 57 },
         { "aldebaran", EF_AMDGPU_MACH_AMDGCN_GFX90A, 47 },
-        { "navi10", EF_AMDGPU_MACH_AMDGCN_GFX1010, 143 },
-        { "navi12", EF_AMDGPU_MACH_AMDGCN_GFX1011, 143 },
-        { "navi14", EF_AMDGPU_MACH_AMDGCN_GFX1012, 143 },
+        { "navi10", EF_AMDGPU_MACH_AMDGCN_GFX1010, 144 },
+        { "navi12", EF_AMDGPU_MACH_AMDGCN_GFX1011, 144 },
+        { "navi14", EF_AMDGPU_MACH_AMDGCN_GFX1012, 144 },
         { "sienna_cichlid", EF_AMDGPU_MACH_AMDGCN_GFX1030, 88 },
         { "navy_flounder", EF_AMDGPU_MACH_AMDGCN_GFX1031, 88 } };
 
