@@ -345,7 +345,8 @@ wave_t::update (const wave_t &group_leader,
       m_register_cache.reset (*register_cache_begin,
                               register_cache_end - *register_cache_begin);
 
-      architecture ().wave_get_state (*this, &m_state, &m_stop_reason);
+      std::tie (m_state, m_stop_reason)
+        = architecture ().wave_get_state (*this);
     }
   else
     {

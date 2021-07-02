@@ -330,9 +330,8 @@ public:
   simulate_instruction (wave_t &wave, amd_dbgapi_global_address_t pc,
                         const instruction_t &instruction) const = 0;
 
-  virtual void
-  wave_get_state (wave_t &wave, amd_dbgapi_wave_state_t *state,
-                  amd_dbgapi_wave_stop_reasons_t *stop_reason) const = 0;
+  virtual std::pair<amd_dbgapi_wave_state_t, amd_dbgapi_wave_stop_reasons_t>
+  wave_get_state (wave_t &wave) const = 0;
   virtual void wave_set_state (wave_t &wave, amd_dbgapi_wave_state_t state,
                                amd_dbgapi_exceptions_t exceptions
                                = AMD_DBGAPI_EXCEPTION_NONE) const = 0;
