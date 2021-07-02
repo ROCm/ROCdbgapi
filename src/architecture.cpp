@@ -237,19 +237,24 @@ public:
   size_t breakpoint_instruction_pc_adjust () const override;
 
 protected:
-  static uint8_t encoding_ssrc0 (const instruction_t &instruction);
-  static uint8_t encoding_ssrc1 (const instruction_t &instruction);
-  static uint8_t encoding_sdst (const instruction_t &instruction);
-  static uint8_t encoding_op7 (const instruction_t &instruction);
-  static int encoding_simm16 (const instruction_t &instruction);
+  static uint8_t ssrc0_operand (const instruction_t &instruction);
+  static uint8_t ssrc1_operand (const instruction_t &instruction);
+  static uint8_t sdst_operand (const instruction_t &instruction);
+  static int16_t simm16_operand (const instruction_t &instruction);
 
-  static bool is_sopk_instruction (const instruction_t &instruction, int op5);
-  static bool is_sop1_instruction (const instruction_t &instruction, int op8);
-  static bool is_sop2_instruction (const instruction_t &instruction, int op7);
-  static bool is_sopp_instruction (const instruction_t &instruction, int op7);
+  static uint8_t encoding_op7 (const instruction_t &instruction);
+  template <int... op5>
+  static bool is_sopk_encoding (const instruction_t &instruction);
+  template <int... op8>
+  static bool is_sop1_encoding (const instruction_t &instruction);
+  template <int... op7>
+  static bool is_sop2_encoding (const instruction_t &instruction);
+  template <int... op7>
+  static bool is_sopp_encoding (const instruction_t &instruction);
 
   /* Return the regnum for a scalar register operand.  */
-  virtual amdgpu_regnum_t scalar_operand_to_regnum (int operand) const = 0;
+  virtual std::optional<amdgpu_regnum_t>
+  scalar_operand_to_regnum (int operand) const = 0;
   /* Return the number of aliased scalar registers (e.g. vcc, flat_scratch)  */
   virtual size_t scalar_alias_count () const = 0;
 
@@ -273,7 +278,7 @@ protected:
   virtual bool is_trap (const instruction_t &instruction,
                         trap_id_t *trap_id = nullptr) const = 0;
   virtual bool is_endpgm (const instruction_t &instruction) const = 0;
-  virtual bool is_non_sequential (const instruction_t &instruction) const;
+  virtual bool is_sequential (const instruction_t &instruction) const = 0;
 
   bool
   is_terminating_instruction (const instruction_t &instruction) const override;
@@ -746,16 +751,6 @@ amdgcn_architecture_t::breakpoint_instruction_pc_adjust () const
 }
 
 bool
-amdgcn_architecture_t::is_non_sequential (
-  const instruction_t &instruction) const
-{
-  return is_branch (instruction) || is_call (instruction)
-         || is_setpc (instruction) || is_swappc (instruction)
-         || is_cbranch (instruction) || is_cbranch_i_fork (instruction)
-         || is_cbranch_g_fork (instruction) || is_cbranch_join (instruction);
-}
-
-bool
 amdgcn_architecture_t::is_terminating_instruction (
   const instruction_t &instruction) const
 {
@@ -814,16 +809,16 @@ amdgcn_architecture_t::is_branch_taken (wave_t &wave,
 
       uint32_t mask_lo, mask_hi;
 
-      amdgpu_regnum_t regnum = scalar_operand_to_regnum (
-        is_cbranch_i_fork (instruction) ? encoding_sdst (instruction)
-                                        : encoding_ssrc0 (instruction));
+      auto regnum = scalar_operand_to_regnum (is_cbranch_i_fork (instruction)
+                                                ? sdst_operand (instruction)
+                                                : ssrc0_operand (instruction));
 
       /* The hardware requires a 64-bit address register pair to have the lower
          register number be even.  */
-      dbgapi_assert ((regnum & -2) == regnum);
+      dbgapi_assert (regnum && !(*regnum & 1));
 
-      wave.read_register (regnum + 0, &mask_lo);
-      wave.read_register (regnum + 1, &mask_hi);
+      wave.read_register (*regnum + 0, &mask_lo);
+      wave.read_register (*regnum + 1, &mask_hi);
 
       uint64_t mask, exec, mask_pass, mask_fail;
       mask = (static_cast<uint64_t> (mask_hi) << 32) | mask_lo;
@@ -846,9 +841,11 @@ amdgcn_architecture_t::is_branch_taken (wave_t &wave,
     {
       uint32_t csp, mask;
 
+      auto regnum = scalar_operand_to_regnum (ssrc0_operand (instruction));
+      dbgapi_assert (regnum);
+
       wave.read_register (amdgpu_regnum_t::csp, &csp);
-      wave.read_register (
-        scalar_operand_to_regnum (encoding_ssrc0 (instruction)), &mask);
+      wave.read_register (*regnum, &mask);
 
       return csp != mask;
     }
@@ -871,38 +868,34 @@ amdgcn_architecture_t::branch_target (wave_t &wave,
   if (is_branch (instruction) || is_call (instruction)
       || is_cbranch (instruction) || is_cbranch_i_fork (instruction))
     {
-      return pc + instruction.size () + (encoding_simm16 (instruction) << 2);
+      return pc + instruction.size ()
+             + (static_cast<std::ptrdiff_t> (simm16_operand (instruction))
+                << 2);
     }
 
   if (is_cbranch_g_fork (instruction))
     {
-      amdgpu_regnum_t regnum
-        = scalar_operand_to_regnum (encoding_ssrc1 (instruction));
+      auto regnum = scalar_operand_to_regnum (ssrc1_operand (instruction));
 
       /* The hardware requires a 64-bit address register pair to have the lower
          register number be even.  */
-      dbgapi_assert ((regnum & -2) == regnum);
+      dbgapi_assert (regnum && !(*regnum & 1));
 
       uint32_t pc_lo, pc_hi;
-      wave.read_register (regnum + 0, &pc_lo);
-      wave.read_register (regnum + 1, &pc_hi);
+      wave.read_register (*regnum + 0, &pc_lo);
+      wave.read_register (*regnum + 1, &pc_hi);
 
       return (static_cast<uint64_t> (pc_hi) << 32) | pc_lo;
     }
 
   if (is_setpc (instruction) || is_swappc (instruction))
     {
-      amdgpu_regnum_t ssrc_regnum
-        = scalar_operand_to_regnum (encoding_ssrc0 (instruction));
+      auto ssrc_regnum
+        = scalar_operand_to_regnum (ssrc0_operand (instruction));
 
       /* The hardware requires a 64-bit address register pair to have the
          lower register number be even.  */
-      dbgapi_assert ((ssrc_regnum & -2) == ssrc_regnum);
-
-      /* If the source register pair is out of range of the allocated
-         registers, then the hardware reads from s[0:1].  */
-      if (!wave.is_register_available (ssrc_regnum))
-        ssrc_regnum = amdgpu_regnum_t::s0;
+      dbgapi_assert (ssrc_regnum && !(*ssrc_regnum & 1));
 
       bool ssrc_is_null = ssrc_regnum == amdgpu_regnum_t::null;
 
@@ -919,8 +912,8 @@ amdgcn_architecture_t::branch_target (wave_t &wave,
 
       if (!ssrc_is_null)
         {
-          wave.read_register (ssrc_regnum + 0, &ssrc_lo);
-          wave.read_register (ssrc_regnum + 1, &ssrc_hi);
+          wave.read_register (*ssrc_regnum + 0, &ssrc_lo);
+          wave.read_register (*ssrc_regnum + 1, &ssrc_hi);
         }
 
       return amd_dbgapi_global_address_t{ ssrc_lo }
@@ -949,8 +942,6 @@ std::tuple<amd_dbgapi_instruction_kind_t, amd_dbgapi_instruction_properties_t,
 amdgcn_architecture_t::classify_instruction (
   amd_dbgapi_global_address_t address, const instruction_t &instruction) const
 {
-  dbgapi_assert (instruction.is_valid ());
-
   enum class information_kind_t
   {
     none = 0,
@@ -980,7 +971,7 @@ amdgcn_architecture_t::classify_instruction (
       instruction_kind
         = AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_BRANCH_CONDITIONAL_REGISTER_PAIR;
       information_kind = information_kind_t::pc_indirect;
-      ssrc_regnum = scalar_operand_to_regnum (encoding_ssrc1 (instruction));
+      ssrc_regnum = scalar_operand_to_regnum (ssrc1_operand (instruction));
     }
   else if (is_cbranch_join (instruction))
     {
@@ -992,21 +983,21 @@ amdgcn_architecture_t::classify_instruction (
       instruction_kind
         = AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_BRANCH_REGISTER_PAIR;
       information_kind = information_kind_t::pc_indirect;
-      ssrc_regnum = scalar_operand_to_regnum (encoding_ssrc0 (instruction));
+      ssrc_regnum = scalar_operand_to_regnum (ssrc0_operand (instruction));
     }
   else if (is_call (instruction))
     {
       instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_CALL_REGISTER_PAIR;
       information_kind = information_kind_t::pc_direct;
-      sdst_regnum = scalar_operand_to_regnum (encoding_sdst (instruction));
+      sdst_regnum = scalar_operand_to_regnum (sdst_operand (instruction));
     }
   else if (is_swappc (instruction))
     {
       instruction_kind
         = AMD_DBGAPI_INSTRUCTION_KIND_INDIRECT_CALL_REGISTER_PAIRS;
       information_kind = information_kind_t::pc_indirect;
-      ssrc_regnum = scalar_operand_to_regnum (encoding_ssrc0 (instruction));
-      sdst_regnum = scalar_operand_to_regnum (encoding_sdst (instruction));
+      ssrc_regnum = scalar_operand_to_regnum (ssrc0_operand (instruction));
+      sdst_regnum = scalar_operand_to_regnum (sdst_operand (instruction));
     }
   else if (is_endpgm (instruction))
     {
@@ -1018,7 +1009,7 @@ amdgcn_architecture_t::classify_instruction (
       instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_TRAP;
       information_kind = information_kind_t::uint8;
     }
-  else if (is_sethalt (instruction) && (encoding_simm16 (instruction) & 0x1))
+  else if (is_sethalt (instruction) && (simm16_operand (instruction) & 0x1))
     {
       instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_HALT;
       information_kind = information_kind_t::none;
@@ -1040,7 +1031,9 @@ amdgcn_architecture_t::classify_instruction (
     }
   else
     {
-      instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_SEQUENTIAL;
+      instruction_kind = is_sequential (instruction)
+                           ? AMD_DBGAPI_INSTRUCTION_KIND_SEQUENTIAL
+                           : AMD_DBGAPI_INSTRUCTION_KIND_UNKNOWN;
       information_kind = information_kind_t::none;
     }
 
@@ -1048,8 +1041,9 @@ amdgcn_architecture_t::classify_instruction (
 
   if (information_kind == information_kind_t::pc_direct)
     {
-      ssize_t branch_offset = encoding_simm16 (instruction) << 2;
-      information.emplace_back (address + instruction.size () + branch_offset);
+      information.emplace_back (
+        address + instruction.size ()
+        + (static_cast<std::ptrdiff_t> (simm16_operand (instruction)) << 2));
 
       if (sdst_regnum.has_value ())
         {
@@ -1077,8 +1071,8 @@ amdgcn_architecture_t::classify_instruction (
     }
   else if (information_kind == information_kind_t::uint8)
     {
-      information.emplace_back (
-        utils::bit_extract (encoding_simm16 (instruction), 0, 7));
+      information.emplace_back (static_cast<uint8_t> (
+        utils::bit_extract (simm16_operand (instruction), 0, 7)));
     }
 
   return { instruction_kind, instruction_properties, instruction.size (),
@@ -1089,6 +1083,7 @@ bool
 amdgcn_architecture_t::can_execute_displaced (
   const instruction_t &instruction) const
 {
+  /* Illegal instructions cannot be displaced, their behavior is undefined.  */
   if (!instruction.is_valid ())
     return false;
 
@@ -1109,34 +1104,21 @@ amdgcn_architecture_t::can_execute_displaced (
 bool
 amdgcn_architecture_t::can_simulate (const instruction_t &instruction) const
 {
-  if (!instruction.is_valid ())
-    return false;
+  /* The instruction simulation does not handle all possible source operands
+     (for example: literals, apertures, vccz, scc, ...), so only simulate
+     instructions that have a known register source and/or destination.  */
 
-  /* s_call_b64 must have even aligned sdst.  */
-  if (is_call (instruction))
-    return !(encoding_sdst (instruction) & 1);
+  if (is_getpc (instruction) || is_call (instruction)
+      || is_cbranch_i_fork (instruction))
+    return scalar_operand_to_regnum (sdst_operand (instruction)).has_value ();
 
-  /* s_getpc_b64 must have even aligned sdst.  */
-  if (is_getpc (instruction))
-    return !(encoding_sdst (instruction) & 1);
+  if (is_setpc (instruction) || is_cbranch_i_fork (instruction))
+    return scalar_operand_to_regnum (ssrc0_operand (instruction)).has_value ();
 
-  /* s_setpc_b64 must have even aligned ssrc.  */
-  if (is_setpc (instruction))
-    return !(encoding_ssrc0 (instruction) & 1);
-
-  /* s_swappc_b64 must have even aligned ssrc and sdst.  */
   if (is_swappc (instruction))
-    return !(encoding_ssrc0 (instruction) & 1)
-           && !(encoding_sdst (instruction) & 1);
-
-  /* s_cbranch_i_fork must have even aligned arg0.  */
-  if (is_cbranch_i_fork (instruction))
-    return !(encoding_sdst (instruction) & 1);
-
-  /* s_cbranch_i_fork must have even aligned arg0 & arg1.  */
-  if (is_cbranch_g_fork (instruction))
-    return !(encoding_ssrc0 (instruction) & 1)
-           && !(encoding_ssrc1 (instruction) & 1);
+    return scalar_operand_to_regnum (ssrc0_operand (instruction)).has_value ()
+           && scalar_operand_to_regnum (sdst_operand (instruction))
+                .has_value ();
 
   return is_branch (instruction) || is_cbranch (instruction)
          || is_cbranch_join (instruction) || is_endpgm (instruction);
@@ -1158,7 +1140,8 @@ amdgcn_architecture_t::simulate_instruction (
   if (status_reg & sq_wave_status_halt_mask)
     return false;
 
-  if (is_branch (instruction) || is_cbranch (instruction))
+  if (is_branch (instruction) || is_cbranch (instruction)
+      || is_setpc (instruction))
     {
       /* Only the pc is modified.  */
     }
@@ -1171,17 +1154,18 @@ amdgcn_architecture_t::simulate_instruction (
     {
       dbgapi_assert (wave.lane_count () == 64);
 
-      amdgpu_regnum_t mask_regnum = scalar_operand_to_regnum (
-        is_cbranch_i_fork (instruction) ? encoding_sdst (instruction)
-                                        : encoding_ssrc0 (instruction));
+      auto mask_regnum = scalar_operand_to_regnum (
+        is_cbranch_i_fork (instruction) ? sdst_operand (instruction)
+                                        : ssrc0_operand (instruction));
+      dbgapi_assert (mask_regnum);
 
       /* The hardware requires a 64-bit address register pair to have the lower
          register number be even.  */
-      dbgapi_assert ((mask_regnum & -2) == mask_regnum);
+      dbgapi_assert (mask_regnum && !(*mask_regnum & 1));
 
       uint32_t mask_lo, mask_hi;
-      wave.read_register (mask_regnum + 0, &mask_lo);
-      wave.read_register (mask_regnum + 1, &mask_hi);
+      wave.read_register (*mask_regnum + 0, &mask_lo);
+      wave.read_register (*mask_regnum + 1, &mask_hi);
 
       uint64_t mask, exec, mask_pass, mask_fail;
       mask = (static_cast<uint64_t> (mask_hi) << 32) | mask_lo;
@@ -1237,39 +1221,35 @@ amdgcn_architecture_t::simulate_instruction (
         }
     }
   else if (is_call (instruction) || is_getpc (instruction)
-           || is_swappc (instruction) || is_setpc (instruction))
+           || is_swappc (instruction))
     {
-      if (!is_setpc (instruction))
+      auto sdst_regnum = scalar_operand_to_regnum (sdst_operand (instruction));
+
+      /* The hardware requires a 64-bit address register pair to have the
+         lower register number be even.  */
+      dbgapi_assert (sdst_regnum && !(*sdst_regnum & 1));
+
+      /* If the destination register pair is out of range of the allocated
+         registers, then the hardware does no register write.  */
+      bool commit_write = wave.is_register_available (*sdst_regnum);
+
+      /* A ttmp destination is only writable when in privileged mode.  */
+      if (sdst_regnum >= amdgpu_regnum_t::first_ttmp
+          && sdst_regnum <= amdgpu_regnum_t::last_ttmp)
         {
-          amdgpu_regnum_t sdst_regnum
-            = scalar_operand_to_regnum (encoding_sdst (instruction));
+          uint32_t status;
+          wave.read_register (amdgpu_regnum_t::status, &status);
+          commit_write = (status & sq_wave_status_priv_mask) != 0;
+        }
 
-          /* The hardware requires a 64-bit address register pair to have the
-             lower register number be even.  */
-          dbgapi_assert ((sdst_regnum & -2) == sdst_regnum);
+      uint64_t sdst_value = pc + instruction.size ();
+      uint32_t sdst_lo = static_cast<uint32_t> (sdst_value);
+      uint32_t sdst_hi = static_cast<uint32_t> (sdst_value >> 32);
 
-          /* If the destination register pair is out of range of the allocated
-             registers, then the hardware does no register write.  */
-          bool commit_write = wave.is_register_available (sdst_regnum);
-
-          /* A ttmp destination is only writable when in privileged mode.  */
-          if (sdst_regnum >= amdgpu_regnum_t::first_ttmp
-              && sdst_regnum <= amdgpu_regnum_t::last_ttmp)
-            {
-              uint32_t status;
-              wave.read_register (amdgpu_regnum_t::status, &status);
-              commit_write = (status & sq_wave_status_priv_mask) != 0;
-            }
-
-          uint64_t sdst_value = pc + instruction.size ();
-          uint32_t sdst_lo = static_cast<uint32_t> (sdst_value);
-          uint32_t sdst_hi = static_cast<uint32_t> (sdst_value >> 32);
-
-          if (commit_write)
-            {
-              wave.write_register (sdst_regnum + 0, &sdst_lo);
-              wave.write_register (sdst_regnum + 1, &sdst_hi);
-            }
+      if (commit_write)
+        {
+          wave.write_register (*sdst_regnum + 0, &sdst_lo);
+          wave.write_register (*sdst_regnum + 1, &sdst_hi);
         }
     }
   else
@@ -1279,9 +1259,9 @@ amdgcn_architecture_t::simulate_instruction (
     }
 
   amd_dbgapi_global_address_t new_pc
-    = (is_non_sequential (instruction) && is_branch_taken (wave, instruction))
-        ? branch_target (wave, pc, instruction)
-        : pc + instruction.size ();
+    = (is_sequential (instruction) || !is_branch_taken (wave, instruction))
+        ? pc + instruction.size ()
+        : branch_target (wave, pc, instruction);
 
   /* Since we are single-stepping the instruction, simulate entering the trap
      handler with no trap_id.  */
@@ -1493,7 +1473,7 @@ amdgcn_architecture_t::wave_get_state (wave_t &wave) const
     {
       if (auto instruction = wave.instruction_at_pc ();
           /* The instruction is sequential.  */
-          instruction && !is_non_sequential (*instruction))
+          instruction && is_sequential (*instruction))
         {
           /* Resume the wave in single-step mode.  */
           wave_set_state (wave, AMD_DBGAPI_WAVE_STATE_SINGLE_STEP);
@@ -1676,21 +1656,27 @@ amdgcn_architecture_t::wave_disable_traps (
 }
 
 uint8_t
-amdgcn_architecture_t::encoding_ssrc0 (const instruction_t &instruction)
+amdgcn_architecture_t::ssrc0_operand (const instruction_t &instruction)
 {
   return utils::bit_extract (instruction.word<0> (), 0, 7);
 }
 
 uint8_t
-amdgcn_architecture_t::encoding_ssrc1 (const instruction_t &instruction)
+amdgcn_architecture_t::ssrc1_operand (const instruction_t &instruction)
 {
   return utils::bit_extract (instruction.word<0> (), 8, 15);
 }
 
 uint8_t
-amdgcn_architecture_t::encoding_sdst (const instruction_t &instruction)
+amdgcn_architecture_t::sdst_operand (const instruction_t &instruction)
 {
   return utils::bit_extract (instruction.word<0> (), 16, 22);
+}
+
+int16_t
+amdgcn_architecture_t::simm16_operand (const instruction_t &instruction)
+{
+  return utils::bit_extract (instruction.word<0> (), 0, 15);
 }
 
 uint8_t
@@ -1699,59 +1685,72 @@ amdgcn_architecture_t::encoding_op7 (const instruction_t &instruction)
   return utils::bit_extract (instruction.word<0> (), 16, 22);
 }
 
-int
-amdgcn_architecture_t::encoding_simm16 (const instruction_t &instruction)
-{
-  return utils::sign_extend (
-    utils::bit_extract (instruction.word<0> (), 0, 15), 16);
-}
-
+template <int... op5>
 bool
-amdgcn_architecture_t::is_sopk_instruction (const instruction_t &instruction,
-                                            int op5)
+amdgcn_architecture_t::is_sopk_encoding (const instruction_t &instruction)
 {
+  static_assert (((utils::bit_extract (op5, 0, 4) == op5) && ...),
+                 "opcode is wider than 5 bits");
+
+  /* The instruction_t must have at least one word.  */
   if (instruction.capacity () < sizeof (instruction.word<0> ()))
     return false;
 
-  /* SOPK [1011 OP5 SDST7 SIMM16] */
-  return (instruction.word<0> () & 0xFF800000)
-         == (0xB0000000 | (op5 & 0x1F) << 23);
+  /* SOPK [1011 OP5 SDST7 SIMM16]  */
+  return (((instruction.word<0> () & 0xFF800000)
+           == (0xB0000000 | (op5 & 0x1F) << 23))
+          || ...);
 }
 
+template <int... op8>
 bool
-amdgcn_architecture_t::is_sop1_instruction (const instruction_t &instruction,
-                                            int op8)
+amdgcn_architecture_t::is_sop1_encoding (const instruction_t &instruction)
 {
+  static_assert (((utils::bit_extract (op8, 0, 7) == op8) && ...),
+                 "opcode is wider than 8 bits");
+
+  /* The instruction_t must have at least one word.  */
   if (instruction.capacity () < sizeof (instruction.word<0> ()))
     return false;
 
-  /* SOP1 [10111110 1 SDST7 OP8 SSRC08] */
-  return (instruction.word<0> () & 0xFF80FF00)
-         == (0xBE800000 | (op8 & 0xFF) << 8);
+  /* SOP1 [10111110 1 SDST7 OP8 SSRC08]  */
+  return (
+    ((instruction.word<0> () & 0xFF80FF00) == (0xBE800000 | (op8 & 0xFF) << 8))
+    || ...);
 }
 
+template <int... op7>
 bool
-amdgcn_architecture_t::is_sop2_instruction (const instruction_t &instruction,
-                                            int op7)
+amdgcn_architecture_t::is_sop2_encoding (const instruction_t &instruction)
 {
+  static_assert (((utils::bit_extract (op7, 0, 6) == op7) && ...),
+                 "opcode is wider than 7 bits");
+
+  /* The instruction_t must have at least one word.  */
   if (instruction.capacity () < sizeof (instruction.word<0> ()))
     return false;
 
-  /* SOP2 [10 OP7 SDST7 SSRC18 SSRC08] */
-  return (instruction.word<0> () & 0xFF800000)
-         == (0x80000000 | (op7 & 0x7F) << 23);
+  /* SOP2 [10 OP7 SDST7 SSRC18 SSRC08]  */
+  return (((instruction.word<0> () & 0xFF800000)
+           == (0x80000000 | (op7 & 0x7F) << 23))
+          || ...);
 }
 
+template <int... op7>
 bool
-amdgcn_architecture_t::is_sopp_instruction (const instruction_t &instruction,
-                                            int op7)
+amdgcn_architecture_t::is_sopp_encoding (const instruction_t &instruction)
 {
+  static_assert (((utils::bit_extract (op7, 0, 6) == op7) && ...),
+                 "opcode is wider than 7 bits");
+
+  /* The instruction_t must have at least one word.  */
   if (instruction.capacity () < sizeof (instruction.word<0> ()))
     return false;
 
   /* SOPP [101111111 OP7 SIMM16]  */
-  return (instruction.word<0> () & 0xFFFF0000)
-         == (0xBF800000 | (op7 & 0x7F) << 16);
+  return (((instruction.word<0> () & 0xFFFF0000)
+           == (0xBF800000 | (op7 & 0x7F) << 16))
+          || ...);
 }
 
 bool
@@ -2081,7 +2080,8 @@ protected:
                                             context_save_address);
   }
 
-  amdgpu_regnum_t scalar_operand_to_regnum (int operand) const override;
+  std::optional<amdgpu_regnum_t>
+  scalar_operand_to_regnum (int operand) const override;
 
   gfx9_base_t (elf_amdgpu_machine_t e_machine, std::string target_triple)
     : amdgcn_architecture_t (e_machine, std::move (target_triple))
@@ -2115,6 +2115,7 @@ public:
   bool is_trap (const instruction_t &instruction,
                 trap_id_t *trap_id = nullptr) const override;
   bool is_endpgm (const instruction_t &instruction) const override;
+  bool is_sequential (const instruction_t &instruction) const override;
 
   bool can_halt_at_endpgm () const override { return false; }
   size_t largest_instruction_size () const override { return 8; }
@@ -2203,7 +2204,7 @@ gfx9_base_t::cwsr_record_t::get_info (query_kind_t query) const
     }
 }
 
-amdgpu_regnum_t
+std::optional<amdgpu_regnum_t>
 gfx9_base_t::scalar_operand_to_regnum (int operand) const
 {
   if (operand >= 0 && operand <= 101)
@@ -2239,7 +2240,7 @@ gfx9_base_t::scalar_operand_to_regnum (int operand) const
     case 127:
       return amdgpu_regnum_t::exec_hi;
     default:
-      error ("Invalid scalar operand");
+      return std::nullopt;
     }
 }
 
@@ -2266,20 +2267,24 @@ gfx9_base_t::cbranch_condition_code (const instruction_t &instruction) const
 bool
 gfx9_base_t::is_endpgm (const instruction_t &instruction) const
 {
+  /* As an optimization, do not call instruction_t::is_valid () for SOPP
+     instructions.  The SOPP encoding does not use register operands that need
+     to be validated, and any value for the rest of the bits is legal.  */
+
   /* s_endpgm: SOPP Opcode 1  */
-  return is_sopp_instruction (instruction, 1);
+  return is_sopp_encoding<1> (instruction);
 }
 
 bool
 gfx9_base_t::is_trap (const instruction_t &instruction,
                       trap_id_t *trap_id) const
 {
-  /* s_trap: SOPP Opcode 18  */
-  if (is_sopp_instruction (instruction, 18))
+  /* s_trap: SOPP Opcode 18. See comment in ::is_endpgm.  */
+  if (is_sopp_encoding<18> (instruction))
     {
       if (trap_id != nullptr)
         *trap_id = trap_id_t{ static_cast<std::underlying_type_t<trap_id_t>> (
-          utils::bit_extract (encoding_simm16 (instruction), 0, 7)) };
+          utils::bit_extract (simm16_operand (instruction), 0, 7)) };
       return true;
     }
   return false;
@@ -2288,22 +2293,22 @@ gfx9_base_t::is_trap (const instruction_t &instruction,
 bool
 gfx9_base_t::is_sethalt (const instruction_t &instruction) const
 {
-  /* s_sethalt: SOPP Opcode 13  */
-  return is_sopp_instruction (instruction, 13);
+  /* s_sethalt: SOPP Opcode 13. See comment in ::is_endpgm.  */
+  return is_sopp_encoding<13> (instruction);
 }
 
 bool
 gfx9_base_t::is_barrier (const instruction_t &instruction) const
 {
-  /* s_barrier: SOPP Opcode 10  */
-  return is_sopp_instruction (instruction, 10);
+  /* s_barrier: SOPP Opcode 10. See comment in ::is_endpgm.  */
+  return is_sopp_encoding<10> (instruction);
 }
 
 bool
 gfx9_base_t::is_sleep (const instruction_t &instruction) const
 {
-  /* s_sleep: SOPP Opcode 14  */
-  return is_sopp_instruction (instruction, 14);
+  /* s_sleep: SOPP Opcode 14. See comment in ::is_endpgm.  */
+  return is_sopp_encoding<14> (instruction);
 }
 
 bool
@@ -2316,40 +2321,47 @@ bool
 gfx9_base_t::is_call (const instruction_t &instruction) const
 {
   /* s_call: SOPK Opcode 21  */
-  return is_sopk_instruction (instruction, 21);
+  return instruction.is_valid () && is_sopk_encoding<21> (instruction)
+         && !(sdst_operand (instruction) & 1);
 }
 
 bool
 gfx9_base_t::is_getpc (const instruction_t &instruction) const
 {
   /* s_getpc: SOP1 Opcode 28  */
-  return is_sop1_instruction (instruction, 28);
+  return instruction.is_valid () && is_sop1_encoding<28> (instruction)
+         && !(sdst_operand (instruction) & 1);
 }
 
 bool
 gfx9_base_t::is_setpc (const instruction_t &instruction) const
 {
   /* s_setpc: SOP1 Opcode 29  */
-  return is_sop1_instruction (instruction, 29);
+  return instruction.is_valid () && is_sop1_encoding<29> (instruction)
+         && !(ssrc0_operand (instruction) & 1);
 }
 
 bool
 gfx9_base_t::is_swappc (const instruction_t &instruction) const
 {
   /* s_swappc: SOP1 Opcode 30  */
-  return is_sop1_instruction (instruction, 30);
+  return instruction.is_valid () && is_sop1_encoding<30> (instruction)
+         && !(ssrc0_operand (instruction) & 1)
+         && !(sdst_operand (instruction) & 1);
 }
 
 bool
 gfx9_base_t::is_branch (const instruction_t &instruction) const
 {
-  /* s_sleep: SOPP Opcode 2  */
-  return is_sopp_instruction (instruction, 2);
+  /* s_branch: SOPP Opcode 2. See comment in ::is_endpgm.  */
+  return is_sopp_encoding<2> (instruction);
 }
 
 bool
 gfx9_base_t::is_cbranch (const instruction_t &instruction) const
 {
+  /* See comment in ::is_endpgm.  */
+
   if (instruction.capacity () < sizeof (instruction.word<0> ()))
     return false;
 
@@ -2374,21 +2386,40 @@ bool
 gfx9_base_t::is_cbranch_i_fork (const instruction_t &instruction) const
 {
   /* s_cbranch_i_fork: SOPK Opcode 16  */
-  return is_sopk_instruction (instruction, 16);
+  return instruction.is_valid () && is_sopk_encoding<16> (instruction)
+         && !(sdst_operand (instruction) & 1);
 }
 
 bool
 gfx9_base_t::is_cbranch_g_fork (const instruction_t &instruction) const
 {
   /* s_cbranch_g_fork: SOP2 Opcode 41  */
-  return is_sop2_instruction (instruction, 41);
+  return instruction.is_valid () && is_sop2_encoding<41> (instruction)
+         && !(ssrc0_operand (instruction) & 1)
+         && !(ssrc1_operand (instruction) & 1);
 }
 
 bool
 gfx9_base_t::is_cbranch_join (const instruction_t &instruction) const
 {
   /* s_cbranch_join: SOP1 Opcode 46  */
-  return is_sop1_instruction (instruction, 46);
+  return instruction.is_valid () && is_sop1_encoding<46> (instruction);
+}
+
+bool
+gfx9_base_t::is_sequential (const instruction_t &instruction) const
+{
+  if (!instruction.is_valid ())
+    return false;
+
+  return /* s_endpgm/s_branch/s_cbranch  */
+    !is_sopp_encoding<1, 2, 4, 5, 6, 7, 8, 9, 23, 24, 25, 26> (instruction)
+    /* s_setpc_b64/s_swappc_b64/s_cbranch_join/  */
+    && !is_sop1_encoding<29, 30, 46> (instruction)
+    /* s_cbranch_g_fork  */
+    && !is_sop2_encoding<41> (instruction)
+    /* s_cbranch_i_fork/s_call_b64  */
+    && !is_sopk_encoding<16, 21> (instruction);
 }
 
 std::optional<amd_dbgapi_global_address_t>
@@ -2842,7 +2873,8 @@ protected:
       compute_relaunch2_state, context_save_address);
   }
 
-  amdgpu_regnum_t scalar_operand_to_regnum (int operand) const override;
+  std::optional<amdgpu_regnum_t>
+  scalar_operand_to_regnum (int operand) const override;
 
   gfx10_base_t (elf_amdgpu_machine_t e_machine, std::string target_triple)
     : gfx9_base_t (e_machine, std::move (target_triple))
@@ -2865,6 +2897,7 @@ public:
   bool is_cbranch_i_fork (const instruction_t &instruction) const override;
   bool is_cbranch_g_fork (const instruction_t &instruction) const override;
   bool is_cbranch_join (const instruction_t &instruction) const override;
+  bool is_sequential (const instruction_t &instruction) const override;
 
   void control_stack_iterate (
     queue_t &queue, const uint32_t *control_stack, size_t control_stack_words,
@@ -2882,7 +2915,7 @@ public:
   }
 };
 
-amdgpu_regnum_t
+std::optional<amdgpu_regnum_t>
 gfx10_base_t::scalar_operand_to_regnum (int operand) const
 {
   if (operand >= 0 && operand <= 105)
@@ -2912,7 +2945,7 @@ gfx10_base_t::scalar_operand_to_regnum (int operand) const
     case 127:
       return amdgpu_regnum_t::exec_hi;
     default:
-      error ("Invalid scalar operand");
+      return std::nullopt;
     }
 }
 
@@ -2951,36 +2984,39 @@ gfx10_base_t::cwsr_record_t::register_address (amdgpu_regnum_t regnum) const
 bool
 gfx10_base_t::is_code_end (const instruction_t &instruction) const
 {
-  /* s_code_end: SOPP Opcode 31  */
-  return is_sopp_instruction (instruction, 31);
+  /* s_code_end: SOPP Opcode 31. See comment in ::is_endpgm.  */
+  return is_sopp_encoding<31> (instruction);
 }
 
 bool
 gfx10_base_t::is_call (const instruction_t &instruction) const
 {
   /* s_call: SOPK Opcode 22  */
-  return is_sopk_instruction (instruction, 22);
+  return instruction.is_valid () && is_sopk_encoding<22> (instruction)
+         && !(sdst_operand (instruction) & 1);
 }
 
 bool
 gfx10_base_t::is_getpc (const instruction_t &instruction) const
 {
   /* s_getpc: SOP1 Opcode 31  */
-  return is_sop1_instruction (instruction, 31);
+  return instruction.is_valid () && is_sop1_encoding<31> (instruction)
+         && !(sdst_operand (instruction) & 1);
 }
 
 bool
 gfx10_base_t::is_setpc (const instruction_t &instruction) const
 {
   /* s_setpc: SOP1 Opcode 32  */
-  return is_sop1_instruction (instruction, 32);
+  return instruction.is_valid () && is_sop1_encoding<32> (instruction);
 }
 
 bool
 gfx10_base_t::is_swappc (const instruction_t &instruction) const
 {
   /* s_swappc: SOP1 Opcode 33  */
-  return is_sop1_instruction (instruction, 33);
+  return instruction.is_valid () && is_sop1_encoding<33> (instruction)
+         && !(ssrc0_operand (instruction) & 1);
 }
 
 bool
@@ -3001,6 +3037,20 @@ bool
 gfx10_base_t::is_cbranch_join (const instruction_t & /* instruction  */) const
 {
   return false;
+}
+
+bool
+gfx10_base_t::is_sequential (const instruction_t &instruction) const
+{
+  if (!instruction.is_valid ())
+    return false;
+
+  return /* s_endpgm/s_branch/s_cbranch  */
+    !is_sopp_encoding<1, 2, 4, 5, 6, 7, 8, 9, 23, 24, 25, 26> (instruction)
+    /* s_setpc_b64/s_swappc_b64  */
+    && !is_sop1_encoding<32, 33> (instruction)
+    /* s_call_b64  */
+    && !is_sopk_encoding<22> (instruction);
 }
 
 uint64_t
@@ -3728,12 +3778,8 @@ size_t
 instruction_t::size () const
 {
   if (!m_size.has_value ())
-    {
-      /* The disassembler may return zero if the instruction is not valid. */
-      size_t instruction_size = m_architecture.get ().instruction_size (*this);
-
-      m_size.emplace (instruction_size);
-    }
+    /* The disassembler may return zero if the instruction is not valid. */
+    m_size.emplace (m_architecture.get ().instruction_size (*this));
 
   return *m_size;
 }
