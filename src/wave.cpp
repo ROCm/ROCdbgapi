@@ -411,6 +411,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
                   || state != AMD_DBGAPI_WAVE_STATE_STOP)
                  && "raising an exception requires the wave to be resumed");
 
+  const architecture_t &architecture = this->architecture ();
   amd_dbgapi_wave_state_t prev_state = m_state;
 
   if (state == prev_state)
@@ -422,28 +423,30 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
 
   m_stop_requested = state == AMD_DBGAPI_WAVE_STATE_STOP;
 
+  std::optional<instruction_t> instruction;
+  if (state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
+    instruction = instruction_at_pc ();
+
   /* A wave single-stepping a terminating instruction does not generate a trap
      exception upon executing the instruction, so we need to immediately
      terminate the wave and enqueue an aborted command event.  */
   if (state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
-      && exceptions == AMD_DBGAPI_EXCEPTION_NONE)
-    {
-      auto instruction = instruction_at_pc ();
-      bool is_terminating
-        = /* The displaced instruction is a terminating instruction.  */ (
-            m_displaced_stepping && m_displaced_stepping->is_simulated ()
-            && architecture ().is_terminating_instruction (
-              m_displaced_stepping->original_instruction ()))
-          || /* The current instruction at pc is a terminating instruction.  */
-          (instruction
-           && architecture ().is_terminating_instruction (*instruction));
+      && exceptions == AMD_DBGAPI_EXCEPTION_NONE &&
+      [&] ()
+      {
+        if (m_displaced_stepping)
+          /* The displaced instruction is a terminating instruction.  */
+          return architecture.is_terminating_instruction (
+            m_displaced_stepping->original_instruction ());
 
-      if (is_terminating)
-        {
-          terminate ();
-          raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED);
-          return;
-        }
+        /* The current instruction at pc is a terminating instruction.  */
+        return instruction
+               && architecture.is_terminating_instruction (*instruction);
+      }())
+    {
+      terminate ();
+      raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED);
+      return;
     }
 
   if (visibility () == visibility_t::visible)
@@ -456,28 +459,10 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
                   : "",
                 pc ());
 
-  /* Single-stepping a simulated displaced instruction does not require the
-     wave to run, simulate resuming of the wave as well.  */
-  if (state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
-      && exceptions == AMD_DBGAPI_EXCEPTION_NONE && m_displaced_stepping
-      && m_displaced_stepping->is_simulated ())
-    {
-      if (architecture ().simulate_instruction (
-            *this, m_displaced_stepping->from (),
-            m_displaced_stepping->original_instruction ()))
-        {
-          m_state = AMD_DBGAPI_WAVE_STATE_STOP;
-          m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP;
-
-          raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
-          return;
-        }
-    }
-
-  architecture ().wave_set_state (*this, state, exceptions);
+  architecture.wave_set_state (*this, state, exceptions);
   m_state = state;
 
-  if (architecture ().park_stopped_waves ())
+  if (architecture.park_stopped_waves ())
     {
       if (state == AMD_DBGAPI_WAVE_STATE_STOP)
         park ();
@@ -512,6 +497,35 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
       raise_event (prev_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
                      ? AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED
                      : AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
+    }
+
+  if (state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
+      && exceptions == AMD_DBGAPI_EXCEPTION_NONE &&
+      [&] ()
+      {
+        /* Simulate the instruction if the wave is displaced-stepping and the
+           instruction requires simulation (for example, instruction that
+           manipulate the program counter). */
+        if (m_displaced_stepping)
+          return m_displaced_stepping->is_simulated ()
+                 && architecture.simulate_instruction (
+                   *this, m_displaced_stepping->from (),
+                   m_displaced_stepping->original_instruction ());
+
+        /* Simulate all instructions that can be simulated.  */
+        return instruction && architecture.can_simulate (*instruction)
+               && architecture.simulate_instruction (*this, pc (),
+                                                     *instruction);
+      }())
+    {
+      /* The instruction was simulated, get the new wave state and raise a stop
+         event. */
+      std::tie (m_state, m_stop_reason) = architecture.wave_get_state (*this);
+
+      if (architecture.park_stopped_waves ())
+        park ();
+
+      raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
     }
 
   if (exceptions != AMD_DBGAPI_EXCEPTION_NONE)
@@ -558,28 +572,25 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
       process ().send_exceptions (os_exceptions, &queue ());
     }
 
-  if (state != AMD_DBGAPI_WAVE_STATE_STOP
-      && (agent ().exceptions ()
-          & os_exception_mask_t::device_memory_violation)
-           != os_exception_mask_t::none)
+  /* There are no more waves on this agent with a memory violation.  Clear the
+     device memory violation exception so that it isn't attributed to CP or a
+     DMA engine.  */
+  if ((agent ().exceptions () & os_exception_mask_t::device_memory_violation)
+        != os_exception_mask_t::none
+      && state != AMD_DBGAPI_WAVE_STATE_STOP)
     {
-      bool clear_device_memory_violation = true;
+      [this] ()
+      {
+        for (auto &&wave : process ().range<wave_t> ())
+          if (wave.agent () == agent ()
+              && wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
+              && (wave.stop_reason ()
+                  & AMD_DBGAPI_WAVE_STOP_REASON_MEMORY_VIOLATION))
+            return;
 
-      for (auto &&wave : process ().range<wave_t> ())
-        if (wave.agent () == agent ()
-            && wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
-            && (wave.stop_reason ()
-                & AMD_DBGAPI_WAVE_STOP_REASON_MEMORY_VIOLATION))
-          {
-            clear_device_memory_violation = false;
-            break;
-          }
-
-      /* There are no more waves on this agent with a memory violation.  Clear
-         this exception so that it isn't attributed to CP or a DMA engine.  */
-      if (clear_device_memory_violation)
         agent ().clear_exceptions (
           os_exception_mask_t::device_memory_violation);
+      }();
     }
 }
 

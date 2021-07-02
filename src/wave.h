@@ -260,6 +260,11 @@ public:
       }
   }
 
+  amd_dbgapi_global_address_t park_instruction_address () const
+  {
+    return m_callbacks.park_instruction_address ();
+  }
+
   amd_dbgapi_status_t
   xfer_segment_memory (const address_space_t &address_space,
                        amd_dbgapi_lane_id_t lane_id,

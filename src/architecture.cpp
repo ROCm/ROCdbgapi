@@ -89,6 +89,7 @@ protected:
   static constexpr uint32_t ttmp6_saved_status_halt_mask = 1 << 29;
   static constexpr uint32_t ttmp6_saved_trap_id_mask
     = utils::bit_mask (25, 28);
+  static constexpr int ttmp6_saved_trap_id_shift = 25;
 
   /* See https://llvm.org/docs/AMDGPUUsage.html#trap-handler-abi  */
   enum class trap_id_t : uint8_t
@@ -299,6 +300,10 @@ protected:
 
   bool simulate_instruction (wave_t &wave, amd_dbgapi_global_address_t pc,
                              const instruction_t &instruction) const override;
+
+  virtual void
+  simulate_trap_handler (wave_t &wave, amd_dbgapi_global_address_t pc,
+                         std::optional<trap_id_t> trap_id = {}) const;
 };
 
 void
@@ -1142,14 +1147,15 @@ amdgcn_architecture_t::simulate_instruction (
   wave_t &wave, amd_dbgapi_global_address_t pc,
   const instruction_t &instruction) const
 {
-  uint32_t ttmp6;
-  wave.read_register (amdgpu_regnum_t::ttmp6, &ttmp6);
+  dbgapi_assert (wave.state () == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
+                 && "wave must be single-stepping to simulate instructions");
+  dbgapi_assert (can_simulate (instruction));
 
-  dbgapi_assert ((ttmp6 & ttmp6_wave_stopped_mask)
-                 && "wave must be stopped to simulate instructions");
+  uint32_t status_reg;
+  wave.read_register (amdgpu_regnum_t::status, &status_reg);
 
   /* Don't simulate the instruction if the wave is halted.  */
-  if (ttmp6 & ttmp6_saved_status_halt_mask)
+  if (status_reg & sq_wave_status_halt_mask)
     return false;
 
   if (is_branch (instruction) || is_cbranch (instruction))
@@ -1224,7 +1230,6 @@ amdgcn_architecture_t::simulate_instruction (
           uint32_t exec_lo, exec_hi;
           wave.read_register (regnum + 0, &exec_lo);
           wave.read_register (regnum + 1, &exec_hi);
-
           uint64_t exec = (static_cast<uint64_t> (exec_hi) << 32) | exec_lo;
 
           wave.write_register (amdgpu_regnum_t::csp, &csp);
@@ -1278,7 +1283,9 @@ amdgcn_architecture_t::simulate_instruction (
         ? branch_target (wave, pc, instruction)
         : pc + instruction.size ();
 
-  wave.write_register (amdgpu_regnum_t::pc, &new_pc);
+  /* Since we are single-stepping the instruction, simulate entering the trap
+     handler with no trap_id.  */
+  simulate_trap_handler (wave, new_pc);
 
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "%s simulated \"%s\" (pc=%#lx)",
               to_string (wave.id ()).c_str (),
@@ -1289,6 +1296,57 @@ amdgcn_architecture_t::simulate_instruction (
 
   return true;
 }
+
+void
+amdgcn_architecture_t::simulate_trap_handler (
+  wave_t &wave, amd_dbgapi_global_address_t pc,
+  std::optional<trap_id_t> trap_id) const
+{
+  uint32_t status_reg, ttmp6;
+  wave.read_register (amdgpu_regnum_t::status, &status_reg);
+  wave.read_register (amdgpu_regnum_t::ttmp6, &ttmp6);
+
+  /* Set ttmp6.wave_stopped and save status.halt and trap_id[3:0].  */
+  ttmp6 &= ~(ttmp6_saved_status_halt_mask | ttmp6_saved_trap_id_mask);
+
+  ttmp6 |= ttmp6_wave_stopped_mask;
+
+  if (trap_id)
+    ttmp6 |= (static_cast<uint32_t> (*trap_id) << ttmp6_saved_trap_id_shift)
+             & ttmp6_saved_trap_id_mask;
+
+  if (status_reg & sq_wave_status_halt_mask)
+    ttmp6 |= ttmp6_saved_status_halt_mask;
+
+  wave.write_register (amdgpu_regnum_t::ttmp6, &ttmp6);
+
+  /* Park the wave.  */
+  if (park_stopped_waves ())
+    {
+      uint32_t ttmp7, ttmp11;
+
+      /* The trap handler saves PC[31:0] in ttmp7[31:0] ...  */
+      ttmp7 = utils::bit_extract (pc, 0, 31);
+      wave.write_register (amdgpu_regnum_t::ttmp7, &ttmp7);
+
+      /* ... and PC[47:32] in ttmp11[22:7].  */
+      wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
+      ttmp11 &= ~utils::bit_mask (7, 22);
+      ttmp11 |= (utils::bit_extract (pc, 32, 47) << 7);
+      wave.write_register (amdgpu_regnum_t::ttmp11, &ttmp11);
+
+      amd_dbgapi_global_address_t parked_pc = wave.park_instruction_address ();
+      wave.write_register (amdgpu_regnum_t::pc, &parked_pc);
+    }
+  else
+    {
+      wave.write_register (amdgpu_regnum_t::pc, &pc);
+    }
+
+  /* Then halt the wave.  */
+  status_reg |= sq_wave_status_halt_mask;
+  wave.write_register (amdgpu_regnum_t::status, &status_reg);
+};
 
 std::pair<amd_dbgapi_wave_state_t, amd_dbgapi_wave_stop_reasons_t>
 amdgcn_architecture_t::wave_get_state (wave_t &wave) const
@@ -1406,39 +1464,47 @@ amdgcn_architecture_t::wave_get_state (wave_t &wave) const
         error ("trap exception not raised by a trap instruction");
     }
 
-  /* Check for spurious single-step events. A context save/restore before
-     executing the single-stepped instruction could have caused the event to be
-     reported with the wave halted at the instruction instead of after.  In
-     such cases, un-halt the wave and let it resume in single-step mode, so
-     that the instruction is executed.  There should be no other exception to
-     report.  */
-  if (stop_reason == AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP
-      && pc == wave.last_stopped_pc ())
+  /* Check for spurious single-step stop events:
+
+     Current architectures do not report single-step exceptions in the trapsts
+     register, so there is no way to tell if a single-step exception has
+     occurred in the presence of other exceptions (for example, context save).
+
+     To work around this limitation, the 1st level trap handler calls the 2nd
+     level trap handler when mode.debug_en == 1  && status.halt == 0, which may
+     cause a spurious single-step stop event to be reported.
+
+     To detect spurious events, a wave's last stopped pc is recorded before it
+     is resumed so that it is possible to tell if the pc has changed as the
+     result of executing the instruction.
+
+     Non-sequential instructions may jump to self, making detecting execution
+     difficult, so they are simulated when the wave is resumed instead of
+     single-stepped on hardware.
+
+     Instructions with invalid encodings, which may be non-sequential but
+     cannot be simulated, may still report the spurious single-step exception
+     to avoid infinite loops.
+   */
+
+  if (pc == wave.last_stopped_pc ()
+      /* The only exception present is a single-step exception.  */
+      && stop_reason == AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP)
     {
-      /* Branch instructions must be simulated and the event reported, as we
-         cannot tell if a branch to self has executed.  */
       if (auto instruction = wave.instruction_at_pc ();
-          instruction && can_simulate (*instruction))
+          /* The instruction is sequential.  */
+          instruction && !is_non_sequential (*instruction))
         {
-          if (!simulate_instruction (wave, pc, *instruction))
-            dbgapi_assert_not_reached (
-              "halted waves cannot raise spurious events");
+          /* Resume the wave in single-step mode.  */
+          wave_set_state (wave, AMD_DBGAPI_WAVE_STATE_SINGLE_STEP);
 
-          /* The instruction was simulated, report the single-step event.
-           */
-          return { AMD_DBGAPI_WAVE_STATE_STOP,
-                   AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP };
+          dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+                      "%s (pc=%#lx) ignore spurious single-step",
+                      to_string (wave.id ()).c_str (), pc);
+
+          return { AMD_DBGAPI_WAVE_STATE_SINGLE_STEP,
+                   AMD_DBGAPI_WAVE_STOP_REASON_NONE };
         }
-
-      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                  "%s (pc=%#lx) ignore spurious single-step",
-                  to_string (wave.id ()).c_str (), pc);
-
-      /* Place the wave back into single-stepping state.  */
-      wave_set_state (wave, AMD_DBGAPI_WAVE_STATE_SINGLE_STEP);
-
-      return { AMD_DBGAPI_WAVE_STATE_SINGLE_STEP,
-               AMD_DBGAPI_WAVE_STOP_REASON_NONE };
     }
 
   return { AMD_DBGAPI_WAVE_STATE_STOP, stop_reason };
