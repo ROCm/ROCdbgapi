@@ -1295,9 +1295,6 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
     if (runtime_info.runtime_state != os_runtime_state_t::enabled)
       return AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION;
 
-    if (os_driver ().check_version () != AMD_DBGAPI_STATUS_SUCCESS)
-      return AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION;
-
     /* Check the r_version.  */
     int r_version;
     status = read_global_memory (runtime_info.r_debug
@@ -1492,6 +1489,9 @@ process_t::attach ()
   /* Queues that are already created will not be reported with a queue_new
      exception, so assume all queues reported by queue snapshot are new.  */
   clear_flag (flag_t::require_new_queue_bit);
+
+  if (os_driver ().check_version () != AMD_DBGAPI_STATUS_SUCCESS)
+    return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
 
   os_runtime_info_t runtime_info;
   if (auto status = os_driver ().enable_debug (
