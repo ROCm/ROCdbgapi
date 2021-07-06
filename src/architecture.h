@@ -301,8 +301,13 @@ public:
   is_terminating_instruction (const instruction_t &instruction) const = 0;
 
   virtual bool
-  can_execute_displaced (const instruction_t &instruction) const = 0;
-  virtual bool can_simulate (const instruction_t &instruction) const = 0;
+  can_execute_displaced (wave_t &wave,
+                         const instruction_t &instruction) const = 0;
+  virtual bool can_simulate (wave_t &wave,
+                             const instruction_t &instruction) const = 0;
+
+  virtual bool simulate (wave_t &wave, amd_dbgapi_global_address_t pc,
+                         const instruction_t &instruction) const = 0;
 
   virtual bool park_stopped_waves () const = 0;
 
@@ -320,10 +325,6 @@ public:
              std::vector<amd_dbgapi_global_address_t> /* address_operands  */>
   disassemble_instruction (amd_dbgapi_global_address_t address,
                            const instruction_t &instruction) const;
-
-  virtual bool
-  simulate_instruction (wave_t &wave, amd_dbgapi_global_address_t pc,
-                        const instruction_t &instruction) const = 0;
 
   virtual std::pair<amd_dbgapi_wave_state_t, amd_dbgapi_wave_stop_reasons_t>
   wave_get_state (wave_t &wave) const = 0;

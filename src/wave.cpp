@@ -234,9 +234,10 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
       instruction_t original_instruction (
         architecture (), std::move (original_instruction_bytes));
 
-      bool simulate = architecture ().can_simulate (original_instruction);
+      bool simulate
+        = architecture ().can_simulate (*this, original_instruction);
 
-      if (!architecture ().can_execute_displaced (original_instruction)
+      if (!architecture ().can_execute_displaced (*this, original_instruction)
           && !simulate)
         {
           /* If this instruction cannot be displaced-stepped nor simulated,
@@ -506,14 +507,13 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
            manipulate the program counter). */
         if (m_displaced_stepping)
           return m_displaced_stepping->is_simulated ()
-                 && architecture.simulate_instruction (
+                 && architecture.simulate (
                    *this, m_displaced_stepping->from (),
                    m_displaced_stepping->original_instruction ());
 
         /* Simulate all instructions that can be simulated.  */
-        return instruction && architecture.can_simulate (*instruction)
-               && architecture.simulate_instruction (*this, pc (),
-                                                     *instruction);
+        return instruction && architecture.can_simulate (*this, *instruction)
+               && architecture.simulate (*this, pc (), *instruction);
       }())
     {
       /* The instruction was simulated, get the new wave state and raise a stop

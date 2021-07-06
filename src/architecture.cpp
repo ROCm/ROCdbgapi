@@ -265,7 +265,6 @@ protected:
   virtual bool is_sethalt (const instruction_t &instruction) const = 0;
   virtual bool is_barrier (const instruction_t &instruction) const = 0;
   virtual bool is_sleep (const instruction_t &instruction) const = 0;
-  virtual bool is_code_end (const instruction_t &instruction) const = 0;
   virtual bool is_call (const instruction_t &instruction) const = 0;
   virtual bool is_getpc (const instruction_t &instruction) const = 0;
   virtual bool is_setpc (const instruction_t &instruction) const = 0;
@@ -300,15 +299,21 @@ protected:
   classify_instruction (amd_dbgapi_global_address_t address,
                         const instruction_t &instruction) const override;
 
-  bool can_execute_displaced (const instruction_t &instruction) const override;
-  bool can_simulate (const instruction_t &instruction) const override;
+  bool can_execute_displaced (wave_t &wave,
+                              const instruction_t &instruction) const override;
+  bool can_simulate (wave_t &wave,
+                     const instruction_t &instruction) const override;
 
-  bool simulate_instruction (wave_t &wave, amd_dbgapi_global_address_t pc,
-                             const instruction_t &instruction) const override;
+  virtual std::optional<amd_dbgapi_global_address_t>
+  simulate_instruction (wave_t &wave, amd_dbgapi_global_address_t pc,
+                        const instruction_t &instruction) const;
 
   virtual void
   simulate_trap_handler (wave_t &wave, amd_dbgapi_global_address_t pc,
                          std::optional<trap_id_t> trap_id = {}) const;
+
+  virtual bool simulate (wave_t &wave, amd_dbgapi_global_address_t pc,
+                         const instruction_t &instruction) const override;
 };
 
 namespace
@@ -880,11 +885,6 @@ amdgcn_architecture_t::classify_instruction (
       instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_SLEEP;
       information_kind = information_kind_t::none;
     }
-  else if (is_code_end (instruction))
-    {
-      instruction_kind = AMD_DBGAPI_INSTRUCTION_KIND_UNKNOWN;
-      information_kind = information_kind_t::none;
-    }
   else
     {
       instruction_kind = is_sequential (instruction)
@@ -937,7 +937,7 @@ amdgcn_architecture_t::classify_instruction (
 
 bool
 amdgcn_architecture_t::can_execute_displaced (
-  const instruction_t &instruction) const
+  wave_t & /* wave  */, const instruction_t &instruction) const
 {
   /* Illegal instructions cannot be displaced, their behavior is undefined.  */
   if (!instruction.is_valid ())
@@ -958,7 +958,8 @@ amdgcn_architecture_t::can_execute_displaced (
 }
 
 bool
-amdgcn_architecture_t::can_simulate (const instruction_t &instruction) const
+amdgcn_architecture_t::can_simulate (wave_t & /* wave  */,
+                                     const instruction_t &instruction) const
 {
   /* The instruction simulation does not handle all possible source operands
      (for example: literals, apertures, vccz, scc, ...), so only simulate
@@ -981,13 +982,12 @@ amdgcn_architecture_t::can_simulate (const instruction_t &instruction) const
 }
 
 bool
-amdgcn_architecture_t::simulate_instruction (
-  wave_t &wave, amd_dbgapi_global_address_t pc,
-  const instruction_t &instruction) const
+amdgcn_architecture_t::simulate (wave_t &wave, amd_dbgapi_global_address_t pc,
+                                 const instruction_t &instruction) const
 {
   dbgapi_assert (wave.state () == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
                  && "wave must be single-stepping to simulate instructions");
-  dbgapi_assert (can_simulate (instruction));
+  dbgapi_assert (can_simulate (wave, instruction));
 
   uint32_t status_reg;
   wave.read_register (amdgpu_regnum_t::status, &status_reg);
@@ -996,6 +996,27 @@ amdgcn_architecture_t::simulate_instruction (
   if (status_reg & sq_wave_status_halt_mask)
     return false;
 
+  auto new_pc = simulate_instruction (wave, pc, instruction);
+  if (new_pc)
+    /* Since we are single-stepping the instruction, simulate entering the trap
+       handler with no trap_id.  */
+    simulate_trap_handler (wave, *new_pc);
+
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "%s simulated \"%s\" (pc=%#lx)",
+              to_string (wave.id ()).c_str (),
+              std::get<1> (
+                wave.architecture ().disassemble_instruction (pc, instruction))
+                .c_str (),
+              pc);
+
+  return true;
+}
+
+std::optional<amd_dbgapi_global_address_t>
+amdgcn_architecture_t::simulate_instruction (
+  wave_t &wave, amd_dbgapi_global_address_t pc,
+  const instruction_t &instruction) const
+{
   if (is_branch (instruction) || is_cbranch (instruction)
       || is_setpc (instruction))
     {
@@ -1004,7 +1025,7 @@ amdgcn_architecture_t::simulate_instruction (
   else if (is_endpgm (instruction))
     {
       wave.terminate ();
-      return true;
+      return std::nullopt;
     }
   else if (is_cbranch_i_fork (instruction) || is_cbranch_g_fork (instruction))
     {
@@ -1103,18 +1124,7 @@ amdgcn_architecture_t::simulate_instruction (
         ? pc + instruction.size ()
         : branch_target (wave, pc, instruction);
 
-  /* Since we are single-stepping the instruction, simulate entering the trap
-     handler with no trap_id.  */
-  simulate_trap_handler (wave, new_pc);
-
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "%s simulated \"%s\" (pc=%#lx)",
-              to_string (wave.id ()).c_str (),
-              std::get<1> (
-                wave.architecture ().disassemble_instruction (pc, instruction))
-                .c_str (),
-              pc);
-
-  return true;
+  return new_pc;
 }
 
 void
@@ -1975,7 +1985,6 @@ public:
   bool is_sethalt (const instruction_t &instruction) const override;
   bool is_barrier (const instruction_t &instruction) const override;
   bool is_sleep (const instruction_t &instruction) const override;
-  bool is_code_end (const instruction_t &instruction) const override;
   bool is_call (const instruction_t &instruction) const override;
   bool is_getpc (const instruction_t &instruction) const override;
   bool is_setpc (const instruction_t &instruction) const override;
@@ -2188,13 +2197,6 @@ gfx9_architecture_t::is_sleep (const instruction_t &instruction) const
 {
   /* s_sleep: SOPP Opcode 14. See comment in ::is_endpgm.  */
   return is_sopp_encoding<14> (instruction);
-}
-
-bool
-gfx9_architecture_t::is_code_end (
-  const instruction_t & /* instruction  */) const
-{
-  return false;
 }
 
 bool
@@ -2774,6 +2776,10 @@ protected:
   size_t scalar_register_count () const override { return 106; }
   size_t scalar_alias_count () const override { return 2; }
 
+  amd_dbgapi_global_address_t
+  branch_target (wave_t &wave, amd_dbgapi_global_address_t pc,
+                 const instruction_t &instruction) const override;
+
   gfx10_architecture_t (elf_amdgpu_machine_t e_machine,
                         std::string target_triple);
 
@@ -2789,7 +2795,11 @@ public:
                               size_t offset, size_t value_size,
                               const void *value) const override;
 
-  bool is_code_end (const instruction_t &instruction) const override;
+  virtual bool is_code_end (const instruction_t &instruction) const;
+  virtual bool
+  is_subvector_loop_begin (const instruction_t &instruction) const;
+  virtual bool is_subvector_loop_end (const instruction_t &instruction) const;
+
   bool is_call (const instruction_t &instruction) const override;
   bool is_getpc (const instruction_t &instruction) const override;
   bool is_setpc (const instruction_t &instruction) const override;
@@ -2798,6 +2808,22 @@ public:
   bool is_cbranch_g_fork (const instruction_t &instruction) const override;
   bool is_cbranch_join (const instruction_t &instruction) const override;
   bool is_sequential (const instruction_t &instruction) const override;
+
+  bool can_execute_displaced (wave_t &wave,
+                              const instruction_t &instruction) const override;
+  bool can_simulate (wave_t &wave,
+                     const instruction_t &instruction) const override;
+
+  std::optional<amd_dbgapi_global_address_t>
+  simulate_instruction (wave_t &wave, amd_dbgapi_global_address_t pc,
+                        const instruction_t &instruction) const override;
+
+  std::tuple<amd_dbgapi_instruction_kind_t,       /* instruction_kind  */
+             amd_dbgapi_instruction_properties_t, /* instruction_properties  */
+             size_t,                              /* instruction_size  */
+             std::vector<uint64_t> /* instruction_information  */>
+  classify_instruction (amd_dbgapi_global_address_t address,
+                        const instruction_t &instruction) const override;
 
   void control_stack_iterate (
     queue_t &queue, const uint32_t *control_stack, size_t control_stack_words,
@@ -2994,6 +3020,23 @@ gfx10_architecture_t::scalar_operand_to_regnum (int operand) const
     }
 }
 
+amd_dbgapi_global_address_t
+gfx10_architecture_t::branch_target (wave_t &wave,
+                                     amd_dbgapi_global_address_t pc,
+                                     const instruction_t &instruction) const
+{
+  dbgapi_assert (instruction.is_valid ());
+
+  if (is_subvector_loop_begin (instruction)
+      || is_subvector_loop_end (instruction))
+    {
+      return pc + instruction.size ()
+             + (static_cast<ssize_t> (simm16_operand (instruction)) << 2);
+    }
+
+  return gfx9_architecture_t::branch_target (wave, pc, instruction);
+}
+
 std::optional<amd_dbgapi_global_address_t>
 gfx10_architecture_t::cwsr_record_t::register_address (
   amdgpu_regnum_t regnum) const
@@ -3167,6 +3210,22 @@ gfx10_architecture_t::is_cbranch_join (
 }
 
 bool
+gfx10_architecture_t::is_subvector_loop_begin (
+  const instruction_t &instruction) const
+{
+  /* s_subvector_loop_begin: SOPK Opcode 27  */
+  return instruction.is_valid () && is_sopk_encoding<27> (instruction);
+}
+
+bool
+gfx10_architecture_t::is_subvector_loop_end (
+  const instruction_t &instruction) const
+{
+  /* s_subvector_loop_end: SOPK Opcode 28  */
+  return instruction.is_valid () && is_sopk_encoding<28> (instruction);
+}
+
+bool
 gfx10_architecture_t::is_sequential (const instruction_t &instruction) const
 {
   if (!instruction.is_valid ())
@@ -3176,8 +3235,8 @@ gfx10_architecture_t::is_sequential (const instruction_t &instruction) const
     !is_sopp_encoding<1, 2, 4, 5, 6, 7, 8, 9, 23, 24, 25, 26> (instruction)
     /* s_setpc_b64/s_swappc_b64  */
     && !is_sop1_encoding<32, 33> (instruction)
-    /* s_call_b64  */
-    && !is_sopk_encoding<22> (instruction);
+    /* s_call_b64/s_subvector_loop_begin/s_subvector_loop_end  */
+    && !is_sopk_encoding<22, 27, 28> (instruction);
 }
 
 uint64_t
@@ -3216,6 +3275,138 @@ gfx10_architecture_t::cwsr_record_t::get_info (query_kind_t query) const
     default:
       return gfx9_architecture_t::cwsr_record_t::get_info (query);
     }
+}
+
+bool
+gfx10_architecture_t::can_execute_displaced (
+  wave_t &wave, const instruction_t &instruction) const
+{
+  /* Note: make sure that is_valid_encoding () is up to date so that invalid
+     instruction encodings are not displaced-stepped.  */
+
+  if (!instruction.is_valid ())
+    return false;
+
+  if (is_subvector_loop_begin (instruction)
+      || is_subvector_loop_end (instruction))
+    return false;
+
+  return gfx9_architecture_t::can_execute_displaced (wave, instruction);
+}
+
+bool
+gfx10_architecture_t::can_simulate (wave_t &wave,
+                                    const instruction_t &instruction) const
+{
+  /* Note: make sure that is_valid_encoding () is up to date so that invalid
+     instruction encodings are not simulated.  */
+
+  if (!instruction.is_valid ())
+    return false;
+
+  if (is_subvector_loop_begin (instruction)
+      || is_subvector_loop_end (instruction))
+    return scalar_operand_to_regnum (sdst_operand (instruction)).has_value ()
+           /* Can only simulate subvector_loop_* in wave64 mode.  */
+           && wave.lane_count () == 64;
+
+  return gfx9_architecture_t::can_simulate (wave, instruction);
+}
+
+std::optional<amd_dbgapi_global_address_t>
+gfx10_architecture_t::simulate_instruction (
+  wave_t &wave, amd_dbgapi_global_address_t pc,
+  const instruction_t &instruction) const
+{
+  if (is_subvector_loop_begin (instruction))
+    {
+      dbgapi_assert (wave.lane_count () == 64);
+      auto s0_regnum = scalar_operand_to_regnum (sdst_operand (instruction));
+      dbgapi_assert (s0_regnum);
+
+      uint32_t exec_lo, exec_hi;
+      wave.read_register (amdgpu_regnum_t::exec_lo, &exec_lo);
+      wave.read_register (amdgpu_regnum_t::exec_hi, &exec_hi);
+
+      if (exec_lo == 0 && exec_hi == 0)
+        return branch_target (wave, pc, instruction);
+
+      if (exec_lo == 0)
+        {
+          /* Single pass, execute the high half now.  */
+          wave.write_register (*s0_regnum, &exec_lo);
+        }
+      else
+        {
+          /* Save the high half for the 2nd pass, and execute the low half.  */
+          uint32_t zero = 0;
+          wave.write_register (*s0_regnum, &exec_hi);
+          wave.write_register (amdgpu_regnum_t::exec_hi, &zero);
+        }
+
+      return pc + instruction.size ();
+    }
+
+  if (is_subvector_loop_end (instruction))
+    {
+      dbgapi_assert (wave.lane_count () == 64);
+      auto s0_regnum = scalar_operand_to_regnum (sdst_operand (instruction));
+      dbgapi_assert (s0_regnum);
+
+      uint32_t exec_lo, exec_hi, s0;
+      wave.read_register (amdgpu_regnum_t::exec_lo, &exec_lo);
+      wave.read_register (amdgpu_regnum_t::exec_hi, &exec_hi);
+      wave.read_register (*s0_regnum, &s0);
+
+      if (exec_hi != 0)
+        {
+          /* Done executing the 2nd half.  */
+          wave.write_register (amdgpu_regnum_t::exec_lo, &s0);
+        }
+      else if (s0 != 0)
+        {
+          /* Jump to start and execute the 2nd half.  */
+          uint32_t zero = 0;
+          wave.write_register (amdgpu_regnum_t::exec_hi, &s0);
+          wave.write_register (amdgpu_regnum_t::exec_lo, &zero);
+          wave.write_register (*s0_regnum, &exec_lo);
+          return branch_target (wave, pc, instruction);
+        }
+
+      return pc + instruction.size ();
+    }
+
+  return gfx9_architecture_t::simulate_instruction (wave, pc, instruction);
+}
+
+std::tuple<amd_dbgapi_instruction_kind_t, amd_dbgapi_instruction_properties_t,
+           size_t, std::vector<uint64_t>>
+gfx10_architecture_t::classify_instruction (
+  amd_dbgapi_global_address_t address, const instruction_t &instruction) const
+{
+  dbgapi_assert (instruction.is_valid ());
+
+  if (is_subvector_loop_begin (instruction)
+      || is_subvector_loop_end (instruction))
+    {
+      return {
+        AMD_DBGAPI_INSTRUCTION_KIND_DIRECT_BRANCH_CONDITIONAL,
+        AMD_DBGAPI_INSTRUCTION_PROPERTY_NONE, instruction.size (),
+        std::vector<uint64_t> (
+          { address + instruction.size ()
+            + (static_cast<ssize_t> (simm16_operand (instruction)) << 2) })
+      };
+    }
+
+  if (is_code_end (instruction))
+    {
+      return { AMD_DBGAPI_INSTRUCTION_KIND_UNKNOWN,
+               AMD_DBGAPI_INSTRUCTION_PROPERTY_NONE,
+               instruction.size (),
+               {} };
+    }
+
+  return gfx9_architecture_t::classify_instruction (address, instruction);
 }
 
 void
