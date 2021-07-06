@@ -214,6 +214,299 @@ dwarf_register_to_amdgpu_regnum (uint64_t dwarf_register)
 
 } /* anonymous namespace */
 
+std::string
+register_t::name (amdgpu_regnum_t regnum)
+{
+  if (regnum >= amdgpu_regnum_t::first_sgpr
+      && regnum < amdgpu_regnum_t::last_sgpr)
+    {
+      return string_printf ("s%ld", regnum - amdgpu_regnum_t::first_sgpr);
+    }
+  if (regnum >= amdgpu_regnum_t::first_vgpr_32
+      && regnum <= amdgpu_regnum_t::last_vgpr_32)
+    {
+      return string_printf ("v%ld", regnum - amdgpu_regnum_t::first_vgpr_32);
+    }
+  if (regnum >= amdgpu_regnum_t::first_vgpr_64
+      && regnum <= amdgpu_regnum_t::last_vgpr_64)
+    {
+      return string_printf ("v%ld", regnum - amdgpu_regnum_t::first_vgpr_64);
+    }
+  if (regnum >= amdgpu_regnum_t::first_accvgpr_32
+      && regnum <= amdgpu_regnum_t::last_accvgpr_32)
+    {
+      return string_printf ("a%ld",
+                            regnum - amdgpu_regnum_t::first_accvgpr_32);
+    }
+  if (regnum >= amdgpu_regnum_t::first_accvgpr_64
+      && regnum <= amdgpu_regnum_t::last_accvgpr_64)
+    {
+      return string_printf ("a%ld",
+                            regnum - amdgpu_regnum_t::first_accvgpr_64);
+    }
+  if (regnum >= amdgpu_regnum_t::first_ttmp
+      && regnum <= amdgpu_regnum_t::last_ttmp)
+    {
+      switch (regnum)
+        {
+        case amdgpu_regnum_t::ttmp4:
+        case amdgpu_regnum_t::ttmp5:
+        case amdgpu_regnum_t::ttmp6:
+        case amdgpu_regnum_t::ttmp7:
+        case amdgpu_regnum_t::ttmp8:
+        case amdgpu_regnum_t::ttmp9:
+        case amdgpu_regnum_t::ttmp10:
+        case amdgpu_regnum_t::ttmp11:
+        case amdgpu_regnum_t::ttmp13:
+          return string_printf ("ttmp%ld",
+                                regnum - amdgpu_regnum_t::first_ttmp);
+        default:
+          break;
+        }
+    }
+  if (regnum >= amdgpu_regnum_t::first_hwreg
+      && regnum <= amdgpu_regnum_t::last_hwreg)
+    {
+      return string_printf ("hwreg%ld", regnum - amdgpu_regnum_t::first_hwreg);
+    }
+
+  if (regnum == amdgpu_regnum_t::exec_32
+      || regnum == amdgpu_regnum_t::pseudo_exec_32
+      || regnum == amdgpu_regnum_t::exec_64
+      || regnum == amdgpu_regnum_t::pseudo_exec_64)
+    {
+      return "exec";
+    }
+  if (regnum == amdgpu_regnum_t::vcc_32
+      || regnum == amdgpu_regnum_t::pseudo_vcc_32
+      || regnum == amdgpu_regnum_t::vcc_64
+      || regnum == amdgpu_regnum_t::pseudo_vcc_64)
+    {
+      return "vcc";
+    }
+  if (regnum == amdgpu_regnum_t::xnack_mask_32
+      || regnum == amdgpu_regnum_t::xnack_mask_64)
+    {
+      return "xnack_mask";
+    }
+
+  switch (regnum)
+    {
+    case amdgpu_regnum_t::pc:
+      return "pc";
+    case amdgpu_regnum_t::m0:
+      return "m0";
+    case amdgpu_regnum_t::pseudo_status:
+    case amdgpu_regnum_t::status:
+      return "status";
+    case amdgpu_regnum_t::trapsts:
+      return "trapsts";
+    case amdgpu_regnum_t::mode:
+      return "mode";
+    case amdgpu_regnum_t::flat_scratch_lo:
+      return "flat_scratch_lo";
+    case amdgpu_regnum_t::flat_scratch_hi:
+      return "flat_scratch_hi";
+    case amdgpu_regnum_t::exec_lo:;
+      return "exec_lo";
+    case amdgpu_regnum_t::exec_hi:;
+      return "exec_hi";
+    case amdgpu_regnum_t::vcc_lo:;
+      return "vcc_lo";
+    case amdgpu_regnum_t::vcc_hi:;
+      return "vcc_hi";
+    case amdgpu_regnum_t::xnack_mask_lo:;
+      return "xnack_mask_lo";
+    case amdgpu_regnum_t::xnack_mask_hi:;
+      return "xnack_mask_hi";
+    case amdgpu_regnum_t::flat_scratch:
+      return "flat_scratch";
+    case amdgpu_regnum_t::wave_id:
+      return "wave_id";
+    case amdgpu_regnum_t::dispatch_grid:
+      return "dispatch_grid";
+    case amdgpu_regnum_t::wave_in_group:
+      return "wave_in_group";
+    case amdgpu_regnum_t::scratch_offset:
+      return "scratch_offset";
+    case amdgpu_regnum_t::csp:
+      return "csp";
+    case amdgpu_regnum_t::null:
+      return "null";
+    default:
+      break;
+    }
+  dbgapi_assert_not_reached ("invalid register number");
+}
+
+std::string
+register_t::type (amdgpu_regnum_t regnum)
+{
+  /* Vector registers (arch and acc).  */
+  if ((regnum >= amdgpu_regnum_t::first_vgpr_32
+       && regnum <= amdgpu_regnum_t::last_vgpr_32)
+      || (regnum >= amdgpu_regnum_t::first_accvgpr_32
+          && regnum <= amdgpu_regnum_t::last_accvgpr_32))
+    {
+      return "int32_t[32]";
+    }
+  if ((regnum >= amdgpu_regnum_t::first_vgpr_64
+       && regnum <= amdgpu_regnum_t::last_vgpr_64)
+      || (regnum >= amdgpu_regnum_t::first_accvgpr_64
+          && regnum <= amdgpu_regnum_t::last_accvgpr_64))
+    {
+      return "int32_t[64]";
+    }
+  /* Scalar registers.  */
+  if (regnum >= amdgpu_regnum_t::first_sgpr
+      && regnum < amdgpu_regnum_t::last_sgpr)
+    {
+      return "int32_t";
+    }
+  /* hwregs, ttmps.  */
+  if ((regnum >= amdgpu_regnum_t::first_hwreg
+       && regnum <= amdgpu_regnum_t::last_hwreg)
+      || (regnum >= amdgpu_regnum_t::first_ttmp
+          && regnum <= amdgpu_regnum_t::last_ttmp))
+    {
+      return "uint32_t";
+    }
+  if (regnum == amdgpu_regnum_t::exec_32
+      || regnum == amdgpu_regnum_t::pseudo_exec_32
+      || regnum == amdgpu_regnum_t::vcc_32
+      || regnum == amdgpu_regnum_t::pseudo_vcc_32
+      || regnum == amdgpu_regnum_t::xnack_mask_32)
+    {
+      return "uint32_t";
+    }
+  if (regnum == amdgpu_regnum_t::exec_64
+      || regnum == amdgpu_regnum_t::pseudo_exec_64
+      || regnum == amdgpu_regnum_t::vcc_64
+      || regnum == amdgpu_regnum_t::pseudo_vcc_64
+      || regnum == amdgpu_regnum_t::xnack_mask_64)
+    {
+      return "uint64_t";
+    }
+  switch (regnum)
+    {
+    case amdgpu_regnum_t::pc:
+      return "void (*)()";
+
+    case amdgpu_regnum_t::m0:
+    case amdgpu_regnum_t::status:
+    case amdgpu_regnum_t::trapsts:
+    case amdgpu_regnum_t::mode:
+    case amdgpu_regnum_t::flat_scratch_lo:
+    case amdgpu_regnum_t::flat_scratch_hi:
+    case amdgpu_regnum_t::exec_lo:
+    case amdgpu_regnum_t::exec_hi:
+    case amdgpu_regnum_t::vcc_lo:
+    case amdgpu_regnum_t::vcc_hi:
+    case amdgpu_regnum_t::xnack_mask_lo:
+    case amdgpu_regnum_t::xnack_mask_hi:
+    case amdgpu_regnum_t::scratch_offset:
+    case amdgpu_regnum_t::pseudo_status:
+    case amdgpu_regnum_t::wave_in_group:
+    case amdgpu_regnum_t::csp:
+    case amdgpu_regnum_t::null:
+      return "uint32_t";
+
+    case amdgpu_regnum_t::wave_id:
+    case amdgpu_regnum_t::flat_scratch:
+      return "uint64_t";
+
+    case amdgpu_regnum_t::dispatch_grid:
+      return "uint32_t[3]";
+
+    default:
+      dbgapi_assert_not_reached ("invalid register number");
+    }
+}
+
+amd_dbgapi_size_t
+register_t::size (amdgpu_regnum_t regnum)
+{
+  /* Vector registers (arch and acc).  */
+  if ((regnum >= amdgpu_regnum_t::first_vgpr_32
+       && regnum <= amdgpu_regnum_t::last_vgpr_32)
+      || (regnum >= amdgpu_regnum_t::first_accvgpr_32
+          && regnum <= amdgpu_regnum_t::last_accvgpr_32))
+    {
+      return sizeof (int32_t) * 32;
+    }
+  if ((regnum >= amdgpu_regnum_t::first_vgpr_64
+       && regnum <= amdgpu_regnum_t::last_vgpr_64)
+      || (regnum >= amdgpu_regnum_t::first_accvgpr_64
+          && regnum <= amdgpu_regnum_t::last_accvgpr_64))
+    {
+      return sizeof (int32_t) * 64;
+    }
+  /* Scalar registers.  */
+  if (regnum >= amdgpu_regnum_t::first_sgpr
+      && regnum < amdgpu_regnum_t::last_sgpr)
+    {
+      return sizeof (int32_t);
+    }
+  /* hwregs, ttmps.  */
+  if ((regnum >= amdgpu_regnum_t::first_hwreg
+       && regnum <= amdgpu_regnum_t::last_hwreg)
+      || (regnum >= amdgpu_regnum_t::first_ttmp
+          && regnum <= amdgpu_regnum_t::last_ttmp))
+    {
+      return sizeof (uint32_t);
+    }
+  if (regnum == amdgpu_regnum_t::exec_32
+      || regnum == amdgpu_regnum_t::pseudo_exec_32
+      || regnum == amdgpu_regnum_t::vcc_32
+      || regnum == amdgpu_regnum_t::pseudo_vcc_32
+      || regnum == amdgpu_regnum_t::xnack_mask_32)
+    {
+      return sizeof (uint32_t);
+    }
+  if (regnum == amdgpu_regnum_t::exec_64
+      || regnum == amdgpu_regnum_t::pseudo_exec_64
+      || regnum == amdgpu_regnum_t::vcc_64
+      || regnum == amdgpu_regnum_t::pseudo_vcc_64
+      || regnum == amdgpu_regnum_t::xnack_mask_64)
+    {
+      return sizeof (uint64_t);
+    }
+  switch (regnum)
+    {
+    case amdgpu_regnum_t::pc:
+      return sizeof (void (*) ());
+
+    case amdgpu_regnum_t::m0:
+    case amdgpu_regnum_t::status:
+    case amdgpu_regnum_t::trapsts:
+    case amdgpu_regnum_t::mode:
+    case amdgpu_regnum_t::flat_scratch_lo:
+    case amdgpu_regnum_t::flat_scratch_hi:
+    case amdgpu_regnum_t::exec_lo:
+    case amdgpu_regnum_t::exec_hi:
+    case amdgpu_regnum_t::vcc_lo:
+    case amdgpu_regnum_t::vcc_hi:
+    case amdgpu_regnum_t::xnack_mask_lo:
+    case amdgpu_regnum_t::xnack_mask_hi:
+    case amdgpu_regnum_t::scratch_offset:
+    case amdgpu_regnum_t::pseudo_status:
+    case amdgpu_regnum_t::wave_in_group:
+    case amdgpu_regnum_t::csp:
+    case amdgpu_regnum_t::null:
+      return sizeof (uint32_t);
+
+    case amdgpu_regnum_t::wave_id:
+    case amdgpu_regnum_t::flat_scratch:
+      return sizeof (uint64_t);
+
+    case amdgpu_regnum_t::dispatch_grid:
+      return sizeof (uint32_t[3]);
+
+    default:
+      dbgapi_assert_not_reached ("invalid register number");
+    }
+}
+
 } /* namespace amd::dbgapi */
 
 using namespace amd::dbgapi;
@@ -301,7 +594,8 @@ amd_dbgapi_register_get_info (amd_dbgapi_register_id_t register_id,
   const architecture_t *architecture
     = architecture_t::register_id_to_architecture (register_id);
 
-  if (!architecture || !regnum)
+  if (!architecture || !regnum
+      || !architecture->is_register_available (*regnum))
     return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
   if (!value)
@@ -313,31 +607,13 @@ amd_dbgapi_register_get_info (amd_dbgapi_register_id_t register_id,
       return utils::get_info (value_size, value, architecture->id ());
 
     case AMD_DBGAPI_REGISTER_INFO_NAME:
-      {
-        auto name = architecture->register_name (*regnum);
-        if (!name)
-          return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
-
-        return utils::get_info (value_size, value, *name);
-      }
+      return utils::get_info (value_size, value, register_t::name (*regnum));
 
     case AMD_DBGAPI_REGISTER_INFO_TYPE:
-      {
-        auto type = architecture->register_type (*regnum);
-        if (!type)
-          return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
-
-        return utils::get_info (value_size, value, *type);
-      }
+      return utils::get_info (value_size, value, register_t::type (*regnum));
 
     case AMD_DBGAPI_REGISTER_INFO_SIZE:
-      {
-        auto size = architecture->register_size (*regnum);
-        if (!size)
-          return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
-
-        return utils::get_info (value_size, value, *size);
-      }
+      return utils::get_info (value_size, value, register_t::size (*regnum));
 
     case AMD_DBGAPI_REGISTER_INFO_DWARF:
       {
@@ -421,7 +697,8 @@ amd_dbgapi_register_is_in_register_class (
   const architecture_t *architecture
     = architecture_t::register_id_to_architecture (register_id);
 
-  if (!regnum || !architecture)
+  if (!regnum || !architecture
+      || !architecture->is_register_available (*regnum))
     return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
   if (!register_class_state)
@@ -464,7 +741,7 @@ amd_dbgapi_dwarf_register_to_register (
   if (!regnum)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
 
-  if (!architecture->register_size (*regnum))
+  if (!architecture->is_register_available (*regnum))
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
 
   *register_id = architecture->regnum_to_register_id (*regnum);
@@ -619,7 +896,8 @@ amd_dbgapi_wave_register_exists (amd_dbgapi_wave_id_t wave_id,
   const architecture_t *architecture
     = architecture_t::register_id_to_architecture (register_id);
 
-  if (!regnum || !architecture)
+  if (!regnum || !architecture
+      || !architecture->is_register_available (*regnum))
     return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
   if (!exists)
@@ -701,7 +979,7 @@ amd_dbgapi_prefetch_register (
   const architecture_t *architecture
     = architecture_t::register_id_to_architecture (register_id);
 
-  if (!regnum || !architecture)
+  if (!regnum || !architecture || !wave->is_register_available (*regnum))
     return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
   if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)

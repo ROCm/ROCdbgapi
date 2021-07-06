@@ -45,36 +45,37 @@ enum class amdgpu_regnum_t : uint32_t
   first_raw = first_regnum,
 
   /* Raw registers.  */
+  first_vgpr = first_raw,
+  first_vgpr_64 = first_vgpr,
 
-  first_vgpr_32 = first_raw,
-
-  /* 32-bit Vector registers (vgprs) for wave32 wavefronts.  */
-  v0_32 = first_vgpr_32,
-  v255_32 = v0_32 + 255,
-
-  last_vgpr_32 = v255_32,
-  first_vgpr_64 = last_vgpr_32 + 1,
-
-  /* 32-bit Vector registers (vgprs) for wave64 wavefronts.  */
+  /* 64-bit Vector registers (vgprs) for wave32 wavefronts.  */
   v0_64 = first_vgpr_64,
   v255_64 = v0_64 + 255,
 
   last_vgpr_64 = v255_64,
-  first_accvgpr_32 = last_vgpr_64 + 1,
+  first_accvgpr_64 = last_vgpr_64 + 1,
+
+  /* 64-bit Accumulation Vector registers (accvgprs) for wave64 wavefronts  */
+  a0_64 = first_accvgpr_64,
+  a255_64 = a0_64 + 255,
+
+  last_accvgpr_64 = a255_64,
+  first_vgpr_32 = last_accvgpr_64 + 1,
+
+  /* 32-bit Vector registers (vgprs) for wave64 wavefronts.  */
+  v0_32 = first_vgpr_32,
+  v255_32 = v0_32 + 255,
+
+  last_vgpr_32 = v255_32,
+  first_accvgpr_32 = last_vgpr_32 + 1,
 
   /* 32-bit Accumulation Vector registers (accvgprs) for wave64 wavefronts  */
   a0_32 = first_accvgpr_32,
   a255_32 = a0_32 + 255,
 
   last_accvgpr_32 = a255_32,
-  first_accvgpr_64 = last_accvgpr_32 + 1,
-
-  /* 32-bit Accumulation Vector registers (accvgprs) for wave64 wavefronts  */
-  a0_64 = first_accvgpr_64,
-  a255_64 = a0_64 + 255,
-
-  last_accvgpr_64 = a255_64,
-  first_sgpr = last_accvgpr_64 + 1,
+  last_vgpr = last_accvgpr_32,
+  first_sgpr = last_vgpr + 1,
 
   /* 32-bit Scalar registers (sgprs).  */
   s0 = first_sgpr,
@@ -223,6 +224,15 @@ constexpr size_t amdgpu_hwregs_count
 constexpr size_t amdgpu_ttmps_count
   = amdgpu_regnum_t::last_ttmp - amdgpu_regnum_t::first_ttmp + 1;
 
+/* Register.  */
+
+namespace register_t
+{
+std::string name (amdgpu_regnum_t regnum);
+std::string type (amdgpu_regnum_t regnum);
+amd_dbgapi_size_t size (amdgpu_regnum_t regnum);
+};
+
 /* Register class.  */
 
 class register_class_t
@@ -232,11 +242,15 @@ public:
   using register_map_t = std::map<amdgpu_regnum_t, amdgpu_regnum_t>;
 
   register_class_t (amd_dbgapi_register_class_id_t register_class_id,
-                    const architecture_t &architecture, std::string name,
-                    register_map_t register_map)
+                    const architecture_t &architecture, std::string name)
     : handle_object (register_class_id), m_name (std::move (name)),
-      m_register_map (std::move (register_map)), m_architecture (architecture)
+      m_architecture (architecture)
   {
+  }
+
+  void add_registers (amdgpu_regnum_t first, amdgpu_regnum_t last)
+  {
+    m_register_map.emplace (first, last);
   }
 
   const std::string &name () const { return m_name; }
@@ -251,7 +265,7 @@ public:
 
 private:
   std::string const m_name;
-  register_map_t const m_register_map;
+  register_map_t m_register_map;
   const architecture_t &m_architecture;
 };
 

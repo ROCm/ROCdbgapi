@@ -165,7 +165,6 @@ private:
 
 protected:
   architecture_t (elf_amdgpu_machine_t e_machine, std::string target_triple);
-  virtual void initialize () = 0;
 
 public:
   /* Return the map of all instantiated architectures  */
@@ -179,17 +178,19 @@ public:
   public:
     enum class query_kind_t
     {
-      vgprs,      /* Number of VGPRs.  */
-      acc_vgprs,  /* Number of AccVGPR. */
-      sgprs,      /* Number of SGPRs.  */
-      lds_size,   /* LDS space (bytes).  */
-      lane_count, /* Number of lanes.  */
+      vgprs,        /* Number of private VGPRs.  */
+      shared_vgprs, /* Number of shared VGPRs.  */
+      acc_vgprs,    /* Number of AccVGPRs. */
+      sgprs,        /* Number of SGPRs.  */
+      lds_size,     /* LDS space (bytes).  */
+      lane_count,   /* Number of lanes.  */
 
       last_wave,  /* Last wave of threadgroup.  */
       first_wave, /* First wave of threadgroup.  */
 
       is_halted,  /* The wave is halted (status.halt=1).  */
       is_stopped, /* The wave is stopped at the request of the trap handler. */
+      is_priv,    /* The wave is in privilege mode (status.priv=1).  */
     };
 
     cwsr_record_t (queue_t &queue) : m_queue (queue) {}
@@ -234,12 +235,6 @@ public:
   }
 
   /* FIXME: add SQ prefetch instruction bytes size.  */
-
-  /* Return the maximum number of scalar registers  */
-  virtual size_t scalar_register_count () const = 0;
-  virtual bool has_wave32_vgprs () const = 0;
-  virtual bool has_wave64_vgprs () const = 0;
-  virtual bool has_acc_vgprs () const = 0;
 
   virtual void control_stack_iterate (
     queue_t &queue, const uint32_t *control_stack, size_t control_stack_words,
@@ -345,9 +340,6 @@ public:
   elf_amdgpu_machine_t elf_amdgpu_machine () const { return m_e_machine; }
   const std::string &target_triple () const { return m_target_triple; }
 
-  template <typename ArchitectureType, typename... Args>
-  static auto create_architecture (Args &&...args);
-
   static const architecture_t *
   find (amd_dbgapi_architecture_id_t architecture_id, int ignore = 0);
   static const architecture_t *find (elf_amdgpu_machine_t elf_amdgpu_machine);
@@ -383,10 +375,7 @@ public:
   }
 
   std::set<amdgpu_regnum_t> register_set () const;
-  std::optional<std::string> register_name (amdgpu_regnum_t regnum) const;
-  std::optional<std::string> register_type (amdgpu_regnum_t regnum) const;
-  std::optional<amd_dbgapi_size_t>
-  register_size (amdgpu_regnum_t regnum) const;
+  bool is_register_available (amdgpu_regnum_t regnum) const;
 
   virtual bool is_pseudo_register_available (const wave_t &wave,
                                              amdgpu_regnum_t regnum) const = 0;
@@ -436,9 +425,29 @@ public:
     return std::get<handle_object_set_t<object_type>> (m_handle_object_sets)
       .find (id);
   }
+  template <typename Handle,
+            std::enable_if_t<!std::is_void_v<object_type_from_handle_t<
+                               Handle, decltype (m_handle_object_sets)>>,
+                             int> = 0>
+  auto *find (Handle id)
+  {
+    using object_type
+      = object_type_from_handle_t<Handle, decltype (m_handle_object_sets)>;
+
+    return std::get<handle_object_set_t<object_type>> (m_handle_object_sets)
+      .find (id);
+  }
 
   /* Find an object for which the unary predicate f returns true.  */
   template <typename Functor> const auto *find_if (Functor predicate) const
+  {
+    using object_type = std::decay_t<utils::first_argument_of_t<Functor>>;
+
+    return std::get<handle_object_set_t<object_type>> (m_handle_object_sets)
+      .find_if (predicate);
+  }
+  /* Find an object for which the unary predicate f returns true.  */
+  template <typename Functor> auto *find_if (Functor predicate)
   {
     using object_type = std::decay_t<utils::first_argument_of_t<Functor>>;
 
@@ -459,7 +468,7 @@ template <
   typename Handle,
   std::enable_if_t<utils::is_detected_v<detail::architecture_find_t, Handle>,
                    int> = 0>
-auto *
+const auto *
 find (Handle id)
 {
   if (detail::last_found_architecture)
@@ -477,7 +486,7 @@ find (Handle id)
         }
     }
 
-  return detail::architecture_find_t<Handle>{};
+  return decltype (std::declval<const architecture_t> ().find (id)){};
 }
 
 } /* namespace amd::dbgapi */

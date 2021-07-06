@@ -395,7 +395,7 @@ find (Handle id)
         }
     }
 
-  return detail::process_find_t<Handle>{};
+  return decltype (std::declval<process_t> ().find (id)){};
 }
 
 template <> struct is_flag<process_t::flag_t> : std::true_type

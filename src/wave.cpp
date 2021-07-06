@@ -331,13 +331,11 @@ wave_t::update (const wave_t &group_leader,
     {
       auto last_cached_register_address
         = register_address (last_cached_register);
-      auto last_cached_register_size
-        = architecture ().register_size (last_cached_register);
-      dbgapi_assert (last_cached_register_address
-                     && last_cached_register_size);
+      dbgapi_assert (last_cached_register_address);
 
       amd_dbgapi_global_address_t register_cache_end
-        = *last_cached_register_address + *last_cached_register_size;
+        = *last_cached_register_address
+          + register_t::size (last_cached_register);
       dbgapi_assert (register_cache_end > *register_cache_begin);
 
       /* Since the wave was previously running, the content of the cached
@@ -601,10 +599,9 @@ wave_t::register_cache_policy (amdgpu_regnum_t regnum) const
                  && "pseudo registers do not have a cache policy");
 
   auto reg_addr = register_address (regnum);
-  auto reg_size = architecture ().register_size (regnum);
-  dbgapi_assert (reg_addr && reg_size && "invalid register");
+  dbgapi_assert (reg_addr && "invalid register");
 
-  if (m_register_cache.contains (*reg_addr, *reg_size))
+  if (m_register_cache.contains (*reg_addr, register_t::size (regnum)))
     return m_register_cache.policy ();
 
   return memory_cache_t::policy_t::uncached;
@@ -627,14 +624,35 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
     return architecture ().read_pseudo_register (*this, regnum, offset,
                                                  value_size, value);
 
-  auto reg_addr = register_address (regnum);
-  auto reg_size = architecture ().register_size (regnum);
-
-  if (!reg_addr || !reg_size)
-    throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID);
-
-  if (!value_size || (offset + value_size) > *reg_size)
+  if (!value_size || (offset + value_size) > register_t::size (regnum))
     throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+
+  auto reg_addr = register_address (regnum);
+
+  /* Out of range sgpr, read s0.  */
+  if (!reg_addr
+      && (regnum >= amdgpu_regnum_t::first_sgpr
+          && regnum <= amdgpu_regnum_t::last_sgpr))
+    reg_addr = register_address (amdgpu_regnum_t::s0);
+
+  /* Out of range vgpr, read v0.  */
+  if (!reg_addr
+      && (regnum >= amdgpu_regnum_t::first_vgpr
+          && regnum <= amdgpu_regnum_t::last_vgpr))
+    reg_addr = register_address (lane_count () == 32 ? amdgpu_regnum_t::v0_32
+                                                     : amdgpu_regnum_t::v0_64);
+
+  dbgapi_assert (reg_addr);
+
+  /* Reading a ttmp source when not in priviledged mode returns 0.  */
+  if (regnum >= amdgpu_regnum_t::first_ttmp
+      && regnum <= amdgpu_regnum_t::last_ttmp
+      && !m_cwsr_record->get_info (
+        architecture_t::cwsr_record_t::query_kind_t::is_priv))
+    {
+      memset (static_cast<char *> (value) + offset, '\0', value_size);
+      return;
+    }
 
   if (m_is_parked && regnum == amdgpu_regnum_t::pc)
     {
@@ -652,7 +670,7 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
                                  value_size)
           != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not read '%s' from the register cache",
-               architecture ().register_name (regnum)->c_str ());
+               register_t::name (regnum).c_str ());
     }
   else
     {
@@ -663,7 +681,7 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
                                          value_size)
           != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not read the '%s' register",
-               architecture ().register_name (regnum)->c_str ());
+               register_t::name (regnum).c_str ());
     }
 }
 
@@ -675,14 +693,27 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
     return architecture ().write_pseudo_register (*this, regnum, offset,
                                                   value_size, value);
 
-  auto reg_addr = register_address (regnum);
-  auto reg_size = architecture ().register_size (regnum);
-
-  if (!reg_addr || !reg_size)
-    throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID);
-
-  if (!value_size || (offset + value_size) > *reg_size)
+  if (!value_size || (offset + value_size) > register_t::size (regnum))
     throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+
+  auto reg_addr = register_address (regnum);
+
+  if (!reg_addr
+      && ((regnum >= amdgpu_regnum_t::first_sgpr
+           && regnum <= amdgpu_regnum_t::last_sgpr)
+          || (regnum >= amdgpu_regnum_t::first_vgpr
+              && regnum <= amdgpu_regnum_t::last_vgpr)))
+    /* Out of range sgpr or vgpr, the register write is dropped.  */
+    return;
+
+  dbgapi_assert (reg_addr);
+
+  /* Writing to a ttmp source when not in priviledged mode is a no-op.  */
+  if (regnum >= amdgpu_regnum_t::first_ttmp
+      && regnum <= amdgpu_regnum_t::last_ttmp
+      && !m_cwsr_record->get_info (
+        architecture_t::cwsr_record_t::query_kind_t::is_priv))
+    return;
 
   if (m_is_parked && regnum == amdgpu_regnum_t::pc)
     {
@@ -698,7 +729,7 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
                                   value_size)
           != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not write '%s' to the register cache",
-               architecture ().register_name (regnum)->c_str ());
+               register_t::name (regnum).c_str ());
 
       /* If the cache is dirty, register it with the queue, it will be flushed
          when the queue is resumed.  */
@@ -714,7 +745,7 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
             value_size)
           != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not write the '%s' register",
-               architecture ().register_name (regnum)->c_str ());
+               register_t::name (regnum).c_str ());
     }
 }
 
