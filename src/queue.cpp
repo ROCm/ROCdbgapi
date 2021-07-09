@@ -50,8 +50,13 @@ namespace amd::dbgapi
 class queue_t::queue_impl_t
 {
 protected:
+  os_queue_snapshot_entry_t const m_os_queue_info;
+  dispatch_t const m_dummy_dispatch;
+  queue_t &m_queue;
+
   queue_impl_t (queue_t &queue, const os_queue_snapshot_entry_t &os_queue_info)
-    : m_os_queue_info (os_queue_info), m_queue (queue)
+    : m_os_queue_info (os_queue_info),
+      m_dummy_dispatch (AMD_DBGAPI_DISPATCH_NONE, queue, 0, 0), m_queue (queue)
   {
   }
 
@@ -90,10 +95,6 @@ public:
 
   /* Notify the impl that the queue was suspended/resumed.  */
   virtual void state_changed (queue_t::state_t) {}
-
-protected:
-  os_queue_snapshot_entry_t const m_os_queue_info;
-  queue_t &m_queue;
 };
 
 namespace detail
@@ -370,15 +371,24 @@ aql_queue_impl_t::update_waves ()
     amd_dbgapi_wave_id_t wave_id;
     wave_t::visibility_t visibility{ wave_t::visibility_t::visible };
 
-    if (process.is_flag_set (process_t::flag_t::assign_new_ids_to_all_waves))
+    if (process.is_flag_set (process_t::flag_t::runtime_enable_during_attach))
       {
-        /* We will never have hidden waves when assigning new ids. All waves
+        /* Assign new ids to all waves regardless of the content of their
+           wave_id register.  This is needed during attach as waves created
+           before the debugger attached to the process may have corrupted
+           wave_ids.
+
+           We will never have hidden waves when assigning new ids. All waves
            seen in the control stack get a new wave_t instance with a new wave
            id.  */
         wave_id = wave_t::undefined;
       }
     else
       {
+        dbgapi_assert (
+          process.is_flag_set (process_t::flag_t::ttmps_setup_enabled)
+          && "ttmps are not initialized");
+
         /* The wave id is preserved in ttmp registers.  */
         const amd_dbgapi_global_address_t wave_id_address
           = cwsr_record->register_address (amdgpu_regnum_t::wave_id).value ();
@@ -418,7 +428,9 @@ aql_queue_impl_t::update_waves ()
                    to_string (wave_id).c_str ());
       }
 
-    if (!wave)
+    const dispatch_t *dispatch = &m_dummy_dispatch;
+
+    if (!wave && process.is_flag_set (process_t::flag_t::ttmps_setup_enabled))
       {
         amd_dbgapi_global_address_t dispatch_ptr
           = m_queue.architecture ().dispatch_packet_address (*cwsr_record);
@@ -461,7 +473,7 @@ aql_queue_impl_t::update_waves ()
                  os_queue_packet_id, read_dispatch_id, write_dispatch_id);
 
         /* Check if the dispatch already exists.  */
-        dispatch_t *dispatch = process.find_if (
+        dispatch = process.find_if (
           [&] (const dispatch_t &x)
           {
             return x.queue () == m_queue
@@ -474,9 +486,11 @@ aql_queue_impl_t::update_waves ()
             cwsr_record->queue (), /* queue  */
             os_queue_packet_id,    /* os_queue_packet_id  */
             dispatch_ptr);         /* packet_address  */
+      }
 
+    if (!wave)
+      {
         wave = &process.create<wave_t> (*dispatch, m_callbacks);
-
         wave->set_visibility (visibility);
       }
 

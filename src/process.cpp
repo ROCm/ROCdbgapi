@@ -1100,13 +1100,20 @@ process_t::update_queues ()
                               queue_info.queue_id);
                 }
             }
-          else if (is_flag_set (flag_t::require_new_queue_bit))
+          else if (is_flag_set (flag_t::runtime_enable_during_attach))
+            {
+              /* When attaching to a process with an already enabled runtime,
+                 active queues may not report the queue_new exception as it may
+                 have been cleared by another debugger session.  */
+              dbgapi_assert (!queue && "no queue should exists before attach");
+            }
+          else
             {
               /* We should always have a valid queue for a given os_queue_id
-                 after the process is initialized.  Not finding the queue means
-                 that we either did not create a queue when a new queue_id was
-                 reported (we consumed the event without action), or KFD did
-                 not report the new queue.  */
+                 after the process is attached.  Not finding the queue means
+                 that we either did not create a queue when a queue_new
+                 exception was reported (we consumed the event without action),
+                 or KFD did not report the new queue.  */
               if (!queue)
                 error ("os_queue_id %d should have been reported as a  new "
                        "queue before",
@@ -1418,8 +1425,8 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
     error ("update_queues failed (rc=%d)", status);
 
-  /* From now on, newly created queues raise a queue_new exception.  */
-  set_flag (flag_t::require_new_queue_bit);
+  if (!is_flag_set (flag_t::runtime_enable_during_attach) && count<queue_t> ())
+    error ("no queue can exist before the runtime is enabled");
 
   status = update_code_objects ();
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -1469,8 +1476,10 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
   /* Suspend the newly created queues to update the waves, then resume them.
      We could have attached to the process while wavefronts were executing.  */
   suspend_queues (queues, "attach to process");
-  clear_flag (flag_t::assign_new_ids_to_all_waves);
   resume_queues (queues, "attach to process");
+
+  clear_flag (flag_t::runtime_enable_during_attach);
+  set_flag (flag_t::ttmps_setup_enabled);
 
   restriction_error.release ();
 }
@@ -1480,15 +1489,6 @@ process_t::attach ()
 {
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "attaching %s to process %d",
               to_string (id ()).c_str (), m_os_process_id);
-
-  /* When we first attach to the process, all waves already running need to be
-     assigned new wave_ids.  This flag will be cleared after the first call to
-     suspend the queues (and update the waves).  */
-  set_flag (flag_t::assign_new_ids_to_all_waves);
-
-  /* Queues that are already created will not be reported with a queue_new
-     exception, so assume all queues reported by queue snapshot are new.  */
-  clear_flag (flag_t::require_new_queue_bit);
 
   if (os_driver ().check_version () != AMD_DBGAPI_STATUS_SUCCESS)
     return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
@@ -1522,6 +1522,10 @@ process_t::attach ()
 
   if (runtime_info.runtime_state != os_runtime_state_t::disabled)
     {
+      if (runtime_info.ttmp_setup)
+        set_flag (flag_t::ttmps_setup_enabled);
+
+      set_flag (flag_t::runtime_enable_during_attach);
       runtime_enable (runtime_info);
 
       if (m_runtime_state != AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS)

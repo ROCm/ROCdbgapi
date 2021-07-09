@@ -80,15 +80,12 @@ class process_t : public detail::handle_object<amd_dbgapi_process_id_t>
 public:
   enum class flag_t : uint32_t
   {
-    /* Require the NEW_QUEUE bit to be set when a queue_id is reported for the
-       first time by kfd to this process. When attaching to an already running
-       process, a missing NEW_BIT may be ignored as it could have been cleared
-       by another debugger session.  */
-    require_new_queue_bit = 1 << 0,
-    /* Assign new ids to all waves regardless of the content of their wave_id
-       register.  This is needed during attach as waves created before the
-       debugger attached to the process may have corrupted wave_ids.  */
-    assign_new_ids_to_all_waves = 1 << 1,
+    /* The runtime was already enabled during attach.  There might already be
+       active queues with waves executing.  */
+    runtime_enable_during_attach = 1 << 0,
+    /* Trap temporary register setup is now enabled.  Any new wave created
+       after this flag is set will have its ttmp registers initialized.  */
+    ttmps_setup_enabled = 1 << 1,
   };
 
 private:

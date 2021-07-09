@@ -122,7 +122,7 @@ private:
   displaced_stepping_t *m_displaced_stepping{ nullptr };
   const wave_t *m_group_leader{ nullptr };
   const callbacks_t &m_callbacks;
-  dispatch_t &m_dispatch;
+  const dispatch_t &m_dispatch;
 
   amd_dbgapi_status_t
   xfer_private_memory_swizzled (amd_dbgapi_segment_address_t segment_address,
@@ -143,7 +143,7 @@ private:
   void unpark ();
 
 public:
-  wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t &dispatch,
+  wave_t (amd_dbgapi_wave_id_t wave_id, const dispatch_t &dispatch,
           const callbacks_t &callbacks);
   ~wave_t ();
 
@@ -269,7 +269,7 @@ public:
   amd_dbgapi_status_t get_info (amd_dbgapi_wave_info_t query,
                                 size_t value_size, void *value) const;
 
-  dispatch_t &dispatch () const { return m_dispatch; }
+  const dispatch_t &dispatch () const { return m_dispatch; }
   queue_t &queue () const { return dispatch ().queue (); }
   agent_t &agent () const { return queue ().agent (); }
   process_t &process () const { return agent ().process (); }

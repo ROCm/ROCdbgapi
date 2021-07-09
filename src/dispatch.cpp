@@ -44,6 +44,10 @@ dispatch_t::dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id, queue_t &queue,
 {
   amd_dbgapi_status_t status;
 
+  /* If this is a dummy dispatch, we don't have a packet to read from.  */
+  if (dispatch_id == AMD_DBGAPI_DISPATCH_NONE)
+    return;
+
   status = process ().read_global_memory (packet_address, &m_packet,
                                           sizeof (m_packet));
   if (status != AMD_DBGAPI_STATUS_SUCCESS)

@@ -42,7 +42,7 @@
 namespace amd::dbgapi
 {
 
-wave_t::wave_t (amd_dbgapi_wave_id_t wave_id, dispatch_t &dispatch,
+wave_t::wave_t (amd_dbgapi_wave_id_t wave_id, const dispatch_t &dispatch,
                 const callbacks_t &callbacks)
   : handle_object (wave_id),
     m_register_cache (dispatch.process (),
@@ -386,12 +386,15 @@ wave_t::update (const wave_t &group_leader,
       amd_dbgapi_wave_id_t wave_id = id ();
       write_register (amdgpu_regnum_t::wave_id, &wave_id);
 
-      /* Read group_ids[0:3].  */
-      read_register (amdgpu_regnum_t::dispatch_grid, 0, sizeof (m_group_ids),
-                     &m_group_ids[0]);
+      if (process ().is_flag_set (process_t::flag_t::ttmps_setup_enabled))
+        {
+          /* Read group_ids[0:3].  */
+          read_register (amdgpu_regnum_t::dispatch_grid, 0,
+                         sizeof (m_group_ids), &m_group_ids[0]);
 
-      /* Read the wave's position in the thread group.  */
-      read_register (amdgpu_regnum_t::wave_in_group, &m_wave_in_group);
+          /* Read the wave's position in the thread group.  */
+          read_register (amdgpu_regnum_t::wave_in_group, &m_wave_in_group);
+        }
     }
 }
 
