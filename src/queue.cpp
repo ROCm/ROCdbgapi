@@ -919,7 +919,7 @@ queue_t::get_info (amd_dbgapi_queue_info_t query, size_t value_size,
 
     case AMD_DBGAPI_QUEUE_INFO_STATE:
     case AMD_DBGAPI_QUEUE_INFO_ERROR_REASON:
-      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+      return AMD_DBGAPI_STATUS_ERROR_NOT_IMPLEMENTED;
     }
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }

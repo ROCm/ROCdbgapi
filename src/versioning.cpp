@@ -71,8 +71,11 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
     case AMD_DBGAPI_STATUS_FATAL:
       string = "A fatal error has occurred";
       break;
-    case AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED:
+    case AMD_DBGAPI_STATUS_ERROR_NOT_IMPLEMENTED:
       string = "The operation is not currently implemented";
+      break;
+    case AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE:
+      string = "The requested information is not available";
       break;
     case AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED:
       string = "The operation is not supported";
@@ -110,6 +113,10 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
     case AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID:
       string = "The process handle is invalid";
       break;
+    case AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED:
+      string = "The native operating system process associated with a "
+               "client process has exited";
+      break;
     case AMD_DBGAPI_STATUS_ERROR_INVALID_AGENT_ID:
       string = "The agent handle is invalid";
       break;
@@ -137,9 +144,16 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
     case AMD_DBGAPI_STATUS_ERROR_INVALID_DISPLACED_STEPPING_ID:
       string = "The displaced stepping handle is invalid";
       break;
-    case AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_BUFFER_UNAVAILABLE:
+    case AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_BUFFER_NOT_AVAILABLE:
       string = "No more displaced stepping buffers are available that "
                "are suitable for the requested wave";
+      break;
+    case AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_ACTIVE:
+      string = "The wave has an active displaced stepping buffer";
+      break;
+    case AMD_DBGAPI_STATUS_ERROR_RESUME_DISPLACED_STEPPING:
+      string = "The wave cannot be resumed in the manner requested due to "
+               "displaced stepping restrictions.";
       break;
     case AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID:
       string = "The watchpoint handle is invalid";
@@ -173,8 +187,6 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
     case AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID:
       string = "The event handle is invalid";
       break;
-    case AMD_DBGAPI_STATUS_ERROR_RESERVED_36:
-      break;
     case AMD_DBGAPI_STATUS_ERROR_INVALID_BREAKPOINT_ID:
       string = "The breakpoint handle is invalid";
       break;
@@ -184,24 +196,8 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
     case AMD_DBGAPI_STATUS_ERROR_INVALID_CLIENT_PROCESS_ID:
       string = "The client process handle is invalid";
       break;
-    case AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED:
-      string = "The native operating system process associated with a "
-               "client process has exited";
-      break;
-    case AMD_DBGAPI_STATUS_ERROR_LIBRARY_NOT_LOADED:
-      string = "The shared library is not currently loaded";
-      break;
     case AMD_DBGAPI_STATUS_ERROR_SYMBOL_NOT_FOUND:
       string = "The symbol was not found";
-      break;
-    case AMD_DBGAPI_STATUS_ERROR_RESERVED_43:
-      break;
-    case AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_ACTIVE:
-      string = "The wave has an active displaced stepping buffer";
-      break;
-    case AMD_DBGAPI_STATUS_ERROR_RESUME_DISPLACED_STEPPING:
-      string = "The wave cannot be resumed in the manner requested due to "
-               "displaced stepping restrictions.";
       break;
       /* Don't add a default here, so that we can catch at compile time when an
           enum value is missing.  */

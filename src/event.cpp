@@ -237,7 +237,7 @@ event_t::get_info (amd_dbgapi_event_info_t query, size_t value_size,
       if (kind () != AMD_DBGAPI_EVENT_KIND_QUEUE_ERROR)
         return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
-      return AMD_DBGAPI_STATUS_ERROR_UNIMPLEMENTED;
+      return AMD_DBGAPI_STATUS_ERROR_NOT_IMPLEMENTED;
     }
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 }
