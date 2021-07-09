@@ -956,7 +956,9 @@ wave_t::get_info (amd_dbgapi_wave_info_t query, size_t value_size,
       return utils::get_info (value_size, value, stop_reason ());
 
     case AMD_DBGAPI_WAVE_INFO_DISPATCH:
-      return utils::get_info (value_size, value, dispatch ().id ());
+      return (dispatch ().id () == AMD_DBGAPI_DISPATCH_NONE)
+               ? AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE
+               : utils::get_info (value_size, value, dispatch ().id ());
 
     case AMD_DBGAPI_WAVE_INFO_QUEUE:
       return utils::get_info (value_size, value, queue ().id ());
@@ -977,10 +979,14 @@ wave_t::get_info (amd_dbgapi_wave_info_t query, size_t value_size,
       return utils::get_info (value_size, value, exec_mask ());
 
     case AMD_DBGAPI_WAVE_INFO_WORK_GROUP_COORD:
-      return utils::get_info (value_size, value, m_group_ids);
+      return (dispatch ().id () == AMD_DBGAPI_DISPATCH_NONE)
+               ? AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE
+               : utils::get_info (value_size, value, m_group_ids);
 
     case AMD_DBGAPI_WAVE_INFO_WAVE_NUMBER_IN_WORK_GROUP:
-      return utils::get_info (value_size, value, m_wave_in_group);
+      return (dispatch ().id () == AMD_DBGAPI_DISPATCH_NONE)
+               ? AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE
+               : utils::get_info (value_size, value, m_wave_in_group);
 
     case AMD_DBGAPI_WAVE_INFO_WATCHPOINTS:
       {
