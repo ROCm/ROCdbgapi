@@ -118,7 +118,7 @@ private:
   };
 
   amd_dbgapi_global_address_t m_scratch_backing_memory_address{ 0 };
-  amd_dbgapi_size_t m_scratch_backing_memory_size{ 0 };
+  uint32_t m_compute_tmpring_size{ 0 };
 
   /* The memory reserved by the thunk library for the debugger is used to store
      instruction buffers.  Instruction buffers are lazily allocated from the
@@ -247,10 +247,15 @@ aql_queue_impl_t::aql_queue_impl_t (
     error ("hsa_queue_t size != kfd queue info ring size");
 
   m_callbacks = {
-    /* Return the current scratch backing memory address.  */
-    [&] () { return m_scratch_backing_memory_address; },
-    /* Return the current scratch backing memory size.  */
-    [&] () { return m_scratch_backing_memory_size; },
+    /* Return the wave's scratch memory region (address and size).  */
+    [&] (const architecture_t::cwsr_record_t &cwsr_record)
+      -> std::pair<amd_dbgapi_global_address_t, amd_dbgapi_size_t>
+    {
+      auto [offset, size]
+        = architecture.scratch_slot (cwsr_record, m_compute_tmpring_size);
+
+      return std::make_pair (m_scratch_backing_memory_address + offset, size);
+    },
     /* Return a new instruction buffer instance in this queue.  */
     [&] () { return allocate_instruction_buffer (); },
     /* Return the address of a park instruction.  */
@@ -390,10 +395,8 @@ aql_queue_impl_t::update_waves ()
          */
         if (wave_id == wave_t::undefined)
           {
-            const bool halted = cwsr_record->get_info (
-              architecture_t::cwsr_record_t::query_kind_t::is_halted);
-            const bool stopped = cwsr_record->get_info (
-              architecture_t::cwsr_record_t::query_kind_t::is_stopped);
+            const bool halted = cwsr_record->is_halted ();
+            const bool stopped = cwsr_record->is_stopped ();
 
             /* Waves halted at launch are halted but not stopped.  */
             if (process.wave_launch_mode () == os_wave_launch_mode_t::halt
@@ -477,10 +480,8 @@ aql_queue_impl_t::update_waves ()
         wave->set_visibility (visibility);
       }
 
-    bool first_wave = cwsr_record->get_info (
-      architecture_t::cwsr_record_t::query_kind_t::first_wave);
-    bool last_wave = cwsr_record->get_info (
-      architecture_t::cwsr_record_t::query_kind_t::last_wave);
+    bool first_wave = cwsr_record->is_first_wave ();
+    bool last_wave = cwsr_record->is_last_wave ();
 
     /* The first wave in the group is the group leader.  The group leader owns
        the backing store for the group memory (LDS).  */
@@ -720,14 +721,12 @@ aql_queue_impl_t::state_changed (queue_t::state_t state)
 
       status = m_queue.process ().read_global_memory (
         m_os_queue_info.read_pointer_address
-          + offsetof (amd_queue_t, scratch_backing_memory_byte_size)
+          + offsetof (amd_queue_t, compute_tmpring_size)
           - offsetof (amd_queue_t, read_dispatch_id),
-        &m_scratch_backing_memory_size,
-        sizeof (m_scratch_backing_memory_size));
+        &m_compute_tmpring_size, sizeof (m_compute_tmpring_size));
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        error (
-          "Could not read the queue's scratch_backing_memory_size (rc=%d)",
-          status);
+        error ("Could not read the queue's compute_tmpring_size (rc=%d)",
+               status);
 
       /* Update the waves from the content of the queue's context save area. */
       status = update_waves ();

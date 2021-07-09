@@ -327,8 +327,6 @@ register_t::name (amdgpu_regnum_t regnum)
       return "dispatch_grid";
     case amdgpu_regnum_t::wave_in_group:
       return "wave_in_group";
-    case amdgpu_regnum_t::scratch_offset:
-      return "scratch_offset";
     case amdgpu_regnum_t::csp:
       return "csp";
     case amdgpu_regnum_t::null:
@@ -404,7 +402,6 @@ register_t::type (amdgpu_regnum_t regnum)
     case amdgpu_regnum_t::vcc_hi:
     case amdgpu_regnum_t::xnack_mask_lo:
     case amdgpu_regnum_t::xnack_mask_hi:
-    case amdgpu_regnum_t::scratch_offset:
     case amdgpu_regnum_t::pseudo_status:
     case amdgpu_regnum_t::wave_in_group:
     case amdgpu_regnum_t::csp:
@@ -488,7 +485,6 @@ register_t::size (amdgpu_regnum_t regnum)
     case amdgpu_regnum_t::vcc_hi:
     case amdgpu_regnum_t::xnack_mask_lo:
     case amdgpu_regnum_t::xnack_mask_hi:
-    case amdgpu_regnum_t::scratch_offset:
     case amdgpu_regnum_t::pseudo_status:
     case amdgpu_regnum_t::wave_in_group:
     case amdgpu_regnum_t::csp:

@@ -134,11 +134,10 @@ enum class amdgpu_regnum_t : uint32_t
   xnack_mask_lo,   /* XNACK mask lower 32 bits.  */
   xnack_mask_hi,   /* XNACK mask higher 32 bits.  */
 
-  wave_id,        /* Debug[0:1].  */
-  dispatch_grid,  /* Dispatch grid X, Y, Z  */
-  scratch_offset, /* Scracth memory offset from the scratch base.  */
+  wave_id,       /* Debug[0:1].  */
+  dispatch_grid, /* Dispatch grid X, Y, Z  */
 
-  last_aliased = scratch_offset,
+  last_aliased = dispatch_grid,
   first_pseudo = last_aliased + 1,
 
   /* Pseudo registers.  Registers that are computed from other registers. They

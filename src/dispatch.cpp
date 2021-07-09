@@ -69,14 +69,6 @@ dispatch_t::kernel_code_entry_address () const
          + m_kernel_descriptor.kernel_code_entry_byte_offset;
 }
 
-bool
-dispatch_t::is_scratch_enabled () const
-{
-  return !!(
-    m_kernel_descriptor.compute_pgm_rsrc2
-    & AMD_COMPUTE_PGM_RSRC_TWO_ENABLE_SGPR_PRIVATE_SEGMENT_WAVE_BYTE_OFFSET);
-}
-
 amd_dbgapi_status_t
 dispatch_t::get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
                       void *value) const

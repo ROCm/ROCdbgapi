@@ -176,29 +176,30 @@ public:
     queue_t &m_queue;
 
   public:
-    enum class query_kind_t
-    {
-      vgprs,        /* Number of private VGPRs.  */
-      shared_vgprs, /* Number of shared VGPRs.  */
-      acc_vgprs,    /* Number of AccVGPRs. */
-      sgprs,        /* Number of SGPRs.  */
-      lds_size,     /* LDS space (bytes).  */
-      lane_count,   /* Number of lanes.  */
-
-      last_wave,  /* Last wave of threadgroup.  */
-      first_wave, /* First wave of threadgroup.  */
-
-      is_halted,  /* The wave is halted (status.halt=1).  */
-      is_stopped, /* The wave is stopped at the request of the trap handler. */
-      is_priv,    /* The wave is in privilege mode (status.priv=1).  */
-    };
-
     cwsr_record_t (queue_t &queue) : m_queue (queue) {}
-
     /* cwsr_record_t is a polymorphic base class.  */
     virtual ~cwsr_record_t () = default;
 
-    virtual uint64_t get_info (query_kind_t query) const = 0;
+    /* Number of work-items in one wave.  */
+    virtual size_t lane_count () const = 0;
+    /* Last wave of threadgroup.  */
+    virtual bool is_last_wave () const = 0;
+    /* First wave of threadgroup.  */
+    virtual bool is_first_wave () const = 0;
+
+    /* Size of the local data share.  */
+    virtual size_t lds_size () const = 0;
+    /* Offset of the scratch slot in the queue allocated scratch region.  */
+    virtual std::optional<size_t>
+    scratch_offset (size_t scratch_slot_size,
+                    size_t scratch_slot_count) const = 0;
+
+    /* The wave is halted (status.halt=1).  */
+    virtual bool is_halted () const = 0;
+    /* The wave is stopped at the request of the trap handler. */
+    virtual bool is_stopped () const = 0;
+    /* The wave is in privilege mode (status.priv=1).  */
+    virtual bool is_priv () const = 0;
 
     virtual std::optional<amd_dbgapi_global_address_t>
     register_address (amdgpu_regnum_t regnum) const = 0;
@@ -243,8 +244,12 @@ public:
     const std::function<void (std::unique_ptr<cwsr_record_t>)> &wave_callback)
     const = 0;
 
-  virtual amd_dbgapi_global_address_t
-  dispatch_packet_address (const cwsr_record_t &cwsr_record) const = 0;
+  virtual amd_dbgapi_global_address_t dispatch_packet_address (
+    const architecture_t::cwsr_record_t &cwsr_record) const = 0;
+  virtual std::pair<amd_dbgapi_size_t /* offset  */,
+                    amd_dbgapi_size_t /* size  */>
+  scratch_slot (const architecture_t::cwsr_record_t &cwsr_record,
+                uint32_t compute_tmpring_size_register) const = 0;
 
   virtual amd_dbgapi_status_t
   convert_address_space (const wave_t &wave, amd_dbgapi_lane_id_t lane_id,

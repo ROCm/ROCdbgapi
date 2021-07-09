@@ -392,13 +392,6 @@ wave_t::update (const wave_t &group_leader,
 
       /* Read the wave's position in the thread group.  */
       read_register (amdgpu_regnum_t::wave_in_group, &m_wave_in_group);
-
-      if (dispatch ().is_scratch_enabled ())
-        {
-          uint32_t scratch_offset;
-          read_register (amdgpu_regnum_t::scratch_offset, &scratch_offset);
-          m_scratch_offset = scratch_offset;
-        }
     }
 }
 
@@ -646,9 +639,7 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
 
   /* Reading a ttmp source when not in priviledged mode returns 0.  */
   if (regnum >= amdgpu_regnum_t::first_ttmp
-      && regnum <= amdgpu_regnum_t::last_ttmp
-      && !m_cwsr_record->get_info (
-        architecture_t::cwsr_record_t::query_kind_t::is_priv))
+      && regnum <= amdgpu_regnum_t::last_ttmp && !m_cwsr_record->is_priv ())
     {
       memset (static_cast<char *> (value) + offset, '\0', value_size);
       return;
@@ -710,9 +701,7 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
 
   /* Writing to a ttmp source when not in priviledged mode is a no-op.  */
   if (regnum >= amdgpu_regnum_t::first_ttmp
-      && regnum <= amdgpu_regnum_t::last_ttmp
-      && !m_cwsr_record->get_info (
-        architecture_t::cwsr_record_t::query_kind_t::is_priv))
+      && regnum <= amdgpu_regnum_t::last_ttmp && !m_cwsr_record->is_priv ())
     return;
 
   if (m_is_parked && regnum == amdgpu_regnum_t::pc)
@@ -757,12 +746,8 @@ wave_t::xfer_private_memory_swizzled (
   if (lane_id == AMD_DBGAPI_LANE_NONE || lane_id >= lane_count ())
     return AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID;
 
-  if (!dispatch ().is_scratch_enabled ())
-    return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
-
-  amd_dbgapi_size_t limit = m_callbacks.scratch_memory_size ();
-  amd_dbgapi_global_address_t scratch_base
-    = m_callbacks.scratch_memory_base ();
+  auto [scratch_base, scratch_size]
+    = m_callbacks.scratch_memory_region (*m_cwsr_record);
 
   size_t bytes = *size;
   while (bytes > 0)
@@ -774,13 +759,12 @@ wave_t::xfer_private_memory_swizzled (
       size_t request_size = std::min (4 - (segment_address % 4), bytes);
       size_t xfer_size = request_size;
 
-      amd_dbgapi_size_t offset = m_scratch_offset
-                                 + ((segment_address / 4) * lane_count () * 4)
+      amd_dbgapi_size_t offset = ((segment_address / 4) * lane_count () * 4)
                                  + (lane_id * 4) + (segment_address % 4);
 
-      if ((offset + xfer_size) > limit)
+      if ((offset + xfer_size) > scratch_size)
         {
-          xfer_size = offset < limit ? limit - offset : 0;
+          xfer_size = offset < scratch_size ? scratch_size - offset : 0;
           if (xfer_size == 0)
             return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
         }
@@ -821,22 +805,19 @@ wave_t::xfer_private_memory_unswizzled (
   amd_dbgapi_segment_address_t segment_address, void *read, const void *write,
   size_t *size)
 {
-  if (!dispatch ().is_scratch_enabled ())
-    return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
+  auto [scratch_base, scratch_size]
+    = m_callbacks.scratch_memory_region (*m_cwsr_record);
 
-  amd_dbgapi_size_t limit = m_callbacks.scratch_memory_size ();
-  amd_dbgapi_size_t offset = m_scratch_offset + segment_address;
-
-  if ((offset + *size) > limit)
+  if ((segment_address + *size) > scratch_size)
     {
-      size_t max_size = offset < limit ? limit - offset : 0;
+      size_t max_size
+        = segment_address < scratch_size ? scratch_size - segment_address : 0;
       if (max_size == 0 && *size != 0)
         return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
       *size = max_size;
     }
 
-  amd_dbgapi_global_address_t global_address
-    = m_callbacks.scratch_memory_base () + offset;
+  amd_dbgapi_global_address_t global_address = scratch_base + segment_address;
 
   if (read)
     return process ().read_global_memory_partial (global_address, read, size);
@@ -852,8 +833,7 @@ wave_t::xfer_local_memory (amd_dbgapi_segment_address_t segment_address,
   /* The LDS is stored in the context save area.  */
   dbgapi_assert (queue ().is_suspended ());
 
-  amd_dbgapi_size_t limit = m_cwsr_record->get_info (
-    architecture_t::cwsr_record_t::query_kind_t::lds_size);
+  amd_dbgapi_size_t limit = m_cwsr_record->lds_size ();
   amd_dbgapi_size_t offset = segment_address;
 
   if ((offset + *size) > limit)

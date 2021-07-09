@@ -146,13 +146,13 @@ protected:
   static constexpr uint32_t sq_wave_trapsts_excp_hi_mask
     = utils::bit_mask (12, 14);
 
-  static constexpr uint32_t compute_relaunch_is_event (uint32_t x)
+  static constexpr uint32_t compute_relaunch_is_event (uint32_t relaunch)
   {
-    return utils::bit_extract (x, 30, 30);
+    return utils::bit_extract (relaunch, 30, 30);
   }
-  static constexpr uint32_t compute_relaunch_is_state (uint32_t x)
+  static constexpr uint32_t compute_relaunch_is_state (uint32_t relaunch)
   {
-    return utils::bit_extract (x, 31, 31);
+    return utils::bit_extract (relaunch, 31, 31);
   }
 
   amdgcn_architecture_t (elf_amdgpu_machine_t e_machine,
@@ -1812,25 +1812,46 @@ protected:
     uint32_t const m_compute_relaunch_state;
     amd_dbgapi_global_address_t const m_context_save_address;
 
-    static constexpr uint32_t compute_relaunch_payload_vgprs (uint32_t x)
+    static constexpr uint32_t
+    compute_relaunch_state_payload_vgprs (uint32_t relaunch_state)
     {
-      return utils::bit_extract (x, 0, 5);
+      return utils::bit_extract (relaunch_state, 0, 5);
     }
-    static constexpr uint32_t compute_relaunch_payload_sgprs (uint32_t x)
+    static constexpr uint32_t
+    compute_relaunch_state_payload_sgprs (uint32_t relaunch_state)
     {
-      return utils::bit_extract (x, 6, 8);
+      return utils::bit_extract (relaunch_state, 6, 8);
     }
-    static constexpr uint32_t compute_relaunch_payload_lds_size (uint32_t x)
+    static constexpr uint32_t
+    compute_relaunch_state_payload_lds_size (uint32_t relaunch_state)
     {
-      return utils::bit_extract (x, 9, 17);
+      return utils::bit_extract (relaunch_state, 9, 17);
     }
-    static constexpr uint32_t compute_relaunch_payload_last_wave (uint32_t x)
+    static constexpr uint32_t
+    compute_relaunch_wave_payload_scratch_scoreboard_id (
+      uint32_t relaunch_wave)
     {
-      return utils::bit_extract (x, 16, 16);
+      return utils::bit_extract (relaunch_wave, 0, 8);
     }
-    static constexpr uint32_t compute_relaunch_payload_first_wave (uint32_t x)
+    static constexpr uint32_t
+    compute_relaunch_wave_payload_se_id (uint32_t relaunch_wave)
     {
-      return utils::bit_extract (x, 17, 17);
+      return utils::bit_extract (relaunch_wave, 11, 12);
+    }
+    static constexpr uint32_t
+    compute_relaunch_wave_payload_scratch_en (uint32_t relaunch_wave)
+    {
+      return utils::bit_extract (relaunch_wave, 15, 15);
+    }
+    static constexpr uint32_t
+    compute_relaunch_wave_payload_last_wave (uint32_t relaunch_wave)
+    {
+      return utils::bit_extract (relaunch_wave, 16, 16);
+    }
+    static constexpr uint32_t
+    compute_relaunch_wave_payload_first_wave (uint32_t relaunch_wave)
+    {
+      return utils::bit_extract (relaunch_wave, 17, 17);
     }
 
   public:
@@ -1844,19 +1865,36 @@ protected:
     {
     }
 
+    /* Number for vector registers.  */
+    virtual size_t vgpr_count () const;
+    /* Number of accum vector registers.  */
+    virtual size_t acc_vgpr_count () const { return 0; };
+    /* Number of scalar registers.  */
+    virtual size_t sgpr_count () const;
+
+    /* Number of work-items in one wave.  */
+    size_t lane_count () const override { return 64; };
+    bool is_last_wave () const override;
+    bool is_first_wave () const override;
+
+    size_t lds_size () const override;
+    std::optional<size_t> scratch_offset (size_t scratch_slot_size,
+                                          size_t scratch_slot_count) const;
+
+    bool is_halted () const override;
+    bool is_stopped () const override;
+    bool is_priv () const override;
+
     amd_dbgapi_global_address_t begin () const override
     {
-      return register_address (get_info (query_kind_t::lane_count) == 32
-                                 ? amdgpu_regnum_t::v0_32
-                                 : amdgpu_regnum_t::v0_64)
+      return register_address (lane_count () == 32 ? amdgpu_regnum_t::v0_32
+                                                   : amdgpu_regnum_t::v0_64)
         .value ();
     }
     amd_dbgapi_global_address_t end () const override
     {
       return m_context_save_address;
     }
-
-    uint64_t get_info (query_kind_t query) const override;
 
     std::optional<amd_dbgapi_global_address_t>
     register_address (amdgpu_regnum_t regnum) const override;
@@ -2012,82 +2050,112 @@ public:
   amd_dbgapi_global_address_t dispatch_packet_address (
     const architecture_t::cwsr_record_t &cwsr_record) const override;
 
+  std::pair<amd_dbgapi_size_t /* offset  */, amd_dbgapi_size_t /* size  */>
+  scratch_slot (const architecture_t::cwsr_record_t &cwsr_record,
+                uint32_t compute_tmpring_size_register) const override;
+
   size_t watchpoint_mask_bits () const override
   {
     return utils::bit_mask (6, 29);
   }
 };
 
-uint64_t
-gfx9_architecture_t::cwsr_record_t::get_info (query_kind_t query) const
+size_t
+gfx9_architecture_t::cwsr_record_t::vgpr_count () const
 {
-  uint32_t wave = m_compute_relaunch_wave;
-  uint32_t state = m_compute_relaunch_state;
+  uint32_t vgpr_blocks
+    = compute_relaunch_state_payload_vgprs (m_compute_relaunch_state) + 1;
+  /* vgprs are allocated in blocks of 4 registers.  */
+  return vgpr_blocks * 4;
+}
 
-  switch (query)
-    {
-    case query_kind_t::vgprs:
-      /* vgprs are allocated in blocks of 4 registers.  */
-      return (1 + compute_relaunch_payload_vgprs (state)) * 4;
+size_t
+gfx9_architecture_t::cwsr_record_t::sgpr_count () const
+{
+  uint32_t sgpr_blocks
+    = compute_relaunch_state_payload_sgprs (m_compute_relaunch_state) + 1;
+  /* sgprs are allocated in blocks of 16 registers. Subtract the ttmps
+     registers from this count, as they will be saved in a different area
+     than the sgprs.  */
+  return sgpr_blocks * 16 - /* remove the ttmps  */ 16;
+}
 
-    case query_kind_t::acc_vgprs:
-      return 0;
+size_t
+gfx9_architecture_t::cwsr_record_t::lds_size () const
+{
+  return compute_relaunch_state_payload_lds_size (m_compute_relaunch_state)
+         * 128 * sizeof (uint32_t);
+}
 
-    case query_kind_t::sgprs:
-      /* sgprs are allocated in blocks of 16 registers. Subtract the ttmps
-         registers from this count, as they will be saved in a different area
-         than the sgprs.  */
-      return (1 + compute_relaunch_payload_sgprs (state)) * 16
-             - /* ttmps */ 16;
+std::optional<size_t>
+gfx9_architecture_t::cwsr_record_t::scratch_offset (
+  size_t scratch_slot_size, size_t scratch_slot_count) const
+{
+  if (!compute_relaunch_wave_payload_scratch_en (m_compute_relaunch_wave))
+    return std::nullopt;
 
-    case query_kind_t::lds_size:
-      return compute_relaunch_payload_lds_size (state) * 128
-             * sizeof (uint32_t);
+  dbgapi_assert (agent ().shader_engine_count () != 0 && "divide by 0");
+  return scratch_slot_size
+         * ((scratch_slot_count / agent ().shader_engine_count ())
+              * compute_relaunch_wave_payload_se_id (m_compute_relaunch_wave)
+            + compute_relaunch_wave_payload_scratch_scoreboard_id (
+              m_compute_relaunch_wave));
+}
 
-    case query_kind_t::lane_count:
-      return 64;
+bool
+gfx9_architecture_t::cwsr_record_t::is_last_wave () const
+{
+  return compute_relaunch_wave_payload_last_wave (m_compute_relaunch_wave);
+}
 
-    case query_kind_t::last_wave:
-      return compute_relaunch_payload_last_wave (wave);
+bool
+gfx9_architecture_t::cwsr_record_t::is_first_wave () const
+{
+  return compute_relaunch_wave_payload_first_wave (m_compute_relaunch_wave);
+}
 
-    case query_kind_t::first_wave:
-      return compute_relaunch_payload_first_wave (wave);
+bool
+gfx9_architecture_t::cwsr_record_t::is_halted () const
+{
+  const amd_dbgapi_global_address_t status_reg_address
+    = register_address (amdgpu_regnum_t::status).value ();
 
-    case query_kind_t::is_halted:
-    case query_kind_t::is_priv:
-      {
-        const amd_dbgapi_global_address_t status_reg_address
-          = register_address (amdgpu_regnum_t::status).value ();
+  uint32_t status_reg;
+  if (process ().read_global_memory (status_reg_address, &status_reg,
+                                     sizeof (status_reg))
+      != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not read the 'status' register");
 
-        uint32_t status_reg;
-        if (process ().read_global_memory (status_reg_address, &status_reg,
-                                           sizeof (status_reg))
-            != AMD_DBGAPI_STATUS_SUCCESS)
-          error ("Could not read the 'status' register");
+  return (status_reg & sq_wave_status_halt_mask) != 0;
+}
 
-        uint32_t mask = query == query_kind_t::is_halted
-                          ? sq_wave_status_halt_mask
-                          : sq_wave_status_priv_mask;
-        return (status_reg & mask) != 0;
-      }
+bool
+gfx9_architecture_t::cwsr_record_t::is_stopped () const
+{
+  const amd_dbgapi_global_address_t ttmp6_address
+    = register_address (amdgpu_regnum_t::ttmp6).value ();
 
-    case query_kind_t::is_stopped:
-      {
-        const amd_dbgapi_global_address_t ttmp6_address
-          = register_address (amdgpu_regnum_t::ttmp6).value ();
+  uint32_t ttmp6;
+  if (process ().read_global_memory (ttmp6_address, &ttmp6, sizeof (ttmp6))
+      != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not read the 'ttmp6' register");
 
-        uint32_t ttmp6;
-        if (process ().read_global_memory (ttmp6_address, &ttmp6,
-                                           sizeof (ttmp6))
-            != AMD_DBGAPI_STATUS_SUCCESS)
-          error ("Could not read the 'ttmp6' register");
+  return (ttmp6 & ttmp6_wave_stopped_mask) != 0;
+}
 
-        return (ttmp6 & ttmp6_wave_stopped_mask) != 0;
-      }
+bool
+gfx9_architecture_t::cwsr_record_t::is_priv () const
+{
+  const amd_dbgapi_global_address_t status_reg_address
+    = register_address (amdgpu_regnum_t::status).value ();
 
-    default:
-      dbgapi_assert_not_reached ("Invalid wave_info query");
-    }
+  uint32_t status_reg;
+  if (process ().read_global_memory (status_reg_address, &status_reg,
+                                     sizeof (status_reg))
+      != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("Could not read the 'status' register");
+
+  return (status_reg & sq_wave_status_priv_mask) != 0;
 }
 
 std::optional<amdgpu_regnum_t>
@@ -2314,9 +2382,9 @@ gfx9_architecture_t::cwsr_record_t::register_address (
 
   amd_dbgapi_global_address_t save_area_addr = m_context_save_address;
 
-  if (get_info (query_kind_t::first_wave))
+  if (is_first_wave ())
     {
-      save_area_addr -= get_info (query_kind_t::lds_size);
+      save_area_addr -= lds_size ();
 
       if (regnum == amdgpu_regnum_t::lds_0)
         return save_area_addr;
@@ -2333,9 +2401,6 @@ gfx9_architecture_t::cwsr_record_t::register_address (
       break;
     case amdgpu_regnum_t::dispatch_grid:
       regnum = amdgpu_regnum_t::ttmp8;
-      break;
-    case amdgpu_regnum_t::scratch_offset:
-      regnum = amdgpu_regnum_t::ttmp13;
       break;
     default:
       break;
@@ -2394,7 +2459,7 @@ gfx9_architecture_t::cwsr_record_t::register_address (
              + (regnum - amdgpu_regnum_t::first_hwreg) * hwreg_size;
     }
 
-  size_t sgpr_count = get_info (query_kind_t::sgprs);
+  size_t sgpr_count = this->sgpr_count ();
   size_t sgpr_size = sizeof (int32_t);
   size_t sgprs_addr = hwregs_addr - sgpr_count * sgpr_size;
 
@@ -2435,7 +2500,7 @@ gfx9_architecture_t::cwsr_record_t::register_address (
       return sgprs_addr + (regnum - amdgpu_regnum_t::s0) * sgpr_size;
     }
 
-  size_t accvgpr_count = get_info (query_kind_t::acc_vgprs);
+  size_t accvgpr_count = this->acc_vgpr_count ();
   size_t accvgpr_size = sizeof (int32_t) * 64;
   size_t accvgprs_addr = sgprs_addr - accvgpr_count * accvgpr_size;
 
@@ -2446,7 +2511,7 @@ gfx9_architecture_t::cwsr_record_t::register_address (
       return accvgprs_addr + (regnum - amdgpu_regnum_t::a0_64) * accvgpr_size;
     }
 
-  size_t vgpr_count = get_info (query_kind_t::vgprs);
+  size_t vgpr_count = this->vgpr_count ();
   size_t vgpr_size = sizeof (int32_t) * 64;
   size_t vgprs_addr = accvgprs_addr - vgpr_count * vgpr_size;
 
@@ -2531,6 +2596,26 @@ gfx9_architecture_t::dispatch_packet_address (
   return packets_address + (os_queue_packet_id * aql_packet_size);
 }
 
+std::pair<amd_dbgapi_size_t /* offset  */, amd_dbgapi_size_t /* size  */>
+gfx9_architecture_t::scratch_slot (
+  const architecture_t::cwsr_record_t &cwsr_record,
+  uint32_t compute_tmpring_size_register) const
+{
+  amd_dbgapi_size_t wave_slot_count
+    = utils::bit_extract (compute_tmpring_size_register, 0, 11);
+  amd_dbgapi_size_t wave_slot_size
+    = utils::bit_extract (compute_tmpring_size_register, 12, 24) * 1024;
+
+  auto scratch_offset
+    = cwsr_record.scratch_offset (wave_slot_size, wave_slot_count);
+
+  if (!scratch_offset)
+    /* Scratch is not enabled, return an empty slot.  */
+    return { 0, 0 };
+
+  return std::make_pair (*scratch_offset, wave_slot_size);
+}
+
 /* Vega10 Architecture.  */
 
 class gfx900_t final : public gfx9_architecture_t
@@ -2572,18 +2657,7 @@ protected:
     {
     }
 
-    uint64_t get_info (query_kind_t query) const override
-    {
-      switch (query)
-        {
-        case query_kind_t::acc_vgprs:
-          return gfx9_architecture_t::cwsr_record_t::get_info (
-            query_kind_t::vgprs);
-
-        default:
-          return gfx9_architecture_t::cwsr_record_t::get_info (query);
-        }
-    }
+    size_t acc_vgpr_count () const override { return vgpr_count (); }
   };
 
   std::unique_ptr<architecture_t::cwsr_record_t> make_gfx9_cwsr_record (
@@ -2629,14 +2703,15 @@ protected:
   class cwsr_record_t final : public gfx9_architecture_t::cwsr_record_t
   {
   private:
-    static constexpr uint32_t compute_relaunch_payload_lds_size (uint32_t x)
+    static constexpr uint32_t
+    compute_relaunch_state_payload_lds_size (uint32_t relaunch_state)
     {
-      return utils::bit_extract ((x), 9, 16);
+      return utils::bit_extract (relaunch_state, 9, 16);
     }
     static constexpr uint32_t
-    compute_relaunch_payload_accum_offset (uint32_t x)
+    compute_relaunch_state_payload_accum_offset (uint32_t relaunch_state)
     {
-      return utils::bit_extract ((x), 24, 29);
+      return utils::bit_extract (relaunch_state, 24, 29);
     }
 
   public:
@@ -2649,27 +2724,9 @@ protected:
     {
     }
 
-    uint64_t get_info (query_kind_t query) const override
-    {
-      uint32_t state = m_compute_relaunch_state;
-
-      switch (query)
-        {
-        case query_kind_t::vgprs:
-          return (1 + compute_relaunch_payload_accum_offset (state)) * 4;
-
-        case query_kind_t::acc_vgprs:
-          return (1 + compute_relaunch_payload_vgprs (state)) * 8
-                 - (1 + compute_relaunch_payload_accum_offset (state)) * 4;
-
-        case query_kind_t::lds_size:
-          return compute_relaunch_payload_lds_size (state) * 128
-                 * sizeof (uint32_t);
-
-        default:
-          return gfx9_architecture_t::cwsr_record_t::get_info (query);
-        }
-    }
+    size_t vgpr_count () const override;
+    size_t acc_vgpr_count () const override;
+    size_t lds_size () const override;
   };
 
   std::unique_ptr<architecture_t::cwsr_record_t> make_gfx9_cwsr_record (
@@ -2712,6 +2769,30 @@ gfx90a_t::gfx90a_t ()
                                     amdgpu_regnum_t::last_accvgpr_64);
 }
 
+size_t
+gfx90a_t::cwsr_record_t::vgpr_count () const
+{
+  uint32_t arch_vgpr_blocks
+    = compute_relaunch_state_payload_accum_offset (m_compute_relaunch_state)
+      + 1;
+  return arch_vgpr_blocks * 4;
+}
+
+size_t
+gfx90a_t::cwsr_record_t::acc_vgpr_count () const
+{
+  uint32_t vgpr_blocks
+    = compute_relaunch_state_payload_vgprs (m_compute_relaunch_state) + 1;
+  return vgpr_blocks * 8 - vgpr_count ();
+}
+
+size_t
+gfx90a_t::cwsr_record_t::lds_size () const
+{
+  return compute_relaunch_state_payload_lds_size (m_compute_relaunch_state)
+         * 128 * sizeof (uint32_t);
+}
+
 class gfx10_architecture_t : public gfx9_architecture_t
 {
 protected:
@@ -2721,25 +2802,46 @@ protected:
     /* On gfx10, there are 2 COMPUTE_RELAUNCH registers for state.  */
     uint32_t const m_compute_relaunch2_state;
 
-    static constexpr uint32_t compute_relaunch_payload_lds_size (uint32_t x)
+    static constexpr uint32_t
+    compute_relaunch_state_payload_lds_size (uint32_t relaunch_state)
     {
-      return utils::bit_extract (x, 10, 17);
+      return utils::bit_extract (relaunch_state, 10, 17);
     }
-    static constexpr uint32_t compute_relaunch_payload_w32_en (uint32_t x)
+    static constexpr uint32_t
+    compute_relaunch_state_payload_w32_en (uint32_t relaunch_state)
     {
-      return utils::bit_extract (x, 24, 24);
+      return utils::bit_extract (relaunch_state, 24, 24);
     }
-    static constexpr uint32_t compute_relaunch_shared_vgprs (uint32_t x)
+    static constexpr uint32_t
+    compute_relaunch_state_payload_shared_vgprs (uint32_t relaunch_state)
     {
-      return utils::bit_extract (x, 26, 29);
+      return utils::bit_extract (relaunch_state, 26, 29);
     }
-    static constexpr uint32_t compute_relaunch_payload_last_wave (uint32_t x)
+    static constexpr uint32_t
+    compute_relaunch_wave_payload_scratch_scoreboard_id (
+      uint32_t relaunch_wave)
     {
-      return utils::bit_extract (x, 29, 29);
+      return utils::bit_extract (relaunch_wave, 0, 9);
     }
-    static constexpr uint32_t compute_relaunch_payload_first_wave (uint32_t x)
+    static constexpr uint32_t
+    compute_relaunch_wave_payload_scratch_en (uint32_t relaunch_wave)
     {
-      return utils::bit_extract (x, 12, 12);
+      return utils::bit_extract (relaunch_wave, 11, 11);
+    }
+    static constexpr uint32_t
+    compute_relaunch_wave_payload_first_wave (uint32_t relaunch_wave)
+    {
+      return utils::bit_extract (relaunch_wave, 12, 12);
+    }
+    static constexpr uint32_t
+    compute_relaunch_wave_payload_se_id (uint32_t relaunch_wave)
+    {
+      return utils::bit_extract (relaunch_wave, 24, 25);
+    }
+    static constexpr uint32_t
+    compute_relaunch_wave_payload_last_wave (uint32_t relaunch_wave)
+    {
+      return utils::bit_extract (relaunch_wave, 29, 29);
     }
 
   public:
@@ -2754,7 +2856,16 @@ protected:
     {
     }
 
-    uint64_t get_info (query_kind_t query) const override;
+    size_t sgpr_count () const override;
+    size_t vgpr_count () const override;
+    virtual size_t shared_vgpr_count () const;
+    size_t lane_count () const override;
+    size_t lds_size () const override;
+
+    bool is_last_wave () const override;
+    bool is_first_wave () const override;
+    std::optional<size_t> scratch_offset (size_t scratch_slot_size,
+                                          size_t scratch_slot_count) const;
 
     std::optional<amd_dbgapi_global_address_t>
     register_address (amdgpu_regnum_t regnum) const override;
@@ -3041,7 +3152,7 @@ std::optional<amd_dbgapi_global_address_t>
 gfx10_architecture_t::cwsr_record_t::register_address (
   amdgpu_regnum_t regnum) const
 {
-  size_t lane_count = get_info (query_kind_t::lane_count);
+  size_t lane_count = this->lane_count ();
 
   if (((regnum == amdgpu_regnum_t::exec_32
         || regnum == amdgpu_regnum_t::xnack_mask_32)
@@ -3112,11 +3223,11 @@ gfx10_architecture_t::cwsr_record_t::register_address (
      of a wave64 on gfx10.  They are logically addressed right after the
      64-wide private vector registers.  Note: In wave32, although unsupported,
      they are still allocated.  */
-  size_t shared_vgpr_count = get_info (query_kind_t::shared_vgprs);
+  size_t shared_vgpr_count = this->shared_vgpr_count ();
   size_t shared_vgpr_size = sizeof (int32_t) * 32;
   size_t shared_vgprs_addr = sgprs_addr - shared_vgpr_count * shared_vgpr_size;
 
-  size_t private_vgpr_count = get_info (query_kind_t::vgprs);
+  size_t private_vgpr_count = this->vgpr_count ();
   size_t private_vgpr_size = sizeof (int32_t) * lane_count;
   size_t private_vgprs_addr
     = shared_vgprs_addr - private_vgpr_count * private_vgpr_size;
@@ -3239,42 +3350,65 @@ gfx10_architecture_t::is_sequential (const instruction_t &instruction) const
     && !is_sopk_encoding<22, 27, 28> (instruction);
 }
 
-uint64_t
-gfx10_architecture_t::cwsr_record_t::get_info (query_kind_t query) const
+size_t
+gfx10_architecture_t::cwsr_record_t::sgpr_count () const
 {
-  uint32_t wave = m_compute_relaunch_wave;
-  uint32_t state = m_compute_relaunch_state;
+  return 128;
+}
+size_t
+gfx10_architecture_t::cwsr_record_t::vgpr_count () const
+{ /* vgprs are allocated in blocks of 8/4 registers (W32/W64).  */
+  return (1 + utils::bit_extract (m_compute_relaunch_state, 0, 5))
+         * (utils::bit_extract (m_compute_relaunch_state, 24, 24) ? 8 : 4);
+}
 
-  switch (query)
-    {
-    case query_kind_t::sgprs:
-      return 128;
+size_t
+gfx10_architecture_t::cwsr_record_t::shared_vgpr_count () const
+{
+  uint32_t shared_vgpr_blocks
+    = compute_relaunch_state_payload_shared_vgprs (m_compute_relaunch_state);
+  return shared_vgpr_blocks * 8;
+}
 
-    case query_kind_t::vgprs:
-      /* vgprs are allocated in blocks of 8/4 registers (W32/W64).  */
-      return (1 + compute_relaunch_payload_vgprs (state))
-             * (compute_relaunch_payload_w32_en (state) ? 8 : 4);
+size_t
+gfx10_architecture_t::cwsr_record_t::lane_count () const
+{
+  return compute_relaunch_state_payload_w32_en (m_compute_relaunch_state) ? 32
+                                                                          : 64;
+}
 
-    case query_kind_t::shared_vgprs:
-      return compute_relaunch_shared_vgprs (state) * 8;
+size_t
+gfx10_architecture_t::cwsr_record_t::lds_size () const
+{
+  /* lds_size: 128 dwords granularity.  */
+  return compute_relaunch_state_payload_lds_size (m_compute_relaunch_state)
+         * 128 * sizeof (uint32_t);
+}
 
-    case query_kind_t::lane_count:
-      return compute_relaunch_payload_w32_en (state) ? 32 : 64;
+std::optional<size_t>
+gfx10_architecture_t::cwsr_record_t::scratch_offset (
+  size_t scratch_slot_size, size_t scratch_slot_count) const
+{
+  if (!compute_relaunch_wave_payload_scratch_en (m_compute_relaunch_wave))
+    return std::nullopt;
 
-    case query_kind_t::lds_size:
-      /* lds_size: 128 dwords granularity.  */
-      return compute_relaunch_payload_lds_size (state) * 128
-             * sizeof (uint32_t);
+  return scratch_slot_size
+         * ((scratch_slot_count / agent ().shader_engine_count ())
+              * compute_relaunch_wave_payload_se_id (m_compute_relaunch_wave)
+            + compute_relaunch_wave_payload_scratch_scoreboard_id (
+              m_compute_relaunch_wave));
+}
 
-    case query_kind_t::last_wave:
-      return compute_relaunch_payload_last_wave (wave);
+bool
+gfx10_architecture_t::cwsr_record_t::is_last_wave () const
+{
+  return compute_relaunch_wave_payload_last_wave (m_compute_relaunch_wave);
+}
 
-    case query_kind_t::first_wave:
-      return compute_relaunch_payload_first_wave (wave);
-
-    default:
-      return gfx9_architecture_t::cwsr_record_t::get_info (query);
-    }
+bool
+gfx10_architecture_t::cwsr_record_t::is_first_wave () const
+{
+  return compute_relaunch_wave_payload_first_wave (m_compute_relaunch_wave);
 }
 
 bool
@@ -3441,15 +3575,7 @@ gfx10_architecture_t::control_stack_iterate (
           auto cwsr_record = make_gfx10_cwsr_record (queue, relaunch, state0,
                                                      state1, last_wave_area);
 
-          last_wave_area
-            = cwsr_record
-                ->register_address (cwsr_record->get_info (
-                                      cwsr_record_t::query_kind_t::lane_count)
-                                        == 32
-                                      ? amdgpu_regnum_t::first_vgpr_32
-                                      : amdgpu_regnum_t::first_vgpr_64)
-                .value ();
-
+          last_wave_area = cwsr_record->begin ();
           wave_callback (std::move (cwsr_record));
         }
     }

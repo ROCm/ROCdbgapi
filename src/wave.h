@@ -86,10 +86,10 @@ public:
 
   struct callbacks_t
   {
-    /* Return the current scratch backing memory address.  */
-    std::function<amd_dbgapi_global_address_t ()> scratch_memory_base{};
-    /* Return the current scratch backing memory size.  */
-    std::function<amd_dbgapi_size_t ()> scratch_memory_size{};
+    /* Return the wave's scratch memory region (address and size).  */
+    std::function<std::pair<amd_dbgapi_global_address_t, amd_dbgapi_size_t> (
+      const architecture_t::cwsr_record_t &)>
+      scratch_memory_region{};
     /* Return a new wave buffer instance in this queue.  */
     std::function<instruction_buffer_t ()> allocate_instruction_buffer{};
     /* Return the address of a park instruction.  */
@@ -113,7 +113,6 @@ private:
   visibility_t m_visibility{ visibility_t::visible };
   bool m_is_parked{ false };
 
-  amd_dbgapi_size_t m_scratch_offset{ 0 };
   std::array<uint32_t, 3> m_group_ids{ 0, 0, 0 };
   uint32_t m_wave_in_group{ 0 };
 
@@ -169,11 +168,7 @@ public:
     return *m_group_leader;
   }
 
-  size_t lane_count () const
-  {
-    return m_cwsr_record->get_info (
-      architecture_t::cwsr_record_t::query_kind_t::lane_count);
-  }
+  size_t lane_count () const { return m_cwsr_record->lane_count (); }
 
   auto group_ids () const { return m_group_ids; }
 
