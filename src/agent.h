@@ -80,6 +80,11 @@ public:
     return m_os_agent_info.private_address_space_aperture;
   }
 
+  size_t shader_engine_count () const
+  {
+    return m_os_agent_info.shader_engine_count;
+  }
+
   const architecture_t &architecture () const { return m_architecture; }
   process_t &process () const { return m_process; }
 };

@@ -69,6 +69,8 @@ struct os_agent_snapshot_entry_t
   size_t simd_count{ 0 };
   /* Maximum number of launched waves per SIMD.  */
   size_t max_waves_per_simd{ 0 };
+  /* Number of shader engines.  */
+  size_t shader_engine_count{ 0 };
   /* PCI vendor id.  */
   uint32_t vendor_id{ 0 };
   /* PCI device id.  */

@@ -477,6 +477,8 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
       if (!props_ifs.is_open ())
         error ("Could not open %s/properties", node_path.c_str ());
 
+      size_t array_count{}, arrays_per_engine{};
+
       std::string prop_name;
       uint64_t prop_value;
       while (props_ifs >> prop_name >> prop_value)
@@ -487,6 +489,10 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
             agent_info.simd_count = static_cast<size_t> (prop_value);
           else if (prop_name == "max_waves_per_simd")
             agent_info.max_waves_per_simd = static_cast<size_t> (prop_value);
+          else if (prop_name == "array_count")
+            array_count = static_cast<size_t> (prop_value);
+          else if (prop_name == "simd_arrays_per_engine")
+            arrays_per_engine = static_cast<size_t> (prop_value);
           else if (prop_name == "vendor_id")
             agent_info.vendor_id = static_cast<uint32_t> (prop_value);
           else if (prop_name == "device_id")
@@ -494,6 +500,12 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
           else if (prop_name == "fw_version")
             agent_info.fw_version = static_cast<uint16_t> (prop_value);
         }
+
+      if (!agent_info.simd_count || !agent_info.max_waves_per_simd
+          || !array_count || !arrays_per_engine)
+        error ("Invalid node properties");
+
+      agent_info.shader_engine_count = array_count / arrays_per_engine;
 
       decltype (&s_gfxip_lookup_table[0]) gfxip_info = nullptr;
       constexpr size_t num_elem
@@ -1270,12 +1282,14 @@ to_string (os_agent_snapshot_entry_t snapshot)
 {
   return string_printf (
     "{ .os_agent_id=%d, .name=%s, .location_id=%d, .simd_count=%ld, "
-    ".max_waves_per_simd=%ld, .vendor_id=%#x, .device_id=%#x, .fw_version=%d, "
-    ".fw_version_required=%d, .local_address_space_aperture=%#lx, "
+    ".max_waves_per_simd=%ld, .shader_engine_count=%ld, .vendor_id=%#x, "
+    ".device_id=%#x, .fw_version=%d, .fw_version_required=%d, "
+    ".local_address_space_aperture=%#lx, "
     ".private_address_space_aperture=%#lx, .e_machine=%#x }",
     snapshot.os_agent_id, snapshot.name.c_str (), snapshot.location_id,
-    snapshot.simd_count, snapshot.max_waves_per_simd, snapshot.vendor_id,
-    snapshot.device_id, snapshot.fw_version, snapshot.fw_version_required,
+    snapshot.simd_count, snapshot.max_waves_per_simd,
+    snapshot.shader_engine_count, snapshot.vendor_id, snapshot.device_id,
+    snapshot.fw_version, snapshot.fw_version_required,
     snapshot.local_address_space_aperture,
     snapshot.private_address_space_aperture, snapshot.e_machine);
 }
