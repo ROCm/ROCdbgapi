@@ -336,7 +336,7 @@ wave_t::update (const wave_t &group_leader,
 
       amd_dbgapi_global_address_t register_cache_end
         = *last_cached_register_address
-          + register_t::size (last_cached_register);
+          + architecture ().register_size (last_cached_register);
       dbgapi_assert (register_cache_end > *register_cache_begin);
 
       /* Since the wave was previously running, the content of the cached
@@ -597,7 +597,8 @@ wave_t::register_cache_policy (amdgpu_regnum_t regnum) const
   auto reg_addr = register_address (regnum);
   dbgapi_assert (reg_addr && "invalid register");
 
-  if (m_register_cache.contains (*reg_addr, register_t::size (regnum)))
+  if (m_register_cache.contains (*reg_addr,
+                                 architecture ().register_size (regnum)))
     return m_register_cache.policy ();
 
   return memory_cache_t::policy_t::uncached;
@@ -620,7 +621,8 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
     return architecture ().read_pseudo_register (*this, regnum, offset,
                                                  value_size, value);
 
-  if (!value_size || (offset + value_size) > register_t::size (regnum))
+  if (!value_size
+      || (offset + value_size) > architecture ().register_size (regnum))
     throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
   auto reg_addr = register_address (regnum);
@@ -664,7 +666,7 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
                                  value_size)
           != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not read '%s' from the register cache",
-               register_t::name (regnum).c_str ());
+               architecture ().register_name (regnum).c_str ());
     }
   else
     {
@@ -675,7 +677,7 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
                                          value_size)
           != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not read the '%s' register",
-               register_t::name (regnum).c_str ());
+               architecture ().register_name (regnum).c_str ());
     }
 }
 
@@ -687,7 +689,8 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
     return architecture ().write_pseudo_register (*this, regnum, offset,
                                                   value_size, value);
 
-  if (!value_size || (offset + value_size) > register_t::size (regnum))
+  if (!value_size
+      || (offset + value_size) > architecture ().register_size (regnum))
     throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
   auto reg_addr = register_address (regnum);
@@ -721,7 +724,7 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
                                   value_size)
           != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not write '%s' to the register cache",
-               register_t::name (regnum).c_str ());
+               architecture ().register_name (regnum).c_str ());
 
       /* If the cache is dirty, register it with the queue, it will be flushed
          when the queue is resumed.  */
@@ -737,7 +740,7 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
             value_size)
           != AMD_DBGAPI_STATUS_SUCCESS)
         error ("Could not write the '%s' register",
-               register_t::name (regnum).c_str ());
+               architecture ().register_name (regnum).c_str ());
     }
 }
 

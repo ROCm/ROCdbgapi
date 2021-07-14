@@ -238,7 +238,7 @@ public:
     catch (...)
       {
         error ("Could not read the '%s' register",
-               register_t::name (regnum).c_str ());
+               architecture ().register_name (regnum).c_str ());
       }
   }
 
@@ -251,7 +251,7 @@ public:
     catch (...)
       {
         error ("Could not write the '%s' register",
-               register_t::name (regnum).c_str ());
+               architecture ().register_name (regnum).c_str ());
       }
   }
 

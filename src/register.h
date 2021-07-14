@@ -223,15 +223,6 @@ constexpr size_t amdgpu_hwregs_count
 constexpr size_t amdgpu_ttmps_count
   = amdgpu_regnum_t::last_ttmp - amdgpu_regnum_t::first_ttmp + 1;
 
-/* Register.  */
-
-namespace register_t
-{
-std::string name (amdgpu_regnum_t regnum);
-std::string type (amdgpu_regnum_t regnum);
-amd_dbgapi_size_t size (amdgpu_regnum_t regnum);
-};
-
 /* Register class.  */
 
 class register_class_t

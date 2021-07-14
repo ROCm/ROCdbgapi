@@ -380,6 +380,10 @@ public:
       utils::bit_extract (register_id.handle, 32, 63) });
   }
 
+  virtual std::string register_name (amdgpu_regnum_t regnum) const = 0;
+  virtual std::string register_type (amdgpu_regnum_t regnum) const = 0;
+  virtual amd_dbgapi_size_t register_size (amdgpu_regnum_t regnum) const = 0;
+
   std::set<amdgpu_regnum_t> register_set () const;
   bool is_register_available (amdgpu_regnum_t regnum) const;
 

@@ -456,6 +456,12 @@ extern "C" {
  */
 #define AMD_DBGAPI_VERSION_0_54
 
+/**
+ * The function was introduced in version 0.55 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.55"``.
+ */
+#define AMD_DBGAPI_VERSION_0_55
+
 /** @} */
 
 /** \ingroup callbacks_group
@@ -4487,7 +4493,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_get_info (
     amd_dbgapi_register_id_t register_id, amd_dbgapi_register_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_54;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_55;
 
 /**
  * Indication of if a wave has a register.

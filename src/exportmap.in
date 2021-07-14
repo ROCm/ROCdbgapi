@@ -46,7 +46,6 @@ global: amd_dbgapi_address_class_get_info;
         amd_dbgapi_queue_packet_list;
         amd_dbgapi_read_memory;
         amd_dbgapi_read_register;
-        amd_dbgapi_register_get_info;
         amd_dbgapi_register_is_in_register_class;
         amd_dbgapi_remove_watchpoint;
         amd_dbgapi_report_breakpoint_hit;
@@ -63,4 +62,8 @@ global: amd_dbgapi_address_class_get_info;
         amd_dbgapi_write_register;
 local:  *;
 };
+
+@AMD_DBGAPI_NAME@_0.55 {
+global: amd_dbgapi_register_get_info;
+} @AMD_DBGAPI_NAME@_0.54;
 
