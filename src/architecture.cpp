@@ -3027,6 +3027,14 @@ class mi_architecture_t : public gfx9_architecture_t
 protected:
   class cwsr_record_t : public gfx9_architecture_t::cwsr_record_t
   {
+  protected:
+    static constexpr uint32_t
+    compute_relaunch_wave_payload_se_id (uint32_t relaunch_wave)
+    {
+      /* MI can have up to 8 shader engines.  */
+      return utils::bit_extract (relaunch_wave, 11, 13);
+    }
+
   public:
     cwsr_record_t (queue_t &queue, uint32_t compute_relaunch_wave,
                    uint32_t compute_relaunch_state,
@@ -3038,6 +3046,11 @@ protected:
     }
 
     virtual size_t acc_vgpr_count () const = 0;
+
+    uint32_t shader_engine_id () const override
+    {
+      return compute_relaunch_wave_payload_se_id (m_compute_relaunch_wave);
+    }
 
     std::optional<amd_dbgapi_global_address_t>
     register_address (amdgpu_regnum_t regnum) const override;
