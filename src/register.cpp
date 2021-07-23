@@ -41,6 +41,44 @@ namespace amd::dbgapi
 /* Register class.  */
 
 bool
+register_class_t::add_registers (amdgpu_regnum_t first, amdgpu_regnum_t last)
+{
+  dbgapi_assert (last >= first);
+  return m_register_map.emplace (first, last).second;
+}
+
+bool
+register_class_t::remove_registers (amdgpu_regnum_t first,
+                                    amdgpu_regnum_t last)
+{
+  dbgapi_assert (last >= first);
+  while (first <= last)
+    {
+      auto it = m_register_map.upper_bound (first);
+      if (it == m_register_map.begin ())
+        return false;
+
+      /* Get the range that contains 'first'.  */
+      std::advance (it, -1);
+      if (first < it->first || first > it->second)
+        return false;
+
+      auto [range_first, range_last] = *it;
+      it = m_register_map.erase (it);
+
+      if (range_first < first)
+        m_register_map.emplace_hint (it, range_first, first - 1);
+
+      if (last < range_last)
+        m_register_map.emplace_hint (it, last + 1, range_last);
+
+      first = range_last + 1;
+    }
+
+  return true;
+}
+
+bool
 register_class_t::contains (amdgpu_regnum_t regnum) const
 {
   auto it = m_register_map.upper_bound (regnum);

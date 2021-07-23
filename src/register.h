@@ -238,10 +238,13 @@ public:
   {
   }
 
-  void add_registers (amdgpu_regnum_t first, amdgpu_regnum_t last)
-  {
-    m_register_map.emplace (first, last);
-  }
+  /* Add a range of registers to this register class.  Return true if all
+     registers within that range are successfully inserted.  */
+  bool add_registers (amdgpu_regnum_t first, amdgpu_regnum_t last);
+
+  /* Remove a range of registers from this register class.  Return true if all
+     registers within that range are successfully removed.  */
+  bool remove_registers (amdgpu_regnum_t first, amdgpu_regnum_t last);
 
   const std::string &name () const { return m_name; }
 

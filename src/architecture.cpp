@@ -2193,104 +2193,7 @@ protected:
   size_t scalar_alias_count () const override { return 6; }
 
   gfx9_architecture_t (elf_amdgpu_machine_t e_machine,
-                       std::string target_triple)
-    : amdgcn_architecture_t (e_machine, std::move (target_triple))
-  {
-    /* Create address spaces.  */
-
-    auto &as_global = create<address_space_t> (
-      std::make_optional (AMD_DBGAPI_ADDRESS_SPACE_GLOBAL), *this, "global",
-      address_space_t::global, DW_ASPACE_none, 64, 0x0000000000000000,
-      AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
-
-    auto &as_generic = create<address_space_t> (
-      *this, "generic", address_space_t::generic, DW_ASPACE_AMDGPU_generic, 64,
-      0x0000000000000000, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
-
-    auto &as_region = create<address_space_t> (
-      *this, "region", address_space_t::region, DW_ASPACE_AMDGPU_region, 32,
-      0xFFFFFFFF, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
-
-    auto &as_local = create<address_space_t> (
-      *this, "local", address_space_t::local, DW_ASPACE_AMDGPU_local, 32,
-      0xFFFFFFFF, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
-
-    auto &as_private_lane = create<address_space_t> (
-      *this, "private_lane", address_space_t::private_swizzled,
-      DW_ASPACE_AMDGPU_private_lane, 32, 0x00000000,
-      AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
-
-    create<address_space_t> (*this, "private_wave",
-                             address_space_t::private_unswizzled,
-                             DW_ASPACE_AMDGPU_private_wave, 32, 0x00000000,
-                             AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
-
-    for (int i = 0; i < 63; i++)
-      create<address_space_t> (*this, string_printf ("private_lane%d", i),
-                               address_space_t::private_swizzled_n,
-                               DW_ASPACE_AMDGPU_private_lane0 + i, 32,
-                               0x00000000,
-                               AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
-
-    /* Create address classes.  */
-
-    create<address_class_t> (*this, "none", DW_ADDR_none, as_generic);
-    create<address_class_t> (*this, "global", DW_ADDR_LLVM_global, as_global);
-    create<address_class_t> (*this, "constant", DW_ADDR_LLVM_constant,
-                             as_global);
-    create<address_class_t> (*this, "group", DW_ADDR_LLVM_group, as_local);
-    create<address_class_t> (*this, "private", DW_ADDR_LLVM_private,
-                             as_private_lane);
-    create<address_class_t> (*this, "region", DW_ADDR_AMDGPU_region,
-                             as_region);
-
-    /* Create register classes.  */
-
-    /* Scalar registers: [s0-sN] (sN depends on the gfxip).  */
-    auto &scalar_registers = create<register_class_t> (*this, "scalar");
-    scalar_registers.add_registers (amdgpu_regnum_t::first_sgpr,
-                                    amdgpu_regnum_t::first_sgpr
-                                      + scalar_register_count () - 1);
-
-    /* Vector registers: [v0-v255]  */
-    auto &vector_registers = create<register_class_t> (*this, "vector");
-    vector_registers.add_registers (amdgpu_regnum_t::first_vgpr_64,
-                                    amdgpu_regnum_t::last_vgpr_64);
-
-    /* Trap temporary registers: [ttmp4-ttmp11, ttmp13]  */
-    auto &trap_registers = create<register_class_t> (*this, "trap");
-    trap_registers.add_registers (amdgpu_regnum_t::ttmp4,
-                                  amdgpu_regnum_t::ttmp11);
-    trap_registers.add_registers (amdgpu_regnum_t::ttmp13,
-                                  amdgpu_regnum_t::ttmp13);
-
-    /* System registers: [hwregs, flat_scratch, xnack_mask, vcc]  */
-    auto &system_registers = create<register_class_t> (*this, "system");
-    system_registers.add_registers (amdgpu_regnum_t::pseudo_status,
-                                    amdgpu_regnum_t::pseudo_status);
-    system_registers.add_registers (amdgpu_regnum_t::mode,
-                                    amdgpu_regnum_t::mode);
-    system_registers.add_registers (amdgpu_regnum_t::trapsts,
-                                    amdgpu_regnum_t::trapsts);
-    system_registers.add_registers (amdgpu_regnum_t::flat_scratch,
-                                    amdgpu_regnum_t::flat_scratch);
-    system_registers.add_registers (amdgpu_regnum_t::xnack_mask_64,
-                                    amdgpu_regnum_t::xnack_mask_64);
-
-    /* General registers: [{scalar}, {vector}, pc, exec, vcc]  */
-    auto &general_registers = create<register_class_t> (*this, "general");
-    general_registers.add_registers (amdgpu_regnum_t::first_sgpr,
-                                     amdgpu_regnum_t::first_sgpr
-                                       + scalar_register_count () - 1);
-    general_registers.add_registers (amdgpu_regnum_t::first_vgpr_64,
-                                     amdgpu_regnum_t::last_vgpr_64);
-    general_registers.add_registers (amdgpu_regnum_t::m0, amdgpu_regnum_t::m0);
-    general_registers.add_registers (amdgpu_regnum_t::pc, amdgpu_regnum_t::pc);
-    general_registers.add_registers (amdgpu_regnum_t::pseudo_exec_64,
-                                     amdgpu_regnum_t::pseudo_exec_64);
-    general_registers.add_registers (amdgpu_regnum_t::pseudo_vcc_64,
-                                     amdgpu_regnum_t::pseudo_vcc_64);
-  }
+                       std::string target_triple);
 
 public:
   std::string register_type (amdgpu_regnum_t regnum) const override;
@@ -2337,6 +2240,106 @@ public:
     return utils::bit_mask (6, 29);
   }
 };
+
+gfx9_architecture_t::gfx9_architecture_t (elf_amdgpu_machine_t e_machine,
+                                          std::string target_triple)
+  : amdgcn_architecture_t (e_machine, std::move (target_triple))
+{
+  /* Create address spaces.  */
+
+  auto &as_global = create<address_space_t> (
+    std::make_optional (AMD_DBGAPI_ADDRESS_SPACE_GLOBAL), *this, "global",
+    address_space_t::global, DW_ASPACE_none, 64, 0x0000000000000000,
+    AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
+
+  auto &as_generic = create<address_space_t> (
+    *this, "generic", address_space_t::generic, DW_ASPACE_AMDGPU_generic, 64,
+    0x0000000000000000, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
+
+  auto &as_region = create<address_space_t> (
+    *this, "region", address_space_t::region, DW_ASPACE_AMDGPU_region, 32,
+    0xFFFFFFFF, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
+
+  auto &as_local = create<address_space_t> (
+    *this, "local", address_space_t::local, DW_ASPACE_AMDGPU_local, 32,
+    0xFFFFFFFF, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
+
+  auto &as_private_lane = create<address_space_t> (
+    *this, "private_lane", address_space_t::private_swizzled,
+    DW_ASPACE_AMDGPU_private_lane, 32, 0x00000000,
+    AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
+
+  create<address_space_t> (*this, "private_wave",
+                           address_space_t::private_unswizzled,
+                           DW_ASPACE_AMDGPU_private_wave, 32, 0x00000000,
+                           AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
+
+  for (int i = 0; i < 63; i++)
+    create<address_space_t> (*this, string_printf ("private_lane%d", i),
+                             address_space_t::private_swizzled_n,
+                             DW_ASPACE_AMDGPU_private_lane0 + i, 32,
+                             0x00000000, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
+
+  /* Create address classes.  */
+
+  create<address_class_t> (*this, "none", DW_ADDR_none, as_generic);
+  create<address_class_t> (*this, "global", DW_ADDR_LLVM_global, as_global);
+  create<address_class_t> (*this, "constant", DW_ADDR_LLVM_constant,
+                           as_global);
+  create<address_class_t> (*this, "group", DW_ADDR_LLVM_group, as_local);
+  create<address_class_t> (*this, "private", DW_ADDR_LLVM_private,
+                           as_private_lane);
+  create<address_class_t> (*this, "region", DW_ADDR_AMDGPU_region, as_region);
+
+  /* Create register classes.  */
+
+  /* Scalar registers: [s0-s102].  */
+  auto &scalar_registers = create<register_class_t> (*this, "scalar");
+  scalar_registers.add_registers (
+    amdgpu_regnum_t::first_sgpr,
+    amdgpu_regnum_t::first_sgpr + gfx9_architecture_t::scalar_register_count ()
+      - 1);
+
+  /* Vector registers: [v0-v255]  */
+  auto &vector_registers = create<register_class_t> (*this, "vector");
+  vector_registers.add_registers (amdgpu_regnum_t::first_vgpr_64,
+                                  amdgpu_regnum_t::last_vgpr_64);
+
+  /* Trap temporary registers: [ttmp4-ttmp11, ttmp13]  */
+  auto &trap_registers = create<register_class_t> (*this, "trap");
+  trap_registers.add_registers (amdgpu_regnum_t::ttmp4,
+                                amdgpu_regnum_t::ttmp11);
+  trap_registers.add_registers (amdgpu_regnum_t::ttmp13,
+                                amdgpu_regnum_t::ttmp13);
+
+  /* System registers: [hwregs, flat_scratch, xnack_mask, vcc]  */
+  auto &system_registers = create<register_class_t> (*this, "system");
+  system_registers.add_registers (amdgpu_regnum_t::pseudo_status,
+                                  amdgpu_regnum_t::pseudo_status);
+  system_registers.add_registers (amdgpu_regnum_t::mode,
+                                  amdgpu_regnum_t::mode);
+  system_registers.add_registers (amdgpu_regnum_t::trapsts,
+                                  amdgpu_regnum_t::trapsts);
+  system_registers.add_registers (amdgpu_regnum_t::flat_scratch,
+                                  amdgpu_regnum_t::flat_scratch);
+  system_registers.add_registers (amdgpu_regnum_t::xnack_mask_64,
+                                  amdgpu_regnum_t::xnack_mask_64);
+
+  /* General registers: [{scalar}, {vector}, pc, exec, vcc]  */
+  auto &general_registers = create<register_class_t> (*this, "general");
+  general_registers.add_registers (
+    amdgpu_regnum_t::first_sgpr,
+    amdgpu_regnum_t::first_sgpr + gfx9_architecture_t::scalar_register_count ()
+      - 1);
+  general_registers.add_registers (amdgpu_regnum_t::first_vgpr_64,
+                                   amdgpu_regnum_t::last_vgpr_64);
+  general_registers.add_registers (amdgpu_regnum_t::m0, amdgpu_regnum_t::m0);
+  general_registers.add_registers (amdgpu_regnum_t::pc, amdgpu_regnum_t::pc);
+  general_registers.add_registers (amdgpu_regnum_t::pseudo_exec_64,
+                                   amdgpu_regnum_t::pseudo_exec_64);
+  general_registers.add_registers (amdgpu_regnum_t::pseudo_vcc_64,
+                                   amdgpu_regnum_t::pseudo_vcc_64);
+}
 
 size_t
 gfx9_architecture_t::cwsr_record_t::vgpr_count () const
@@ -3455,6 +3458,18 @@ gfx10_architecture_t::gfx10_architecture_t (elf_amdgpu_machine_t e_machine,
                                             std::string target_triple)
   : gfx9_architecture_t (e_machine, std::move (target_triple))
 {
+  /* Scalar registers: [s103-s105]  */
+  register_class_t *scalar_registers
+    = find_if ([] (const register_class_t &register_class)
+               { return register_class.name () == "scalar"; });
+  dbgapi_assert (scalar_registers != nullptr);
+
+  scalar_registers->add_registers (
+    amdgpu_regnum_t::first_sgpr
+      + gfx9_architecture_t::scalar_register_count (),
+    amdgpu_regnum_t::first_sgpr
+      + gfx10_architecture_t::scalar_register_count () - 1);
+
   /* Vector registers: [v0_32-v255_32]  */
   register_class_t *vector_registers
     = find_if ([] (const register_class_t &register_class)
@@ -3472,15 +3487,22 @@ gfx10_architecture_t::gfx10_architecture_t (elf_amdgpu_machine_t e_machine,
 
   system_registers->add_registers (amdgpu_regnum_t::xnack_mask_32,
                                    amdgpu_regnum_t::xnack_mask_32);
+  system_registers->remove_registers (amdgpu_regnum_t::xnack_mask_64,
+                                      amdgpu_regnum_t::xnack_mask_64);
 
   /* FIXME: Remove xnack_mask_64 since gfx10 does not support it?  */
 
-  /* General registers: [{vector}_32, exec_32, vcc_32]  */
+  /* General registers: [s103-s105, {vector}_32, exec_32, vcc_32]  */
   register_class_t *general_registers
     = find_if ([] (const register_class_t &register_class)
                { return register_class.name () == "general"; });
   dbgapi_assert (general_registers != nullptr);
 
+  general_registers->add_registers (
+    amdgpu_regnum_t::first_sgpr
+      + gfx9_architecture_t::scalar_register_count (),
+    amdgpu_regnum_t::first_sgpr
+      + gfx10_architecture_t::scalar_register_count () - 1);
   general_registers->add_registers (amdgpu_regnum_t::first_vgpr_32,
                                     amdgpu_regnum_t::last_vgpr_32);
   general_registers->add_registers (amdgpu_regnum_t::pseudo_exec_32,

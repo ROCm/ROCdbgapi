@@ -316,6 +316,7 @@ wave_t::update (const wave_t &group_leader,
   dbgapi_assert (queue ().is_suspended ());
   const bool first_update = !m_cwsr_record;
 
+  dbgapi_assert (cwsr_record != nullptr);
   m_cwsr_record = std::move (cwsr_record);
   m_group_leader = &group_leader;
 
