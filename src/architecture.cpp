@@ -155,6 +155,31 @@ protected:
     return utils::bit_extract (relaunch, 31, 31);
   }
 
+  class cwsr_record_t : public architecture_t::cwsr_record_t
+  {
+  protected:
+    cwsr_record_t (queue_t &queue) : architecture_t::cwsr_record_t (queue) {}
+
+    /* Number for vector registers.  */
+    virtual size_t vgpr_count () const = 0;
+    /* Number of scalar registers.  */
+    virtual size_t sgpr_count () const = 0;
+
+    /* Return true is a scratch slot is allocated for this record.  */
+    virtual bool is_scratch_enabled () const = 0;
+
+    /* The shader engine ID this wave was created on.  */
+    virtual uint32_t shader_engine_id () const = 0;
+    /* Scratch region slot ID.  */
+    virtual uint32_t scratch_scoreboard_id () const = 0;
+
+  public:
+    /* Offset of the scratch slot in the queue allocated scratch region.  */
+    virtual std::optional<size_t>
+    scratch_slot_offset (size_t scratch_slot_size,
+                         size_t scratch_slot_count) const;
+  };
+
   amdgcn_architecture_t (elf_amdgpu_machine_t e_machine,
                          std::string target_triple)
     : architecture_t (e_machine, std::move (target_triple))
@@ -2029,6 +2054,20 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
   throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID);
 }
 
+std::optional<size_t>
+amdgcn_architecture_t::cwsr_record_t::scratch_slot_offset (
+  size_t scratch_slot_size, size_t scratch_slot_count) const
+{
+  if (!is_scratch_enabled ())
+    return std::nullopt;
+
+  dbgapi_assert (agent ().shader_engine_count () != 0);
+  return scratch_slot_size
+         * ((scratch_slot_count / agent ().shader_engine_count ())
+              * shader_engine_id ()
+            + scratch_scoreboard_id ());
+}
+
 /* Base class for all GFX9 architectures.  */
 
 class gfx9_architecture_t : public amdgcn_architecture_t
@@ -2038,7 +2077,7 @@ private:
     cbranch_opcodes_map;
 
 protected:
-  class cwsr_record_t : public architecture_t::cwsr_record_t
+  class cwsr_record_t : public amdgcn_architecture_t::cwsr_record_t
   {
   protected:
     uint32_t const m_compute_relaunch_wave;
@@ -2091,7 +2130,7 @@ protected:
     cwsr_record_t (queue_t &queue, uint32_t compute_relaunch_wave,
                    uint32_t compute_relaunch_state,
                    amd_dbgapi_global_address_t context_save_address)
-      : architecture_t::cwsr_record_t (queue),
+      : amdgcn_architecture_t::cwsr_record_t (queue),
         m_compute_relaunch_wave (compute_relaunch_wave),
         m_compute_relaunch_state (compute_relaunch_state),
         m_context_save_address (context_save_address)
@@ -2099,11 +2138,17 @@ protected:
     }
 
     /* Number for vector registers.  */
-    virtual size_t vgpr_count () const;
-    /* Number of accum vector registers.  */
-    virtual size_t acc_vgpr_count () const { return 0; };
+    size_t vgpr_count () const override;
     /* Number of scalar registers.  */
-    virtual size_t sgpr_count () const;
+    size_t sgpr_count () const override;
+
+    /* Return true is a scratch slot is allocated for this record.  */
+    bool is_scratch_enabled () const override;
+
+    /* The shader engine ID this wave was created on.  */
+    uint32_t shader_engine_id () const override;
+    /* Scratch region slot ID.  */
+    uint32_t scratch_scoreboard_id () const override;
 
     /* Number of work-items in one wave.  */
     size_t lane_count () const override { return 64; };
@@ -2111,8 +2156,6 @@ protected:
     bool is_first_wave () const override;
 
     size_t lds_size () const override;
-    std::optional<size_t> scratch_offset (size_t scratch_slot_size,
-                                          size_t scratch_slot_count) const;
 
     bool is_halted () const override;
     bool is_stopped () const override;
@@ -2250,9 +2293,7 @@ protected:
   }
 
 public:
-  std::string register_name (amdgpu_regnum_t regnum) const override;
   std::string register_type (amdgpu_regnum_t regnum) const override;
-  amd_dbgapi_size_t register_size (amdgpu_regnum_t regnum) const override;
 
   cbranch_cond_t
   cbranch_condition_code (const instruction_t &instruction) const override;
@@ -2324,19 +2365,23 @@ gfx9_architecture_t::cwsr_record_t::lds_size () const
          * 128 * sizeof (uint32_t);
 }
 
-std::optional<size_t>
-gfx9_architecture_t::cwsr_record_t::scratch_offset (
-  size_t scratch_slot_size, size_t scratch_slot_count) const
+bool
+gfx9_architecture_t::cwsr_record_t::is_scratch_enabled () const
 {
-  if (!compute_relaunch_wave_payload_scratch_en (m_compute_relaunch_wave))
-    return std::nullopt;
+  return compute_relaunch_wave_payload_scratch_en (m_compute_relaunch_wave);
+}
 
-  dbgapi_assert (agent ().shader_engine_count () != 0 && "divide by 0");
-  return scratch_slot_size
-         * ((scratch_slot_count / agent ().shader_engine_count ())
-              * compute_relaunch_wave_payload_se_id (m_compute_relaunch_wave)
-            + compute_relaunch_wave_payload_scratch_scoreboard_id (
-              m_compute_relaunch_wave));
+uint32_t
+gfx9_architecture_t::cwsr_record_t::shader_engine_id () const
+{
+  return compute_relaunch_wave_payload_se_id (m_compute_relaunch_wave);
+}
+
+uint32_t
+gfx9_architecture_t::cwsr_record_t::scratch_scoreboard_id () const
+{
+  return compute_relaunch_wave_payload_scratch_scoreboard_id (
+    m_compute_relaunch_wave);
 }
 
 bool
@@ -2436,27 +2481,8 @@ gfx9_architecture_t::scalar_operand_to_regnum (int operand) const
 }
 
 std::string
-gfx9_architecture_t::register_name (amdgpu_regnum_t regnum) const
-{
-  if (regnum >= amdgpu_regnum_t::first_accvgpr_64
-      && regnum <= amdgpu_regnum_t::last_accvgpr_64)
-    {
-      return string_printf ("a%ld",
-                            regnum - amdgpu_regnum_t::first_accvgpr_64);
-    }
-
-  return amdgcn_architecture_t::register_name (regnum);
-}
-
-std::string
 gfx9_architecture_t::register_type (amdgpu_regnum_t regnum) const
 {
-  if (regnum >= amdgpu_regnum_t::first_accvgpr_64
-      && regnum <= amdgpu_regnum_t::last_accvgpr_64)
-    {
-      return "int32_t[64]";
-    }
-
   switch (regnum)
     {
     case amdgpu_regnum_t::pseudo_status:
@@ -2552,18 +2578,6 @@ gfx9_architecture_t::register_type (amdgpu_regnum_t regnum) const
     default:
       return amdgcn_architecture_t::register_type (regnum);
     }
-}
-
-amd_dbgapi_size_t
-gfx9_architecture_t::register_size (amdgpu_regnum_t regnum) const
-{
-  if (regnum >= amdgpu_regnum_t::first_accvgpr_64
-      && regnum <= amdgpu_regnum_t::last_accvgpr_64)
-    {
-      return sizeof (int32_t) * 64;
-    }
-
-  return amdgcn_architecture_t::register_size (regnum);
 }
 
 decltype (gfx9_architecture_t::cbranch_opcodes_map)
@@ -2745,6 +2759,10 @@ std::optional<amd_dbgapi_global_address_t>
 gfx9_architecture_t::cwsr_record_t::register_address (
   amdgpu_regnum_t regnum) const
 {
+  dbgapi_assert (
+    dynamic_cast<const gfx9_architecture_t *> (&queue ().architecture ())
+    != nullptr);
+
   const auto &architecture
     = static_cast<const gfx9_architecture_t &> (queue ().architecture ());
 
@@ -2868,20 +2886,9 @@ gfx9_architecture_t::cwsr_record_t::register_address (
       return sgprs_addr + (regnum - amdgpu_regnum_t::s0) * sgpr_size;
     }
 
-  size_t accvgpr_count = this->acc_vgpr_count ();
-  size_t accvgpr_size = sizeof (int32_t) * 64;
-  size_t accvgprs_addr = sgprs_addr - accvgpr_count * accvgpr_size;
-
-  if (regnum >= amdgpu_regnum_t::first_accvgpr_64
-      && regnum <= amdgpu_regnum_t::last_accvgpr_64
-      && ((regnum - amdgpu_regnum_t::a0_64) < accvgpr_count))
-    {
-      return accvgprs_addr + (regnum - amdgpu_regnum_t::a0_64) * accvgpr_size;
-    }
-
   size_t vgpr_count = this->vgpr_count ();
   size_t vgpr_size = sizeof (int32_t) * 64;
-  size_t vgprs_addr = accvgprs_addr - vgpr_count * vgpr_size;
+  size_t vgprs_addr = sgprs_addr - vgpr_count * vgpr_size;
 
   if (regnum >= amdgpu_regnum_t::first_vgpr_64
       && regnum <= amdgpu_regnum_t::last_vgpr_64
@@ -2974,14 +2981,19 @@ gfx9_architecture_t::scratch_slot (
   amd_dbgapi_size_t wave_slot_size
     = utils::bit_extract (compute_tmpring_size_register, 12, 24) * 1024;
 
-  auto scratch_offset
-    = cwsr_record.scratch_offset (wave_slot_size, wave_slot_count);
+  dbgapi_assert (
+    dynamic_cast<const gfx9_architecture_t::cwsr_record_t *> (&cwsr_record)
+    != nullptr);
 
-  if (!scratch_offset)
+  auto scratch_slot_offset
+    = static_cast<const gfx9_architecture_t::cwsr_record_t &> (cwsr_record)
+        .scratch_slot_offset (wave_slot_size, wave_slot_count);
+
+  if (!scratch_slot_offset)
     /* Scratch is not enabled, return an empty slot.  */
     return { 0, 0 };
 
-  return std::make_pair (*scratch_offset, wave_slot_size);
+  return std::make_pair (*scratch_slot_offset, wave_slot_size);
 }
 
 /* Vega10 Architecture.  */
@@ -3008,12 +3020,12 @@ public:
   }
 };
 
-/* Arcturus Architecture.  */
+/* MI Architecture.  */
 
-class gfx908_t final : public gfx9_architecture_t
+class mi_architecture_t : public gfx9_architecture_t
 {
 protected:
-  class cwsr_record_t final : public gfx9_architecture_t::cwsr_record_t
+  class cwsr_record_t : public gfx9_architecture_t::cwsr_record_t
   {
   public:
     cwsr_record_t (queue_t &queue, uint32_t compute_relaunch_wave,
@@ -3025,26 +3037,29 @@ protected:
     {
     }
 
-    size_t acc_vgpr_count () const override { return vgpr_count (); }
+    virtual size_t acc_vgpr_count () const = 0;
+
+    std::optional<amd_dbgapi_global_address_t>
+    register_address (amdgpu_regnum_t regnum) const override;
   };
 
   std::unique_ptr<architecture_t::cwsr_record_t> make_gfx9_cwsr_record (
     queue_t &queue, uint32_t compute_relaunch_wave,
     uint32_t compute_relaunch_state,
-    amd_dbgapi_global_address_t context_save_address) const override
-  {
-    return std::make_unique<cwsr_record_t> (queue, compute_relaunch_wave,
-                                            compute_relaunch_state,
-                                            context_save_address);
-  }
+    amd_dbgapi_global_address_t context_save_address) const override = 0;
+
+  mi_architecture_t (elf_amdgpu_machine_t e_machine,
+                     std::string target_triple);
 
 public:
-  gfx908_t ();
+  std::string register_name (amdgpu_regnum_t regnum) const override;
+  std::string register_type (amdgpu_regnum_t regnum) const override;
+  amd_dbgapi_size_t register_size (amdgpu_regnum_t regnum) const override;
 };
 
-gfx908_t::gfx908_t ()
-  : gfx9_architecture_t (EF_AMDGPU_MACH_AMDGCN_GFX908,
-                         "amdgcn-amd-amdhsa--gfx908")
+mi_architecture_t::mi_architecture_t (elf_amdgpu_machine_t e_machine,
+                                      std::string target_triple)
+  : gfx9_architecture_t (e_machine, std::move (target_triple))
 {
   /* Vector registers: [a0-a255]  */
   register_class_t *vector_registers
@@ -3065,10 +3080,124 @@ gfx908_t::gfx908_t ()
                                     amdgpu_regnum_t::last_accvgpr_64);
 }
 
-class gfx90a_t final : public gfx9_architecture_t
+std::string
+mi_architecture_t::register_name (amdgpu_regnum_t regnum) const
+{
+  if (regnum >= amdgpu_regnum_t::first_accvgpr_64
+      && regnum <= amdgpu_regnum_t::last_accvgpr_64)
+    {
+      return string_printf ("a%ld",
+                            regnum - amdgpu_regnum_t::first_accvgpr_64);
+    }
+
+  return gfx9_architecture_t::register_name (regnum);
+}
+
+std::string
+mi_architecture_t::register_type (amdgpu_regnum_t regnum) const
+{
+  if (regnum >= amdgpu_regnum_t::first_accvgpr_64
+      && regnum <= amdgpu_regnum_t::last_accvgpr_64)
+    {
+      return "int32_t[64]";
+    }
+
+  return gfx9_architecture_t::register_type (regnum);
+}
+
+amd_dbgapi_size_t
+mi_architecture_t::register_size (amdgpu_regnum_t regnum) const
+{
+  if (regnum >= amdgpu_regnum_t::first_accvgpr_64
+      && regnum <= amdgpu_regnum_t::last_accvgpr_64)
+    {
+      return sizeof (int32_t) * 64;
+    }
+
+  return gfx9_architecture_t::register_size (regnum);
+}
+
+std::optional<amd_dbgapi_global_address_t>
+mi_architecture_t::cwsr_record_t::register_address (
+  amdgpu_regnum_t regnum) const
+{
+  /* Delegate to the gfx9 base for all registers except for the vgprs.  */
+  if (regnum < amdgpu_regnum_t::first_vgpr
+      || regnum > amdgpu_regnum_t::last_vgpr)
+    return gfx9_architecture_t::cwsr_record_t::register_address (regnum);
+
+  auto first_sgpr_addr = gfx9_architecture_t::cwsr_record_t::register_address (
+    amdgpu_regnum_t::first_sgpr);
+  dbgapi_assert (first_sgpr_addr);
+
+  size_t sgprs_addr = *first_sgpr_addr;
+
+  size_t accvgpr_count = this->acc_vgpr_count ();
+  size_t accvgpr_size = sizeof (int32_t) * 64;
+  size_t accvgprs_addr = sgprs_addr - accvgpr_count * accvgpr_size;
+
+  if (regnum >= amdgpu_regnum_t::first_accvgpr_64
+      && regnum <= amdgpu_regnum_t::last_accvgpr_64
+      && ((regnum - amdgpu_regnum_t::a0_64) < accvgpr_count))
+    {
+      return accvgprs_addr + (regnum - amdgpu_regnum_t::a0_64) * accvgpr_size;
+    }
+
+  size_t vgpr_count = this->vgpr_count ();
+  size_t vgpr_size = sizeof (int32_t) * 64;
+  size_t vgprs_addr = accvgprs_addr - vgpr_count * vgpr_size;
+
+  if (regnum >= amdgpu_regnum_t::first_vgpr_64
+      && regnum <= amdgpu_regnum_t::last_vgpr_64
+      && ((regnum - amdgpu_regnum_t::v0_64) < vgpr_count))
+    {
+      return vgprs_addr + (regnum - amdgpu_regnum_t::v0_64) * vgpr_size;
+    }
+
+  return std::nullopt;
+}
+
+/* Arcturus Architecture.  */
+
+class gfx908_t final : public mi_architecture_t
+{
+  class cwsr_record_t final : public mi_architecture_t::cwsr_record_t
+  {
+  public:
+    cwsr_record_t (queue_t &queue, uint32_t compute_relaunch_wave,
+                   uint32_t compute_relaunch_state,
+                   amd_dbgapi_global_address_t context_save_address)
+      : mi_architecture_t::cwsr_record_t (queue, compute_relaunch_wave,
+                                          compute_relaunch_state,
+                                          context_save_address)
+    {
+    }
+
+    size_t acc_vgpr_count () const override { return vgpr_count (); }
+  };
+
+  std::unique_ptr<architecture_t::cwsr_record_t> make_gfx9_cwsr_record (
+    queue_t &queue, uint32_t compute_relaunch_wave,
+    uint32_t compute_relaunch_state,
+    amd_dbgapi_global_address_t context_save_address) const override
+  {
+    return std::make_unique<cwsr_record_t> (queue, compute_relaunch_wave,
+                                            compute_relaunch_state,
+                                            context_save_address);
+  }
+
+public:
+  gfx908_t ()
+    : mi_architecture_t (EF_AMDGPU_MACH_AMDGCN_GFX908,
+                         "amdgcn-amd-amdhsa--gfx908")
+  {
+  }
+};
+
+class gfx90a_t final : public mi_architecture_t
 {
 protected:
-  class cwsr_record_t final : public gfx9_architecture_t::cwsr_record_t
+  class cwsr_record_t final : public mi_architecture_t::cwsr_record_t
   {
   private:
     static constexpr uint32_t
@@ -3086,9 +3215,9 @@ protected:
     cwsr_record_t (queue_t &queue, uint32_t compute_relaunch_wave,
                    uint32_t compute_relaunch_state,
                    amd_dbgapi_global_address_t context_save_address)
-      : gfx9_architecture_t::cwsr_record_t (queue, compute_relaunch_wave,
-                                            compute_relaunch_state,
-                                            context_save_address)
+      : mi_architecture_t::cwsr_record_t (queue, compute_relaunch_wave,
+                                          compute_relaunch_state,
+                                          context_save_address)
     {
     }
 
@@ -3108,34 +3237,15 @@ protected:
   }
 
 public:
-  gfx90a_t ();
+  gfx90a_t ()
+    : mi_architecture_t (EF_AMDGPU_MACH_AMDGCN_GFX90A,
+                         "amdgcn-amd-amdhsa--gfx90a")
+  {
+  }
 
   bool supports_precise_memory () const override { return true; }
   bool can_halt_at_endpgm () const override { return false; }
 };
-
-gfx90a_t::gfx90a_t ()
-  : gfx9_architecture_t (EF_AMDGPU_MACH_AMDGCN_GFX90A,
-                         "amdgcn-amd-amdhsa--gfx90a")
-{
-  /* Vector registers: [a0-a255]  */
-  register_class_t *vector_registers
-    = find_if ([] (const register_class_t &register_class)
-               { return register_class.name () == "vector"; });
-  dbgapi_assert (vector_registers != nullptr);
-
-  vector_registers->add_registers (amdgpu_regnum_t::first_accvgpr_64,
-                                   amdgpu_regnum_t::last_accvgpr_64);
-
-  /* General registers: [a0-a255]  */
-  register_class_t *general_registers
-    = find_if ([] (const register_class_t &register_class)
-               { return register_class.name () == "general"; });
-  dbgapi_assert (general_registers != nullptr);
-
-  general_registers->add_registers (amdgpu_regnum_t::first_accvgpr_64,
-                                    amdgpu_regnum_t::last_accvgpr_64);
-}
 
 size_t
 gfx90a_t::cwsr_record_t::vgpr_count () const
@@ -3227,13 +3337,17 @@ protected:
     size_t sgpr_count () const override;
     size_t vgpr_count () const override;
     virtual size_t shared_vgpr_count () const;
+
+    bool is_scratch_enabled () const override;
+
+    uint32_t shader_engine_id () const override;
+    uint32_t scratch_scoreboard_id () const override;
+
     size_t lane_count () const override;
     size_t lds_size () const override;
 
     bool is_last_wave () const override;
     bool is_first_wave () const override;
-    std::optional<size_t> scratch_offset (size_t scratch_slot_size,
-                                          size_t scratch_slot_count) const;
 
     std::optional<amd_dbgapi_global_address_t>
     register_address (amdgpu_regnum_t regnum) const override;
@@ -3710,6 +3824,25 @@ gfx10_architecture_t::branch_target (wave_t &wave,
   return gfx9_architecture_t::branch_target (wave, pc, instruction);
 }
 
+bool
+gfx10_architecture_t::cwsr_record_t::is_scratch_enabled () const
+{
+  return compute_relaunch_wave_payload_scratch_en (m_compute_relaunch_wave);
+}
+
+uint32_t
+gfx10_architecture_t::cwsr_record_t::shader_engine_id () const
+{
+  return compute_relaunch_wave_payload_se_id (m_compute_relaunch_wave);
+}
+
+uint32_t
+gfx10_architecture_t::cwsr_record_t::scratch_scoreboard_id () const
+{
+  return compute_relaunch_wave_payload_scratch_scoreboard_id (
+    m_compute_relaunch_wave);
+}
+
 std::optional<amd_dbgapi_global_address_t>
 gfx10_architecture_t::cwsr_record_t::register_address (
   amdgpu_regnum_t regnum) const
@@ -3945,20 +4078,6 @@ gfx10_architecture_t::cwsr_record_t::lds_size () const
   /* lds_size: 128 dwords granularity.  */
   return compute_relaunch_state_payload_lds_size (m_compute_relaunch_state)
          * 128 * sizeof (uint32_t);
-}
-
-std::optional<size_t>
-gfx10_architecture_t::cwsr_record_t::scratch_offset (
-  size_t scratch_slot_size, size_t scratch_slot_count) const
-{
-  if (!compute_relaunch_wave_payload_scratch_en (m_compute_relaunch_wave))
-    return std::nullopt;
-
-  return scratch_slot_size
-         * ((scratch_slot_count / agent ().shader_engine_count ())
-              * compute_relaunch_wave_payload_se_id (m_compute_relaunch_wave)
-            + compute_relaunch_wave_payload_scratch_scoreboard_id (
-              m_compute_relaunch_wave));
 }
 
 bool

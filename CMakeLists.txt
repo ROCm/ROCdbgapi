@@ -108,7 +108,7 @@ endif()
 target_link_libraries(amd-dbgapi PRIVATE amd_comgr Threads::Threads ${CMAKE_DL_LIBS})
 
 target_compile_options(amd-dbgapi
-  PRIVATE -fno-rtti -Wall -Wno-attributes -fvisibility=hidden)
+  PRIVATE $<$<CONFIG:RELEASE>:-fno-rtti> -Wall -Wno-attributes -fvisibility=hidden)
 
 target_compile_definitions(amd-dbgapi
   PRIVATE _GNU_SOURCE __STDC_LIMIT_MACROS __STDC_CONSTANT_MACROS)

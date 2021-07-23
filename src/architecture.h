@@ -189,10 +189,6 @@ public:
 
     /* Size of the local data share.  */
     virtual size_t lds_size () const = 0;
-    /* Offset of the scratch slot in the queue allocated scratch region.  */
-    virtual std::optional<size_t>
-    scratch_offset (size_t scratch_slot_size,
-                    size_t scratch_slot_count) const = 0;
 
     /* The wave is halted (status.halt=1).  */
     virtual bool is_halted () const = 0;
