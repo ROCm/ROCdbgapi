@@ -462,7 +462,7 @@ amdgcn_architecture_t::convert_address_space (
 
 void
 amdgcn_architecture_t::lower_address_space (
-  const wave_t &wave, amd_dbgapi_lane_id_t *lane_id,
+  const wave_t &wave, amd_dbgapi_lane_id_t * /* lane_id */,
   const address_space_t &original_address_space,
   const address_space_t **lowered_address_space,
   amd_dbgapi_segment_address_t original_address,
@@ -480,25 +480,6 @@ amdgcn_architecture_t::lower_address_space (
       *lowered_address_space = &segment_address_space;
       return;
     };
-
-  if (original_address_space.kind () == address_space_t::private_swizzled_n)
-    {
-      uint64_t dwarf_value = original_address_space.dwarf_value ();
-      if (dwarf_value >= DW_ASPACE_AMDGPU_private_lane0
-          && dwarf_value <= DW_ASPACE_AMDGPU_private_lane63)
-        {
-          const address_space_t *as_private_lane
-            = wave.architecture ().find_if (
-              [=] (const address_space_t &as)
-              { return as.kind () == address_space_t::private_swizzled; });
-          if (!as_private_lane)
-            error ("address space `private_lane' not found in architecture");
-
-          *lowered_address_space = as_private_lane;
-          *lane_id = dwarf_value - DW_ASPACE_AMDGPU_private_lane0;
-          return;
-        }
-    }
 
   *lowered_address_space = &original_address_space;
   *lowered_address = original_address;
@@ -518,14 +499,11 @@ amdgcn_architecture_t::address_is_in_address_class (
      local                    generic, local
      global                   generic, global
      generic                  generic, lowered generic address_space
-     private_swizzled_n       -
      private_unswizzled       -
    */
 
-  /* private_swizzled_n and private_unswizzled addresses are not in any address
-     classes.  */
-  if (address_space.kind () == address_space_t::private_swizzled_n
-      || address_space.kind () == address_space_t::private_unswizzled)
+  /* private_unswizzled addresses are not in any address classes.  */
+  if (address_space.kind () == address_space_t::private_unswizzled)
     return false;
 
   /* private_swizzled, local, global, and generic are in the generic address
@@ -564,7 +542,6 @@ amdgcn_architecture_t::address_spaces_may_alias (
   auto is_private = [] (const address_space_t &address_space)
   {
     return address_space.kind () == address_space_t::private_swizzled
-           || address_space.kind () == address_space_t::private_swizzled_n
            || address_space.kind () == address_space_t::private_unswizzled;
   };
 
@@ -2273,12 +2250,6 @@ gfx9_architecture_t::gfx9_architecture_t (elf_amdgpu_machine_t e_machine,
                            address_space_t::private_unswizzled,
                            DW_ASPACE_AMDGPU_private_wave, 32, 0x00000000,
                            AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
-
-  for (int i = 0; i < 63; i++)
-    create<address_space_t> (*this, string_printf ("private_lane%d", i),
-                             address_space_t::private_swizzled_n,
-                             DW_ASPACE_AMDGPU_private_lane0 + i, 32,
-                             0x00000000, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   /* Create address classes.  */
 

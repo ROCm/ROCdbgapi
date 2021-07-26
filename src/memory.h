@@ -58,8 +58,6 @@ constexpr uint64_t DW_ASPACE_AMDGPU_region = 0x02;
 constexpr uint64_t DW_ASPACE_AMDGPU_local = 0x03;
 constexpr uint64_t DW_ASPACE_AMDGPU_private_lane = 0x05;
 constexpr uint64_t DW_ASPACE_AMDGPU_private_wave = 0x06;
-constexpr uint64_t DW_ASPACE_AMDGPU_private_lane0 = 0x20;
-constexpr uint64_t DW_ASPACE_AMDGPU_private_lane63 = 0x5F;
 
 class address_space_t
   : public detail::handle_object<amd_dbgapi_address_space_id_t>
@@ -71,7 +69,6 @@ public:
     local,
     global,
     private_swizzled,
-    private_swizzled_n,
     private_unswizzled,
     region
   };
