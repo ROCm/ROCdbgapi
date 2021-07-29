@@ -317,10 +317,10 @@ kfd_driver_t::check_version () const
       || get_version_args.major_version != KFD_IOCTL_MAJOR_VERSION
       || get_version_args.minor_version < KFD_IOCTL_MINOR_VERSION)
     {
-      warning (
-        "AMD GPU driver version %d.%d does not match %d.%d+ requirement",
-        get_version_args.major_version, get_version_args.minor_version,
-        KFD_IOCTL_MAJOR_VERSION, KFD_IOCTL_MINOR_VERSION);
+      warning ("AMD GPU driver's version %d.%d not supported "
+               "(version %d.x where x >= %d required)",
+               get_version_args.major_version, get_version_args.minor_version,
+               KFD_IOCTL_MAJOR_VERSION, KFD_IOCTL_MINOR_VERSION);
       return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
     }
 
@@ -343,8 +343,8 @@ kfd_driver_t::check_version () const
   if (major != KFD_IOCTL_DBG_MAJOR_VERSION
       || minor < KFD_IOCTL_DBG_MINOR_VERSION)
     {
-      warning ("AMD GPU driver's debug support version %d.%d does "
-               "not match %d.%d+ requirement",
+      warning ("AMD GPU driver's debug support version %d.%d not supported "
+               "(version %d.x where x >= %d required)",
                major, minor, KFD_IOCTL_DBG_MAJOR_VERSION,
                KFD_IOCTL_DBG_MINOR_VERSION);
       return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
