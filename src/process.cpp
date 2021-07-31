@@ -77,10 +77,11 @@ process_t::process_t (amd_dbgapi_process_id_t process_id,
                       amd_dbgapi_client_process_id_t client_process_id)
   : handle_object (process_id), m_client_process_id (client_process_id)
 {
-  amd_dbgapi_status_t status = get_os_pid (&m_os_process_id);
-  if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-    throw exception_t (status);
-  else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+  amd_dbgapi_os_process_id_t os_process_id;
+  amd_dbgapi_status_t status = get_os_pid (&os_process_id);
+  if (status == AMD_DBGAPI_STATUS_SUCCESS)
+    m_os_process_id.emplace(os_process_id);
+  else if (status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
     error ("get_os_pid () failed (rc=%d)", status);
 
   /* Create the notifier pipe.  */
@@ -1487,19 +1488,25 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
 amd_dbgapi_status_t
 process_t::attach ()
 {
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "attaching %s to process %d",
-              to_string (id ()).c_str (), m_os_process_id);
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "attaching %s to %s",
+              to_string (id ()).c_str (),
+              !m_os_process_id
+                ? "exited process"
+                : string_printf ("OS process %d", *m_os_process_id).c_str ());
 
   if (os_driver ().check_version () != AMD_DBGAPI_STATUS_SUCCESS)
     return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
 
-  os_runtime_info_t runtime_info;
+  os_runtime_info_t runtime_info{};
   if (auto status = os_driver ().enable_debug (
         os_exception_mask_t::process_runtime,
         m_client_notifier_pipe.write_fd (), &runtime_info);
-      status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION
-      || status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+      status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
     return status;
+  else if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    runtime_info.runtime_state
+      = static_cast<decltype (runtime_info.runtime_state)> (
+        os_runtime_state_t::disabled);
   else if (status != AMD_DBGAPI_STATUS_SUCCESS)
     error ("enable_debug failed (rc=%d)", status);
 
@@ -1516,7 +1523,7 @@ process_t::attach ()
      be reported as soon as the process is attached.  */
   if (auto status = update_agents ();
       status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
-    return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
+    return status;
   else if (status != AMD_DBGAPI_STATUS_SUCCESS)
     error ("update_agents failed (rc=%d)", status);
 
@@ -1527,9 +1534,6 @@ process_t::attach ()
 
       set_flag (flag_t::runtime_enable_during_attach);
       runtime_enable (runtime_info);
-
-      if (m_runtime_state != AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS)
-        return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
 
       enqueue_event (create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
                                       m_runtime_state));
@@ -1565,7 +1569,9 @@ process_t::get_info (amd_dbgapi_process_info_t query, size_t value_size,
                                 : AMD_DBGAPI_MEMORY_PRECISION_NONE);
 
     case AMD_DBGAPI_PROCESS_INFO_OS_ID:
-      return utils::get_info (value_size, value, m_os_process_id);
+      return !m_os_process_id
+               ? AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE
+               : utils::get_info (value_size, value, *m_os_process_id);
     }
 
   return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
@@ -2127,20 +2133,17 @@ amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
     {
       process = &process_t::create_process (client_process_id);
     }
-  catch (const exception_t &e)
+  catch (const exception_t &)
     {
-      if (amd_dbgapi_status_t status = e.error_code ();
-          status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-        return status;
-
-      /* For all other exceptions (process_t::create_process could throw a
-         fatal error if it fails to create a new os_driver instance or create a
-         pipe for the notifier), simply return an error.  */
+      /* process_t::create_process could throw a fatal error if it fails to
+         create a new os_driver instance or create a pipe for the notifier,
+         simply return an error.  */
       return AMD_DBGAPI_STATUS_ERROR;
     }
 
   amd_dbgapi_status_t status = process->attach ();
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+  if (status != AMD_DBGAPI_STATUS_SUCCESS
+      && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
     {
       process_t::destroy_process (process);
       return status;

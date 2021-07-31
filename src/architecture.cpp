@@ -236,6 +236,8 @@ public:
   std::string register_name (amdgpu_regnum_t regnum) const override;
   std::string register_type (amdgpu_regnum_t regnum) const override;
   amd_dbgapi_size_t register_size (amdgpu_regnum_t regnum) const override;
+  amd_dbgapi_register_properties_t
+  register_properties (amdgpu_regnum_t regnum) const override;
 
   bool is_pseudo_register_available (const wave_t &wave,
                                      amdgpu_regnum_t regnum) const override;
@@ -1973,6 +1975,34 @@ amdgcn_architecture_t::register_size (amdgpu_regnum_t regnum) const
     }
 }
 
+amd_dbgapi_register_properties_t
+amdgcn_architecture_t::register_properties (amdgpu_regnum_t regnum) const
+{
+  switch (regnum)
+    {
+    case amdgpu_regnum_t::pc:
+    case amdgpu_regnum_t::trapsts:
+    case amdgpu_regnum_t::mode:
+      return AMD_DBGAPI_REGISTER_PROPERTY_READONLY_BITS;
+
+    case amdgpu_regnum_t::pseudo_status:
+      /* Writing to the vcc register may change the status.vccz bit.  */
+      return AMD_DBGAPI_REGISTER_PROPERTY_VOLATILE
+             | AMD_DBGAPI_REGISTER_PROPERTY_READONLY_BITS;
+
+    case amdgpu_regnum_t::pseudo_exec_32:
+    case amdgpu_regnum_t::pseudo_exec_64:
+    case amdgpu_regnum_t::pseudo_vcc_32:
+    case amdgpu_regnum_t::pseudo_vcc_64:
+      /* Writing to the exec or vcc register may change the status.execz
+      status.vccz bits respectively.  */
+      return AMD_DBGAPI_REGISTER_PROPERTY_INVALIDATE_VOLATILE;
+
+    default:
+      return AMD_DBGAPI_REGISTER_PROPERTY_NONE;
+    }
+}
+
 bool
 amdgcn_architecture_t::is_pseudo_register_available (
   const wave_t & /* wave  */, amdgpu_regnum_t regnum) const
@@ -2595,7 +2625,6 @@ gfx9_architecture_t::register_type (amdgpu_regnum_t regnum) const
   switch (regnum)
     {
     case amdgpu_regnum_t::pseudo_status:
-    case amdgpu_regnum_t::status:
       return "flags32_t status {"
              "  bool SCC @0;"
              "  uint32_t SPI_PRIO @1-2;"
@@ -3676,7 +3705,6 @@ gfx10_architecture_t::register_type (amdgpu_regnum_t regnum) const
   switch (regnum)
     {
     case amdgpu_regnum_t::pseudo_status:
-    case amdgpu_regnum_t::status:
       return "flags32_t status {"
              "  bool SCC @0;"
              "  uint32_t SPI_PRIO @1-2;"

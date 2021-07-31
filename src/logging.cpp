@@ -442,6 +442,51 @@ to_string (amd_dbgapi_instruction_properties_t instruction_properties)
   return str;
 }
 
+namespace
+{
+
+inline std::string
+one_register_property_to_string (
+  amd_dbgapi_register_properties_t register_property)
+{
+  switch (register_property)
+    {
+      CASE (REGISTER_PROPERTY_NONE);
+      CASE (REGISTER_PROPERTY_READONLY_BITS);
+      CASE (REGISTER_PROPERTY_VOLATILE);
+      CASE (REGISTER_PROPERTY_INVALIDATE_VOLATILE);
+      CASE (REGISTER_PROPERTY_RESERVED);
+    }
+  return to_string (make_hex (register_property));
+}
+
+} /* namespace */
+
+template <>
+std::string
+to_string (amd_dbgapi_register_properties_t register_properties)
+{
+  std::string str;
+
+  if (!register_properties)
+    return one_register_property_to_string (register_properties);
+
+  while (register_properties)
+    {
+      amd_dbgapi_register_properties_t one_bit
+        = register_properties
+          ^ (register_properties & (register_properties - 1));
+
+      if (!str.empty ())
+        str += " | ";
+      str += one_register_property_to_string (one_bit);
+
+      register_properties ^= one_bit;
+    }
+
+  return str;
+}
+
 template <>
 std::string
 to_string (amd_dbgapi_direct_call_register_pair_information_t information)
@@ -1204,6 +1249,7 @@ to_string (amd_dbgapi_register_info_t register_info)
       CASE (REGISTER_INFO_SIZE);
       CASE (REGISTER_INFO_TYPE);
       CASE (REGISTER_INFO_DWARF);
+      CASE (REGISTER_INFO_PROPERTIES);
     }
   return to_string (make_hex (register_info));
 }
@@ -1226,6 +1272,9 @@ to_string (detail::query_ref<amd_dbgapi_register_info_t> ref)
         make_ref (static_cast<const amd_dbgapi_size_t *> (value)));
     case AMD_DBGAPI_REGISTER_INFO_DWARF:
       return to_string (make_ref (static_cast<const uint64_t *> (value)));
+    case AMD_DBGAPI_REGISTER_INFO_PROPERTIES:
+      return to_string (make_ref (
+        static_cast<const amd_dbgapi_register_properties_t *> (value)));
     }
   error ("unhandled amd_dbgapi_register_info_t query (%s)",
          to_string (query).c_str ());

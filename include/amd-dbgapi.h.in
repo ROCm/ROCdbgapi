@@ -284,25 +284,44 @@
  * the following restrictions.  Future releases aim to address these
  * restrictions.
  *
- * 1.  The following *_get_info queries are not yet implemented:
+ * 1. The following *_get_info queries are not yet implemented:
  *
- *     - ::AMD_DBGAPI_QUEUE_INFO_ERROR_REASON
- *     - ::AMD_DBGAPI_QUEUE_INFO_STATE
+ *    - ::AMD_DBGAPI_QUEUE_INFO_ERROR_REASON
+ *    - ::AMD_DBGAPI_QUEUE_INFO_STATE
  *
- * 2.  On a ::AMD_DBGAPI_STATUS_FATAL error the library does fully reset the
- *     internal state and so subsequent functions may not operate correctly.
+ * 2. On a ::AMD_DBGAPI_STATUS_FATAL error the library does fully reset the
+ *    internal state and so subsequent functions may not operate correctly.
  *
- * 3.  ::amd_dbgapi_process_next_pending_event returns
- *     ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP events only for AQL queues.  PM4
- *     queues that launch wavefronts are not supported.
+ * 3. ::amd_dbgapi_process_next_pending_event returns
+ *    ::AMD_DBGAPI_EVENT_KIND_WAVE_STOP events only for AQL queues.  PM4 queues
+ *    that launch wavefronts are not supported.
  *
- * 4.  ::amd_dbgapi_queue_packet_list returns packets only for AQL queues.
+ * 4. ::amd_dbgapi_queue_packet_list returns packets only for AQL queues.
  *
  * 5. Generation of the ::AMD_DBGAPI_EVENT_KIND_QUEUE_ERROR event, the
  *    ::AMD_DBGAPI_EVENT_INFO_QUEUE query, and the generation of
  *    ::AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED events for waves with
  *    pending single step requests when a queue enters the queue error state,
  *    have not been implemented.
+ *
+ * 6. By default, for some architectures, the AMD GPU device driver for Linux
+ *    causes all wavefronts created when the library is not attached to the
+ *    process by ::amd_dbgapi_process_attach to be unable to query the
+ *    wavesfront's ::AMD_DBGAPI_WAVE_INFO_DISPATCH,
+ *    ::AMD_DBGAPI_WAVE_INFO_WORK_GROUP_COORD, or
+ *    ::AMD_DBGAPI_WAVE_INFO_WAVE_NUMBER_IN_WORK_GROUP.  This does not affect
+ *    wavefronts created while the library is attached to the process which are
+ *    always capable of reporting this information.
+ *
+ *    If the \p HSA_ENABLE_DEBUG environment variable is set to "1" when the
+ *    inferior's runtime is successfully enabled (see
+ *    ::AMD_DBGAPI_EVENT_KIND_RUNTIME), then this information will be available
+ *    for all architecture even for wavefronts created when the library was not
+ *    attached to the process.  Setting this environment variable may very
+ *    marginally reduce wavefront launch latency for some architectures for
+ *    very short lived wavefronts.
+ *
+ *    \sa ::amd_dbgapi_wave_get_info
  *
  * \section references References
  *
@@ -457,10 +476,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_54
 
 /**
- * The function was introduced in version 0.55 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.55"``.
+ * The function was introduced in version 0.56 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.56"``.
  */
-#define AMD_DBGAPI_VERSION_0_55
+#define AMD_DBGAPI_VERSION_0_56
 
 /** @} */
 
@@ -478,10 +497,10 @@ typedef struct amd_dbgapi_callbacks_s amd_dbgapi_callbacks_t;
  * functions using pointers.  The C language does not define the underlying
  * type used for enumeration types.  This interface requires that:
  *
- * - For the enumeration types \p amd_dbgapi_wave_stop_reasons_t, \p
- *   amd_dbgapi_instruction_properties_t, and \p amd_dbgapi_exceptions_t, the
- *   underlying type used by the client will be \p unsigned \p long \p long
- *   with a size of 64 bits.
+ * - For the enumeration types \p amd_dbgapi_exceptions_t, \p
+ *   amd_dbgapi_instruction_properties_t, \p amd_dbgapi_register_properties_t,
+ *   and \p amd_dbgapi_wave_stop_reasons_t, the underlying type used by the
+ *   client will be \p unsigned \p long \p long with a size of 64 bits.
  * - For all other enumeration types the underlying type used by the client
  *   will be \p int with a size of 32 bits.
  *
@@ -537,7 +556,8 @@ typedef pid_t amd_dbgapi_os_process_id_t;
  * successfully attach to a process.  It is obtained using the
  * ::AMD_DBGAPI_PROCESS_INFO_NOTIFIER query.  If the notifier indicates there
  * may be pending events, then ::amd_dbgapi_process_next_pending_event can be
- * used to retrieve them.
+ * used to retrieve them.  The same notifier may be returned when attaching to
+ * different processes.
  *
  * For Linux<sup>&reg;</sup> this is a file descriptor number that can be used
  * with the \p poll call to wait on events from multiple sources.  The file
@@ -738,16 +758,18 @@ typedef enum
    * There is a restriction error that prevents debugging the process.  Reasons
    * include:
    *
+   * - The AMD GPU driver is not installed.
    * - The installed AMD GPU driver version is not compatible with the library.
    * - The installed AMD GPU driver's debug support version is not compatible
    *   with the library.
-   * - The AMD GPU runtime version is not compatible with the library.
-   * - One of the AMD GPU agents has an architecture not supported by the
-   *   library.
-   * - The firmware version of one of the AMD GPU agents is not compatible with
-   *   the library.
+   * - The firmware version of one of the AMD GPU agents, that has an
+   *   architecture that is supported, is not compatible with the library.
    * - A limitation on the number of debuggers that can be active for an
    *   AMD GPU agent has been exceeded.
+   * - The process has the same address space as another process to which the
+   *   library is already attached.  For example, attaching to a process
+   *   created by the Linux \p vfork system call while attached to the parent
+   *   process.
    */
   AMD_DBGAPI_STATUS_ERROR_RESTRICTION = -10,
   /**
@@ -1606,8 +1628,12 @@ typedef enum
   AMD_DBGAPI_PROCESS_INFO_PRECISE_MEMORY_SUPPORTED = 4,
   /**
    * Native operating system process ID.  The type of this attribute is
-   * ::amd_dbgapi_os_process_id_t. AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED is
-   * returned if the native operating system process was exited when attaching.
+   * ::amd_dbgapi_os_process_id_t.
+   *
+   * If the native operating system process was exited when
+   * ::amd_dbgapi_process_attach attached to the process, then
+   * ::amd_dbgapi_process_get_info returns the
+   * ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE error.
    */
   AMD_DBGAPI_PROCESS_INFO_OS_ID = 5
 } amd_dbgapi_process_info_t;
@@ -1646,9 +1672,9 @@ typedef enum
  * value_size does not match the size of the \p query result.  \p value is
  * unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED \p query is
- * ::AMD_DBGAPI_PROCESS_INFO_OS_ID and the native operating system process was
- * exited when attaching.  \p value is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE \p The requested information
+ * is not available.  See ::amd_dbgapi_procss_info_t for queries that can
+ * produce this error.  \p value is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
  * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
@@ -1656,7 +1682,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_process_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_54;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_56;
 
 /**
  * Attach to a process in order to provide debug control of the AMD GPUs it
@@ -1749,7 +1775,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_attach (
     amd_dbgapi_client_process_id_t client_process_id,
-    amd_dbgapi_process_id_t *process_id) AMD_DBGAPI_VERSION_0_54;
+    amd_dbgapi_process_id_t *process_id) AMD_DBGAPI_VERSION_0_56;
 
 /**
  * Detach from a process and no longer have debug control of the AMD GPU
@@ -1988,20 +2014,27 @@ typedef enum
    * The URI name syntax is defined by the following BNF syntax:
    *
    *     code_object_uri ::== file_uri | memory_uri
-   *     file_uri        ::== "file://" file_path [ range_specifier ]
-   *     memory_uri      ::== "memory://" process_id range_specifier
-   *     range_specifier ::== [ "#" | "?" ] "offset=" number "&" "size=" number
+   *     file_uri        ::== "file://" file_path
+   *                          [ range_specifier ]
+   *     memory_uri      ::== "memory://" process_id
+   *                          range_specifier
+   *     range_specifier ::== ( "#" | "?" )
+   *                          "offset=" number
+   *                          "&" "size=" number
    *     file_path       ::== URI_ENCODED_OS_FILE_PATH
    *     process_id      ::== DECIMAL_NUMBER
-   *     number          ::== HEX_NUMBER | DECIMAL_NUMBER | OCTAL_NUMBER
+   *     number          ::== HEX_NUMBER
+   *                        | DECIMAL_NUMBER
+   *                        | OCTAL_NUMBER
    *
-   * ``number`` is a C integral literal where hexadecimal values are prefixed
-   * by "0x" or "0X", and octal values by "0".
+   * ``DECIMAL_NUMBER`` is a decimal C integral literal, ``HEX_NUMBER`` is a
+   * hexadecimal C integral literal with a "0x" or "0X" prefix, and
+   * ``OCTAL_NUMBER`` is an octal C integral literal with a "0" prefix.
    *
-   * ``file_path`` is the file's path specified as a URI encoded UTF-8 string.
-   * In URI encoding, every character that is not in the regular expression
-   * ``[a-zA-Z0-9/_.~-]`` is encoded as two uppercase hexidecimal digits
-   * proceeded by "%".  Directories in the path are separated by "/".
+   * ``URI_ENCODED_OS_FILE_PATH`` is a file path specified as a URI encoded
+   * UTF-8 string.  In URI encoding, every character that is not in the regular
+   * expression ``[a-zA-Z0-9/_.~-]`` is encoded as two uppercase hexidecimal
+   * digits proceeded by "%".  Directories in the path are separated by "/".
    *
    * ``offset`` is a 0-based byte offset to the start of the code object.  For
    * a file URI, it is from the start of the file specified by the
@@ -2243,13 +2276,17 @@ typedef enum
  * value_size does not match the size of the \p query result.  \p value is
  * unaltered.
  *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE \p The requested information
+ * is not available.  See ::amd_dbgapi_agent_info_t for queries that can
+ * produce this error.  \p value is unaltered.
+ *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
  * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
  * allocate \p value returns NULL.  \p value is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_agent_get_info (
     amd_dbgapi_agent_id_t agent_id, amd_dbgapi_agent_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_54;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_56;
 
 /**
  * Return the list of agents.
@@ -2423,13 +2460,17 @@ typedef enum
  * value_size does not match the size of the \p query result.  \p value is
  * unaltered.
  *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE \p The requested information
+ * is not available.  See ::amd_dbgapi_queue_info_t for queries that can
+ * produce this error.  \p value is unaltered.
+ *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
  * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
  * allocate \p value returns NULL.  \p value is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_get_info (
     amd_dbgapi_queue_id_t queue_id, amd_dbgapi_queue_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_54;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_56;
 
 /**
  * Queue state.
@@ -3004,27 +3045,24 @@ typedef enum
    * attribute is ::amd_dbgapi_dispatch_id_t.
    *
    * If the dispatch associated with a wave is not available then
-   * ::AMD_DBGAPI_DISPATCH_NONE is returned.  If a wave has no associated
-   * dispatch then the the ::AMD_DBGAPI_WAVE_INFO_WORK_GROUP_COORD query may
-   * return incorrect information.  Note that a wave may not have an associated
-   * dispatch if attaching to a process with already existing waves.
+   * ::amd_dbgapi_wave_get_info returns the
+   * ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE error.  See the \ref
+   * known_limitations section.
    */
   AMD_DBGAPI_WAVE_INFO_DISPATCH = 4,
   /**
    * Return the queue to which this wave belongs.  The type of this attribute
-   * is
-   * ::amd_dbgapi_queue_id_t.
+   * is ::amd_dbgapi_queue_id_t.
    */
   AMD_DBGAPI_WAVE_INFO_QUEUE = 5,
   /**
    * Return the agent to which this wave belongs.  The type of this attribute
-   * is
-   * ::amd_dbgapi_agent_id_t.
+   * is ::amd_dbgapi_agent_id_t.
    */
   AMD_DBGAPI_WAVE_INFO_AGENT = 6,
   /**
-   * Return the process to which this wave belongs.  The type of this
-   * attribute is ::amd_dbgapi_process_id_t.
+   * Return the process to which this wave belongs.  The type of this attribute
+   * is ::amd_dbgapi_process_id_t.
    */
   AMD_DBGAPI_WAVE_INFO_PROCESS = 7,
   /**
@@ -3050,6 +3088,11 @@ typedef enum
    * The wave workgroup coordinate in the dispatch grid dimensions.  The type
    * of this attribute is \p uint32_t[3] with elements 1, 2, and 3
    * corresponding to the X, Y, and Z coordinates respectively.
+   *
+   * If the dispatch associated with a wave is not available then
+   * ::amd_dbgapi_wave_get_info returns
+   * ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE.  See the \ref known_limitations
+   * section.
    */
   AMD_DBGAPI_WAVE_INFO_WORK_GROUP_COORD = 11,
   /**
@@ -3057,6 +3100,11 @@ typedef enum
    * \p uint32_t.  The work-items of a workgroup are mapped to the lanes of the
    * waves of the workgroup in flattened work-item ID order, with the first
    * work-item corresponding to lane 0 of wave 0, and so forth.
+   *
+   * If the dispatch associated with a wave is not available then
+   * ::amd_dbgapi_wave_get_info returns
+   * ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE.  See the \ref known_limitations
+   * section.
    */
   AMD_DBGAPI_WAVE_INFO_WAVE_NUMBER_IN_WORK_GROUP = 12,
   /**
@@ -3100,6 +3148,10 @@ typedef enum
  * value_size does not match the size of the \p query result.  \p value is
  * unaltered.
  *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE \p The requested information
+ * is not available.  See ::amd_dbgapi_wave_info_t for queries that can produce
+ * this error.  \p value is unaltered.
+ *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED \p query has a value of
  * ::amd_dbgapi_wave_info_t that requires the wave to be stopped, but the wave
  * is not stopped.
@@ -3107,11 +3159,6 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be reported if
  * the amd_dbgapi_callbacks_s::allocate_memory callback used to allocate \p
  * value returns NULL.  \p value is unaltered.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE \p The requested information
- * is not available.  For example, the workgroup coordinates, or the wave's
- * number in the workgroup, may not be available for waves created before the
- * process is attached.  \p value is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_get_info (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_wave_info_t query,
@@ -4399,6 +4446,45 @@ typedef struct
 #define AMD_DBGAPI_REGISTER_NONE ((amd_dbgapi_register_id_t){ 0 })
 
 /**
+ * A bit mask on register properties.
+ *
+ * The properties of a register are available using the
+ * ::AMD_DBGAPI_REGISTER_INFO_PROPERTIES query.
+ */
+typedef enum
+{
+  /**
+   * There are no properties.
+   */
+  AMD_DBGAPI_REGISTER_PROPERTY_NONE = 0ULL,
+  /**
+   * At least one bit of the register value is readonly.  It is advisable for
+   * the client to read the register after writing it to determine the value of
+   * the readonly bits.
+   */
+  AMD_DBGAPI_REGISTER_PROPERTY_READONLY_BITS = (1ULL << 0),
+  /**
+   * The register value may change as a consequence of changing a register of
+   * the same wavefront with the
+   * ::AMD_DBGAPI_REGISTER_PROPERTY_INVALIDATE_VOLATILE property.  It is
+   * advisable for the client to not cache the value of the register.
+   */
+  AMD_DBGAPI_REGISTER_PROPERTY_VOLATILE = (1ULL << 1),
+  /**
+   * Changing the value of the register may change a register of the same
+   * wavefront with the ::AMD_DBGAPI_REGISTER_PROPERTY_VOLATILE property.  It
+   * is advisable to invalidate any cached registers with the
+   * ::AMD_DBGAPI_REGISTER_PROPERTY_VOLATILE property.
+   */
+  AMD_DBGAPI_REGISTER_PROPERTY_INVALIDATE_VOLATILE = (1ULL << 2),
+  /**
+   * A reserved value only present to ensure that the underlying representation
+   * of this enumeration type is \p uint64_t.
+   */
+  AMD_DBGAPI_REGISTER_PROPERTY_RESERVED = (1ULL << 63)
+} amd_dbgapi_register_properties_t;
+
+/**
  * Register queries that are supported by ::amd_dbgapi_register_get_info.
  *
  * Each query specifies the type of data returned in the \p value argument to
@@ -4428,17 +4514,56 @@ typedef enum
    * the default type to use when displaying values of the register.  The type
    * string syntax is defined by the following BNF syntax:
    *
-   *     type ::= integer_type  | float_type | array_type | function_type
-   *     integer_type ::= "uint32" | "uint64"
-   *     float_type ::=  "float" | "double"
-   *     array_type ::= ( integer_type | float_type ) "[" integer "]"
+   *     type          ::= integer_type
+   *                     | float_type
+   *                     | function_type
+   *                     | flag_type
+   *                     | array_type
+   *     array_type    ::= ( integer_type
+   *                       | float_type
+   *                       | function_type
+   *                       | flag_type
+   *                       ) "[" element_count "]"
+   *     element_count ::= DECIMAL_NUMBER
+   *     integer_type  ::= "uint32_t"
+   *                     | "uint64_t"
+   *     float_type    ::= "float"
+   *                     | "double"
    *     function_type ::= "void(void)"
-   *     integer ::= digit | ( digit integer )
-   *     digit ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+   *     flag_type     ::= ( "flags32_t"
+   *                       | "flags64_t"
+   *                       )
+   *                       type_name
+   *                       [ "{" [ fields ] "}" ]
+   *     fields        ::= field ";" [ fields ]
+   *     field         ::= "bool" field_name
+   *                       "@" bit_position
+   *                     | ( integer_type
+   *                       | enum_type
+   *                       )
+   *                       field_name
+   *                       "@" bit_position
+   *                       "-" bit_position
+   *     field_name    ::= IDENTIFIER
+   *     enum_type     ::= "enum" type_name
+   *                       [ "{" [ enum_values ] "}" ]
+   *     enum_values   ::= enum_value [ "," enum_values ]
+   *     enum_value    ::= enum_name "=" enum_ordinal
+   *     enum_name     ::= IDENTIFIER
+   *     enum_ordinal  ::= DECIMAL_NUMBER
+   *     type_name     ::= IDENTIFIER
+   *     bit_position  ::= DECIMAL_NUMBER
    *
-   * The type size matches the size of the register.  \p uint32 and \p float
-   * types are 4 bytes.  \p unit64 and \p double types are 8 bytes.  \p
-   * void(void) is the size of a global address.
+   * ``IDENTIFIER`` is string starting with an alphabetic character followed by
+   * zero or more alphebetic, numeric, "_", or "." characters.
+   *
+   * ``DECIMAL_NUMBER`` is a decimal C integral literal.
+   *
+   * Whitespace is allowed between lexical tokens.
+   *
+   * The type size matches the size of the register.  \p uint32, \p float, and
+   * \p flag32 types are 4 bytes.  \p unit64, \p double, and \p flag64 types
+   * are 8 bytes.  \p void(void) is the size of a global address.
    *
    * The type of this attribute is a pointer to a NUL terminated \p char.  It
    * is allocated by the amd_dbgapi_callbacks_s::allocate_memory callback and
@@ -4449,7 +4574,12 @@ typedef enum
    * Return the AMD GPU DWARF register number for the register's architecture.
    * The type of this attribute is \p uint64_t.
    */
-  AMD_DBGAPI_REGISTER_INFO_DWARF = 5
+  AMD_DBGAPI_REGISTER_INFO_DWARF = 5,
+  /**
+   * Return the register's properties.  The type of this attribute is \p
+   * uint64_t with values defined by ::amd_dbgapi_register_properties_t.
+   */
+  AMD_DBGAPI_REGISTER_INFO_PROPERTIES = 6
 } amd_dbgapi_register_info_t;
 
 /**
@@ -4493,7 +4623,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_get_info (
     amd_dbgapi_register_id_t register_id, amd_dbgapi_register_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_55;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_56;
 
 /**
  * Indication of if a wave has a register.

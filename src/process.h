@@ -92,7 +92,7 @@ private:
   static handle_object_set_t<process_t> s_process_map;
 
   amd_dbgapi_client_process_id_t const m_client_process_id;
-  amd_dbgapi_os_process_id_t m_os_process_id{};
+  std::optional<amd_dbgapi_os_process_id_t> m_os_process_id{};
 
   os_runtime_info_t m_runtime_info{};
   amd_dbgapi_runtime_state_t m_runtime_state{

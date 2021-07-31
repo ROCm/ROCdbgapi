@@ -372,6 +372,10 @@ amd_dbgapi_register_get_info (amd_dbgapi_register_id_t register_id,
         return utils::get_info (value_size, value, *dwarf_register);
       }
 
+    case AMD_DBGAPI_REGISTER_INFO_PROPERTIES:
+      return utils::get_info (value_size, value,
+                              architecture->register_properties (*regnum));
+
     default:
       return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
     }

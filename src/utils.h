@@ -43,10 +43,10 @@
 
 #define CATCH                                                                 \
   }                                                                           \
-  catch (const amd::dbgapi::exception_t &ex)                                  \
+  catch (const amd::dbgapi::exception_t &e)                                   \
   {                                                                           \
-    ex.print_message ();                                                      \
-    return ex.error_code ();                                                  \
+    e.print_message ();                                                       \
+    return e.error_code ();                                                   \
   }                                                                           \
   catch (...) { return AMD_DBGAPI_STATUS_FATAL; }
 
@@ -854,8 +854,8 @@ operator+= (T &lhs, int rhs)
   return lhs = lhs + rhs;
 }
 
-/* Enable bitwise operations for amd_dbgapi_wave_stop_reasons_t.  */
-template <> struct is_flag<amd_dbgapi_wave_stop_reasons_t> : std::true_type
+/* Enable bitwise operations for amd_dbgapi_exceptions_t.  */
+template <> struct is_flag<amd_dbgapi_exceptions_t> : std::true_type
 {
 };
 
@@ -865,8 +865,14 @@ struct is_flag<amd_dbgapi_instruction_properties_t> : std::true_type
 {
 };
 
-/* Enable bitwise operations for amd_dbgapi_exceptions_t.  */
-template <> struct is_flag<amd_dbgapi_exceptions_t> : std::true_type
+/* Enable bitwise operations for amd_dbgapi_register_properties_t.  */
+template <>
+struct is_flag<amd_dbgapi_register_properties_t> : std::true_type
+{
+};
+
+/* Enable bitwise operations for amd_dbgapi_wave_stop_reasons_t.  */
+template <> struct is_flag<amd_dbgapi_wave_stop_reasons_t> : std::true_type
 {
 };
 

@@ -447,6 +447,7 @@ to_string (detail::parameter_t<detail::query_ref<T>, name, kind> param)
   F (amd_dbgapi_event_id_t)                                                   \
   F (amd_dbgapi_event_info_t)                                                 \
   F (amd_dbgapi_event_kind_t)                                                 \
+  F (amd_dbgapi_exceptions_t)                                                 \
   F (amd_dbgapi_instruction_kind_t)                                           \
   F (amd_dbgapi_instruction_properties_t)                                     \
   F (amd_dbgapi_log_level_t)                                                  \
@@ -455,7 +456,6 @@ to_string (detail::parameter_t<detail::query_ref<T>, name, kind> param)
   F (amd_dbgapi_process_id_t)                                                 \
   F (amd_dbgapi_process_info_t)                                               \
   F (amd_dbgapi_progress_t)                                                   \
-  F (amd_dbgapi_exceptions_t)                                                 \
   F (amd_dbgapi_queue_id_t)                                                   \
   F (amd_dbgapi_queue_info_t)                                                 \
   F (amd_dbgapi_queue_state_t)                                                \
@@ -465,6 +465,7 @@ to_string (detail::parameter_t<detail::query_ref<T>, name, kind> param)
   F (amd_dbgapi_register_exists_t)                                            \
   F (amd_dbgapi_register_id_t)                                                \
   F (amd_dbgapi_register_info_t)                                              \
+  F (amd_dbgapi_register_properties_t)                                        \
   F (amd_dbgapi_resume_mode_t)                                                \
   F (amd_dbgapi_runtime_state_t)                                              \
   F (amd_dbgapi_status_t)                                                     \

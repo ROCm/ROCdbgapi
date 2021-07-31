@@ -58,9 +58,173 @@ using namespace std::string_literals;
 namespace amd::dbgapi
 {
 
-/* OS driver base class that only implements memory accesses on Linux.  */
+/* OS driver class that implements no access that can be used if there is no
+   process.  */
 
-class linux_driver_t : public os_driver_t
+class null_driver_t : public os_driver_t
+{
+public:
+  null_driver_t (std::optional<amd_dbgapi_os_process_id_t> os_pid = {})
+    : os_driver_t (os_pid)
+  {
+  }
+  ~null_driver_t () override = default;
+
+  /* Disable copies.  */
+  null_driver_t (const null_driver_t &) = delete;
+  null_driver_t &operator= (const null_driver_t &) = delete;
+
+  bool is_valid () const override { return true; }
+
+  amd_dbgapi_status_t check_version () const override
+  {
+    return AMD_DBGAPI_STATUS_SUCCESS;
+  }
+
+  amd_dbgapi_status_t
+  agent_snapshot (os_agent_snapshot_entry_t * /* snapshots  */,
+                  size_t /* snapshot_count  */, size_t *agent_count,
+                  os_exception_mask_t /* exceptions_cleared  */) const override
+  {
+    *agent_count = 0;
+    return AMD_DBGAPI_STATUS_SUCCESS;
+  }
+
+  amd_dbgapi_status_t
+  enable_debug (os_exception_mask_t /* exceptions_reported  */,
+                file_desc_t /* notifier  */,
+                os_runtime_info_t * /* runtime_info  */) override
+  {
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  }
+
+  amd_dbgapi_status_t disable_debug () override
+  {
+    /* Debug is never enabled.  */
+    return AMD_DBGAPI_STATUS_ERROR;
+  }
+
+  bool is_debug_enabled () const override { return false; }
+
+  amd_dbgapi_status_t set_exceptions_reported (
+    os_exception_mask_t /* exceptions_reported  */) const override
+  {
+    return AMD_DBGAPI_STATUS_SUCCESS;
+  }
+
+  amd_dbgapi_status_t
+    send_exceptions (os_exception_mask_t /* exceptions  */,
+                     os_agent_id_t /* agent_id  */,
+                     os_queue_id_t /* queue_id  */) const override
+  {
+    return AMD_DBGAPI_STATUS_ERROR;
+  }
+
+  amd_dbgapi_status_t
+  query_debug_event (os_exception_mask_t *exceptions_present,
+                     os_source_id_t *os_source_id,
+                     os_exception_mask_t /* exceptions_cleared  */) override
+  {
+    *exceptions_present = os_exception_mask_t::none;
+    os_source_id->raw = 0;
+    return AMD_DBGAPI_STATUS_SUCCESS;
+  }
+
+  amd_dbgapi_status_t query_exception_info (
+    os_exception_code_t /* exception  */, os_source_id_t /* os_source_id  */,
+    void * /* exception_info  */, size_t /* exception_info_size  */,
+    bool /* clear_exception  */) const override
+  {
+    return AMD_DBGAPI_STATUS_ERROR;
+  }
+
+  amd_dbgapi_status_t
+  suspend_queues (os_queue_id_t * /* queues  */, size_t queue_count,
+                  os_exception_mask_t /* exceptions_cleared  */,
+                  size_t *suspended_count) const override
+  {
+    dbgapi_assert (suspended_count != nullptr);
+
+    if (queue_count > 0)
+      error ("should not call this, null_driver does not have any queues");
+
+    *suspended_count = 0;
+    return AMD_DBGAPI_STATUS_SUCCESS;
+  }
+
+  amd_dbgapi_status_t resume_queues (os_queue_id_t * /* queues  */,
+                                     size_t queue_count,
+                                     size_t *resumed_count) const override
+  {
+    dbgapi_assert (resumed_count != nullptr);
+
+    if (queue_count > 0)
+      error ("should not call this, null_driver does not have any queues");
+
+    *resumed_count = 0;
+    return AMD_DBGAPI_STATUS_SUCCESS;
+  }
+
+  amd_dbgapi_status_t
+  queue_snapshot (os_queue_snapshot_entry_t * /* snapshots  */,
+                  size_t /* snapshot_count  */, size_t *queue_count,
+                  os_exception_mask_t /* exceptions_cleared  */) const override
+  {
+    *queue_count = 0;
+    return AMD_DBGAPI_STATUS_SUCCESS;
+  }
+
+  amd_dbgapi_status_t
+  set_address_watch (amd_dbgapi_global_address_t /* address  */,
+                     amd_dbgapi_global_address_t /* mask  */,
+                     os_watch_mode_t /* os_watch_mode  */,
+                     os_watch_id_t * /* os_watch_id  */) const override
+  {
+    return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
+  }
+
+  amd_dbgapi_status_t
+    clear_address_watch (os_watch_id_t /* os_watch_id  */) const override
+  {
+    error ("should not call this, null_driver does not support watchpoints");
+  }
+
+  amd_dbgapi_status_t
+    set_wave_launch_mode (os_wave_launch_mode_t /* mode  */) const override
+  {
+    return AMD_DBGAPI_STATUS_ERROR;
+  }
+
+  amd_dbgapi_status_t set_wave_launch_trap_override (
+    os_wave_launch_trap_override_t /* override  */,
+    os_wave_launch_trap_mask_t /* trap_mask  */,
+    os_wave_launch_trap_mask_t /* requested_bits  */,
+    os_wave_launch_trap_mask_t * /* previous_mask  */,
+    os_wave_launch_trap_mask_t * /* supported_mask  */) const override
+  {
+    return AMD_DBGAPI_STATUS_ERROR;
+  }
+
+  amd_dbgapi_status_t set_precise_memory (bool /* enabled  */) const override
+  {
+    return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
+  }
+
+  amd_dbgapi_status_t
+  xfer_global_memory_partial (amd_dbgapi_global_address_t /* address  */,
+                              void *read, const void *write,
+                              size_t * /* size  */) const override
+  {
+    dbgapi_assert (!read != !write && "either read or write buffer");
+    /* Suppress warnings in release builds.  */
+    [] (auto &&...) {}(read, write);
+    return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
+  }
+};
+
+/* OS driver class that only implements memory accesses on Linux.  */
+
+class linux_driver_t : public null_driver_t
 {
 private:
   std::optional<file_desc_t> m_proc_mem_fd{};
@@ -69,7 +233,19 @@ public:
   linux_driver_t (amd_dbgapi_os_process_id_t os_pid);
   ~linux_driver_t () override;
 
+  /* Disable copies.  */
+  linux_driver_t (const linux_driver_t &) = delete;
+  linux_driver_t &operator= (const linux_driver_t &) = delete;
+
   bool is_valid () const override { return m_proc_mem_fd.has_value (); }
+
+  amd_dbgapi_status_t
+  enable_debug (os_exception_mask_t /* exceptions_reported  */,
+                file_desc_t /* notifier  */,
+                os_runtime_info_t * /* runtime_info  */) override
+  {
+    return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
+  }
 
   amd_dbgapi_status_t
   xfer_global_memory_partial (amd_dbgapi_global_address_t address, void *read,
@@ -77,7 +253,7 @@ public:
 };
 
 linux_driver_t::linux_driver_t (amd_dbgapi_os_process_id_t os_pid)
-  : os_driver_t (os_pid)
+  : null_driver_t (os_pid)
 {
   /* Open the /proc/pid/mem file for this process.  */
   std::string filename = string_printf ("/proc/%d/mem", os_pid);
@@ -291,8 +467,9 @@ kfd_driver_t::kfd_dbg_trap_ioctl (uint32_t action,
                                   kfd_ioctl_dbg_trap_args *args) const
 {
   dbgapi_assert (is_valid ());
+  dbgapi_assert (m_os_pid);
 
-  args->pid = m_os_pid;
+  args->pid = *m_os_pid;
   args->op = action;
 
   int ret = ::ioctl (*s_kfd_fd, AMDKFD_IOC_DBG_TRAP, args);
@@ -1003,160 +1180,19 @@ kfd_driver_t::set_precise_memory (bool enabled) const
   TRACE_DRIVER_END ();
 }
 
-class no_agents_driver_t : public linux_driver_t
-{
-public:
-  no_agents_driver_t (amd_dbgapi_os_process_id_t os_pid)
-    : linux_driver_t (os_pid)
-  {
-  }
-  ~no_agents_driver_t () override = default;
-
-  amd_dbgapi_status_t check_version () const override
-  {
-    return AMD_DBGAPI_STATUS_SUCCESS;
-  }
-
-  amd_dbgapi_status_t
-  agent_snapshot (os_agent_snapshot_entry_t * /* snapshots  */,
-                  size_t /* snapshot_count  */, size_t *agent_count,
-                  os_exception_mask_t /* exceptions_cleared  */) const override
-  {
-    *agent_count = 0;
-    return AMD_DBGAPI_STATUS_SUCCESS;
-  }
-
-  amd_dbgapi_status_t
-  enable_debug (os_exception_mask_t /* exceptions_reported  */,
-                file_desc_t /* notifier  */,
-                os_runtime_info_t * /* runtime_info  */) override
-  {
-    return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
-  }
-
-  amd_dbgapi_status_t disable_debug () override
-  {
-    /* Debug is never enabled.  */
-    return AMD_DBGAPI_STATUS_ERROR;
-  }
-
-  bool is_debug_enabled () const override { return false; }
-
-  amd_dbgapi_status_t set_exceptions_reported (
-    os_exception_mask_t /* exceptions_reported  */) const override
-  {
-    return AMD_DBGAPI_STATUS_SUCCESS;
-  }
-
-  amd_dbgapi_status_t
-    send_exceptions (os_exception_mask_t /* exceptions  */,
-                     os_agent_id_t /* agent_id  */,
-                     os_queue_id_t /* queue_id  */) const override
-  {
-    return AMD_DBGAPI_STATUS_ERROR;
-  }
-
-  amd_dbgapi_status_t
-  query_debug_event (os_exception_mask_t *exceptions_present,
-                     os_source_id_t *os_source_id,
-                     os_exception_mask_t /* exceptions_cleared  */) override
-  {
-    *exceptions_present = os_exception_mask_t::none;
-    os_source_id->raw = 0;
-    return AMD_DBGAPI_STATUS_SUCCESS;
-  }
-
-  amd_dbgapi_status_t query_exception_info (
-    os_exception_code_t /* exception  */, os_source_id_t /* os_source_id  */,
-    void * /* exception_info  */, size_t /* exception_info_size  */,
-    bool /* clear_exception  */) const override
-  {
-    return AMD_DBGAPI_STATUS_ERROR;
-  }
-
-  amd_dbgapi_status_t
-  suspend_queues (os_queue_id_t * /* queues  */, size_t queue_count,
-                  os_exception_mask_t /* exceptions_cleared  */,
-                  size_t *suspended_count) const override
-  {
-    dbgapi_assert (suspended_count != nullptr);
-
-    if (queue_count > 0)
-      error ("should not call this, null_driver does not have any queues");
-
-    *suspended_count = 0;
-    return AMD_DBGAPI_STATUS_SUCCESS;
-  }
-
-  amd_dbgapi_status_t resume_queues (os_queue_id_t * /* queues  */,
-                                     size_t queue_count,
-                                     size_t *resumed_count) const override
-  {
-    dbgapi_assert (resumed_count != nullptr);
-
-    if (queue_count > 0)
-      error ("should not call this, null_driver does not have any queues");
-
-    *resumed_count = 0;
-    return AMD_DBGAPI_STATUS_SUCCESS;
-  }
-
-  amd_dbgapi_status_t
-  queue_snapshot (os_queue_snapshot_entry_t * /* snapshots  */,
-                  size_t /* snapshot_count  */, size_t *queue_count,
-                  os_exception_mask_t /* exceptions_cleared  */) const override
-  {
-    *queue_count = 0;
-    return AMD_DBGAPI_STATUS_SUCCESS;
-  }
-
-  amd_dbgapi_status_t
-  set_address_watch (amd_dbgapi_global_address_t /* address  */,
-                     amd_dbgapi_global_address_t /* mask  */,
-                     os_watch_mode_t /* os_watch_mode  */,
-                     os_watch_id_t * /* os_watch_id  */) const override
-  {
-    return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
-  }
-
-  amd_dbgapi_status_t
-    clear_address_watch (os_watch_id_t /* os_watch_id  */) const override
-  {
-    error ("should not call this, null_driver does not support watchpoints");
-  }
-
-  amd_dbgapi_status_t
-    set_wave_launch_mode (os_wave_launch_mode_t /* mode  */) const override
-  {
-    return AMD_DBGAPI_STATUS_ERROR;
-  }
-
-  amd_dbgapi_status_t set_wave_launch_trap_override (
-    os_wave_launch_trap_override_t /* override  */,
-    os_wave_launch_trap_mask_t /* trap_mask  */,
-    os_wave_launch_trap_mask_t /* requested_bits  */,
-    os_wave_launch_trap_mask_t * /* previous_mask  */,
-    os_wave_launch_trap_mask_t * /* supported_mask  */) const override
-  {
-    return AMD_DBGAPI_STATUS_ERROR;
-  }
-
-  amd_dbgapi_status_t set_precise_memory (bool /* enabled  */) const override
-  {
-    return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
-  }
-};
-
 std::unique_ptr<os_driver_t>
-os_driver_t::create_driver (amd_dbgapi_os_process_id_t os_pid)
+os_driver_t::create_driver (std::optional<amd_dbgapi_os_process_id_t> os_pid)
 {
-  std::unique_ptr<os_driver_t> os_driver{ new kfd_driver_t (os_pid) };
+  if (!os_pid)
+    return std::make_unique<null_driver_t> ();
+
+  std::unique_ptr<os_driver_t> os_driver{ new kfd_driver_t (*os_pid) };
   if (os_driver->is_valid ())
     return os_driver;
 
   /* If we failed to create a kfd_driver_t (kfd is not installed?), then revert
-     to a null_driver.  */
-  return std::make_unique<no_agents_driver_t> (os_pid);
+     to a a plain Linux driver.  */
+  return std::make_unique<linux_driver_t> (*os_pid);
 }
 
 template <>
