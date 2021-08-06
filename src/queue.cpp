@@ -51,12 +51,10 @@ class queue_t::queue_impl_t
 {
 protected:
   os_queue_snapshot_entry_t const m_os_queue_info;
-  dispatch_t const m_dummy_dispatch;
   queue_t &m_queue;
 
   queue_impl_t (queue_t &queue, const os_queue_snapshot_entry_t &os_queue_info)
-    : m_os_queue_info (os_queue_info),
-      m_dummy_dispatch (AMD_DBGAPI_DISPATCH_NONE, queue, 0, 0), m_queue (queue)
+    : m_os_queue_info (os_queue_info), m_queue (queue)
   {
   }
 
@@ -141,6 +139,7 @@ private:
      deleted, as these waves are no longer active.  */
   monotonic_counter_t<epoch_t, 1> m_next_wave_mark{};
 
+  dispatch_t const m_dummy_dispatch;
   wave_t::callbacks_t m_callbacks{};
   hsa_queue_t m_hsa_queue{};
 
@@ -169,7 +168,8 @@ public:
 
 aql_queue_impl_t::aql_queue_impl_t (
   queue_t &queue, const os_queue_snapshot_entry_t &os_queue_info)
-  : queue_impl_t (queue, os_queue_info)
+  : queue_impl_t (queue, os_queue_info),
+    m_dummy_dispatch (AMD_DBGAPI_DISPATCH_NONE, queue, 0, 0)
 {
   const architecture_t &architecture = m_queue.architecture ();
   process_t &process = m_queue.process ();
