@@ -106,7 +106,8 @@ public:
   process_t &process () const { return agent ().process (); }
   const architecture_t &architecture () const
   {
-    return agent ().architecture ();
+    dbgapi_assert (agent ().architecture ());
+    return *agent ().architecture ();
   }
 };
 

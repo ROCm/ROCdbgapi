@@ -762,8 +762,6 @@ typedef enum
    * - The installed AMD GPU driver version is not compatible with the library.
    * - The installed AMD GPU driver's debug support version is not compatible
    *   with the library.
-   * - The firmware version of one of the AMD GPU agents, that has an
-   *   architecture that is supported, is not compatible with the library.
    * - A limitation on the number of debuggers that can be active for an
    *   AMD GPU agent has been exceeded.
    * - The process has the same address space as another process to which the
@@ -2209,38 +2207,80 @@ typedef enum
   /**
    * Return the architecture of this agent.  The type of this attribute is
    * ::amd_dbgapi_architecture_id_t.
+   *
+   * If the architecture of the agent is not supported by the library then
+   * ::amd_dbgapi_agent_get_info returns the
+   * ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE error.  See the \ref
+   * supported_amd_gpu_architectures section.
    */
   AMD_DBGAPI_AGENT_INFO_ARCHITECTURE = 3,
+  /**
+   * Return the agent state.  The type of this attribute is \p uint32_t with
+   * values from ::amd_dbgapi_agent_state_t.
+   * */
+  AMD_DBGAPI_AGENT_INFO_STATE = 4,
   /**
    * PCI slot of the agent in BDF format (see [Bus:Device.Function (BDF)
    * Notation][bfd].
    * The type of this attribute is \p uint16_t.
    */
-  AMD_DBGAPI_AGENT_INFO_PCI_SLOT = 4,
+  AMD_DBGAPI_AGENT_INFO_PCI_SLOT = 5,
   /**
    * PCI vendor ID of the agent.  The type of this attribute is \p uint32_t.
    */
-  AMD_DBGAPI_AGENT_INFO_PCI_VENDOR_ID = 5,
+  AMD_DBGAPI_AGENT_INFO_PCI_VENDOR_ID = 6,
   /**
    * PCI device ID of the agent.  The type of this attribute is \p uint32_t.
    */
-  AMD_DBGAPI_AGENT_INFO_PCI_DEVICE_ID = 6,
+  AMD_DBGAPI_AGENT_INFO_PCI_DEVICE_ID = 7,
   /**
    * Total number of Execution Units (EUs) available in the agent.  The type of
    * this attribute is \p size_t.
    */
-  AMD_DBGAPI_AGENT_INFO_EXECUTION_UNIT_COUNT = 7,
+  AMD_DBGAPI_AGENT_INFO_EXECUTION_UNIT_COUNT = 8,
   /**
    * Maximum number of waves supported by an execution unit.  The type of this
    * attribute is \p size_t.
    */
-  AMD_DBGAPI_AGENT_INFO_MAX_WAVES_PER_EXECUTION_UNIT = 8,
+  AMD_DBGAPI_AGENT_INFO_MAX_WAVES_PER_EXECUTION_UNIT = 9,
   /**
    * Native operating system agent ID.  The type of this attribute is
    * ::amd_dbgapi_os_agent_id_t.
    */
-  AMD_DBGAPI_AGENT_INFO_OS_ID = 9
+  AMD_DBGAPI_AGENT_INFO_OS_ID = 10
 } amd_dbgapi_agent_info_t;
+
+/**
+ * Agent state.
+ */
+typedef enum
+{
+  /**
+   * Agent supports debugging.
+   */
+  AMD_DBGAPI_AGENT_STATE_SUPPORTED = 1,
+  /**
+   * Agent does not support debugging.  Reasons include:
+   *
+   * - The architecture of the agent is not supported by the library. See the
+   *   \ref supported_amd_gpu_architectures section.  If there is such an agent
+   *   then some features may be treated conservatively since the library does
+   *   not know if the agent really supports the feature.  The conservative
+   *   treatment of such features include:
+   *
+   *   - ::AMD_DBGAPI_PROCESS_INFO_PRECISE_MEMORY_SUPPORTED is conservatively
+   *     treated as ::AMD_DBGAPI_MEMORY_PRECISION_NONE.
+   *   - ::AMD_DBGAPI_PROCESS_INFO_WATCHPOINT_COUNT is conservatively treated
+   *     as 0.
+   *
+   * - The firmware version of the agent is not compatible with the library.
+   * - The AMD GPU driver does not support debugging for the the agent's
+   *   architecture.
+   *
+   * No queues, dispatches, or waves will be reported for the agent.
+   */
+  AMD_DBGAPI_AGENT_STATE_NOT_SUPPORTED = 2
+} amd_dbgapi_agent_state_t;
 
 /**
  * Query information about an agent.
@@ -2293,6 +2333,9 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_agent_get_info (
  *
  * The order of the agent handles in the list is unspecified and can vary
  * between calls.
+ *
+ * All agents of the process are reported, even if they do not support
+ * debugging.  See ::AMD_DBGAPI_AGENT_STATE_NOT_SUPPORTED.
  *
  * \param[in] process_id If ::AMD_DBGAPI_PROCESS_NONE then the agent list for
  * all processes is requested.  Otherwise, the agent list of process \p
@@ -2460,10 +2503,6 @@ typedef enum
  * value_size does not match the size of the \p query result.  \p value is
  * unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE \p The requested information
- * is not available.  See ::amd_dbgapi_queue_info_t for queries that can
- * produce this error.  \p value is unaltered.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
  * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
  * allocate \p value returns NULL.  \p value is unaltered.
@@ -2601,6 +2640,10 @@ typedef enum
  *
  * The order of the queue handles in the list is unspecified and can vary
  * between calls.
+ *
+ * The queues of the process that are associated with agents that do not
+ * support debugging are not reported.  See
+ * ::AMD_DBGAPI_AGENT_STATE_NOT_SUPPORTED.
  *
  * \param[in] process_id If ::AMD_DBGAPI_PROCESS_NONE then the queue list for
  * all processes is requested.  Otherwise, the queue list of process \p

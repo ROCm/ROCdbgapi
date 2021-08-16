@@ -358,7 +358,7 @@ public:
 
   virtual amd_dbgapi_status_t
   query_debug_event (os_exception_mask_t *exceptions_present,
-                     os_source_id_t *os_source_id,
+                     os_queue_id_t *os_queue_id, os_agent_id_t *os_agent_id,
                      os_exception_mask_t exceptions_cleared)
     = 0;
 

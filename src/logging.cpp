@@ -266,6 +266,18 @@ to_string (amd_dbgapi_breakpoint_id_t breakpoint_id)
 
 template <>
 std::string
+to_string (amd_dbgapi_agent_state_t agent_state)
+{
+  switch (agent_state)
+    {
+      CASE (AGENT_STATE_SUPPORTED);
+      CASE (AGENT_STATE_NOT_SUPPORTED);
+    }
+  return to_string (make_hex (agent_state));
+}
+
+template <>
+std::string
 to_string (amd_dbgapi_changed_t changed)
 {
   switch (changed)
@@ -724,6 +736,7 @@ to_string (amd_dbgapi_agent_info_t agent_info)
       CASE (AGENT_INFO_PROCESS);
       CASE (AGENT_INFO_NAME);
       CASE (AGENT_INFO_ARCHITECTURE);
+      CASE (AGENT_INFO_STATE);
       CASE (AGENT_INFO_PCI_SLOT);
       CASE (AGENT_INFO_PCI_VENDOR_ID);
       CASE (AGENT_INFO_PCI_DEVICE_ID);
@@ -749,6 +762,9 @@ to_string (detail::query_ref<amd_dbgapi_agent_info_t> ref)
     case AMD_DBGAPI_AGENT_INFO_ARCHITECTURE:
       return to_string (
         make_ref (static_cast<const amd_dbgapi_architecture_id_t *> (value)));
+    case AMD_DBGAPI_AGENT_INFO_STATE:
+      return to_string (
+        make_ref (static_cast<const amd_dbgapi_agent_state_t *> (value)));
     case AMD_DBGAPI_AGENT_INFO_PCI_SLOT:
       return to_string (
         make_hex (make_ref (static_cast<const uint16_t *> (value))));

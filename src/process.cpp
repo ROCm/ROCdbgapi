@@ -494,7 +494,7 @@ process_t::find (amd_dbgapi_client_process_id_t client_process_id)
   return process;
 }
 
-amd_dbgapi_status_t
+void
 process_t::update_agents ()
 {
   const epoch_t agent_mark = m_next_agent_mark ();
@@ -516,13 +516,7 @@ process_t::update_agents ()
   while (agent_infos.size () < agent_count);
   agent_infos.resize (agent_count);
 
-  /* If at least one agent has restrictions (architecture is not supported, or
-     firmware version does not match the requirements), update_agent () should
-     return an error, as debugging in this process is not possible.  */
-  bool agent_restrictions = false;
-
-  /* Precise memory reporting is not supported if there are no agents.  */
-  m_supports_precise_memory = (agent_infos.size () != 0);
+  m_supports_precise_memory = true;
 
   /* Add new agents to the process.  */
   for (auto &&agent_info : agent_infos)
@@ -537,39 +531,31 @@ process_t::update_agents ()
             = architecture_t::find (agent_info.e_machine);
 
           if (!architecture)
-            {
-              /* FIXME: Add an 'unknown' architecture so that we could create
-                 and report this agent.  */
-              warning ("os_agent_id %d: `%s' architecture not supported.",
-                       agent_info.os_agent_id, agent_info.name.c_str ());
-
-              agent_restrictions = true;
-              m_supports_precise_memory = false;
-              continue;
-            }
+            warning ("os_agent_id %d: `%s' architecture not supported.",
+                     agent_info.os_agent_id, agent_info.name.c_str ());
 
           if (agent_mark != 1)
             error ("gpu hot pluging is not supported");
 
-          agent = &create<agent_t> (*this,         /* process  */
-                                    *architecture, /* architecture  */
-                                    agent_info);   /* os_agent_info  */
+          agent = &create<agent_t> (*this,        /* process  */
+                                    architecture, /* architecture  */
+                                    agent_info);  /* os_agent_info  */
+
         }
 
       agent->set_mark (agent_mark);
 
-      agent_restrictions |= !agent->supports_debugging ();
-      m_supports_precise_memory
-        &= agent->architecture ().supports_precise_memory ();
+      m_supports_precise_memory &= agent->supports_precise_memory ();
     }
 
-  /* Sweep and remove agents that are no longer online.  */
+  /* Remove agents that are no longer online.  */
   for (auto &&agent : range<agent_t> ())
     if (agent.mark () < agent_mark)
       error ("gpu hot pluging is not supported");
 
-  return agent_restrictions ? AMD_DBGAPI_STATUS_ERROR_RESTRICTION
-                            : AMD_DBGAPI_STATUS_SUCCESS;
+  /* Precise memory reporting is not supported if there are no agents.  */
+  if ((count<agent_t> () == 0))
+    m_supports_precise_memory = false;
 }
 
 size_t
@@ -584,7 +570,7 @@ process_t::watchpoint_count () const
 
   for (auto &&agent : range<agent_t> ())
     max_watchpoint_count = std::min (
-      max_watchpoint_count, agent.architecture ().watchpoint_count ());
+      max_watchpoint_count, agent.watchpoint_count ());
 
   return max_watchpoint_count;
 }
@@ -605,7 +591,7 @@ process_t::watchpoint_shared_kind () const
 
   for (auto &&agent : range<agent_t> ())
     {
-      switch (agent.architecture ().watchpoint_share_kind ())
+      switch (agent.watchpoint_share_kind ())
         {
         case AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSUPPORTED:
           return AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSUPPORTED;
@@ -725,7 +711,7 @@ process_t::insert_watchpoint (const watchpoint_t &watchpoint,
     std::numeric_limits<decltype (programmable_mask_bits)>::max ()
   };
   for (auto &&agent : range<agent_t> ())
-    programmable_mask_bits &= agent.architecture ().watchpoint_mask_bits ();
+    programmable_mask_bits &= agent.watchpoint_mask_bits ();
 
   amd_dbgapi_global_address_t field_B = programmable_mask_bits;
   amd_dbgapi_global_address_t field_A = ~(field_B | (field_B - 1));
@@ -1083,9 +1069,28 @@ process_t::update_queues ()
             = find_if ([&] (const queue_t &x)
                        { return x.os_queue_id () == queue_info.queue_id; });
 
-          if ((os_queue_exception_status (queue_info)
-               & os_exception_mask_t::queue_new)
-              != os_exception_mask_t::none)
+          /* Find the agent for this queue. */
+          agent_t *agent
+            = find_if ([&] (const agent_t &x)
+                       { return x.os_agent_id () == queue_info.gpu_id; });
+
+          /* TODO: investigate when this could happen, e.g. the debugger
+             cgroups not matching the application cgroups?  */
+          if (!agent)
+            error ("could not find an agent for gpu_id %d", queue_info.gpu_id);
+          else if (!agent->supports_debugging ())
+            {
+              dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+                          "ignoring os_queue_id %d due to %s (os_gpu_id=%d) "
+                          "not supporting debugging",
+                          queue_info.queue_id,
+                          to_string (agent->id ()).c_str (),
+                          queue_info.gpu_id);
+              continue;
+            }
+          else if ((os_queue_exception_status (queue_info)
+                    & os_exception_mask_t::queue_new)
+                   != os_exception_mask_t::none)
             {
               /* If there is a stale queue with the same os_queue_id,
                  destroy it.  */
@@ -1116,9 +1121,17 @@ process_t::update_queues ()
                  exception was reported (we consumed the event without action),
                  or KFD did not report the new queue.  */
               if (!queue)
-                error ("os_queue_id %d should have been reported as a  new "
+                error ("os_queue_id %d should have been reported as a new "
                        "queue before",
                        queue_info.queue_id);
+
+              /* A queue that is not new should have the same agent if had when
+                 created.  */
+              if (queue->agent () != *agent)
+                error ("os_queue_id %d has a different %s than the %s it had "
+                       "before",
+                       queue_info.queue_id, to_string (agent->id ()).c_str (),
+                       to_string (queue->agent ().id ()).c_str ());
 
               /* If the queue mark is null, the queue was created outside of
                  update_queues, and it does not have all the information yet
@@ -1143,16 +1156,6 @@ process_t::update_queues ()
              the process was previously attached and detached.  In that case,
              we always create a new queue_t for every queue_id reported by the
              snapshot ioctl.  */
-
-          /* Find the agent for this queue. */
-          agent_t *agent
-            = find_if ([&] (const agent_t &x)
-                       { return x.os_agent_id () == queue_info.gpu_id; });
-
-          /* TODO: investigate when this could happen, e.g. the debugger
-             cgroups not matching the application cgroups?  */
-          if (!agent)
-            error ("could not find an agent for gpu_id %d", queue_info.gpu_id);
 
           /* create<queue_t> requests a new id if queue_id is {0}.  */
           queue = &create<queue_t> (queue_id,    /* queue_id */
@@ -1521,11 +1524,7 @@ process_t::attach ()
 
   /* Update the agent now, regardless of the runtime state, so that agents can
      be reported as soon as the process is attached.  */
-  if (auto status = update_agents ();
-      status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
-    return status;
-  else if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("update_agents failed (rc=%d)", status);
+  update_agents ();
 
   if (runtime_info.runtime_state != os_runtime_state_t::disabled)
     {
@@ -1609,11 +1608,12 @@ process_t::query_debug_event (os_exception_mask_t cleared_exceptions)
 
   while (true)
     {
-      os_source_id_t source_id;
+      os_queue_id_t os_queue_id;
+      os_agent_id_t os_agent_id;
       os_exception_mask_t exceptions;
 
       amd_dbgapi_status_t status = os_driver ().query_debug_event (
-        &exceptions, &source_id, cleared_exceptions);
+        &exceptions, &os_queue_id, &os_agent_id, cleared_exceptions);
 
       if (status != AMD_DBGAPI_STATUS_SUCCESS
           && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
@@ -1639,11 +1639,21 @@ process_t::query_debug_event (os_exception_mask_t cleared_exceptions)
           /* Find the agent by matching its os_agent_id with the one
              returned by the ioctl.  */
           agent_t *agent
-            = find_if ([source_id] (const agent_t &q)
-                       { return q.os_agent_id () == source_id.agent; });
+            = find_if ([os_agent_id] (const agent_t &q)
+                       { return q.os_agent_id () == os_agent_id; });
 
           if (!agent)
-            error ("could not find os_agent_id %d", source_id.agent);
+            error ("could not find os_agent_id %d", os_agent_id);
+
+          if (!agent->supports_debugging ())
+            {
+              dbgapi_log (
+                AMD_DBGAPI_LOG_LEVEL_INFO,
+                "dropping agent event (%s) on unsupported %s (os_gpu_id=%d)",
+                to_string (exceptions).c_str (),
+                to_string (agent->id ()).c_str (), os_agent_id);
+              continue;
+            }
 
           return { agent, exceptions };
         }
@@ -1656,9 +1666,33 @@ process_t::query_debug_event (os_exception_mask_t cleared_exceptions)
       /* Find the queue by matching its os_queue_id with the one
          returned by the ioctl.  */
 
-      queue_t *queue
-        = find_if ([source_id] (const queue_t &q)
-                   { return q.os_queue_id () == source_id.queue; });
+      queue_t *queue = find_if ([os_queue_id] (const queue_t &q)
+                                { return q.os_queue_id () == os_queue_id; });
+
+      /* If this is an event for a queue associated with an agent that does not
+         support debugging, then discard it.  No queues are created for
+         unsupported agents, so no need to check if we found a queue.  */
+      if (!queue)
+        {
+          /* Find the agent by matching its os_agent_id with the one
+             returned by the ioctl.  */
+          agent_t *agent
+            = find_if ([os_agent_id] (const agent_t &q)
+                       { return q.os_agent_id () == os_agent_id; });
+
+          if (!agent)
+            error ("could not find os_agent_id %d", os_agent_id);
+
+          if (!agent->supports_debugging ())
+            {
+              dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+                          "dropping queue event (%s) for os_queue_id %d on "
+                          "unsupported %s (os_gpu_id=%d)",
+                          to_string (exceptions).c_str (), os_queue_id,
+                          to_string (agent->id ()).c_str (), os_agent_id);
+              continue;
+            }
+        }
 
       /* If this is a new queue, update the queues to make sure we don't
          return a stale queue with the same os_queue_id.  */
@@ -1683,8 +1717,7 @@ process_t::query_debug_event (os_exception_mask_t cleared_exceptions)
 
               dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
                           "destroyed stale %s (os_queue_id=%d)",
-                          to_string (stale_queue_id).c_str (),
-                          source_id.queue);
+                          to_string (stale_queue_id).c_str (), os_queue_id);
             }
 
           /* ABA handling: create a temporary, partially initialized, queue
@@ -1704,8 +1737,7 @@ process_t::query_debug_event (os_exception_mask_t cleared_exceptions)
           /* FIXME: need a dummy agent, for now, use the 1st agent in the
              process, there must be at least 1 agent if we have exceptions.  */
           amd_dbgapi_queue_id_t queue_id
-            = create<queue_t> (*range<agent_t> ().begin (), source_id.queue)
-                .id ();
+            = create<queue_t> (*range<agent_t> ().begin (), os_queue_id).id ();
 
           update_queues ();
 
@@ -1713,21 +1745,24 @@ process_t::query_debug_event (os_exception_mask_t cleared_exceptions)
              between the call to query_debug_event () and update_queues (); or
              update_queues () may have destroyed it if it isn't a supported
              queue type.  */
-          if ((queue = find (queue_id)) != nullptr)
-            return { queue, exceptions };
+          queue = find (queue_id);
+          if (!queue)
+            {
+              dbgapi_log (
+                AMD_DBGAPI_LOG_LEVEL_INFO,
+                "dropping queue event (%s) for deleted os_queue_id %d",
+                to_string (exceptions).c_str (), os_queue_id);
+              continue;
+            }
 
-          dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                      "dropping event (%s) for deleted os_queue_id %d",
-                      to_string (exceptions).c_str (), source_id.queue);
-        }
-      else if (queue)
-        {
           return { queue, exceptions };
         }
-      else
-        error (
-          "os_queue_id %d should have been reported as a new_queue before",
-          source_id.queue);
+
+      if (queue)
+        return { queue, exceptions };
+
+      error ("os_queue_id %d should have been reported as a new_queue before",
+             os_queue_id);
     }
 }
 

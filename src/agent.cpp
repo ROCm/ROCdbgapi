@@ -35,7 +35,7 @@ namespace amd::dbgapi
 {
 
 agent_t::agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
-                  const architecture_t &architecture,
+                  const architecture_t *architecture,
                   const os_agent_snapshot_entry_t &os_agent_info)
   : handle_object (agent_id), m_os_agent_info (os_agent_info),
     m_architecture (architecture), m_process (process)
@@ -53,6 +53,42 @@ void
 agent_t::set_exceptions (os_exception_mask_t exceptions)
 {
   m_exceptions |= exceptions;
+}
+
+bool
+agent_t::supports_precise_memory () const
+{
+  /* FIXME: This current approach of using a conservative value if the
+     architecture is unsupported means disabling precise memory if there is a
+     target with an unsupported architecture.
+
+     Consider getting from device snapshot or proc/fs topology.  Then would
+     have a value even if the library does not support the architecture.  Then
+     could delete from ::architecture_t.  Then could delete restriction
+     mentioned in ::AMD_DBGAPI_AGENT_STATE_NOT_SUPPORTED.  */
+  return m_architecture ? m_architecture->supports_precise_memory () : false;
+}
+
+size_t
+agent_t::watchpoint_count () const
+{
+  /* FIXME: Similar comment to supports_precise_memory ().  */
+  return m_architecture ? m_architecture->watchpoint_count () : 0;
+}
+
+amd_dbgapi_watchpoint_share_kind_t
+agent_t::watchpoint_share_kind () const
+{
+  /* FIXME: Similar comment to supports_precise_memory ().  */
+  return m_architecture ? m_architecture->watchpoint_share_kind ()
+                        : AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSUPPORTED;
+}
+
+size_t
+agent_t::watchpoint_mask_bits () const
+{
+  /* FIXME: Similar comment to supports_precise_memory ().  */
+  return m_architecture ? m_architecture->watchpoint_mask_bits () : 0;
 }
 
 void
@@ -74,7 +110,15 @@ agent_t::get_info (amd_dbgapi_agent_info_t query, size_t value_size,
       return utils::get_info (value_size, value, m_os_agent_info.name);
 
     case AMD_DBGAPI_AGENT_INFO_ARCHITECTURE:
-      return utils::get_info (value_size, value, architecture ().id ());
+      return architecture () == nullptr
+               ? AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE
+               : utils::get_info (value_size, value, architecture ()->id ());
+
+    case AMD_DBGAPI_AGENT_INFO_STATE:
+      return utils::get_info (value_size, value,
+                              supports_debugging ()
+                                ? AMD_DBGAPI_AGENT_STATE_SUPPORTED
+                                : AMD_DBGAPI_AGENT_STATE_NOT_SUPPORTED);
 
     case AMD_DBGAPI_AGENT_INFO_PCI_SLOT:
       return utils::get_info (value_size, value, m_os_agent_info.location_id);
@@ -148,22 +192,14 @@ amd_dbgapi_process_agent_list (amd_dbgapi_process_id_t process_id,
       if (!process)
         return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-      if (amd_dbgapi_status_t status = process->update_agents ();
-          status != AMD_DBGAPI_STATUS_ERROR_RESTRICTION
-          && status != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("process_t::update_agents failed (rc=%d)", status);
-
+      process->update_agents ();
       processes.emplace_back (process);
     }
   else
     {
       for (auto &&process : process_t::all ())
         {
-          if (amd_dbgapi_status_t status = process.update_agents ();
-              status != AMD_DBGAPI_STATUS_ERROR_RESTRICTION
-              && status != AMD_DBGAPI_STATUS_SUCCESS)
-            error ("process_t::update_agents failed (rc=%d)", status);
-
+          process.update_agents ();
           processes.emplace_back (&process);
         }
     }

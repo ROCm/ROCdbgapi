@@ -62,6 +62,8 @@ static_assert (
          == sizeof (amd_dbgapi_enum_underlying_type32_t)
     && sizeof (amd_dbgapi_address_space_alias_t)
          == sizeof (amd_dbgapi_enum_underlying_type32_t)
+    && sizeof (amd_dbgapi_agent_state_t)
+         == sizeof (amd_dbgapi_enum_underlying_type32_t)
     && sizeof (amd_dbgapi_breakpoint_action_t)
          == sizeof (amd_dbgapi_enum_underlying_type32_t)
     && sizeof (amd_dbgapi_changed_t)

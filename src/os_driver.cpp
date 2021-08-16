@@ -122,11 +122,11 @@ public:
 
   amd_dbgapi_status_t
   query_debug_event (os_exception_mask_t *exceptions_present,
-                     os_source_id_t *os_source_id,
+                     os_queue_id_t *os_queue_id, os_agent_id_t *os_agent_id,
                      os_exception_mask_t /* exceptions_cleared  */) override
   {
     *exceptions_present = os_exception_mask_t::none;
-    os_source_id->raw = 0;
+    *os_queue_id = *os_agent_id = 0;
     return AMD_DBGAPI_STATUS_SUCCESS;
   }
 
@@ -381,7 +381,7 @@ public:
 
   amd_dbgapi_status_t
   query_debug_event (os_exception_mask_t *exceptions_present,
-                     os_source_id_t *os_source_id,
+                     os_queue_id_t *os_queue_id, os_agent_id_t *os_agent_id,
                      os_exception_mask_t exceptions_cleared) override;
 
   amd_dbgapi_status_t
@@ -836,25 +836,28 @@ kfd_driver_t::send_exceptions (os_exception_mask_t exceptions,
 
 amd_dbgapi_status_t
 kfd_driver_t::query_debug_event (os_exception_mask_t *exceptions_present,
-                                 os_source_id_t *os_source_id,
+                                 os_queue_id_t *os_queue_id,
+                                 os_agent_id_t *os_agent_id,
                                  os_exception_mask_t exceptions_cleared)
 {
-  TRACE_DRIVER_BEGIN (param_in (exceptions_present), param_in (os_source_id),
-                      param_in (exceptions_cleared));
+  TRACE_DRIVER_BEGIN (param_in (exceptions_present), param_in (os_queue_id),
+                      param_in (os_agent_id), param_in (exceptions_cleared));
 
-  dbgapi_assert (exceptions_present && os_source_id && "must not be null");
+  dbgapi_assert (exceptions_present && os_queue_id && os_agent_id
+                 && "must not be null");
 
   if (!is_debug_enabled ())
     {
       *exceptions_present = os_exception_mask_t::none;
-      os_source_id->raw = 0;
+      *os_queue_id = *os_agent_id = 0;
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
 
   /* KFD_IOC_DBG_TRAP_QUERY_DEBUG_EVENT (#5):
 
      exception_mask: [in/out] exception to clear on query, and report
-     data1: [out] source id  */
+     data1: [out] queue id
+     data2: [out] gpu id  */
 
   kfd_ioctl_dbg_trap_args args{};
   args.exception_mask = static_cast<uint64_t> (exceptions_cleared);
@@ -866,19 +869,21 @@ kfd_driver_t::query_debug_event (os_exception_mask_t *exceptions_present,
     {
       /* There are no more events.  */
       *exceptions_present = os_exception_mask_t::none;
-      os_source_id->raw = 0;
+      *os_queue_id = *os_agent_id = 0;
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
   else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
   *exceptions_present = static_cast<os_exception_mask_t> (args.exception_mask);
-  os_source_id->raw = args.data1;
+  *os_queue_id = args.data1;
+  *os_agent_id = args.data2;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
   TRACE_DRIVER_END (make_ref (param_out (exceptions_present)),
-                    make_ref (param_out (os_source_id)));
+                    make_ref (param_out (os_queue_id)),
+                    make_ref (param_out (os_agent_id)));
 }
 
 amd_dbgapi_status_t

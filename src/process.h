@@ -226,7 +226,7 @@ public:
      and destroy objects that no longer exist which includes objects that are
      no longer valid.  When an object is deleted, all objects associated with
      it are also deleted.  */
-  amd_dbgapi_status_t update_agents ();
+  void update_agents ();
   amd_dbgapi_status_t update_queues ();
   amd_dbgapi_status_t update_code_objects ();
 

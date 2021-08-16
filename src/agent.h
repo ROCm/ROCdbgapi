@@ -43,20 +43,39 @@ private:
   os_exception_mask_t m_exceptions{ os_exception_mask_t::none };
   epoch_t m_mark{ 0 };
 
-  const architecture_t &m_architecture;
+  const architecture_t * const m_architecture;
   process_t &m_process;
 
 public:
   agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
-           const architecture_t &architecture,
+           const architecture_t *architecture,
            const os_agent_snapshot_entry_t &os_agent_info);
   ~agent_t ();
 
   os_agent_id_t os_agent_id () const { return m_os_agent_info.os_agent_id; }
+
   bool supports_debugging () const
   {
-    return m_os_agent_info.fw_version >= m_os_agent_info.fw_version_required;
+    /* FIXME: Consider adding "&& m_os_agent_info.supports_debugging" and have
+       the device snapshot return if KFD supports debugging on the device.
+       Need to determine how KFD decides how to set global settings (such as
+       precise memory operatios and watchpont support).  Does it ignore
+       unsupported agents?  If so update the way process_t::update_agents
+       determines ::m_supports_precise_memory and process_t::watchpoint_count
+       to match.  */
+    return architecture () != nullptr
+           && m_os_agent_info.fw_version
+                >= m_os_agent_info.fw_version_required;
   }
+
+  bool supports_precise_memory () const;
+
+  size_t watchpoint_count () const;
+
+  amd_dbgapi_watchpoint_share_kind_t watchpoint_share_kind () const;
+
+  /* Return the bits that can be programmed in the address watch mask.  */
+  size_t watchpoint_mask_bits () const;
 
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }
@@ -85,7 +104,11 @@ public:
     return m_os_agent_info.shader_engine_count;
   }
 
-  const architecture_t &architecture () const { return m_architecture; }
+  const architecture_t *architecture () const
+  {
+    return m_architecture;
+  }
+
   process_t &process () const { return m_process; }
 };
 
