@@ -151,7 +151,6 @@ private:
     s_architecture_map;
 
   amd_dbgapi_architecture_id_t const m_architecture_id;
-  std::unique_ptr<amd_comgr_disassembly_info_t> m_disassembly_info;
 
   elf_amdgpu_machine_t const m_e_machine;
   std::string const m_target_triple;
@@ -160,8 +159,6 @@ private:
              handle_object_set_t<address_class_t>,
              handle_object_set_t<register_class_t>>
     m_handle_object_sets{};
-
-  amd_comgr_disassembly_info_t disassembly_info () const;
 
 protected:
   architecture_t (elf_amdgpu_machine_t e_machine, std::string target_triple);
@@ -312,7 +309,8 @@ public:
 
   virtual bool park_stopped_waves () const = 0;
 
-  amd_dbgapi_size_t instruction_size (const instruction_t &instruction) const;
+  virtual amd_dbgapi_size_t
+  instruction_size (const instruction_t &instruction) const = 0;
 
   virtual std::tuple<amd_dbgapi_instruction_kind_t /* instruction_kind  */,
                      amd_dbgapi_instruction_properties_t /* properties  */,
@@ -321,11 +319,12 @@ public:
   classify_instruction (amd_dbgapi_global_address_t address,
                         const instruction_t &instruction) const = 0;
 
-  std::tuple<amd_dbgapi_size_t /* instruction_size  */,
-             std::string /* instruction_text  */,
-             std::vector<amd_dbgapi_global_address_t> /* address_operands  */>
+  virtual std::tuple<
+    amd_dbgapi_size_t /* instruction_size  */,
+    std::string /* instruction_text  */,
+    std::vector<amd_dbgapi_global_address_t> /* address_operands  */>
   disassemble_instruction (amd_dbgapi_global_address_t address,
-                           const instruction_t &instruction) const;
+                           const instruction_t &instruction) const = 0;
 
   virtual std::pair<amd_dbgapi_wave_state_t, amd_dbgapi_wave_stop_reasons_t>
   wave_get_state (wave_t &wave) const = 0;
