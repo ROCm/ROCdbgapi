@@ -1125,14 +1125,6 @@ process_t::update_queues ()
                        "queue before",
                        queue_info.queue_id);
 
-              /* A queue that is not new should have the same agent if had when
-                 created.  */
-              if (queue->agent () != *agent)
-                error ("os_queue_id %d has a different %s than the %s it had "
-                       "before",
-                       queue_info.queue_id, to_string (agent->id ()).c_str (),
-                       to_string (queue->agent ().id ()).c_str ());
-
               /* If the queue mark is null, the queue was created outside of
                  update_queues, and it does not have all the information yet
                  filled in.  */
@@ -1145,6 +1137,16 @@ process_t::update_queues ()
                 }
               else
                 {
+                  /* A queue that is not new should have the same agent it had
+                     when created.  */
+                  if (queue->agent () != *agent)
+                    error ("%s (os_queue_id %d) has a different %s than the "
+                           "%s it had when created",
+                           to_string (queue->id ()).c_str (),
+                           queue_info.queue_id,
+                           to_string (agent->id ()).c_str (),
+                           to_string (queue->agent ().id ()).c_str ());
+
                   /* This isn't a new queue, and it is fully initialized.
                      Mark it as active, and continue to the next snapshot.  */
                   queue->set_mark (queue_mark);
