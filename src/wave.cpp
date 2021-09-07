@@ -915,8 +915,10 @@ wave_t::xfer_segment_memory (const address_space_t &address_space,
                                                        size);
 
     default:
-      error ("xfer_segment_memory from address space `%s' not supported",
-             address_space.name ().c_str ());
+      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+                  "xfer_segment_memory from address space `%s' not supported",
+                  address_space.name ().c_str ());
+      return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
     }
 }
 
