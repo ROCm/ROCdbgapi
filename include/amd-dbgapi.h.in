@@ -321,10 +321,16 @@
  *    marginally reduce wavefront launch latency for some architectures for
  *    very short lived wavefronts.
  *
+ *    \sa ::amd_dbgapi_wave_get_info
+ *
  * 7. Reads and writes to the \p region address space is not supported and will
  *    always report ::AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS.
  *
- *    \sa ::amd_dbgapi_wave_get_info
+ * 8. The \p AMD_DBGAPI_WAVE_STOP_REASON_FP_* and \p
+ *    AMD_DBGAPI_WAVE_STOP_REASON_INT-* stop reasons (see
+ *    ::amd_dbgapi_wave_stop_reasons_t) are not reported for enabled arithmetic
+ *    exceptions if the \p DX10_CLAMP bit in the \p MODE register is set.  This
+ *    happens if the \p DX10_CLAMP kernel descriptor field is set.
  *
  * \section references References
  *
