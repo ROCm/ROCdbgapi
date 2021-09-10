@@ -482,7 +482,7 @@ void
 process_t::update_agents ()
 {
   const epoch_t agent_mark = m_next_agent_mark ();
-  std::vector<os_agent_snapshot_entry_t> agent_infos;
+  std::vector<os_agent_info_t> agent_infos;
   size_t agent_count = count<agent_t> () + 16;
 
   do
@@ -500,7 +500,7 @@ process_t::update_agents ()
   while (agent_infos.size () < agent_count);
   agent_infos.resize (agent_count);
 
-  m_supports_precise_memory = true;
+  std::optional<bool> precise_memory_supported;
 
   /* Add new agents to the process.  */
   for (auto &&agent_info : agent_infos)
@@ -511,8 +511,12 @@ process_t::update_agents ()
 
       if (!agent)
         {
+          auto [major, minor, stepping] = agent_info.gfxip;
+
           const architecture_t *architecture
-            = architecture_t::find (agent_info.e_machine);
+            = architecture_t::find (string_printf (
+              "gfx%d%c%c", major, (minor < 10) ? (minor + '0') : (minor + 'a'),
+              (stepping < 10) ? (stepping + '0') : (stepping + 'a')));
 
           if (!architecture)
             warning ("os_agent_id %d: `%s' architecture not supported.",
@@ -528,7 +532,9 @@ process_t::update_agents ()
 
       agent->set_mark (agent_mark);
 
-      m_supports_precise_memory &= agent->supports_precise_memory ();
+      if (agent->supports_debugging ())
+        precise_memory_supported = precise_memory_supported.value_or (true)
+                                   & agent_info.precise_memory_supported;
     }
 
   /* Remove agents that are no longer online.  */
@@ -548,49 +554,51 @@ process_t::update_agents ()
     else
       ++it;
 
-  /* Precise memory reporting is not supported if there are no agents.  */
-  if ((count<agent_t> () == 0))
-    m_supports_precise_memory = false;
+  m_supports_precise_memory = precise_memory_supported.value_or (false);
 }
 
 size_t
 process_t::watchpoint_count () const
 {
-  if (!count<agent_t> ())
-    return 0;
-
   /* Return lowest watchpoint count amongst all the agents.  */
 
-  size_t max_watchpoint_count = std::numeric_limits<size_t>::max ();
+  std::optional<size_t> max_watchpoint_count;
 
   for (auto &&agent : range<agent_t> ())
-    max_watchpoint_count
-      = std::min (max_watchpoint_count, agent.watchpoint_count ());
+    {
+      if (!agent.supports_debugging ())
+        continue;
 
-  return max_watchpoint_count;
+      size_t watchpoint_count = agent.os_info ().address_watch_register_count;
+      max_watchpoint_count = std::min (
+        max_watchpoint_count.value_or (watchpoint_count), watchpoint_count);
+    }
+
+  return max_watchpoint_count.value_or (0);
 }
 
 amd_dbgapi_watchpoint_share_kind_t
 process_t::watchpoint_shared_kind () const
 {
-  if (!count<agent_t> ())
-    return AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSUPPORTED;
-
   /* Return the lowest capability is this order:
      AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSUPPORTED
      AMD_DBGAPI_WATCHPOINT_SHARE_KIND_SHARED
      AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSHARED  */
 
   amd_dbgapi_watchpoint_share_kind_t kind
-    = AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSHARED;
+    = AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSUPPORTED;
 
   for (auto &&agent : range<agent_t> ())
     {
+      if (!agent.supports_debugging ())
+        continue;
+
       switch (agent.watchpoint_share_kind ())
         {
         case AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSUPPORTED:
           return AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSUPPORTED;
         case AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSHARED:
+          kind = AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSHARED;
           continue;
         case AMD_DBGAPI_WATCHPOINT_SHARE_KIND_SHARED:
           kind = AMD_DBGAPI_WATCHPOINT_SHARE_KIND_SHARED;
@@ -700,7 +708,7 @@ process_t::insert_watchpoint (const watchpoint_t &watchpoint,
     std::numeric_limits<decltype (programmable_mask_bits)>::max ()
   };
   for (auto &&agent : range<agent_t> ())
-    programmable_mask_bits &= agent.watchpoint_mask_bits ();
+    programmable_mask_bits &= agent.os_info ().address_watch_mask_bits;
 
   amd_dbgapi_global_address_t field_B = programmable_mask_bits;
   amd_dbgapi_global_address_t field_A = ~(field_B | (field_B - 1));

@@ -31,9 +31,10 @@
  * - 1.3 - Add SMI events support
  * - 1.4 - Indicate new SRAM EDC bit in device properties
  * - 1.5 - Add SVM API
+ * - 1.6 - Query clear flags in SVM get_attr API
  */
 #define KFD_IOCTL_MAJOR_VERSION 1
-#define KFD_IOCTL_MINOR_VERSION 5
+#define KFD_IOCTL_MINOR_VERSION 6
 
 /*
  * Debug revision change log
@@ -57,16 +58,18 @@
  * 5.0 - Report exception codes to the debugger
  * 6.0 - Pass event file descriptor from userspace.
  * 6.1 - Add KFD_IOC_DBG_TRAP_QUERY_EXCEPTION_INFO.
+ * 6.2 - Add KFD_IOC_DBG_TRAP_DEVICE_SNAPSHOT.
  * 7.0 - Redefine exception codes
  * 7.1 - Add KFD_IOC_DBG_TRAP_RUNTIME_ENABLE
  * 7.2 - Add KFD_IOC_DBG_TRAP_SEND_RUNTIME_EVENT
  * 8.0 - Expand runtime information given to the debugger
  * 8.1 - Allow the debugger to set the exception mask
  * 9.0 - Handle multiple exceptions from single trap signal
- * 10.0 - queue_debug_event returns both queue_id and gpu_id.
+ * 10.0 - Query debug event returns both queue_id and gpu_id
+ * 10.1 - Add additional debug capability information
  */
 #define KFD_IOCTL_DBG_MAJOR_VERSION	10
-#define KFD_IOCTL_DBG_MINOR_VERSION	0
+#define KFD_IOCTL_DBG_MINOR_VERSION	1
 
 struct kfd_ioctl_get_version_args {
 	__u32 major_version;	/* from KFD */
@@ -511,8 +514,8 @@ struct kfd_runtime_info {
  * data3: clear_exception (1 == true, 0 == false)
  * data4: exception info data size
  *
- * NOTE: If data2 == EC_PROCESS_RUNTIME_ENABLE, the saved r_debug pointer
- * address will be copied to the exception info pointer.
+ * NOTE: If data2 == EC_PROCESS_RUNTIME, the saved runtime info will be copied
+ * to the exception info pointer.
  */
 #define KFD_IOC_DBG_TRAP_QUERY_EXCEPTION_INFO 11
 
@@ -929,16 +932,16 @@ struct kfd_ioctl_ipc_export_handle_args {
 	__u64 handle;		/* to KFD */
 	__u32 share_handle[4];	/* from KFD */
 	__u32 gpu_id;		/* to KFD */
-	__u32 pad;
+	__u32 flags;		/* to KFD */
 };
 
 struct kfd_ioctl_ipc_import_handle_args {
 	__u64 handle;		/* from KFD */
 	__u64 va_addr;		/* to KFD */
-	__u64 mmap_offset;		/* from KFD */
+	__u64 mmap_offset;	/* from KFD */
 	__u32 share_handle[4];	/* to KFD */
 	__u32 gpu_id;		/* to KFD */
-	__u32 pad;
+	__u32 flags;		/* from KFD */
 };
 
 struct kfd_memory_range {
@@ -1073,18 +1076,19 @@ struct kfd_ioctl_svm_attribute {
  * @KFD_IOCTL_SVM_ATTR_PREFERRED_LOC or
  * @KFD_IOCTL_SVM_ATTR_PREFETCH_LOC resepctively. For
  * @KFD_IOCTL_SVM_ATTR_SET_FLAGS, flags of all pages will be
- * aggregated by bitwise AND. The minimum  migration granularity
- * throughout the range will be returned for
- * @KFD_IOCTL_SVM_ATTR_GRANULARITY.
+ * aggregated by bitwise AND. That means, a flag will be set in the
+ * output, if that flag is set for all pages in the range. For
+ * @KFD_IOCTL_SVM_ATTR_CLR_FLAGS, flags of all pages will be
+ * aggregated by bitwise NOR. That means, a flag will be set in the
+ * output, if that flag is clear for all pages in the range.
+ * The minimum migration granularity throughout the range will be
+ * returned for @KFD_IOCTL_SVM_ATTR_GRANULARITY.
  *
  * Querying of accessibility attributes works by initializing the
  * attribute type to @KFD_IOCTL_SVM_ATTR_ACCESS and the value to the
  * GPUID being queried. Multiple attributes can be given to allow
  * querying multiple GPUIDs. The ioctl function overwrites the
  * attribute type to indicate the access for the specified GPU.
- *
- * @KFD_IOCTL_SVM_ATTR_CLR_FLAGS is invalid for
- * @KFD_IOCTL_SVM_OP_GET_ATTR.
  */
 struct kfd_ioctl_svm_args {
 	__u64 start_addr;

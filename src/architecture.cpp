@@ -220,15 +220,6 @@ public:
     const address_space_t &address_space1,
     const address_space_t &address_space2) const override;
 
-  bool supports_precise_memory () const override { return false; }
-
-  amd_dbgapi_watchpoint_share_kind_t watchpoint_share_kind () const override
-  {
-    return AMD_DBGAPI_WATCHPOINT_SHARE_KIND_SHARED;
-  };
-
-  size_t watchpoint_count () const override { return 4; };
-
   std::vector<os_watch_id_t>
   triggered_watchpoints (const wave_t &wave) const override;
 
@@ -501,9 +492,9 @@ address_space_for_generic_address (
   amd_dbgapi_global_address_t aperture
     = generic_address & utils::bit_mask (32, 63);
 
-  if (aperture == wave.agent ().private_address_space_aperture ())
+  if (aperture == wave.agent ().os_info ().private_address_space_aperture)
     address_space_kind = address_space_t::private_swizzled;
-  else if (aperture == wave.agent ().shared_address_space_aperture ())
+  else if (aperture == wave.agent ().os_info ().local_address_space_aperture)
     address_space_kind = address_space_t::local;
   else /* all other addresses are treated as global addresses  */
     address_space_kind = address_space_t::global;
@@ -530,9 +521,9 @@ generic_address_for_address_space (
   amd_dbgapi_segment_address_t aperture{ 0 };
 
   if (segment_address_space.kind () == address_space_t::local)
-    aperture = wave.agent ().shared_address_space_aperture ();
+    aperture = wave.agent ().os_info ().local_address_space_aperture;
   if (segment_address_space.kind () == address_space_t::private_swizzled)
-    aperture = wave.agent ().private_address_space_aperture ();
+    aperture = wave.agent ().os_info ().private_address_space_aperture;
   else if (segment_address_space.kind () != address_space_t::global)
     /* not a valid address space conversion.  */
     return std::nullopt;
@@ -2249,9 +2240,9 @@ amdgcn_architecture_t::cwsr_record_t::scratch_slot_offset (
   if (!is_scratch_enabled ())
     return std::nullopt;
 
-  dbgapi_assert (agent ().shader_engine_count () != 0);
+  dbgapi_assert (agent ().os_info ().shader_engine_count != 0);
   return scratch_slot_size
-         * ((scratch_slot_count / agent ().shader_engine_count ())
+         * ((scratch_slot_count / agent ().os_info ().shader_engine_count)
               * shader_engine_id ()
             + scratch_scoreboard_id ());
 }
@@ -2427,11 +2418,6 @@ public:
   std::pair<amd_dbgapi_size_t /* offset  */, amd_dbgapi_size_t /* size  */>
   scratch_slot (const architecture_t::cwsr_record_t &cwsr_record,
                 uint32_t compute_tmpring_size_register) const override;
-
-  size_t watchpoint_mask_bits () const override
-  {
-    return utils::bit_mask (6, 29);
-  }
 };
 
 gfx9_architecture_t::gfx9_architecture_t (elf_amdgpu_machine_t e_machine,
@@ -3521,7 +3507,6 @@ public:
   {
   }
 
-  bool supports_precise_memory () const override { return true; }
   bool can_halt_at_endpgm () const override { return false; }
 };
 
@@ -3709,11 +3694,6 @@ public:
 
   bool can_halt_at_endpgm () const override { return false; }
   size_t largest_instruction_size () const override { return 20; }
-
-  size_t watchpoint_mask_bits () const override
-  {
-    return utils::bit_mask (7, 29);
-  }
 };
 
 gfx10_architecture_t::gfx10_architecture_t (elf_amdgpu_machine_t e_machine,
@@ -4657,6 +4637,26 @@ architecture_t::find (elf_amdgpu_machine_t elf_amdgpu_machine)
     s_architecture_map.begin (), s_architecture_map.end (),
     [&] (const auto &value)
     { return value.second->elf_amdgpu_machine () == elf_amdgpu_machine; });
+  if (it != s_architecture_map.end ())
+    {
+      auto architecture = it->second.get ();
+      detail::last_found_architecture = architecture;
+      return architecture;
+    }
+
+  return nullptr;
+}
+
+const architecture_t *
+architecture_t::find (const std::string &name)
+{
+  if (detail::last_found_architecture
+      && detail::last_found_architecture->name () == name)
+    return detail::last_found_architecture;
+
+  auto it = std::find_if (
+    s_architecture_map.begin (), s_architecture_map.end (),
+    [&] (const auto &value) { return value.second->name () == name; });
   if (it != s_architecture_map.end ())
     {
       auto architecture = it->second.get ();

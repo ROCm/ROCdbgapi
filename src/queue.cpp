@@ -385,7 +385,11 @@ aql_queue_impl_t::update_waves ()
 
     const dispatch_t *dispatch = &m_dummy_dispatch;
 
-    if (!wave && process.is_flag_set (process_t::flag_t::ttmps_setup_enabled))
+    bool ttmps_initialized
+      = process.is_flag_set (process_t::flag_t::ttmps_setup_enabled)
+        || m_queue.agent ().os_info ().ttmps_always_initialized;
+
+    if (!wave && ttmps_initialized)
       {
         amd_dbgapi_global_address_t dispatch_ptr
           = m_queue.architecture ().dispatch_packet_address (*cwsr_record);

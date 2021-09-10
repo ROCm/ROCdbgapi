@@ -272,19 +272,6 @@ public:
   address_spaces_may_alias (const address_space_t &address_space1,
                             const address_space_t &address_space2) const = 0;
 
-  /* Return true if this architecture supports setting precise memory.  */
-  virtual bool supports_precise_memory () const = 0;
-
-  /* Return the bits that can be programmed in the address watch mask.  */
-  virtual size_t watchpoint_mask_bits () const = 0;
-
-  virtual amd_dbgapi_watchpoint_share_kind_t
-  watchpoint_share_kind () const = 0;
-
-  /* Return the number of of address watch registers this architecture
-     supports.  */
-  virtual size_t watchpoint_count () const = 0;
-
   /* Return the watchpoints for which an exception was generated in the given
      stopped wave.  */
   virtual std::vector<os_watch_id_t>
@@ -350,6 +337,7 @@ public:
   static const architecture_t *
   find (amd_dbgapi_architecture_id_t architecture_id, int ignore = 0);
   static const architecture_t *find (elf_amdgpu_machine_t elf_amdgpu_machine);
+  static const architecture_t *find (const std::string &name);
 
   amd_dbgapi_register_id_t regnum_to_register_id (amdgpu_regnum_t regnum) const
   {

@@ -37,15 +37,13 @@ namespace amd::dbgapi
 
 agent_t::agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
                   const architecture_t *architecture,
-                  const os_agent_snapshot_entry_t &os_agent_info)
+                  const os_agent_info_t &os_agent_info)
   : handle_object (agent_id), m_os_agent_info (os_agent_info),
     m_architecture (architecture), m_process (process)
 {
-  if (m_os_agent_info.fw_version < m_os_agent_info.fw_version_required)
-    warning ("AMD GPU gpu_id %d's firmware version %d not supported "
-             "(version >= %d required)",
-             m_os_agent_info.os_agent_id, m_os_agent_info.fw_version,
-             m_os_agent_info.fw_version_required);
+  if (!m_os_agent_info.firmware_supported)
+    warning ("AMD GPU gpu_id %d's firmware version %d not supported",
+             m_os_agent_info.os_agent_id, m_os_agent_info.fw_version);
 }
 
 agent_t::~agent_t () {}
@@ -56,40 +54,15 @@ agent_t::set_exceptions (os_exception_mask_t exceptions)
   m_exceptions |= exceptions;
 }
 
-bool
-agent_t::supports_precise_memory () const
-{
-  /* FIXME: This current approach of using a conservative value if the
-     architecture is unsupported means disabling precise memory if there is a
-     target with an unsupported architecture.
-
-     Consider getting from device snapshot or proc/fs topology.  Then would
-     have a value even if the library does not support the architecture.  Then
-     could delete from ::architecture_t.  Then could delete restriction
-     mentioned in ::AMD_DBGAPI_AGENT_STATE_NOT_SUPPORTED.  */
-  return m_architecture ? m_architecture->supports_precise_memory () : false;
-}
-
-size_t
-agent_t::watchpoint_count () const
-{
-  /* FIXME: Similar comment to supports_precise_memory ().  */
-  return m_architecture ? m_architecture->watchpoint_count () : 0;
-}
-
 amd_dbgapi_watchpoint_share_kind_t
 agent_t::watchpoint_share_kind () const
 {
-  /* FIXME: Similar comment to supports_precise_memory ().  */
-  return m_architecture ? m_architecture->watchpoint_share_kind ()
-                        : AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSUPPORTED;
-}
+  if (!m_os_agent_info.address_watch_supported)
+    return AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSUPPORTED;
 
-size_t
-agent_t::watchpoint_mask_bits () const
-{
-  /* FIXME: Similar comment to supports_precise_memory ().  */
-  return m_architecture ? m_architecture->watchpoint_mask_bits () : 0;
+  return m_os_agent_info.watchpoint_exclusive
+           ? AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSHARED
+           : AMD_DBGAPI_WATCHPOINT_SHARE_KIND_SHARED;
 }
 
 void

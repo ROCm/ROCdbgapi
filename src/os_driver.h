@@ -57,12 +57,14 @@ using os_agent_id_t = uint32_t;
 
 constexpr os_agent_id_t os_invalid_agentid = KFD_INVALID_GPUID;
 
-struct os_agent_snapshot_entry_t
+struct os_agent_info_t
 {
   /* Agent Id assigned by the driver.  */
   os_agent_id_t os_agent_id{};
   /* Public name of the "device".  */
   std::string name{};
+  /* The graphics IP version {major, minor, stepping}.  */
+  std::array<unsigned, 3> gfxip{};
   /* BDF - Identifies the device location in the overall system.  */
   uint16_t location_id{ 0 };
   /* Number of FCompute cores.  */
@@ -77,14 +79,26 @@ struct os_agent_snapshot_entry_t
   uint32_t device_id{ 0 };
   /* ucode version.  */
   uint32_t fw_version{ 0 };
-  /* ucode version required to support debugging.  */
-  uint32_t fw_version_required{ 0 };
   /* local/shared address space aperture base.  */
   amd_dbgapi_global_address_t local_address_space_aperture{ 0 };
   /* private/scratch address space aperture base.  */
   amd_dbgapi_global_address_t private_address_space_aperture{ 0 };
-  /* ELF e_machine.  */
-  elf_amdgpu_machine_t e_machine{ EF_AMDGPU_MACH_NONE };
+  /* indicates if this agent's debugging capabilities are sufficient.  */
+  bool debugging_supported{ false };
+  /* indicates if address watch is supported.  */
+  bool address_watch_supported{ false };
+  /* number of address watch registers.  */
+  size_t address_watch_register_count{ 0 };
+  /* bits that can be programmed in the address watch mask.  */
+  amd_dbgapi_global_address_t address_watch_mask_bits{ 0 };
+  /* whether the address watch registers are shared between processes.  */
+  bool watchpoint_exclusive{ false };
+  /* indicates if precise memory operations reporting is supported.  */
+  bool precise_memory_supported{ false };
+  /* indicates that the command process firmware is supported.  */
+  bool firmware_supported{ false };
+  /* indicates that the trap temporaries are always set up.  */
+  bool ttmps_always_initialized{ false };
 };
 
 using os_queue_id_t = uint32_t;
@@ -338,7 +352,7 @@ public:
   virtual amd_dbgapi_status_t check_version () const = 0;
 
   virtual amd_dbgapi_status_t
-  agent_snapshot (os_agent_snapshot_entry_t *snapshots, size_t snapshot_count,
+  agent_snapshot (os_agent_info_t *snapshots, size_t snapshot_count,
                   size_t *agent_count,
                   os_exception_mask_t exceptions_cleared) const = 0;
 
@@ -404,7 +418,7 @@ public:
                               const void *write, size_t *size) const = 0;
 };
 
-template <> std::string to_string (os_agent_snapshot_entry_t snapshot);
+template <> std::string to_string (os_agent_info_t os_agent_info);
 template <> std::string to_string (os_exception_code_t exception_code);
 template <> std::string to_string (os_exception_mask_t exception_mask);
 template <> std::string to_string (os_queue_snapshot_entry_t snapshot);

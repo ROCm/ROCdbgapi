@@ -360,8 +360,11 @@ wave_t::update (const wave_t &group_leader,
       /* Zero-initialize the ttmp registers if they weren't set up by the
          hardware.  Some ttmp registers are used to determine if the wave was
          stopped by the trap handler because of an exception or a trap.  */
-      if (!process ().is_flag_set (process_t::flag_t::ttmps_setup_enabled)
-          && first_update)
+      bool ttmps_initialized
+        = process ().is_flag_set (process_t::flag_t::ttmps_setup_enabled)
+          || agent ().os_info ().ttmps_always_initialized;
+
+      if (first_update && !ttmps_initialized)
         {
           const uint32_t zero = 0;
           for (auto regnum = amdgpu_regnum_t::first_ttmp;

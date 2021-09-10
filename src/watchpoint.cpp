@@ -70,6 +70,10 @@ amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
     if (!process)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
+    if (process->watchpoint_shared_kind ()
+        == AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSUPPORTED)
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED);
+
     if (!size || !watchpoint_id || !watchpoint_address || !watchpoint_size)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 

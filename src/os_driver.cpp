@@ -20,6 +20,7 @@
 
 #include "os_driver.h"
 #include "debug.h"
+#include "linux/kfd_sysfs.h"
 #include "logging.h"
 #include "utils.h"
 
@@ -82,7 +83,7 @@ public:
   }
 
   amd_dbgapi_status_t
-  agent_snapshot (os_agent_snapshot_entry_t * /* snapshots  */,
+  agent_snapshot (os_agent_info_t * /* snapshots  */,
                   size_t /* snapshot_count  */, size_t *agent_count,
                   os_exception_mask_t /* exceptions_cleared  */) const override
   {
@@ -324,24 +325,6 @@ linux_driver_t::xfer_global_memory_partial (
 class kfd_driver_t : public linux_driver_t
 {
 private:
-  struct gfxip_lookup_table_t
-  {
-    const char *gpu_name;           /* Device name reported by KFD.  */
-    elf_amdgpu_machine_t e_machine; /* ELF e_machine.  */
-    uint16_t fw_version;            /* Minimum required firmware version.  */
-  };
-
-  static constexpr gfxip_lookup_table_t s_gfxip_lookup_table[]
-    = { { "vega10", EF_AMDGPU_MACH_AMDGCN_GFX900, 455 + 32768 },
-        { "vega20", EF_AMDGPU_MACH_AMDGCN_GFX906, 455 },
-        { "arcturus", EF_AMDGPU_MACH_AMDGCN_GFX908, 57 },
-        { "aldebaran", EF_AMDGPU_MACH_AMDGCN_GFX90A, 47 },
-        { "navi10", EF_AMDGPU_MACH_AMDGCN_GFX1010, 144 },
-        { "navi12", EF_AMDGPU_MACH_AMDGCN_GFX1011, 144 },
-        { "navi14", EF_AMDGPU_MACH_AMDGCN_GFX1012, 144 },
-        { "sienna_cichlid", EF_AMDGPU_MACH_AMDGCN_GFX1030, 88 },
-        { "navy_flounder", EF_AMDGPU_MACH_AMDGCN_GFX1031, 88 } };
-
   static size_t s_kfd_open_count;
   static std::optional<file_desc_t> s_kfd_fd;
 
@@ -382,7 +365,7 @@ public:
   amd_dbgapi_status_t check_version () const override;
 
   amd_dbgapi_status_t
-  agent_snapshot (os_agent_snapshot_entry_t *snapshots, size_t snapshot_count,
+  agent_snapshot (os_agent_info_t *snapshots, size_t snapshot_count,
                   size_t *agent_count,
                   os_exception_mask_t exceptions_cleared) const override;
 
@@ -555,7 +538,7 @@ kfd_driver_t::check_version () const
 }
 
 amd_dbgapi_status_t
-kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
+kfd_driver_t::agent_snapshot (os_agent_info_t *snapshots,
                               size_t snapshot_count, size_t *agent_count,
                               os_exception_mask_t exceptions_cleared) const
 {
@@ -667,6 +650,7 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
 
       /* Fill in the apertures for this agent.  */
 
+      dbgapi_assert (it->lds_base && it->scratch_base);
       agent_info.local_address_space_aperture = it->lds_base;
       agent_info.private_address_space_aperture = it->scratch_base;
 
@@ -698,6 +682,44 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
             agent_info.device_id = static_cast<uint32_t> (prop_value);
           else if (prop_name == "fw_version")
             agent_info.fw_version = static_cast<uint16_t> (prop_value);
+          else if (prop_name == "gfx_target_version")
+            {
+              auto version = static_cast<uint32_t> (prop_value);
+              agent_info.gfxip
+                = { version / 10000, (version / 100) % 100, version % 100 };
+            }
+          else if (prop_name == "capability")
+            {
+              auto capability = static_cast<uint32_t> (prop_value);
+
+              agent_info.debugging_supported
+                = capability & HSA_CAP_TRAP_DEBUG_SUPPORT;
+              agent_info.address_watch_supported
+                = capability & HSA_CAP_WATCH_POINTS_SUPPORTED;
+              agent_info.address_watch_register_count
+                /* WATCH_POINTS_TOTALBITS is the log2 of watchpoint_count.  */
+                = 1 << ((capability & HSA_CAP_WATCH_POINTS_TOTALBITS_MASK)
+                        >> HSA_CAP_WATCH_POINTS_TOTALBITS_SHIFT);
+              agent_info.precise_memory_supported
+                = capability
+                  & HSA_CAP_TRAP_DEBUG_PRECISE_MEMORY_OPERATIONS_SUPPORTED;
+              agent_info.firmware_supported
+                = capability & HSA_CAP_TRAP_DEBUG_FIRMWARE_SUPPORTED;
+            }
+          else if (prop_name == "debug_prop")
+            {
+              auto debug_properties = static_cast<uint32_t> (prop_value);
+
+              agent_info.address_watch_mask_bits = utils::bit_mask (
+                (debug_properties & HSA_DBG_WATCH_ADDR_MASK_LO_BIT_MASK)
+                  >> HSA_DBG_WATCH_ADDR_MASK_LO_BIT_SHIFT,
+                (debug_properties & HSA_DBG_WATCH_ADDR_MASK_HI_BIT_MASK)
+                  >> HSA_DBG_WATCH_ADDR_MASK_HI_BIT_SHIFT);
+              agent_info.ttmps_always_initialized
+                = debug_properties & HSA_DBG_DISPATCH_INFO_ALWAYS_VALID;
+              agent_info.watchpoint_exclusive
+                = debug_properties & HSA_DBG_WATCHPOINTS_EXCLUSIVE;
+            }
         }
 
       if (!agent_info.simd_count || !agent_info.max_waves_per_simd
@@ -705,23 +727,6 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
         fatal_error ("Invalid node properties");
 
       agent_info.shader_engine_count = array_count / arrays_per_engine;
-
-      decltype (&s_gfxip_lookup_table[0]) gfxip_info = nullptr;
-      constexpr size_t num_elem
-        = sizeof (s_gfxip_lookup_table) / sizeof (s_gfxip_lookup_table[0]);
-
-      for (size_t i = 0; i < num_elem; ++i)
-        if (agent_info.name == s_gfxip_lookup_table[i].gpu_name)
-          {
-            gfxip_info = &s_gfxip_lookup_table[i];
-            break;
-          }
-
-      if (gfxip_info)
-        {
-          agent_info.e_machine = gfxip_info->e_machine;
-          agent_info.fw_version_required = gfxip_info->fw_version;
-        }
     }
 
   /* Make sure we filled the information for all snapshot entries returned by
@@ -1341,20 +1346,30 @@ to_string (os_exception_code_t exception_code)
 
 template <>
 std::string
-to_string (os_agent_snapshot_entry_t snapshot)
+to_string (os_agent_info_t os_agent_info)
 {
   return string_printf (
-    "{ .os_agent_id=%d, .name=%s, .location_id=%d, .simd_count=%ld, "
-    ".max_waves_per_simd=%ld, .shader_engine_count=%ld, .vendor_id=%#x, "
-    ".device_id=%#x, .fw_version=%d, .fw_version_required=%d, "
+    "{ .os_agent_id=%d, .name=%s, .location_id=%d, .gfxip=[%d,%d,%d], "
+    ".simd_count=%ld, .max_waves_per_simd=%ld, .shader_engine_count=%ld, "
+    ".vendor_id=%#x, .device_id=%#x, .fw_version=%d, "
     ".local_address_space_aperture=%#lx, "
-    ".private_address_space_aperture=%#lx, .e_machine=%#x }",
-    snapshot.os_agent_id, snapshot.name.c_str (), snapshot.location_id,
-    snapshot.simd_count, snapshot.max_waves_per_simd,
-    snapshot.shader_engine_count, snapshot.vendor_id, snapshot.device_id,
-    snapshot.fw_version, snapshot.fw_version_required,
-    snapshot.local_address_space_aperture,
-    snapshot.private_address_space_aperture, snapshot.e_machine);
+    ".private_address_space_aperture=%#lx, .debugging_supported=%d, "
+    ".address_watch_supported=%d, .address_watch_register_count=%ld, "
+    ".address_watch_mask_bits=%#lx, .watchpoint_exclusive=%d, "
+    ".precise_memory_supported=%d, .firmware_supported=%d, "
+    "ttmps_always_initialized=%d }",
+    os_agent_info.os_agent_id, os_agent_info.name.c_str (),
+    os_agent_info.location_id, os_agent_info.gfxip[0], os_agent_info.gfxip[1],
+    os_agent_info.gfxip[2], os_agent_info.simd_count,
+    os_agent_info.max_waves_per_simd, os_agent_info.shader_engine_count,
+    os_agent_info.vendor_id, os_agent_info.device_id, os_agent_info.fw_version,
+    os_agent_info.local_address_space_aperture,
+    os_agent_info.private_address_space_aperture,
+    os_agent_info.debugging_supported, os_agent_info.address_watch_supported,
+    os_agent_info.address_watch_register_count,
+    os_agent_info.address_watch_mask_bits, os_agent_info.watchpoint_exclusive,
+    os_agent_info.precise_memory_supported, os_agent_info.firmware_supported,
+    os_agent_info.ttmps_always_initialized);
 }
 
 template <>
