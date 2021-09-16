@@ -3165,14 +3165,6 @@ class mi_architecture_t : public gfx9_architecture_t
 protected:
   class cwsr_record_t : public gfx9_architecture_t::cwsr_record_t
   {
-  protected:
-    static constexpr uint32_t
-    compute_relaunch_wave_payload_se_id (uint32_t relaunch_wave)
-    {
-      /* MI can have up to 8 shader engines.  */
-      return utils::bit_extract (relaunch_wave, 11, 13);
-    }
-
   public:
     cwsr_record_t (queue_t &queue, uint32_t compute_relaunch_wave,
                    uint32_t compute_relaunch_state,
@@ -3184,11 +3176,6 @@ protected:
     }
 
     virtual size_t acc_vgpr_count () const = 0;
-
-    uint32_t shader_engine_id () const override
-    {
-      return compute_relaunch_wave_payload_se_id (m_compute_relaunch_wave);
-    }
 
     std::optional<amd_dbgapi_global_address_t>
     register_address (amdgpu_regnum_t regnum) const override;
@@ -3314,6 +3301,13 @@ class gfx908_t final : public mi_architecture_t
 {
   class cwsr_record_t final : public mi_architecture_t::cwsr_record_t
   {
+  protected:
+    static constexpr uint32_t
+    compute_relaunch_wave_payload_se_id (uint32_t relaunch_wave)
+    {
+      return utils::bit_extract (relaunch_wave, 11, 13);
+    }
+
   public:
     cwsr_record_t (queue_t &queue, uint32_t compute_relaunch_wave,
                    uint32_t compute_relaunch_state,
@@ -3325,6 +3319,11 @@ class gfx908_t final : public mi_architecture_t
     }
 
     size_t acc_vgpr_count () const override { return vgpr_count (); }
+
+    uint32_t shader_engine_id () const override
+    {
+      return compute_relaunch_wave_payload_se_id (m_compute_relaunch_wave);
+    }
   };
 
   std::unique_ptr<architecture_t::cwsr_record_t> make_gfx9_cwsr_record (
@@ -3351,6 +3350,12 @@ protected:
   class cwsr_record_t final : public mi_architecture_t::cwsr_record_t
   {
   private:
+  protected:
+    static constexpr uint32_t
+    compute_relaunch_wave_payload_se_id (uint32_t relaunch_wave)
+    {
+      return utils::bit_extract (relaunch_wave, 9, 11);
+    }
     static constexpr uint32_t
     compute_relaunch_state_payload_lds_size (uint32_t relaunch_state)
     {
@@ -3375,6 +3380,11 @@ protected:
     size_t vgpr_count () const override;
     size_t acc_vgpr_count () const override;
     size_t lds_size () const override;
+
+    uint32_t shader_engine_id () const override
+    {
+      return compute_relaunch_wave_payload_se_id (m_compute_relaunch_wave);
+    }
   };
 
   std::unique_ptr<architecture_t::cwsr_record_t> make_gfx9_cwsr_record (
