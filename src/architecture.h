@@ -332,6 +332,9 @@ public:
                                amd_dbgapi_exceptions_t exceptions
                                = AMD_DBGAPI_EXCEPTION_NONE) const = 0;
 
+  virtual bool wave_get_halt (wave_t &wave) const = 0;
+  virtual void wave_set_halt (wave_t &wave, bool halt) const = 0;
+
   virtual void wave_enable_traps (wave_t &wave,
                                   os_wave_launch_trap_mask_t mask) const = 0;
   virtual void wave_disable_traps (wave_t &wave,

@@ -256,6 +256,9 @@ public:
                        amd_dbgapi_exceptions_t exceptions
                        = AMD_DBGAPI_EXCEPTION_NONE) const override;
 
+  bool wave_get_halt (wave_t &wave) const override;
+  void wave_set_halt (wave_t &wave, bool halt) const override;
+
   virtual uint32_t os_wave_launch_trap_mask_to_wave_mode (
     os_wave_launch_trap_mask_t mask) const;
 
@@ -1501,7 +1504,7 @@ amdgcn_architecture_t::wave_set_state (
   if (state != AMD_DBGAPI_WAVE_STATE_STOP
       && exceptions != AMD_DBGAPI_EXCEPTION_NONE)
     /* Halt the wave if resuming with exceptions.  */
-    ttmp6 |= ttmp6_saved_status_halt_mask;
+    wave_set_halt (wave, true);
 
   switch (state)
     {
@@ -1591,6 +1594,47 @@ amdgcn_architecture_t::wave_set_state (
       trapsts &= ~clear_exceptions;
       wave.write_register (amdgpu_regnum_t::trapsts, &trapsts);
     }
+}
+
+bool
+amdgcn_architecture_t::wave_get_halt (wave_t &wave) const
+{
+  uint32_t ttmp6;
+  wave.read_register (amdgpu_regnum_t::ttmp6, &ttmp6);
+
+  /* If the wave is stopped, status.halt is saved in ttmp6.  */
+  if (ttmp6 & ttmp6_wave_stopped_mask)
+    return ttmp6 & ttmp6_saved_status_halt_mask;
+
+  uint32_t status_reg;
+  wave.read_register (amdgpu_regnum_t::status, &status_reg);
+  return status_reg & sq_wave_status_halt_mask;
+}
+
+void
+amdgcn_architecture_t::wave_set_halt (wave_t &wave, bool halt) const
+{
+  uint32_t ttmp6;
+  wave.read_register (amdgpu_regnum_t::ttmp6, &ttmp6);
+
+  /* When the wave is stopped by the trap handler, status.halt is saved in
+     ttmp6 so that it can be restored when the wave is resumed.  */
+  if (ttmp6 & ttmp6_wave_stopped_mask)
+    {
+      ttmp6 = halt ? ttmp6 | ttmp6_saved_status_halt_mask
+                   : ttmp6 & ~ttmp6_saved_status_halt_mask;
+
+      wave.write_register (amdgpu_regnum_t::ttmp6, &ttmp6);
+      return;
+    }
+
+  uint32_t status_reg;
+  wave.read_register (amdgpu_regnum_t::status, &status_reg);
+
+  status_reg = halt ? status_reg | sq_wave_status_halt_mask
+                    : status_reg & ~sq_wave_status_halt_mask;
+
+  wave.write_register (amdgpu_regnum_t::status, &status_reg);
 }
 
 /* Convert an os_wave_launch_trap_mask to a bit mask that can be or'ed in the
