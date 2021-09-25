@@ -80,7 +80,7 @@ process_t::process_t (amd_dbgapi_process_id_t process_id,
   amd_dbgapi_os_process_id_t os_process_id;
   amd_dbgapi_status_t status = get_os_pid (&os_process_id);
   if (status == AMD_DBGAPI_STATUS_SUCCESS)
-    m_os_process_id.emplace(os_process_id);
+    m_os_process_id.emplace (os_process_id);
   else if (status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
     error ("get_os_pid () failed (rc=%d)", status);
 
@@ -394,14 +394,7 @@ process_t::set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode)
           for (auto &&wave : range<wave_t> ())
             if (wave.visibility ()
                 == wave_t::visibility_t::hidden_halted_at_launch)
-              {
-                dbgapi_assert (wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
-                               && wave.stop_reason ()
-                                    == AMD_DBGAPI_WAVE_STOP_REASON_NONE);
-
-                wave.set_visibility (wave_t::visibility_t::visible);
-                wave.set_state (AMD_DBGAPI_WAVE_STATE_RUN);
-              }
+              wave.set_visibility (wave_t::visibility_t::visible);
 
           if (forward_progress_needed ())
             resume_queues (queues, "halt waves at launch");
@@ -540,7 +533,6 @@ process_t::update_agents ()
           agent = &create<agent_t> (*this,        /* process  */
                                     architecture, /* architecture  */
                                     agent_info);  /* os_agent_info  */
-
         }
 
       agent->set_mark (agent_mark);
@@ -569,8 +561,8 @@ process_t::watchpoint_count () const
   size_t max_watchpoint_count = std::numeric_limits<size_t>::max ();
 
   for (auto &&agent : range<agent_t> ())
-    max_watchpoint_count = std::min (
-      max_watchpoint_count, agent.watchpoint_count ());
+    max_watchpoint_count
+      = std::min (max_watchpoint_count, agent.watchpoint_count ());
 
   return max_watchpoint_count;
 }

@@ -69,6 +69,16 @@ wave_t::set_visibility (visibility_t visibility)
   if (m_visibility == visibility)
     return;
 
+  /* If the wave was previously halted at launch, unhalt it so that it can
+     resume executing instructions.  */
+  if (m_visibility == wave_t::visibility_t::hidden_halted_at_launch)
+    {
+      dbgapi_assert (state () == AMD_DBGAPI_WAVE_STATE_RUN
+                     && architecture ().wave_get_halt (*this));
+
+      architecture ().wave_set_halt (*this, false);
+    }
+
   m_visibility = visibility;
 
   /* Since the visibility of this wave has changed, the list of waves returned
