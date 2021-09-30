@@ -22,6 +22,7 @@
 #include "agent.h"
 #include "architecture.h"
 #include "debug.h"
+#include "exception.h"
 #include "initialization.h"
 #include "logging.h"
 #include "process.h"
@@ -197,7 +198,7 @@ amd_dbgapi_dispatch_get_info (amd_dbgapi_dispatch_id_t dispatch_id,
 
   return dispatch->get_info (query, value_size, value);
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_query_ref (query, param_out (value)));
 }
 
@@ -265,7 +266,7 @@ amd_dbgapi_process_dispatch_list (amd_dbgapi_process_id_t process_id,
 
   return status;
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (dispatch_count)),
              make_ref (make_ref (param_out (dispatches)), *dispatch_count),
              make_ref (param_out (changed)));

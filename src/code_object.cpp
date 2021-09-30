@@ -20,6 +20,7 @@
 
 #include "code_object.h"
 #include "debug.h"
+#include "exception.h"
 #include "initialization.h"
 #include "logging.h"
 #include "process.h"
@@ -71,7 +72,7 @@ amd_dbgapi_code_object_get_info (amd_dbgapi_code_object_id_t code_object_id,
 
   return code_object->get_info (query, value_size, value);
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_query_ref (query, param_out (value)));
 }
 
@@ -105,7 +106,7 @@ amd_dbgapi_process_code_object_list (
 
   return utils::get_handle_list<code_object_t> (processes, code_object_count,
                                                 code_objects, changed);
-  CATCH;
+  CATCH ();
   TRACE_END (
     make_ref (param_out (code_object_count)),
     make_ref (make_ref (param_out (code_objects)), *code_object_count),

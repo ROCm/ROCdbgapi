@@ -23,6 +23,7 @@
 #include "dispatch.h"
 #include "displaced_stepping.h"
 #include "event.h"
+#include "exception.h"
 #include "initialization.h"
 #include "logging.h"
 #include "memory.h"
@@ -236,7 +237,7 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
       amd_dbgapi_status_t status = process ().read_global_memory_partial (
         pc () + offset, &original_instruction_bytes[offset], &remaining);
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        throw exception_t (status);
+        throw api_error_t (status);
 
       /* Trim partial/unread bytes.  */
       original_instruction_bytes.resize (offset + remaining);
@@ -252,7 +253,7 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
         {
           /* If this instruction cannot be displaced-stepped nor simulated,
              then it must be inline-stepped.  */
-          throw exception_t (AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION);
+          throw api_error_t (AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION);
         }
 
       instruction_buffer_t instruction_buffer{};
@@ -1088,7 +1089,7 @@ amd_dbgapi_wave_stop (amd_dbgapi_wave_id_t wave_id)
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END ();
 }
 
@@ -1147,7 +1148,7 @@ amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END ();
 }
 
@@ -1182,7 +1183,7 @@ amd_dbgapi_wave_get_info (amd_dbgapi_wave_id_t wave_id,
 
   return wave->get_info (query, value_size, value);
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_query_ref (query, param_out (value)));
 }
 
@@ -1249,7 +1250,7 @@ amd_dbgapi_process_wave_list (amd_dbgapi_process_id_t process_id,
 
   return status;
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (wave_count)),
              make_ref (make_ref (param_out (waves)), *wave_count),
              make_ref (param_out (changed)));

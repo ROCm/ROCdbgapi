@@ -20,6 +20,7 @@
 
 #include "event.h"
 #include "debug.h"
+#include "exception.h"
 #include "handle_object.h"
 #include "initialization.h"
 #include "logging.h"
@@ -292,7 +293,7 @@ amd_dbgapi_process_next_pending_event (amd_dbgapi_process_id_t process_id,
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (event_id)), make_ref (param_out (kind)));
 }
 
@@ -315,7 +316,7 @@ amd_dbgapi_event_get_info (amd_dbgapi_event_id_t event_id,
 
   return event->get_info (query, value_size, value);
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_query_ref (query, param_out (value)));
 }
 
@@ -340,6 +341,6 @@ amd_dbgapi_event_processed (amd_dbgapi_event_id_t event_id)
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END ();
 }

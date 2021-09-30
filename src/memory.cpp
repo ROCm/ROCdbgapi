@@ -21,6 +21,7 @@
 #include "memory.h"
 #include "architecture.h"
 #include "debug.h"
+#include "exception.h"
 #include "initialization.h"
 #include "logging.h"
 #include "process.h"
@@ -230,7 +231,7 @@ amd_dbgapi_address_class_get_info (
 
   return address_class->get_info (query, value_size, value);
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_query_ref (query, param_out (value)));
 }
 
@@ -271,7 +272,7 @@ amd_dbgapi_architecture_address_class_list (
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END (
     make_ref (param_out (address_class_count)),
     make_ref (make_ref (param_out (address_classes)), *address_class_count));
@@ -308,7 +309,7 @@ amd_dbgapi_dwarf_address_class_to_address_class (
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (address_class_id)));
 }
 
@@ -334,7 +335,7 @@ amd_dbgapi_address_space_get_info (
 
   return address_space->get_info (query, value_size, value);
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_query_ref (query, param_out (value)));
 }
 
@@ -375,7 +376,7 @@ amd_dbgapi_architecture_address_space_list (
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END (
     make_ref (param_out (address_space_count)),
     make_ref (make_ref (param_out (address_spaces)), *address_space_count));
@@ -412,7 +413,7 @@ amd_dbgapi_dwarf_address_space_to_address_space (
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (address_space_id)));
 }
 
@@ -449,7 +450,7 @@ amd_dbgapi_address_spaces_may_alias (
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (address_space_alias)));
 }
 
@@ -494,7 +495,7 @@ amd_dbgapi_convert_address_space (
     *wave, lane_id, *source_address_space, *destination_address_space,
     source_segment_address, destination_segment_address);
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (destination_segment_address)));
 }
 
@@ -545,7 +546,7 @@ amd_dbgapi_address_is_in_address_class (
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (address_class_state)));
 }
 amd_dbgapi_status_t AMD_DBGAPI
@@ -615,7 +616,7 @@ amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
   return wave->xfer_segment_memory (*address_space, lane_id, segment_address,
                                     value, nullptr, value_size);
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (value_size)),
              make_hex (make_ref (param_out (value), *value_size)));
 }
@@ -688,7 +689,7 @@ amd_dbgapi_write_memory (amd_dbgapi_process_id_t process_id,
 
   return wave->xfer_segment_memory (*address_space, lane_id, segment_address,
                                     nullptr, value, value_size);
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (value_size)));
 }
 
@@ -714,6 +715,6 @@ amd_dbgapi_set_memory_precision (
 
   return process->set_precise_memory (memory_precision
                                       == AMD_DBGAPI_MEMORY_PRECISION_PRECISE);
-  CATCH;
+  CATCH ();
   TRACE_END ();
 }

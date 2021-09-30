@@ -21,6 +21,7 @@
 #include "architecture.h"
 #include "agent.h"
 #include "debug.h"
+#include "exception.h"
 #include "initialization.h"
 #include "logging.h"
 #include "memory.h"
@@ -4734,7 +4735,7 @@ amd_dbgapi_get_architecture (uint32_t elf_amdgpu_machine,
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (architecture_id)));
 }
 
@@ -4757,7 +4758,7 @@ amd_dbgapi_architecture_get_info (amd_dbgapi_architecture_id_t architecture_id,
 
   return architecture->get_info (query, value_size, value);
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_query_ref (query, param_out (value)));
 }
 
@@ -4866,7 +4867,7 @@ amd_dbgapi_disassemble_instruction (
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (size)),
              make_ref (param_out (instruction_text)));
 }
@@ -4942,7 +4943,7 @@ amd_dbgapi_classify_instruction (
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END (
     make_ref (param_out (size_p)), make_ref (param_out (instruction_kind_p)),
     make_ref (param_out (instruction_properties_p)),

@@ -20,7 +20,9 @@
 
 #include "amd-dbgapi.h"
 #include "debug.h"
+#include "exception.h"
 #include "logging.h"
+#include "process.h"
 #include "utils.h"
 
 #include <cstdint>
@@ -209,6 +211,6 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
   *status_string = string;
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (status_string));
 }

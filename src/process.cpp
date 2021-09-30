@@ -25,6 +25,7 @@
 #include "code_object.h"
 #include "debug.h"
 #include "event.h"
+#include "exception.h"
 #include "initialization.h"
 #include "logging.h"
 #include "os_driver.h"
@@ -2096,7 +2097,7 @@ amd_dbgapi_process_set_progress (amd_dbgapi_process_id_t process_id,
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END ();
 }
 
@@ -2135,7 +2136,7 @@ amd_dbgapi_process_set_wave_creation (amd_dbgapi_process_id_t process_id,
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END ();
 }
 
@@ -2182,7 +2183,7 @@ amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (process_id)));
 }
 
@@ -2205,7 +2206,7 @@ amd_dbgapi_process_detach (amd_dbgapi_process_id_t process_id)
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END ();
 }
 
@@ -2228,6 +2229,6 @@ amd_dbgapi_process_get_info (amd_dbgapi_process_id_t process_id,
 
   return process->get_info (query, value_size, value);
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_query_ref (query, param_out (value)));
 }

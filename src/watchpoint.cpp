@@ -21,6 +21,7 @@
 #include "watchpoint.h"
 #include "amd-dbgapi.h"
 #include "debug.h"
+#include "exception.h"
 #include "initialization.h"
 #include "logging.h"
 #include "process.h"
@@ -97,7 +98,7 @@ amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
   *watchpoint_id = watchpoint.id ();
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (watchpoint_id)),
              make_hex (make_ref (param_out (watchpoint_address))),
              make_ref (param_out (watchpoint_size)));
@@ -128,7 +129,7 @@ amd_dbgapi_remove_watchpoint (amd_dbgapi_process_id_t process_id,
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END ();
 }
 
@@ -151,6 +152,6 @@ amd_dbgapi_watchpoint_get_info (amd_dbgapi_watchpoint_id_t watchpoint_id,
 
   return watchpoint->get_info (query, value_size, value);
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_query_ref (query, param_out (value)));
 }

@@ -20,6 +20,7 @@
 
 #include "callbacks.h"
 #include "debug.h"
+#include "exception.h"
 #include "initialization.h"
 #include "logging.h"
 #include "process.h"
@@ -94,7 +95,7 @@ amd_dbgapi_report_breakpoint_hit (
 
   return breakpoint->action () (*breakpoint, client_thread_id,
                                 breakpoint_action);
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (breakpoint_action)));
 }
 
@@ -117,6 +118,6 @@ amd_dbgapi_breakpoint_get_info (amd_dbgapi_breakpoint_id_t breakpoint_id,
 
   return breakpoint->get_info (query, value_size, value);
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_query_ref (query, param_out (value)));
 }

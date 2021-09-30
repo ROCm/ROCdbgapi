@@ -21,6 +21,7 @@
 #include "register.h"
 #include "architecture.h"
 #include "debug.h"
+#include "exception.h"
 #include "initialization.h"
 #include "logging.h"
 #include "memory.h"
@@ -275,7 +276,7 @@ amd_dbgapi_architecture_register_class_get_info (
 
   return register_class->get_info (query, value_size, value);
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_query_ref (query, param_out (value)));
 }
 
@@ -316,7 +317,7 @@ amd_dbgapi_architecture_register_class_list (
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END (
     make_ref (param_out (register_class_count)),
     make_ref (make_ref (param_out (register_classes)), *register_class_count));
@@ -380,7 +381,7 @@ amd_dbgapi_register_get_info (amd_dbgapi_register_id_t register_id,
       return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
     }
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_query_ref (query, param_out (value)));
 }
 
@@ -421,7 +422,7 @@ amd_dbgapi_architecture_register_list (
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (register_count)),
              make_ref (make_ref (param_out (registers)), *register_count));
 }
@@ -465,7 +466,7 @@ amd_dbgapi_register_is_in_register_class (
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (register_class_state)));
 }
 
@@ -500,7 +501,7 @@ amd_dbgapi_dwarf_register_to_register (
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (register_id)));
 }
 
@@ -560,7 +561,7 @@ amd_dbgapi_read_register (amd_dbgapi_wave_id_t wave_id,
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_hex (make_ref (param_out (value), offset + value_size)));
 }
 
@@ -627,7 +628,7 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END ();
 }
 
@@ -667,7 +668,7 @@ amd_dbgapi_wave_register_exists (amd_dbgapi_wave_id_t wave_id,
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (exists)));
 }
 
@@ -708,7 +709,7 @@ amd_dbgapi_wave_register_list (amd_dbgapi_wave_id_t wave_id,
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (register_count)),
              make_ref (make_ref (param_out (registers)), *register_count));
 }
@@ -746,6 +747,6 @@ amd_dbgapi_prefetch_register (
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END ();
 }

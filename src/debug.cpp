@@ -19,6 +19,7 @@
  THE SOFTWARE. */
 
 #include "debug.h"
+#include "exception.h"
 #include "logging.h"
 #include "utils.h"
 
@@ -103,16 +104,6 @@ full_callback (void *data, uintptr_t pc, const char *filename, int lineno,
 #endif /* defined (ENABLE_BACKTRACE) */
 
 void
-exception_t::print_message () const noexcept
-{
-  if (const char *message = what (); message && *message)
-    dbgapi_log (error_code () == AMD_DBGAPI_STATUS_FATAL
-                  ? AMD_DBGAPI_LOG_LEVEL_FATAL_ERROR
-                  : AMD_DBGAPI_LOG_LEVEL_WARNING,
-                "%s", message);
-}
-
-void
 warning (const char *format, ...)
 {
   va_list va;
@@ -144,7 +135,7 @@ error (const char *format, ...)
 
   /* TODO: We should return a FATAL error here, and put the API
      in a finalized state (maybe the catch should do that).  */
-  throw exception_t (AMD_DBGAPI_STATUS_FATAL, message);
+  throw fatal_error_t (message);
 }
 
 } /* namespace amd::dbgapi */

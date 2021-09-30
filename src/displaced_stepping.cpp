@@ -20,6 +20,7 @@
 
 #include "displaced_stepping.h"
 #include "debug.h"
+#include "exception.h"
 #include "initialization.h"
 #include "logging.h"
 #include "process.h"
@@ -140,7 +141,7 @@ amd_dbgapi_displaced_stepping_start (
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (displaced_stepping_id)));
 }
 
@@ -188,7 +189,7 @@ amd_dbgapi_displaced_stepping_complete (
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END ();
 }
 
@@ -211,6 +212,6 @@ amd_dbgapi_code_displaced_stepping_get_info (
 
   return displaced_stepping->get_info (query, value_size, value);
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_query_ref (query, param_out (value)));
 }

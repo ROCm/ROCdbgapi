@@ -48,25 +48,6 @@
 namespace amd::dbgapi
 {
 
-/* AMD Debugger API exception.  */
-
-class exception_t : public std::runtime_error
-{
-private:
-  /* The error code for this exception.  */
-  amd_dbgapi_status_t m_error_code;
-
-public:
-  exception_t (amd_dbgapi_status_t error_code, std::string message = {})
-    : std::runtime_error (std::move (message)), m_error_code (error_code)
-  {
-  }
-
-  void print_message () const noexcept;
-
-  amd_dbgapi_status_t error_code () const noexcept { return m_error_code; }
-};
-
 extern void warning (const char *format, ...)
 #if defined(__GNUC__)
   __attribute__ ((format (printf, 1, 2)))

@@ -22,6 +22,7 @@
 #include "architecture.h"
 #include "debug.h"
 #include "dispatch.h"
+#include "exception.h"
 #include "handle_object.h"
 #include "initialization.h"
 #include "logging.h"
@@ -1020,7 +1021,7 @@ amd_dbgapi_queue_get_info (amd_dbgapi_queue_id_t queue_id,
 
   return queue->get_info (query, value_size, value);
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_query_ref (query, param_out (value)));
 }
 
@@ -1065,7 +1066,7 @@ amd_dbgapi_process_queue_list (amd_dbgapi_process_id_t process_id,
 
   return utils::get_handle_list<queue_t> (processes, queue_count, queues,
                                           changed);
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (queue_count)),
              make_ref (make_ref (param_out (queues)), *queue_count),
              make_ref (param_out (changed)));
@@ -1128,7 +1129,7 @@ amd_dbgapi_queue_packet_list (
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_hex (make_ref (param_out (read_packet_id_p))),
              make_hex (make_ref (param_out (write_packet_id_p))),
              make_ref (param_out (packets_byte_size_p)),

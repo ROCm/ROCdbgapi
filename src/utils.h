@@ -37,19 +37,6 @@
 #include <utility>
 #include <vector>
 
-#define TRY                                                                   \
-  try                                                                         \
-    {
-
-#define CATCH                                                                 \
-  }                                                                           \
-  catch (const amd::dbgapi::exception_t &e)                                   \
-  {                                                                           \
-    e.print_message ();                                                       \
-    return e.error_code ();                                                   \
-  }                                                                           \
-  catch (...) { return AMD_DBGAPI_STATUS_FATAL; }
-
 #define CONCAT_NX(x, y) x##y
 #define CONCAT(x, y) CONCAT_NX (x, y)
 
@@ -866,8 +853,7 @@ struct is_flag<amd_dbgapi_instruction_properties_t> : std::true_type
 };
 
 /* Enable bitwise operations for amd_dbgapi_register_properties_t.  */
-template <>
-struct is_flag<amd_dbgapi_register_properties_t> : std::true_type
+template <> struct is_flag<amd_dbgapi_register_properties_t> : std::true_type
 {
 };
 

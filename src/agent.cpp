@@ -21,6 +21,7 @@
 #include "agent.h"
 #include "architecture.h"
 #include "debug.h"
+#include "exception.h"
 #include "handle_object.h"
 #include "initialization.h"
 #include "logging.h"
@@ -167,7 +168,7 @@ amd_dbgapi_agent_get_info (amd_dbgapi_agent_id_t agent_id,
 
   return agent->get_info (query, value_size, value);
 
-  CATCH;
+  CATCH ();
   TRACE_END (make_query_ref (query, param_out (value)));
 }
 
@@ -206,7 +207,7 @@ amd_dbgapi_process_agent_list (amd_dbgapi_process_id_t process_id,
 
   return utils::get_handle_list<agent_t> (processes, agent_count, agents,
                                           changed);
-  CATCH;
+  CATCH ();
   TRACE_END (make_ref (param_out (agent_count)),
              make_ref (make_ref (param_out (agents)), *agent_count),
              make_ref (param_out (changed)));

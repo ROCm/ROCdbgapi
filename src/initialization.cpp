@@ -20,6 +20,7 @@
 
 #include "amd-dbgapi.h"
 #include "debug.h"
+#include "exception.h"
 #include "logging.h"
 #include "process.h"
 #include "utils.h"
@@ -71,7 +72,7 @@ amd_dbgapi_initialize (struct amd_dbgapi_callbacks_s *callbacks)
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END ();
 }
 
@@ -103,6 +104,6 @@ amd_dbgapi_finalize ()
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH;
+  CATCH ();
   TRACE_END ();
 }
