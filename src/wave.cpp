@@ -892,10 +892,9 @@ wave_t::xfer_segment_memory (const address_space_t &address_space,
                              amd_dbgapi_segment_address_t segment_address,
                              void *read, const void *write, size_t *size)
 {
+  dbgapi_assert (state () == AMD_DBGAPI_WAVE_STATE_STOP
+                 && "the wave must be stopped to read/write memory");
   dbgapi_assert (!read != !write && "either read or write buffer");
-
-  if (state () != AMD_DBGAPI_WAVE_STATE_STOP)
-    return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED;
 
   /* Zero-extend the segment address.  */
   segment_address &= utils::bit_mask (0, address_space.address_size () - 1);

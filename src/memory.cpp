@@ -583,6 +583,9 @@ amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
   if (!wave)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
 
+  if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
+    return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED;
+
   if (lane_id >= wave->lane_count () && lane_id != AMD_DBGAPI_LANE_NONE)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID;
 
@@ -652,6 +655,9 @@ amd_dbgapi_write_memory (amd_dbgapi_process_id_t process_id,
 
   if (!wave)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
+
+  if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
+    return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED;
 
   if (lane_id >= wave->lane_count () && lane_id != AMD_DBGAPI_LANE_NONE)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID;
