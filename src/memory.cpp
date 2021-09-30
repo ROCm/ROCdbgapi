@@ -115,10 +115,8 @@ memory_cache_t::reset (amd_dbgapi_global_address_t address,
   m_cached_bytes.resize (cache_size);
 
   /* Reload the cache from memory.  */
-  if (m_process.read_global_memory (*m_address, &m_cached_bytes[0],
-                                    m_cached_bytes.size ())
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not reload the hwregs cache");
+  m_process.read_global_memory (*m_address, &m_cached_bytes[0],
+                                m_cached_bytes.size ());
 
   if (cache_size != 0)
     dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "%s cache_%ld [%#lx..%#lx[",
@@ -136,10 +134,8 @@ memory_cache_t::flush ()
   if (is_dirty () && policy () == policy_t::write_back)
     {
       /* Write back the cache in memory.  */
-      if (m_process.write_global_memory (*m_address, &m_cached_bytes[0],
-                                         size ())
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("Could not write the hwregs cache back to memory");
+      m_process.write_global_memory (*m_address, &m_cached_bytes[0],
+                                     m_cached_bytes.size ());
 
       dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE,
                   "flushed cache_%ld [%#lx..%#lx[", id (), *m_address,
@@ -168,7 +164,7 @@ memory_cache_t::contains (amd_dbgapi_global_address_t address,
   return start_in_range && end_in_range;
 }
 
-amd_dbgapi_status_t
+void
 memory_cache_t::read (amd_dbgapi_global_address_t from, void *value,
                       size_t value_size) const
 {
@@ -178,31 +174,22 @@ memory_cache_t::read (amd_dbgapi_global_address_t from, void *value,
     return m_process.read_global_memory (from, value, value_size);
 
   memcpy (value, &m_cached_bytes[0] + from - *m_address, value_size);
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
-amd_dbgapi_status_t
+void
 memory_cache_t::write (amd_dbgapi_global_address_t to, const void *value,
                        size_t value_size)
 {
   dbgapi_assert (contains (to, value_size) && "invalid access");
 
   if (policy () != policy_t::write_back)
-    {
-      if (amd_dbgapi_status_t status
-          = m_process.write_global_memory (to, value, value_size);
-          status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
-    }
+    m_process.write_global_memory (to, value, value_size);
 
   if (policy () != policy_t::uncached)
     {
       memcpy (&m_cached_bytes[0] + to - *m_address, value, value_size);
       m_dirty = true;
     }
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 } /* namespace amd::dbgapi */
@@ -576,8 +563,11 @@ amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
 
   if (wave_id == AMD_DBGAPI_WAVE_NONE
       && address_space_id == AMD_DBGAPI_ADDRESS_SPACE_GLOBAL)
-    return process->read_global_memory_partial (segment_address, value,
-                                                value_size);
+    {
+      *value_size = process->read_global_memory_partial (segment_address,
+                                                         value, *value_size);
+      return AMD_DBGAPI_STATUS_SUCCESS;
+    }
 
   wave_t *wave = find (wave_id);
 
@@ -613,10 +603,12 @@ amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
         return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
     }
 
-  return wave->xfer_segment_memory (*address_space, lane_id, segment_address,
-                                    value, nullptr, value_size);
+  *value_size = wave->xfer_segment_memory (
+    *address_space, lane_id, segment_address, value, nullptr, *value_size);
 
-  CATCH ();
+  return AMD_DBGAPI_STATUS_SUCCESS;
+
+  CATCH (AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS);
   TRACE_END (make_ref (param_out (value_size)),
              make_hex (make_ref (param_out (value), *value_size)));
 }
@@ -649,8 +641,11 @@ amd_dbgapi_write_memory (amd_dbgapi_process_id_t process_id,
 
   if (wave_id == AMD_DBGAPI_WAVE_NONE
       && address_space_id == AMD_DBGAPI_ADDRESS_SPACE_GLOBAL)
-    return process->write_global_memory_partial (segment_address, value,
-                                                 value_size);
+    {
+      *value_size = process->write_global_memory_partial (segment_address,
+                                                          value, *value_size);
+      return AMD_DBGAPI_STATUS_SUCCESS;
+    }
 
   wave_t *wave = find (wave_id);
 
@@ -687,9 +682,12 @@ amd_dbgapi_write_memory (amd_dbgapi_process_id_t process_id,
         return AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID;
     }
 
-  return wave->xfer_segment_memory (*address_space, lane_id, segment_address,
-                                    nullptr, value, value_size);
-  CATCH ();
+  *value_size = wave->xfer_segment_memory (
+    *address_space, lane_id, segment_address, nullptr, value, *value_size);
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+
+  CATCH (AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS);
   TRACE_END (make_ref (param_out (value_size)));
 }
 

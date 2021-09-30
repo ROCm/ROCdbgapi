@@ -237,32 +237,26 @@ process_t::detach ()
     std::rethrow_exception (exception);
 }
 
-amd_dbgapi_status_t
+size_t
 process_t::read_global_memory_partial (amd_dbgapi_global_address_t address,
-                                       void *buffer, size_t *size) const
+                                       void *buffer, size_t size)
 {
-  return os_driver ().xfer_global_memory_partial (address, buffer, nullptr,
-                                                  size);
+  amd_dbgapi_status_t status = os_driver ().xfer_global_memory_partial (
+    address, buffer, nullptr, &size);
+
+  if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    throw process_exited_exception_t (*this);
+  else if (status == AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS)
+    throw memory_access_error_t (address);
+  else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("process_t::read_global_memory_partial failed (rc=%d)", status);
+
+  return size;
 }
 
-amd_dbgapi_status_t
-process_t::read_global_memory (amd_dbgapi_global_address_t address,
-                               void *buffer, size_t size) const
-{
-  amd_dbgapi_status_t status;
-  size_t requested_size = size;
-
-  status = read_global_memory_partial (address, buffer, &size);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
-
-  return (size == requested_size) ? AMD_DBGAPI_STATUS_SUCCESS
-                                  : AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
-}
-
-amd_dbgapi_status_t
+void
 process_t::read_string (amd_dbgapi_global_address_t address,
-                        std::string *string, size_t size) const
+                        std::string *string, size_t size)
 {
   constexpr size_t chunk_size = 16;
   static_assert (!(chunk_size & (chunk_size - 1)), "must be a power of 2");
@@ -279,18 +273,13 @@ process_t::read_string (amd_dbgapi_global_address_t address,
          aligned.  */
 
       size_t request_size = chunk_size - (address & (chunk_size - 1));
-      size_t xfer_size = request_size;
-
-      amd_dbgapi_status_t status
-        = read_global_memory_partial (address, staging_buffer, &xfer_size);
-
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
+      size_t xfer_size
+        = read_global_memory_partial (address, staging_buffer, request_size);
 
       size_t length = std::min (size, xfer_size);
 
       if (!length)
-        return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
+        throw memory_access_error_t (address);
 
       /* Copy the staging buffer into the string, stop at the '\0'
          terminating char if seen.  */
@@ -298,43 +287,35 @@ process_t::read_string (amd_dbgapi_global_address_t address,
         {
           char c = staging_buffer[i];
           if (c == '\0')
-            return AMD_DBGAPI_STATUS_SUCCESS;
+            return;
           string->push_back (c);
         }
 
       /* If unable to read full request, then no point trying again as it will
          just fail again.  */
       if (request_size != xfer_size)
-        return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
+        throw memory_access_error_t (address);
 
       address += length;
       size -= length;
     }
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
-amd_dbgapi_status_t
+size_t
 process_t::write_global_memory_partial (amd_dbgapi_global_address_t address,
-                                        const void *buffer, size_t *size) const
+                                        const void *buffer, size_t size)
 {
-  return os_driver ().xfer_global_memory_partial (address, nullptr, buffer,
-                                                  size);
-}
+  amd_dbgapi_status_t status = os_driver ().xfer_global_memory_partial (
+    address, nullptr, buffer, &size);
 
-amd_dbgapi_status_t
-process_t::write_global_memory (amd_dbgapi_global_address_t address,
-                                const void *buffer, size_t size) const
-{
-  amd_dbgapi_status_t status;
-  size_t requested_size = size;
+  if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    throw process_exited_exception_t (*this);
+  else if (status == AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS)
+    throw memory_access_error_t (address);
+  else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    error ("process_t::write_global_memory_partial failed (rc=%d)", status);
 
-  status = write_global_memory_partial (address, buffer, &size);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
-
-  return (size == requested_size) ? AMD_DBGAPI_STATUS_SUCCESS
-                                  : AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
+  return size;
 }
 
 void
@@ -1228,16 +1209,12 @@ process_t::update_code_objects ()
     return;
 
   epoch_t code_object_mark = m_next_code_object_mark ();
-  amd_dbgapi_status_t status;
 
   try
     {
       decltype (r_debug::r_state) state;
-      status = read_global_memory (m_runtime_info.r_debug
-                                     + offsetof (r_debug, r_state),
-                                   &state, sizeof (state));
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("read_global_memory failed (rc=%d)", status);
+      read_global_memory (m_runtime_info.r_debug + offsetof (r_debug, r_state),
+                          &state);
 
       /* If the state is not RT_CONSISTENT then that indicates there is a
          thread actively updating the code object list.  We cannot read the
@@ -1249,32 +1226,21 @@ process_t::update_code_objects ()
         return;
 
       amd_dbgapi_global_address_t link_map_address;
-      status = read_global_memory (
-        m_runtime_info.r_debug + offsetof (r_debug, r_map), &link_map_address,
-        sizeof (link_map_address));
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("read_global_memory failed (rc=%d)", status);
+      read_global_memory (m_runtime_info.r_debug + offsetof (r_debug, r_map),
+                          &link_map_address);
 
       while (link_map_address)
         {
           amd_dbgapi_global_address_t load_address;
-          status = read_global_memory (link_map_address
-                                         + offsetof (link_map, l_addr),
-                                       &load_address, sizeof (load_address));
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
-            error ("read_global_memory failed (rc=%d)", status);
+          read_global_memory (link_map_address + offsetof (link_map, l_addr),
+                              &load_address);
 
           amd_dbgapi_global_address_t l_name_address;
-          status = read_global_memory (
-            link_map_address + offsetof (link_map, l_name), &l_name_address,
-            sizeof (l_name_address));
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
-            error ("read_global_memory failed (rc=%d)", status);
+          read_global_memory (link_map_address + offsetof (link_map, l_name),
+                              &l_name_address);
 
           std::string uri;
-          status = read_string (l_name_address, &uri, -1);
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
-            error ("read_string failed (rc=%d)", status);
+          read_string (l_name_address, &uri, -1);
 
           /* Check if the code object already exists.  */
           code_object_t *code_object = find_if (
@@ -1292,11 +1258,8 @@ process_t::update_code_objects ()
 
           code_object->set_mark (code_object_mark);
 
-          status = read_global_memory (
-            link_map_address + offsetof (link_map, l_next), &link_map_address,
-            sizeof (link_map_address));
-          if (status != AMD_DBGAPI_STATUS_SUCCESS)
-            error ("read_global_memory failed (rc=%d)", status);
+          read_global_memory (link_map_address + offsetof (link_map, l_next),
+                              &link_map_address);
         }
     }
   catch (const process_exited_exception_t &)
@@ -1340,11 +1303,8 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
 
     /* Check the r_version.  */
     int r_version;
-    status = read_global_memory (runtime_info.r_debug
-                                   + offsetof (struct r_debug, r_version),
-                                 &r_version, sizeof (r_version));
-    if (status != AMD_DBGAPI_STATUS_SUCCESS)
-      error ("read_global_memory failed (rc=%d)", status);
+    read_global_memory (
+      runtime_info.r_debug + offsetof (struct r_debug, r_version), &r_version);
 
     if (r_version != ROCR_RDEBUG_VERSION)
       {
@@ -1447,11 +1407,8 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
   };
 
   amd_dbgapi_global_address_t r_brk_address;
-  status = read_global_memory (m_runtime_info.r_debug
-                                 + offsetof (struct r_debug, r_brk),
-                               &r_brk_address, sizeof (r_brk_address));
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("read_global_memory failed (rc=%d)", status);
+  read_global_memory (m_runtime_info.r_debug + offsetof (r_debug, r_brk),
+                      &r_brk_address);
 
   if (!create<breakpoint_t> (*this, r_brk_address, r_brk_callback)
          .is_inserted ())

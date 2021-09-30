@@ -206,10 +206,10 @@ public:
   void flush ();
 
   /* The region must be completely contained by the cache.  */
-  amd_dbgapi_status_t read (amd_dbgapi_global_address_t from, void *value,
-                            size_t value_size) const;
-  amd_dbgapi_status_t write (amd_dbgapi_global_address_t to, const void *value,
-                             size_t value_size);
+  void read (amd_dbgapi_global_address_t from, void *value,
+             size_t value_size) const;
+  void write (amd_dbgapi_global_address_t to, const void *value,
+              size_t value_size);
 };
 
 } /* namespace amd::dbgapi */

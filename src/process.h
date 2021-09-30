@@ -28,6 +28,7 @@
 #include "dispatch.h"
 #include "displaced_stepping.h"
 #include "event.h"
+#include "exception.h"
 #include "handle_object.h"
 #include "initialization.h"
 #include "logging.h"
@@ -179,21 +180,22 @@ public:
   inline void clear_flag (flag_t flags);
   inline bool is_flag_set (flag_t flags) const;
 
-  amd_dbgapi_status_t
+  [[nodiscard]] size_t
   read_global_memory_partial (amd_dbgapi_global_address_t address,
-                              void *buffer, size_t *size) const;
-  amd_dbgapi_status_t
+                              void *buffer, size_t size);
+  [[nodiscard]] size_t
   write_global_memory_partial (amd_dbgapi_global_address_t address,
-                               const void *buffer, size_t *size) const;
+                               const void *buffer, size_t size);
 
-  amd_dbgapi_status_t read_global_memory (amd_dbgapi_global_address_t address,
-                                          void *buffer, size_t size) const;
-  amd_dbgapi_status_t write_global_memory (amd_dbgapi_global_address_t address,
-                                           const void *buffer,
-                                           size_t size) const;
+  template <typename T>
+  void read_global_memory (amd_dbgapi_global_address_t address, T *ptr,
+                           size_t size = sizeof (T));
+  template <typename T>
+  void write_global_memory (amd_dbgapi_global_address_t address, const T *ptr,
+                            size_t size = sizeof (T));
 
-  amd_dbgapi_status_t read_string (amd_dbgapi_global_address_t address,
-                                   std::string *string, size_t size) const;
+  void read_string (amd_dbgapi_global_address_t address, std::string *string,
+                    size_t size);
 
   bool forward_progress_needed () const { return m_forward_progress_needed; }
   void set_forward_progress_needed (bool forward_progress_needed);
@@ -362,6 +364,40 @@ public:
 
   pipe_t &client_notifier_pipe () { return m_client_notifier_pipe; }
 };
+
+template <typename T>
+void
+process_t::read_global_memory (amd_dbgapi_global_address_t address, T *ptr,
+                               size_t size)
+{
+  try
+    {
+      if (size_t xfer_size = read_global_memory_partial (address, ptr, size);
+          xfer_size != size)
+        throw memory_access_error_t (address + xfer_size);
+    }
+  catch (const memory_access_error_t &e)
+    {
+      error ("process_t::read_global_memory failed: %s", e.what ());
+    }
+}
+
+template <typename T>
+void
+process_t::write_global_memory (amd_dbgapi_global_address_t address,
+                                const T *ptr, size_t size)
+{
+  try
+    {
+      if (size_t xfer_size = write_global_memory_partial (address, ptr, size);
+          xfer_size != size)
+        throw memory_access_error_t (address + xfer_size);
+    }
+  catch (const memory_access_error_t &e)
+    {
+      error ("process_t::write_global_memory failed: %s", e.what ());
+    }
+}
 
 namespace detail
 {

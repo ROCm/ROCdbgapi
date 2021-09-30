@@ -26,6 +26,7 @@
 #include "architecture.h"
 #include "debug.h"
 #include "dispatch.h"
+#include "exception.h"
 #include "handle_object.h"
 #include "memory.h"
 #include "queue.h"
@@ -124,18 +125,18 @@ private:
   const callbacks_t &m_callbacks;
   const dispatch_t &m_dispatch;
 
-  amd_dbgapi_status_t
+  [[nodiscard]] size_t
   xfer_private_memory_swizzled (amd_dbgapi_segment_address_t segment_address,
                                 amd_dbgapi_lane_id_t lane_id, void *read,
-                                const void *write, size_t *size);
+                                const void *write, size_t size);
 
-  amd_dbgapi_status_t
+  [[nodiscard]] size_t
   xfer_private_memory_unswizzled (amd_dbgapi_segment_address_t segment_address,
-                                  void *read, const void *write, size_t *size);
+                                  void *read, const void *write, size_t size);
 
-  amd_dbgapi_status_t
+  [[nodiscard]] size_t
   xfer_local_memory (amd_dbgapi_segment_address_t segment_address, void *read,
-                     const void *write, size_t *size);
+                     const void *write, size_t size);
 
   void raise_event (amd_dbgapi_event_kind_t event_kind);
 
@@ -235,10 +236,11 @@ public:
       {
         read_register (regnum, 0, sizeof (T), value);
       }
-    catch (...)
+    catch (const api_error_t &e)
       {
-        error ("Could not read the '%s' register",
-               architecture ().register_name (regnum).c_str ());
+        throw fatal_error_t (string_printf (
+          "Could not read the `%s' register: %s",
+          architecture ().register_name (regnum).c_str (), e.what ()));
       }
   }
 
@@ -248,10 +250,11 @@ public:
       {
         write_register (regnum, 0, sizeof (T), value);
       }
-    catch (...)
+    catch (const api_error_t &e)
       {
-        error ("Could not write the '%s' register",
-               architecture ().register_name (regnum).c_str ());
+        throw fatal_error_t (string_printf (
+          "Could not write the `%s' register: %s",
+          architecture ().register_name (regnum).c_str (), e.what ()));
       }
   }
 
@@ -260,11 +263,11 @@ public:
     return m_callbacks.park_instruction_address ();
   }
 
-  amd_dbgapi_status_t
+  [[nodiscard]] size_t
   xfer_segment_memory (const address_space_t &address_space,
                        amd_dbgapi_lane_id_t lane_id,
                        amd_dbgapi_segment_address_t segment_address,
-                       void *read, const void *write, size_t *size);
+                       void *read, const void *write, size_t size);
 
   amd_dbgapi_status_t get_info (amd_dbgapi_wave_info_t query,
                                 size_t value_size, void *value) const;

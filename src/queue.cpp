@@ -174,15 +174,12 @@ aql_queue_impl_t::aql_queue_impl_t (
 {
   const architecture_t &architecture = m_queue.architecture ();
   process_t &process = m_queue.process ();
-  amd_dbgapi_status_t status;
 
   amd_dbgapi_global_address_t ctx_save_base
     = m_os_queue_info.ctx_save_restore_address;
 
   struct context_save_area_header_s header;
-  if (process.read_global_memory (ctx_save_base, &header, sizeof (header))
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not read the context save area header");
+  process.read_global_memory (ctx_save_base, &header);
 
   if (!header.debugger_memory_offset || !header.debugger_memory_size)
     error ("Per-queue memory reserved for the debugger is missing");
@@ -209,12 +206,9 @@ aql_queue_impl_t::aql_queue_impl_t (
 
   auto terminating_instruction = architecture.terminating_instruction ();
   m_terminating_instruction_buffer->resize (terminating_instruction.size ());
-  if (process.write_global_memory (m_terminating_instruction_buffer->begin (),
-                                   terminating_instruction.data (),
-                                   terminating_instruction.size ())
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error (
-      "Could not write the terminating instruction to the debugger memory");
+  process.write_global_memory (m_terminating_instruction_buffer->begin (),
+                               terminating_instruction.data (),
+                               terminating_instruction.size ());
 
   /* Read the hsa_queue_t at the top of the amd_queue_t. Since the amd_queue_t
     structure could change, it can only be accessed by calculating its address
@@ -222,24 +216,16 @@ aql_queue_impl_t::aql_queue_impl_t (
     read_dispatch_id_field_base_byte_offset .  */
 
   uint32_t read_dispatch_id_field_base_byte_offset;
-  status = process.read_global_memory (
+  process.read_global_memory (
     m_os_queue_info.read_pointer_address
       + offsetof (amd_queue_t, read_dispatch_id_field_base_byte_offset)
       - offsetof (amd_queue_t, read_dispatch_id),
-    &read_dispatch_id_field_base_byte_offset,
-    sizeof (read_dispatch_id_field_base_byte_offset));
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not read the queue's "
-           "read_dispatch_id_field_base_byte_offset (rc=%d)",
-           status);
+    &read_dispatch_id_field_base_byte_offset);
 
   amd_dbgapi_global_address_t hsa_queue_address
     = m_os_queue_info.read_pointer_address
       - read_dispatch_id_field_base_byte_offset;
-  status = process.read_global_memory (hsa_queue_address, &m_hsa_queue,
-                                       sizeof (m_hsa_queue));
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not read the hsa_queue_t struct (rc=%d)", status);
+  process.read_global_memory (hsa_queue_address, &m_hsa_queue);
 
   if (reinterpret_cast<uintptr_t> (m_hsa_queue.base_address)
       != packets_address ())
@@ -317,12 +303,10 @@ aql_queue_impl_t::allocate_instruction_buffer ()
          end of the buffer.  We use a trap instruction to prevent runaway
          waves from executing from unmapped memory. Copy the instruction
          now before handing the buffer to the instruction_buffer_t. */
-      if (m_queue.process ().write_global_memory (
-            instruction_buffer_address + debugger_memory_chunk_size
-              - assert_instruction.size (),
-            assert_instruction.data (), assert_instruction.size ())
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("Could not write to the debugger memory");
+      m_queue.process ().write_global_memory (
+        instruction_buffer_address + debugger_memory_chunk_size
+          - assert_instruction.size (),
+        assert_instruction.data (), assert_instruction.size ());
     }
   else
     error ("could not allocate debugger memory");
@@ -345,23 +329,16 @@ aql_queue_impl_t::update_waves ()
 {
   process_t &process = m_queue.process ();
   const epoch_t wave_mark = m_next_wave_mark ();
-  amd_dbgapi_status_t status;
 
   /* Read the queue's write_dispatch_id and read_dispatch_id.  */
 
   uint64_t write_dispatch_id;
-  status = process.read_global_memory (m_os_queue_info.write_pointer_address,
-                                       &write_dispatch_id,
-                                       sizeof (write_dispatch_id));
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
+  process.read_global_memory (m_os_queue_info.write_pointer_address,
+                              &write_dispatch_id);
 
   uint64_t read_dispatch_id;
-  status = process.read_global_memory (m_os_queue_info.read_pointer_address,
-                                       &read_dispatch_id,
-                                       sizeof (read_dispatch_id));
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
+  process.read_global_memory (m_os_queue_info.read_pointer_address,
+                              &read_dispatch_id);
 
   wave_t *group_leader = nullptr;
 
@@ -394,10 +371,7 @@ aql_queue_impl_t::update_waves ()
         const amd_dbgapi_global_address_t wave_id_address
           = cwsr_record->register_address (amdgpu_regnum_t::wave_id).value ();
 
-        if (process.read_global_memory (wave_id_address, &wave_id,
-                                        sizeof (wave_id))
-            != AMD_DBGAPI_STATUS_SUCCESS)
-          error ("Could not read the 'wave_id' register");
+        process.read_global_memory (wave_id_address, &wave_id);
 
         /* If this is a new wave, check its visibility.  Waves halted at launch
            should remain hidden until the wave creation mode is changed to
@@ -527,11 +501,7 @@ aql_queue_impl_t::update_waves ()
      save area header.  */
 
   struct context_save_area_header_s header;
-
-  if (process.read_global_memory (ctx_save_base, &header, sizeof (header))
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not read %s's control stack header",
-           to_string (m_queue.id ()).c_str ());
+  process.read_global_memory (ctx_save_base, &header);
 
   /* Make sure the bottom of the ctrl stack == the start of the wave save
      area.  */
@@ -555,11 +525,8 @@ aql_queue_impl_t::update_waves ()
                                                       / sizeof (uint32_t));
 
       /* Read the entire ctrl stack from the inferior.  */
-      if (process.read_global_memory (ctx_save_base + header.ctrl_stack_offset,
-                                      &ctrl_stack[0], header.ctrl_stack_size)
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("Could not read %s's control stack",
-               to_string (m_queue.id ()).c_str ());
+      process.read_global_memory (ctx_save_base + header.ctrl_stack_offset,
+                                  &ctrl_stack[0], header.ctrl_stack_size);
 
       /* Decode the control stack.  For each wave entry in the control stack,
          the provided function is called with a wave descriptor and a pointer
@@ -606,16 +573,12 @@ aql_queue_impl_t::active_packets_info (
   process_t &process = m_queue.process ();
 
   amd_dbgapi_os_queue_packet_id_t read_packet_id;
-  if (process.read_global_memory (m_os_queue_info.read_pointer_address,
-                                  &read_packet_id, sizeof (read_packet_id))
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    return AMD_DBGAPI_STATUS_ERROR;
+  process.read_global_memory (m_os_queue_info.read_pointer_address,
+                              &read_packet_id);
 
   amd_dbgapi_os_queue_packet_id_t write_packet_id;
-  if (process.read_global_memory (m_os_queue_info.write_pointer_address,
-                                  &write_packet_id, sizeof (write_packet_id))
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    return AMD_DBGAPI_STATUS_ERROR;
+  process.read_global_memory (m_os_queue_info.write_pointer_address,
+                              &write_packet_id);
 
   if (read_packet_id > write_packet_id)
     return AMD_DBGAPI_STATUS_ERROR;
@@ -657,30 +620,20 @@ aql_queue_impl_t::active_packets_bytes (
     = packets_address () + (write_packet_id & id_mask) * aql_packet_size;
 
   if (read_packet_ptr < write_packet_ptr)
-    {
-      if (auto status = process.read_global_memory (read_packet_ptr, memory,
-                                                    packets_byte_size);
-          status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
-    }
+    process.read_global_memory (read_packet_ptr, memory, packets_byte_size);
 
   else if (read_packet_ptr > write_packet_ptr)
     {
       size_t first_part_size
         = packets_address () + packets_size () - read_packet_ptr;
 
-      if (auto status = process.read_global_memory (read_packet_ptr, memory,
-                                                    first_part_size);
-          status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
+      process.read_global_memory (read_packet_ptr, memory, first_part_size);
 
       size_t second_part_size = write_packet_ptr - packets_address ();
 
-      if (auto status = process.read_global_memory (
-            packets_address (), static_cast<char *> (memory) + first_part_size,
-            second_part_size);
-          status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
+      process.read_global_memory (
+        packets_address (), static_cast<char *> (memory) + first_part_size,
+        second_part_size);
     }
 
   return AMD_DBGAPI_STATUS_SUCCESS;
@@ -723,28 +676,20 @@ aql_queue_impl_t::state_changed (queue_t::state_t state)
          it.  We cannot cache this value as the runtime may change the
          allocation dynamically.  */
 
-      amd_dbgapi_status_t status = m_queue.process ().read_global_memory (
+      m_queue.process ().read_global_memory (
         m_os_queue_info.read_pointer_address
           + offsetof (amd_queue_t, scratch_backing_memory_location)
           - offsetof (amd_queue_t, read_dispatch_id),
-        &m_scratch_backing_memory_address,
-        sizeof (m_scratch_backing_memory_address));
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("Could not read the queue's scratch_backing_memory_location "
-               "(rc=%d)",
-               status);
+        &m_scratch_backing_memory_address);
 
-      status = m_queue.process ().read_global_memory (
+      m_queue.process ().read_global_memory (
         m_os_queue_info.read_pointer_address
           + offsetof (amd_queue_t, compute_tmpring_size)
           - offsetof (amd_queue_t, read_dispatch_id),
-        &m_compute_tmpring_size, sizeof (m_compute_tmpring_size));
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("Could not read the queue's compute_tmpring_size (rc=%d)",
-               status);
+        &m_compute_tmpring_size);
 
       /* Update the waves from the content of the queue's context save area. */
-      status = update_waves ();
+      amd_dbgapi_status_t status = update_waves ();
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         warning ("%s update_waves failed (rc=%d)",
                  to_string (m_queue.id ()).c_str (), status);

@@ -120,10 +120,15 @@ wave_t::instruction_at_pc (size_t pc_adjust) const
   size_t size = architecture ().largest_instruction_size ();
   std::vector<std::byte> instruction_bytes (size);
 
-  amd_dbgapi_status_t status = process ().read_global_memory_partial (
-    pc () + pc_adjust, instruction_bytes.data (), &size);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return {};
+  try
+    {
+      size = process ().read_global_memory_partial (
+        pc () + pc_adjust, instruction_bytes.data (), size);
+    }
+  catch (...)
+    {
+      return {};
+    }
 
   /* Trim partial and unread words.  */
   instruction_bytes.resize (size);
@@ -234,10 +239,8 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
       size_t offset = architecture ().breakpoint_instruction ().size ();
       size_t remaining = original_instruction_bytes.size () - offset;
 
-      amd_dbgapi_status_t status = process ().read_global_memory_partial (
-        pc () + offset, &original_instruction_bytes[offset], &remaining);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        throw api_error_t (status);
+      remaining = process ().read_global_memory_partial (
+        pc () + offset, &original_instruction_bytes[offset], remaining);
 
       /* Trim partial/unread bytes.  */
       original_instruction_bytes.resize (offset + remaining);
@@ -265,11 +268,9 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
           amd_dbgapi_global_address_t instruction_addr
             = instruction_buffer->begin ();
 
-          if (process ().write_global_memory (instruction_addr,
-                                              original_instruction.data (),
-                                              original_instruction.size ())
-              != AMD_DBGAPI_STATUS_SUCCESS)
-            error ("Could not write the displaced instruction");
+          process ().write_global_memory (instruction_addr,
+                                          original_instruction.data (),
+                                          original_instruction.size ());
         }
 
       displaced_stepping = &process ().create<displaced_stepping_t> (
@@ -682,24 +683,14 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
 
   /* hwregs are cached, so return the value from the cache.  */
   if (m_register_cache.contains (*reg_addr + offset, value_size))
-    {
-      if (m_register_cache.read (*reg_addr + offset,
-                                 static_cast<char *> (value) + offset,
-                                 value_size)
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("Could not read '%s' from the register cache",
-               architecture ().register_name (regnum).c_str ());
-    }
+    m_register_cache.read (*reg_addr + offset,
+                           static_cast<char *> (value) + offset, value_size);
   else
     {
       dbgapi_assert (queue ().is_suspended ());
 
-      if (process ().read_global_memory (*reg_addr + offset,
-                                         static_cast<char *> (value) + offset,
-                                         value_size)
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("Could not read the '%s' register",
-               architecture ().register_name (regnum).c_str ());
+      process ().read_global_memory (
+        *reg_addr + offset, static_cast<char *> (value) + offset, value_size);
     }
 }
 
@@ -742,12 +733,9 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
 
   if (m_register_cache.contains (*reg_addr + offset, value_size))
     {
-      if (m_register_cache.write (*reg_addr + offset,
-                                  static_cast<const char *> (value) + offset,
-                                  value_size)
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("Could not write '%s' to the register cache",
-               architecture ().register_name (regnum).c_str ());
+      m_register_cache.write (*reg_addr + offset,
+                              static_cast<const char *> (value) + offset,
+                              value_size);
 
       /* If the cache is dirty, register it with the queue, it will be flushed
          when the queue is resumed.  */
@@ -758,27 +746,23 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
     {
       dbgapi_assert (queue ().is_suspended ());
 
-      if (process ().write_global_memory (
-            *reg_addr + offset, static_cast<const char *> (value) + offset,
-            value_size)
-          != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("Could not write the '%s' register",
-               architecture ().register_name (regnum).c_str ());
+      process ().write_global_memory (
+        *reg_addr + offset, static_cast<const char *> (value) + offset,
+        value_size);
     }
 }
 
-amd_dbgapi_status_t
+size_t
 wave_t::xfer_private_memory_swizzled (
   amd_dbgapi_segment_address_t segment_address, amd_dbgapi_lane_id_t lane_id,
-  void *read, const void *write, size_t *size)
+  void *read, const void *write, size_t size)
 {
-  if (lane_id == AMD_DBGAPI_LANE_NONE || lane_id >= lane_count ())
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID;
+  dbgapi_assert (lane_id != AMD_DBGAPI_LANE_NONE && lane_id < lane_count ());
 
   auto [scratch_base, scratch_size]
     = m_callbacks.scratch_memory_region (*m_cwsr_record);
 
-  size_t bytes = *size;
+  size_t bytes = size;
   while (bytes > 0)
     {
       /* Transfer one aligned dword at a time, except for the first (or last)
@@ -795,24 +779,19 @@ wave_t::xfer_private_memory_swizzled (
         {
           xfer_size = offset < scratch_size ? scratch_size - offset : 0;
           if (xfer_size == 0)
-            return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
+            throw memory_access_error_t (scratch_base + scratch_size);
         }
 
       amd_dbgapi_global_address_t global_address = scratch_base + offset;
 
-      amd_dbgapi_status_t status;
-      if (read)
-        status = process ().read_global_memory_partial (global_address, read,
-                                                        &xfer_size);
-      else
-        status = process ().write_global_memory_partial (global_address, write,
-                                                         &xfer_size);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
+      xfer_size = read ? process ().read_global_memory_partial (
+                    global_address, read, xfer_size)
+                       : process ().write_global_memory_partial (
+                         global_address, write, xfer_size);
 
       bytes -= xfer_size;
       if (request_size != xfer_size)
-        break;
+        throw memory_access_error_t (global_address + xfer_size);
 
       if (read)
         read = static_cast<char *> (read) + xfer_size;
@@ -822,56 +801,40 @@ wave_t::xfer_private_memory_swizzled (
       segment_address += xfer_size;
     }
 
-  if (bytes && bytes == *size)
-    return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
-
-  *size -= bytes;
-  return AMD_DBGAPI_STATUS_SUCCESS;
+  return size - bytes;
 }
 
-amd_dbgapi_status_t
+size_t
 wave_t::xfer_private_memory_unswizzled (
   amd_dbgapi_segment_address_t segment_address, void *read, const void *write,
-  size_t *size)
+  size_t size)
 {
   auto [scratch_base, scratch_size]
     = m_callbacks.scratch_memory_region (*m_cwsr_record);
 
-  if ((segment_address + *size) > scratch_size)
+  if ((segment_address + size) > scratch_size)
     {
       size_t max_size
         = segment_address < scratch_size ? scratch_size - segment_address : 0;
-      if (max_size == 0 && *size != 0)
-        return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
-      *size = max_size;
+      if (max_size == 0 && size != 0)
+        throw memory_access_error_t (scratch_base + scratch_size);
+      size = max_size;
     }
 
   amd_dbgapi_global_address_t global_address = scratch_base + segment_address;
 
-  if (read)
-    return process ().read_global_memory_partial (global_address, read, size);
-  else
-    return process ().write_global_memory_partial (global_address, write,
-                                                   size);
+  return read
+           ? process ().read_global_memory_partial (global_address, read, size)
+           : process ().write_global_memory_partial (global_address, write,
+                                                     size);
 }
 
-amd_dbgapi_status_t
+size_t
 wave_t::xfer_local_memory (amd_dbgapi_segment_address_t segment_address,
-                           void *read, const void *write, size_t *size)
+                           void *read, const void *write, size_t size)
 {
   /* The LDS is stored in the context save area.  */
   dbgapi_assert (queue ().is_suspended ());
-
-  amd_dbgapi_size_t limit = m_cwsr_record->lds_size ();
-  amd_dbgapi_size_t offset = segment_address;
-
-  if ((offset + *size) > limit)
-    {
-      size_t max_size = offset < limit ? limit - offset : 0;
-      if (max_size == 0 && *size != 0)
-        return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
-      *size = max_size;
-    }
 
   auto local_memory_base_address
     = group_leader ().m_cwsr_record->register_address (amdgpu_regnum_t::lds_0);
@@ -879,21 +842,31 @@ wave_t::xfer_local_memory (amd_dbgapi_segment_address_t segment_address,
   if (!local_memory_base_address)
     error ("local memory is not accessible");
 
+  amd_dbgapi_size_t limit = m_cwsr_record->lds_size ();
+  amd_dbgapi_size_t offset = segment_address;
+
+  if ((offset + size) > limit)
+    {
+      size_t max_size = offset < limit ? limit - offset : 0;
+      if (max_size == 0 && size != 0)
+        throw memory_access_error_t (*local_memory_base_address + limit);
+      size = max_size;
+    }
+
   amd_dbgapi_global_address_t global_address
     = *local_memory_base_address + offset;
 
-  if (read)
-    return process ().read_global_memory_partial (global_address, read, size);
-  else
-    return process ().write_global_memory_partial (global_address, write,
-                                                   size);
+  return read
+           ? process ().read_global_memory_partial (global_address, read, size)
+           : process ().write_global_memory_partial (global_address, write,
+                                                     size);
 }
 
-amd_dbgapi_status_t
+size_t
 wave_t::xfer_segment_memory (const address_space_t &address_space,
                              amd_dbgapi_lane_id_t lane_id,
                              amd_dbgapi_segment_address_t segment_address,
-                             void *read, const void *write, size_t *size)
+                             void *read, const void *write, size_t size)
 {
   dbgapi_assert (state () == AMD_DBGAPI_WAVE_STATE_STOP
                  && "the wave must be stopped to read/write memory");
@@ -916,18 +889,14 @@ wave_t::xfer_segment_memory (const address_space_t &address_space,
       return xfer_local_memory (segment_address, read, write, size);
 
     case address_space_t::global:
-      if (read)
-        return process ().read_global_memory_partial (segment_address, read,
-                                                      size);
-      else
-        return process ().write_global_memory_partial (segment_address, write,
-                                                       size);
+      return read ? process ().read_global_memory_partial (segment_address,
+                                                           read, size)
+                  : process ().write_global_memory_partial (segment_address,
+                                                            write, size);
 
     default:
-      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                  "xfer_segment_memory from address space `%s' not supported",
-                  address_space.name ().c_str ());
-      return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
+      error ("xfer_segment_memory from address space `%s' not supported",
+             address_space.name ().c_str ());
     }
 }
 

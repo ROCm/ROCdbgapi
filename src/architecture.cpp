@@ -2583,10 +2583,7 @@ gfx9_architecture_t::cwsr_record_t::is_halted () const
     = register_address (amdgpu_regnum_t::status).value ();
 
   uint32_t status_reg;
-  if (process ().read_global_memory (status_reg_address, &status_reg,
-                                     sizeof (status_reg))
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not read the 'status' register");
+  process ().read_global_memory (status_reg_address, &status_reg);
 
   return (status_reg & sq_wave_status_halt_mask) != 0;
 }
@@ -2598,9 +2595,7 @@ gfx9_architecture_t::cwsr_record_t::is_stopped () const
     = register_address (amdgpu_regnum_t::ttmp6).value ();
 
   uint32_t ttmp6;
-  if (process ().read_global_memory (ttmp6_address, &ttmp6, sizeof (ttmp6))
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not read the 'ttmp6' register");
+  process ().read_global_memory (ttmp6_address, &ttmp6);
 
   return (ttmp6 & ttmp6_wave_stopped_mask) != 0;
 }
@@ -2612,10 +2607,7 @@ gfx9_architecture_t::cwsr_record_t::is_priv () const
     = register_address (amdgpu_regnum_t::status).value ();
 
   uint32_t status_reg;
-  if (process ().read_global_memory (status_reg_address, &status_reg,
-                                     sizeof (status_reg))
-      != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not read the 'status' register");
+  process ().read_global_memory (status_reg_address, &status_reg);
 
   return (status_reg & sq_wave_status_priv_mask) != 0;
 }
@@ -3140,10 +3132,7 @@ gfx9_architecture_t::dispatch_packet_address (
     = cwsr_record.register_address (amdgpu_regnum_t::ttmp6).value ();
 
   uint32_t ttmp6;
-  status = cwsr_record.process ().read_global_memory (ttmp6_address, &ttmp6,
-                                                      sizeof (ttmp6));
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not read the 'ttmp6' register (rc=%d)", status);
+  cwsr_record.process ().read_global_memory (ttmp6_address, &ttmp6);
 
   amd_dbgapi_os_queue_packet_id_t os_queue_packet_id
     = ttmp6_queue_packet_id (ttmp6);
