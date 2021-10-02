@@ -290,13 +290,13 @@ linux_driver_t::xfer_global_memory_partial (
   if (ret < 0 && errno != EIO && errno != EINVAL)
     warning ("linux_driver_t::xfer_memory failed: %s", strerror (errno));
 
-  if (ret < 0 || (ret == 0 && *size != 0))
+  if (ret == 0 && *size != 0)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (ret < 0)
     return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
-  else
-    {
-      *size = ret;
-      return AMD_DBGAPI_STATUS_SUCCESS;
-    }
+
+  *size = ret;
+  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 /* OS Driver implementation for the Linux ROCm stack using KFD.  */
