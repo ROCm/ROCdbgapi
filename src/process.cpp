@@ -542,9 +542,21 @@ process_t::update_agents ()
     }
 
   /* Remove agents that are no longer online.  */
-  for (auto &&agent : range<agent_t> ())
-    if (agent.mark () < agent_mark)
-      error ("gpu hot pluging is not supported");
+  auto &&agent_range = range<agent_t> ();
+  for (auto it = agent_range.begin (); it != agent_range.end ();)
+    if (it->mark () < agent_mark)
+      {
+        amd_dbgapi_agent_id_t agent_id = it->id ();
+        os_agent_id_t os_agent_id = it->os_agent_id ();
+
+        it = destroy (it);
+
+        dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+                    "destroyed deleted %s (os_agent_id=%d)",
+                    to_string (agent_id).c_str (), os_agent_id);
+      }
+    else
+      ++it;
 
   /* Precise memory reporting is not supported if there are no agents.  */
   if ((count<agent_t> () == 0))
@@ -620,9 +632,7 @@ process_t::insert_watchpoint (const watchpoint_t &watchpoint,
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         return status;
 
-      status = update_queues ();
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("process_t::update_queues failed (rc=%d)", status);
+      update_queues ();
 
       std::vector<queue_t *> queues;
       queues.reserve (count<queue_t> ());
@@ -804,9 +814,7 @@ process_t::remove_watchpoint (const watchpoint_t &watchpoint)
         error ("process_t::set_wave_launch_trap_override failed (rc=%d)",
                status);
 
-      status = update_queues ();
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("process_t::update_queues failed (rc=%d)", status);
+      update_queues ();
 
       std::vector<queue_t *> queues;
       queues.reserve (count<queue_t> ());
@@ -1007,13 +1015,37 @@ process_t::resume_queues (const std::vector<queue_t *> &queues,
   return num_resumed_queues;
 }
 
-amd_dbgapi_status_t
+void
+process_t::update_waves ()
+{
+  try
+    {
+      update_queues ();
+
+      std::vector<queue_t *> queues;
+      for (auto &&queue : range<queue_t> ())
+        if (!queue.is_suspended ())
+          queues.emplace_back (&queue);
+
+      suspend_queues (queues, "process_t::update_waves");
+      if (forward_progress_needed ())
+        resume_queues (queues, "process_t::update_waves");
+    }
+  catch (const process_exited_exception_t &)
+    {
+      auto &&wave_range = range<wave_t> ();
+      for (auto it = wave_range.begin (); it != wave_range.end ();)
+        it = destroy (it);
+    }
+}
+
+void
 process_t::update_queues ()
 {
   /* If the runtime is not loaded, or loaded with restrictions, then we should
      not update the queue list.  */
   if (m_runtime_state != AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS)
-    return AMD_DBGAPI_STATUS_SUCCESS;
+    return;
 
   epoch_t queue_mark;
   std::vector<os_queue_snapshot_entry_t> snapshots;
@@ -1045,7 +1077,7 @@ process_t::update_queues ()
           queue_count = 0;
         }
       else if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
+        error ("queue_snapshot failed (rc=%d)", status);
 
       /* We have to process the snapshots returned by the ioctl now, even
          if the list is incomplete, because we only get notified once that
@@ -1185,85 +1217,92 @@ process_t::update_queues ()
       }
     else
       ++it;
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
-amd_dbgapi_status_t
+void
 process_t::update_code_objects ()
 {
   /* If the runtime is not loaded, or loaded with restrictions, then we should
      not update the code object list.  */
   if (m_runtime_state != AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS)
-    return AMD_DBGAPI_STATUS_SUCCESS;
+    return;
 
   epoch_t code_object_mark = m_next_code_object_mark ();
   amd_dbgapi_status_t status;
 
-  decltype (r_debug::r_state) state;
-  status
-    = read_global_memory (m_runtime_info.r_debug + offsetof (r_debug, r_state),
-                          &state, sizeof (state));
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("read_global_memory failed (rc=%d)", status);
-
-  /* If the state is not RT_CONSISTENT then that indicates there is a thread
-     actively updating the code object list.  We cannot read the list as it is
-     not consistent. But once the thread completes the update it will set state
-     back to RT_CONSISTENT and hit the exiting breakpoint in the r_brk function
-     which will trigger a read of the code object list.  */
-  if (state != r_debug::RT_CONSISTENT)
-    return AMD_DBGAPI_STATUS_SUCCESS;
-
-  amd_dbgapi_global_address_t link_map_address;
-  status
-    = read_global_memory (m_runtime_info.r_debug + offsetof (r_debug, r_map),
-                          &link_map_address, sizeof (link_map_address));
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("read_global_memory failed (rc=%d)", status);
-
-  while (link_map_address)
+  try
     {
-      amd_dbgapi_global_address_t load_address;
-      status
-        = read_global_memory (link_map_address + offsetof (link_map, l_addr),
-                              &load_address, sizeof (load_address));
+      decltype (r_debug::r_state) state;
+      status = read_global_memory (m_runtime_info.r_debug
+                                     + offsetof (r_debug, r_state),
+                                   &state, sizeof (state));
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         error ("read_global_memory failed (rc=%d)", status);
 
-      amd_dbgapi_global_address_t l_name_address;
-      status
-        = read_global_memory (link_map_address + offsetof (link_map, l_name),
-                              &l_name_address, sizeof (l_name_address));
+      /* If the state is not RT_CONSISTENT then that indicates there is a
+         thread actively updating the code object list.  We cannot read the
+         list as it is not consistent. But once the thread completes the update
+         it will set state back to RT_CONSISTENT and hit the exiting breakpoint
+         in the r_brk function which will trigger a read of the code object
+         list.  */
+      if (state != r_debug::RT_CONSISTENT)
+        return;
+
+      amd_dbgapi_global_address_t link_map_address;
+      status = read_global_memory (
+        m_runtime_info.r_debug + offsetof (r_debug, r_map), &link_map_address,
+        sizeof (link_map_address));
       if (status != AMD_DBGAPI_STATUS_SUCCESS)
         error ("read_global_memory failed (rc=%d)", status);
 
-      std::string uri;
-      status = read_string (l_name_address, &uri, -1);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("read_string failed (rc=%d)", status);
-
-      /* Check if the code object already exists.  */
-      code_object_t *code_object = find_if (
-        [&] (const code_object_t &x)
+      while (link_map_address)
         {
-          /* FIXME: We have an ABA problem for memory based code objects. A new
-             code object of the same size could have been loaded at the same
-             address as an old stale code object. We could add a unique
-             identifier to the URI.  */
-          return x.load_address () == load_address && x.uri () == uri;
-        });
+          amd_dbgapi_global_address_t load_address;
+          status = read_global_memory (link_map_address
+                                         + offsetof (link_map, l_addr),
+                                       &load_address, sizeof (load_address));
+          if (status != AMD_DBGAPI_STATUS_SUCCESS)
+            error ("read_global_memory failed (rc=%d)", status);
 
-      if (!code_object)
-        code_object = &create<code_object_t> (*this, uri, load_address);
+          amd_dbgapi_global_address_t l_name_address;
+          status = read_global_memory (
+            link_map_address + offsetof (link_map, l_name), &l_name_address,
+            sizeof (l_name_address));
+          if (status != AMD_DBGAPI_STATUS_SUCCESS)
+            error ("read_global_memory failed (rc=%d)", status);
 
-      code_object->set_mark (code_object_mark);
+          std::string uri;
+          status = read_string (l_name_address, &uri, -1);
+          if (status != AMD_DBGAPI_STATUS_SUCCESS)
+            error ("read_string failed (rc=%d)", status);
 
-      status
-        = read_global_memory (link_map_address + offsetof (link_map, l_next),
-                              &link_map_address, sizeof (link_map_address));
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("read_global_memory failed (rc=%d)", status);
+          /* Check if the code object already exists.  */
+          code_object_t *code_object = find_if (
+            [&] (const code_object_t &x)
+            {
+              /* FIXME: We have an ABA problem for memory based code objects. A
+                 new code object of the same size could have been loaded at the
+                 same address as an old stale code object. We could add a
+                 unique identifier to the URI.  */
+              return x.load_address () == load_address && x.uri () == uri;
+            });
+
+          if (!code_object)
+            code_object = &create<code_object_t> (*this, uri, load_address);
+
+          code_object->set_mark (code_object_mark);
+
+          status = read_global_memory (
+            link_map_address + offsetof (link_map, l_next), &link_map_address,
+            sizeof (link_map_address));
+          if (status != AMD_DBGAPI_STATUS_SUCCESS)
+            error ("read_global_memory failed (rc=%d)", status);
+        }
+    }
+  catch (const process_exited_exception_t &)
+    {
+      /* Prune all code objects */
+      code_object_mark = m_next_code_object_mark ();
     }
 
   /* Iterate all the code objects in this process, and prune those with a mark
@@ -1276,8 +1315,6 @@ process_t::update_code_objects ()
       else
         ++code_object_it;
     }
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 void
@@ -1420,16 +1457,12 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
          .is_inserted ())
     return;
 
-  status = update_queues ();
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("update_queues failed (rc=%d)", status);
+  update_queues ();
 
   if (!is_flag_set (flag_t::runtime_enable_during_attach) && count<queue_t> ())
     error ("no queue can exist before the runtime is enabled");
 
-  status = update_code_objects ();
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("update_code_objects failed (rc=%d)", status);
+  update_code_objects ();
 
   status = os_driver ().set_wave_launch_mode (m_wave_launch_mode);
   if (status != AMD_DBGAPI_STATUS_SUCCESS

@@ -1207,20 +1207,14 @@ amd_dbgapi_process_wave_list (amd_dbgapi_process_id_t process_id,
       if (!process)
         return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
 
-      if (amd_dbgapi_status_t status = process->update_queues ();
-          status != AMD_DBGAPI_STATUS_SUCCESS)
-        error ("process_t::update_queues failed (rc=%d)", status);
-
+      process->update_queues ();
       processes.emplace_back (process);
     }
   else
     {
       for (auto &&process : process_t::all ())
         {
-          if (amd_dbgapi_status_t status = process.update_queues ();
-              status != AMD_DBGAPI_STATUS_SUCCESS)
-            error ("process_t::update_queues failed (rc=%d)", status);
-
+          process.update_queues ();
           processes.emplace_back (&process);
         }
     }

@@ -227,8 +227,9 @@ public:
      no longer valid.  When an object is deleted, all objects associated with
      it are also deleted.  */
   void update_agents ();
-  amd_dbgapi_status_t update_queues ();
-  amd_dbgapi_status_t update_code_objects ();
+  void update_waves ();
+  void update_queues ();
+  void update_code_objects ();
 
   void runtime_enable (os_runtime_info_t runtime_info);
 
