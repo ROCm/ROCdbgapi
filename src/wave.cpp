@@ -641,9 +641,10 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
     return architecture ().read_pseudo_register (*this, regnum, offset,
                                                  value_size, value);
 
-  if (!value_size
-      || (offset + value_size) > architecture ().register_size (regnum))
-    throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+  dbgapi_assert (value_size
+                 && (offset + value_size)
+                      <= architecture ().register_size (regnum)
+                 && "read_register is out of bounds");
 
   auto reg_addr = register_address (regnum);
 
@@ -709,9 +710,10 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
     return architecture ().write_pseudo_register (*this, regnum, offset,
                                                   value_size, value);
 
-  if (!value_size
-      || (offset + value_size) > architecture ().register_size (regnum))
-    throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+  dbgapi_assert (value_size
+                 && (offset + value_size)
+                      <= architecture ().register_size (regnum)
+                 && "write_register is out of bounds");
 
   auto reg_addr = register_address (regnum);
 

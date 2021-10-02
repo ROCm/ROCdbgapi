@@ -527,16 +527,18 @@ amd_dbgapi_read_register (amd_dbgapi_wave_id_t wave_id,
   const architecture_t *architecture
     = architecture_t::register_id_to_architecture (register_id);
 
-  if (!regnum || !architecture || !wave->is_register_available (*regnum))
+  if (!regnum || !architecture)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
   if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
     return AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED;
 
-  if (!value)
+  if (!value || !value_size)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
-  if (*architecture != wave->architecture ())
+  if (*architecture != wave->architecture ()
+      || (offset + value_size) > architecture->register_size (*regnum)
+      || !wave->is_register_available (*regnum))
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
 
   std::optional<scoped_queue_suspend_t> suspend;
@@ -586,7 +588,7 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
   const architecture_t *architecture
     = architecture_t::register_id_to_architecture (register_id);
 
-  if (!regnum || !architecture || !wave->is_register_available (*regnum))
+  if (!regnum || !architecture)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
 
   if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
@@ -596,10 +598,12 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
   if (wave->displaced_stepping ())
     return AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_ACTIVE;
 
-  if (!value)
+  if (!value || !value_size)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
-  if (*architecture != wave->architecture ())
+  if (*architecture != wave->architecture ()
+      || (offset + value_size) > architecture->register_size (*regnum)
+      || !wave->is_register_available (*regnum))
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
 
   std::optional<scoped_queue_suspend_t> suspend;

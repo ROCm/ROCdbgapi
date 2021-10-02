@@ -2072,13 +2072,11 @@ amdgcn_architecture_t::read_pseudo_register (const wave_t &wave,
                                              size_t offset, size_t value_size,
                                              void *value) const
 {
-  dbgapi_assert (is_pseudo_register (regnum));
+  dbgapi_assert (is_pseudo_register (regnum)
+                 && is_pseudo_register_available (wave, regnum));
 
-  if (!is_pseudo_register_available (wave, regnum))
-    throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID);
-
-  if (!value_size || (offset + value_size) > register_size (regnum))
-    throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+  dbgapi_assert (value_size && (offset + value_size) <= register_size (regnum)
+                 && "read_pseudo_register is out of bounds");
 
   if (regnum == amdgpu_regnum_t::pseudo_exec_64
       || regnum == amdgpu_regnum_t::pseudo_vcc_64)
@@ -2136,7 +2134,7 @@ amdgcn_architecture_t::read_pseudo_register (const wave_t &wave,
       return;
     }
 
-  throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID);
+  dbgapi_assert_not_reached ("Unhandled pseudo register");
 }
 
 void
@@ -2145,13 +2143,11 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
                                               size_t offset, size_t value_size,
                                               const void *value) const
 {
-  dbgapi_assert (is_pseudo_register (regnum));
+  dbgapi_assert (is_pseudo_register (regnum)
+                 && is_pseudo_register_available (wave, regnum));
 
-  if (!is_pseudo_register_available (wave, regnum))
-    throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID);
-
-  if (!value_size || (offset + value_size) > register_size (regnum))
-    throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+  dbgapi_assert (value_size && (offset + value_size) <= register_size (regnum)
+                 && "write_pseudo_register is out of bounds");
 
   if (regnum == amdgpu_regnum_t::wave_in_group)
     /* Writing to wave_in_group is a no-op.  */
@@ -2237,7 +2233,7 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
       return;
     }
 
-  throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID);
+  dbgapi_assert_not_reached ("Unhandled pseudo register");
 }
 
 std::optional<size_t>
@@ -3917,13 +3913,11 @@ gfx10_architecture_t::read_pseudo_register (const wave_t &wave,
                                             size_t offset, size_t value_size,
                                             void *value) const
 {
-  dbgapi_assert (is_pseudo_register (regnum));
+  dbgapi_assert (is_pseudo_register (regnum)
+                 && is_pseudo_register_available (wave, regnum));
 
-  if (!is_pseudo_register_available (wave, regnum))
-    throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID);
-
-  if (!value_size || (offset + value_size) > register_size (regnum))
-    throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+  dbgapi_assert (value_size && (offset + value_size) <= register_size (regnum)
+                 && "read_pseudo_register is out of bounds");
 
   if (regnum == amdgpu_regnum_t::null)
     {
@@ -3953,13 +3947,11 @@ gfx10_architecture_t::write_pseudo_register (wave_t &wave,
                                              size_t offset, size_t value_size,
                                              const void *value) const
 {
-  dbgapi_assert (is_pseudo_register (regnum));
+  dbgapi_assert (is_pseudo_register (regnum)
+                 && is_pseudo_register_available (wave, regnum));
 
-  if (!is_pseudo_register_available (wave, regnum))
-    throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID);
-
-  if (!value_size || (offset + value_size) > register_size (regnum))
-    throw exception_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+  dbgapi_assert (value_size && (offset + value_size) <= register_size (regnum)
+                 && "write_pseudo_register is out of bounds");
 
   if (regnum == amdgpu_regnum_t::null)
     /* Writing to null is a no-op.  */
