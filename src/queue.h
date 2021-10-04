@@ -153,7 +153,7 @@ private:
     void resize (size_t size)
     {
       if (size > m_capacity)
-        error ("size exceeds capacity");
+        fatal_error ("size exceeds capacity");
       m_size = size;
     }
 

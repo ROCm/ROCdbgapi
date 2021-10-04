@@ -337,7 +337,7 @@ pipe_t::flush ()
   while (ret >= 0 || (ret == -1 && errno == EINTR));
 
   if (ret == -1 && errno != EAGAIN)
-    error ("read: %s", strerror (errno));
+    fatal_error ("read: %s", strerror (errno));
 
   return ret == -1 ? -errno : 0;
 }
@@ -357,7 +357,7 @@ pipe_t::mark ()
   while (ret == -1 && errno == EINTR);
 
   if (ret == -1 && errno != EAGAIN)
-    error ("write: %s", strerror (errno));
+    fatal_error ("write: %s", strerror (errno));
 
   return ret == -1 ? -errno : 0;
 }

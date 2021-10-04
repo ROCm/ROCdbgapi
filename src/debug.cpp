@@ -113,7 +113,7 @@ warning (const char *format, ...)
 }
 
 void
-error (const char *format, ...)
+fatal_error (const char *format, ...)
 {
   va_list va;
   va_start (va, format);

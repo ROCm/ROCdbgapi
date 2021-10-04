@@ -884,7 +884,7 @@ public:
   {
     value_type old_value = m_value++;
     if (WrapAroundCheck{}(old_value, m_value))
-      error ("monotonic counter wrapped around");
+      fatal_error ("monotonic counter wrapped around");
 
     return old_value;
   }

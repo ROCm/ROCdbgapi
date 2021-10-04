@@ -146,7 +146,8 @@ public:
     dbgapi_assert (suspended_count != nullptr);
 
     if (queue_count > 0)
-      error ("should not call this, null_driver does not have any queues");
+      fatal_error (
+        "should not call this, null_driver does not have any queues");
 
     *suspended_count = 0;
     return AMD_DBGAPI_STATUS_SUCCESS;
@@ -159,7 +160,8 @@ public:
     dbgapi_assert (resumed_count != nullptr);
 
     if (queue_count > 0)
-      error ("should not call this, null_driver does not have any queues");
+      fatal_error (
+        "should not call this, null_driver does not have any queues");
 
     *resumed_count = 0;
     return AMD_DBGAPI_STATUS_SUCCESS;
@@ -186,7 +188,8 @@ public:
   amd_dbgapi_status_t
     clear_address_watch (os_watch_id_t /* os_watch_id  */) const override
   {
-    error ("should not call this, null_driver does not support watchpoints");
+    fatal_error (
+      "should not call this, null_driver does not support watchpoints");
   }
 
   amd_dbgapi_status_t
@@ -456,7 +459,7 @@ kfd_driver_t::close_kfd ()
   if (!--s_kfd_open_count)
     {
       if (s_kfd_fd && ::close (*s_kfd_fd))
-        error ("failed to close s_kfd_fd");
+        fatal_error ("failed to close s_kfd_fd");
 
       s_kfd_fd.reset ();
     }
@@ -510,7 +513,7 @@ kfd_driver_t::check_version () const
   dbg_trap_args.op = KFD_IOC_DBG_TRAP_GET_VERSION;
 
   if (::ioctl (*s_kfd_fd, AMDKFD_IOC_DBG_TRAP, &dbg_trap_args))
-    error ("KFD_IOC_DBG_TRAP_GET_VERSION failed");
+    fatal_error ("KFD_IOC_DBG_TRAP_GET_VERSION failed");
 
   int32_t major = dbg_trap_args.data1;
   int32_t minor = dbg_trap_args.data2;
@@ -590,8 +593,8 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
   else if (!dirp)
-    error ("Could not opendir `%s': %s", sysfs_nodes_path.c_str (),
-           strerror (errno));
+    fatal_error ("Could not opendir `%s': %s", sysfs_nodes_path.c_str (),
+                 strerror (errno));
 
   std::unordered_set<os_agent_id_t> processed_os_agent_ids;
   size_t agents_found = 0;
@@ -607,7 +610,7 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
       /* Retrieve the GPU ID.  */
       std::ifstream gpu_id_ifs (node_path + "/gpu_id");
       if (!gpu_id_ifs.is_open ())
-        error ("Could not open %s/gpu_id", node_path.c_str ());
+        fatal_error ("Could not open %s/gpu_id", node_path.c_str ());
 
       os_agent_id_t gpu_id;
       gpu_id_ifs >> gpu_id;
@@ -626,8 +629,9 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
         continue;
 
       if (!processed_os_agent_ids.emplace (gpu_id).second)
-        error ("More than one os_agent_id %d reported in the sysfs topology",
-               gpu_id);
+        fatal_error (
+          "More than one os_agent_id %d reported in the sysfs topology",
+          gpu_id);
 
       auto &agent_info = snapshots[agents_found++];
       agent_info.os_agent_id = gpu_id;
@@ -636,12 +640,13 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
 
       std::ifstream gpu_name_ifs (node_path + "/name");
       if (!gpu_name_ifs.is_open ())
-        error ("Could not open %s/name", node_path.c_str ());
+        fatal_error ("Could not open %s/name", node_path.c_str ());
 
       gpu_name_ifs >> agent_info.name;
       if (agent_info.name.empty ())
-        error ("os_agent_id %d: asic family name not present in the sysfs.",
-               agent_info.os_agent_id);
+        fatal_error (
+          "os_agent_id %d: asic family name not present in the sysfs.",
+          agent_info.os_agent_id);
 
       /* Fill in the apertures for this agent.  */
 
@@ -652,7 +657,7 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
 
       std::ifstream props_ifs (node_path + "/properties");
       if (!props_ifs.is_open ())
-        error ("Could not open %s/properties", node_path.c_str ());
+        fatal_error ("Could not open %s/properties", node_path.c_str ());
 
       size_t array_count{}, arrays_per_engine{};
 
@@ -680,7 +685,7 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
 
       if (!agent_info.simd_count || !agent_info.max_waves_per_simd
           || !array_count || !arrays_per_engine)
-        error ("Invalid node properties");
+        fatal_error ("Invalid node properties");
 
       agent_info.shader_engine_count = array_count / arrays_per_engine;
 
@@ -705,7 +710,7 @@ kfd_driver_t::agent_snapshot (os_agent_snapshot_entry_t *snapshots,
   /* Make sure we filled the information for all snapshot entries returned by
      the kfd device snapshot ioctl.  */
   if (agents_found != std::min (snapshot_count, *agent_count))
-    error ("not all agents found in the sysfs topology");
+    fatal_error ("not all agents found in the sysfs topology");
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
@@ -1070,7 +1075,7 @@ kfd_driver_t::set_address_watch (amd_dbgapi_global_address_t address,
   else if (err == -ESRCH)
     return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
   else if (err < 0)
-    error ("failed to set address watch: %s", strerror (err));
+    fatal_error ("failed to set address watch: %s", strerror (err));
 
   *os_watch_id = args.data1;
 

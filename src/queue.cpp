@@ -182,7 +182,7 @@ aql_queue_impl_t::aql_queue_impl_t (
   process.read_global_memory (ctx_save_base, &header);
 
   if (!header.debugger_memory_offset || !header.debugger_memory_size)
-    error ("Per-queue memory reserved for the debugger is missing");
+    fatal_error ("Per-queue memory reserved for the debugger is missing");
 
   m_debugger_memory_base = utils::align_up (
     ctx_save_base + header.debugger_memory_offset, debugger_memory_chunk_size);
@@ -194,7 +194,7 @@ aql_queue_impl_t::aql_queue_impl_t (
   /* Ensure that the number of chunks does not overflow the 16 bit index.  */
   if (chunk_count
       > std::numeric_limits<decltype (m_debugger_memory_chunk_count)>::max ())
-    error ("Increase the width of m_debugger_memory_chunk_count");
+    fatal_error ("Increase the width of m_debugger_memory_chunk_count");
 
   m_debugger_memory_chunk_count = chunk_count;
 
@@ -229,10 +229,10 @@ aql_queue_impl_t::aql_queue_impl_t (
 
   if (reinterpret_cast<uintptr_t> (m_hsa_queue.base_address)
       != packets_address ())
-    error ("hsa_queue_t base address != kfd queue info base address");
+    fatal_error ("hsa_queue_t base address != kfd queue info base address");
 
   if ((m_hsa_queue.size * 64) != packets_size ())
-    error ("hsa_queue_t size != kfd queue info ring size");
+    fatal_error ("hsa_queue_t size != kfd queue info ring size");
 
   m_callbacks = {
     /* Return the wave's scratch memory region (address and size).  */
@@ -309,7 +309,7 @@ aql_queue_impl_t::allocate_instruction_buffer ()
         assert_instruction.data (), assert_instruction.size ());
     }
   else
-    error ("could not allocate debugger memory");
+    fatal_error ("could not allocate debugger memory");
 
   auto deleter = [this] (amd_dbgapi_global_address_t ptr)
   {
@@ -411,7 +411,7 @@ aql_queue_impl_t::update_waves ()
           = m_queue.architecture ().dispatch_packet_address (*cwsr_record);
 
         if ((dispatch_ptr % aql_packet_size) != 0)
-          error ("dispatch_ptr is not aligned on the packet size");
+          fatal_error ("dispatch_ptr is not aligned on the packet size");
 
         /* Calculate the monotonic dispatch id for this packet.  It is between
            read_dispatch_id and write_dispatch_id.  */
@@ -423,11 +423,12 @@ aql_queue_impl_t::update_waves ()
         if (os_queue_packet_id >= packets_size () / aql_packet_size)
           /* TODO: See comment above for corrupted wavefronts. This could be
              attached to a CORRUPT_DISPATCH instance.  */
-          error ("invalid os_queue_packet_id (%#lx)", os_queue_packet_id);
+          fatal_error ("invalid os_queue_packet_id (%#lx)",
+                       os_queue_packet_id);
 
         /* size must be a power of 2.  */
         if (!utils::is_power_of_two (packets_size ()))
-          error ("size is not a power of 2");
+          fatal_error ("size is not a power of 2");
 
         /* Need to mask by the number of packets in the ring (which is a power
            of 2 so -1 makes the correct mask).  */
@@ -443,9 +444,10 @@ aql_queue_impl_t::update_waves ()
             || os_queue_packet_id >= write_dispatch_id)
           /* TODO: See comment above for corrupted wavefronts. This could be
              attached to a CORRUPT_DISPATCH instance.  */
-          error ("invalid dispatch id (%#lx), with read_dispatch_id=%#lx, "
-                 "and write_dispatch_id=%#lx",
-                 os_queue_packet_id, read_dispatch_id, write_dispatch_id);
+          fatal_error (
+            "invalid dispatch id (%#lx), with read_dispatch_id=%#lx, "
+            "and write_dispatch_id=%#lx",
+            os_queue_packet_id, read_dispatch_id, write_dispatch_id);
 
         /* Check if the dispatch already exists.  */
         dispatch = process.find_if (
@@ -478,7 +480,7 @@ aql_queue_impl_t::update_waves ()
       group_leader = wave;
 
     if (!group_leader)
-      error ("No group_leader, the control stack may be corrupted");
+      fatal_error ("No group_leader, the control stack may be corrupted");
 
     wave->update (*group_leader, std::move (cwsr_record));
 
@@ -489,7 +491,7 @@ aql_queue_impl_t::update_waves ()
 
     /* Check that the wave is in the same group as its group leader.  */
     if (wave->group_ids () != wave->group_leader ().group_ids ())
-      error ("wave is not in the same group as group_leader");
+      fatal_error ("wave is not in the same group as group_leader");
 
     wave->set_mark (wave_mark);
   };
@@ -507,7 +509,7 @@ aql_queue_impl_t::update_waves ()
      area.  */
   if ((header.ctrl_stack_offset + header.ctrl_stack_size)
       != (header.wave_state_offset - header.wave_state_size))
-    error ("Corrupted control stack or wave save area");
+    fatal_error ("Corrupted control stack or wave save area");
 
   if (header.ctrl_stack_size)
     {
@@ -610,7 +612,7 @@ aql_queue_impl_t::active_packets_bytes (
 
   /* size must be a power of 2.  */
   if (!utils::is_power_of_two (packets_size ()))
-    error ("size is not a power of 2");
+    fatal_error ("size is not a power of 2");
 
   const uint64_t id_mask = packets_size () / aql_packet_size - 1;
 
@@ -719,7 +721,7 @@ public:
         return AMD_DBGAPI_OS_QUEUE_TYPE_AMD_SDMA_XGMI;
 
       case os_queue_type_t::compute_aql:
-        error ("should not reach here");
+        fatal_error ("should not reach here");
 
       default:
         return AMD_DBGAPI_OS_QUEUE_TYPE_UNKNOWN;
@@ -880,7 +882,7 @@ scoped_queue_suspend_t::scoped_queue_suspend_t (queue_t &queue,
   if (m_queue->process ().suspend_queues ({ m_queue }, m_reason) != 1)
     {
       if (m_queue->is_valid ())
-        error ("process::suspend_queues failed");
+        fatal_error ("process::suspend_queues failed");
 
       /* The queue became invalid, we should not try to resume it.  */
       m_queue = nullptr;
@@ -895,7 +897,7 @@ scoped_queue_suspend_t::~scoped_queue_suspend_t ()
 
   if (m_queue->process ().resume_queues ({ m_queue }, m_reason) != 1
       && m_queue->is_valid ())
-    error ("process::resume_queues failed");
+    fatal_error ("process::resume_queues failed");
 }
 
 instruction_buffer_t::instruction_buffer_t (

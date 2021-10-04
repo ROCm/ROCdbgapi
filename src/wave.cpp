@@ -103,7 +103,7 @@ wave_t::exec_mask () const
       read_register (amdgpu_regnum_t::exec_64, &exec);
       return exec;
     }
-  error ("Not a valid lane_count for EXEC mask: %zu", lane_count ());
+  fatal_error ("Not a valid lane_count for EXEC mask: %zu", lane_count ());
 }
 
 amd_dbgapi_global_address_t
@@ -840,7 +840,7 @@ wave_t::xfer_local_memory (amd_dbgapi_segment_address_t segment_address,
     = group_leader ().m_cwsr_record->register_address (amdgpu_regnum_t::lds_0);
 
   if (!local_memory_base_address)
-    error ("local memory is not accessible");
+    fatal_error ("local memory is not accessible");
 
   amd_dbgapi_size_t limit = m_cwsr_record->lds_size ();
   amd_dbgapi_size_t offset = segment_address;
@@ -895,8 +895,8 @@ wave_t::xfer_segment_memory (const address_space_t &address_space,
                                                             write, size);
 
     default:
-      error ("xfer_segment_memory from address space `%s' not supported",
-             address_space.name ().c_str ());
+      fatal_error ("xfer_segment_memory from address space `%s' not supported",
+                   address_space.name ().c_str ());
     }
 }
 
@@ -1003,8 +1003,8 @@ wave_t::get_info (amd_dbgapi_wave_info_t query, size_t value_size,
           const watchpoint_t *watchpoint
             = process ().find_watchpoint (os_watch_id);
           if (!watchpoint)
-            error ("kfd_watch_%d not set on %s", os_watch_id,
-                   to_string (agent ().id ()).c_str ());
+            fatal_error ("kfd_watch_%d not set on %s", os_watch_id,
+                         to_string (agent ().id ()).c_str ());
           return watchpoint->id ();
         };
 

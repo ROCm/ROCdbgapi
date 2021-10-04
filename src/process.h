@@ -378,7 +378,7 @@ process_t::read_global_memory (amd_dbgapi_global_address_t address, T *ptr,
     }
   catch (const memory_access_error_t &e)
     {
-      error ("process_t::read_global_memory failed: %s", e.what ());
+      fatal_error ("process_t::read_global_memory failed: %s", e.what ());
     }
 }
 
@@ -395,7 +395,7 @@ process_t::write_global_memory (amd_dbgapi_global_address_t address,
     }
   catch (const memory_access_error_t &e)
     {
-      error ("process_t::write_global_memory failed: %s", e.what ());
+      fatal_error ("process_t::write_global_memory failed: %s", e.what ());
     }
 }
 

@@ -432,7 +432,7 @@ amdgcn_architecture_t::disassembly_info () const
             target_triple ().c_str (), read_memory_callback,
             print_instruction_callback, print_address_annotation_callback,
             &m_disassembly_info.emplace ()))
-        error ("amd_comgr_create_disassembly_info failed");
+        fatal_error ("amd_comgr_create_disassembly_info failed");
     }
 
   return *m_disassembly_info;
@@ -512,7 +512,7 @@ address_space_for_generic_address (
     [=] (const address_space_t &as)
     { return as.kind () == address_space_kind; });
   if (!segment_address_space)
-    error ("address space not found in architecture");
+    fatal_error ("address space not found in architecture");
 
   return *segment_address_space;
 }
@@ -1438,7 +1438,7 @@ amdgcn_architecture_t::wave_get_state (wave_t &wave) const
               = wave.instruction_at_pc (-breakpoint_instruction_pc_adjust ());
             return instruction && is_trap (*instruction);
           }())
-        error ("trap exception not raised by a trap instruction");
+        fatal_error ("trap exception not raised by a trap instruction");
     }
 
   /* Check for spurious single-step stop events:
@@ -3113,7 +3113,7 @@ gfx9_architecture_t::control_stack_iterate (
      the wave save area, and last_wave_area should point to the bottom of the
      wave save area.  */
   if (last_wave_area != (wave_area_address - wave_area_size))
-    error ("Corrupted control stack or wave save area");
+    fatal_error ("Corrupted control stack or wave save area");
 }
 
 amd_dbgapi_global_address_t
@@ -3126,7 +3126,7 @@ gfx9_architecture_t::dispatch_packet_address (
   amd_dbgapi_status_t status = cwsr_record.queue ().get_info (
     AMD_DBGAPI_QUEUE_INFO_ADDRESS, sizeof (packets_address), &packets_address);
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    error ("Could not get the queue address (rc=%d)", status);
+    fatal_error ("Could not get the queue address (rc=%d)", status);
 
   const amd_dbgapi_global_address_t ttmp6_address
     = cwsr_record.register_address (amdgpu_regnum_t::ttmp6).value ();
@@ -4470,7 +4470,7 @@ gfx10_architecture_t::control_stack_iterate (
      the wave save area, and last_wave_area should point to the bottom of the
      wave save area.  */
   if (last_wave_area != (wave_area_address - wave_area_size))
-    error ("Corrupted control stack or wave save area");
+    fatal_error ("Corrupted control stack or wave save area");
 }
 
 class gfx10_1_t : public gfx10_architecture_t

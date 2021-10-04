@@ -414,12 +414,12 @@ handle_object_set_t<Object>::create_object (std::optional<handle_type> id,
     std::forward_as_tuple (*id, std::forward<Args> (args)...));
 
   if (!success)
-    error ("could not create new object");
+    fatal_error ("could not create new object");
 
   if (!is_valid (it->second))
     {
       m_map.erase (it);
-      error ("object is not valid");
+      fatal_error ("object is not valid");
     }
 
   m_changed = true;
