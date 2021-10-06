@@ -103,19 +103,22 @@ register_class_t::register_set () const
   return all_registers;
 }
 
-amd_dbgapi_status_t
+void
 register_class_t::get_info (amd_dbgapi_register_class_info_t query,
                             size_t value_size, void *value) const
 {
   switch (query)
     {
     case AMD_DBGAPI_REGISTER_CLASS_INFO_ARCHITECTURE:
-      return utils::get_info (value_size, value, architecture ().id ());
+      utils::get_info (value_size, value, architecture ().id ());
+      return;
 
     case AMD_DBGAPI_REGISTER_CLASS_INFO_NAME:
-      return utils::get_info (value_size, value, name ());
+      utils::get_info (value_size, value, name ());
+      return;
     }
-  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
+  throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 }
 
 namespace
@@ -267,16 +270,22 @@ amd_dbgapi_architecture_register_class_get_info (
   TRY;
 
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   const register_class_t *register_class = find (register_class_id);
 
   if (!register_class)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_CLASS_ID;
+    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_CLASS_ID);
 
-  return register_class->get_info (query, value_size, value);
+  register_class->get_info (query, value_size, value);
 
-  CATCH ();
+  return AMD_DBGAPI_STATUS_SUCCESS;
+
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_CLASS_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY,
+         AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
   TRACE_END (make_query_ref (query, param_out (value)));
 }
 
@@ -342,46 +351,60 @@ amd_dbgapi_register_get_info (amd_dbgapi_register_id_t register_id,
 
   if (!architecture || !regnum
       || !architecture->is_register_available (*regnum))
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
+    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID);
 
   if (!value)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-  switch (query)
-    {
-    case AMD_DBGAPI_REGISTER_INFO_ARCHITECTURE:
-      return utils::get_info (value_size, value, architecture->id ());
-
-    case AMD_DBGAPI_REGISTER_INFO_NAME:
-      return utils::get_info (value_size, value,
-                              architecture->register_name (*regnum));
-
-    case AMD_DBGAPI_REGISTER_INFO_TYPE:
-      return utils::get_info (value_size, value,
-                              architecture->register_type (*regnum));
-
-    case AMD_DBGAPI_REGISTER_INFO_SIZE:
-      return utils::get_info (value_size, value,
-                              architecture->register_size (*regnum));
-
-    case AMD_DBGAPI_REGISTER_INFO_DWARF:
+  [&] ()
+  {
+    switch (query)
       {
-        auto dwarf_register = amdgpu_regnum_to_dwarf_register (*regnum);
-        if (!dwarf_register)
-          return AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID;
+      case AMD_DBGAPI_REGISTER_INFO_ARCHITECTURE:
+        utils::get_info (value_size, value, architecture->id ());
+        return;
 
-        return utils::get_info (value_size, value, *dwarf_register);
+      case AMD_DBGAPI_REGISTER_INFO_NAME:
+        utils::get_info (value_size, value,
+                         architecture->register_name (*regnum));
+        return;
+
+      case AMD_DBGAPI_REGISTER_INFO_TYPE:
+        utils::get_info (value_size, value,
+                         architecture->register_type (*regnum));
+        return;
+
+      case AMD_DBGAPI_REGISTER_INFO_SIZE:
+        utils::get_info (value_size, value,
+                         architecture->register_size (*regnum));
+        return;
+
+      case AMD_DBGAPI_REGISTER_INFO_DWARF:
+        {
+          auto dwarf_register = amdgpu_regnum_to_dwarf_register (*regnum);
+          if (!dwarf_register)
+            THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID);
+
+          utils::get_info (value_size, value, *dwarf_register);
+          return;
+        }
+
+      case AMD_DBGAPI_REGISTER_INFO_PROPERTIES:
+        utils::get_info (value_size, value,
+                         architecture->register_properties (*regnum));
+        return;
       }
 
-    case AMD_DBGAPI_REGISTER_INFO_PROPERTIES:
-      return utils::get_info (value_size, value,
-                              architecture->register_properties (*regnum));
+    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
+  }();
 
-    default:
-      return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
-    }
+  return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH ();
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY,
+         AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
   TRACE_END (make_query_ref (query, param_out (value)));
 }
 

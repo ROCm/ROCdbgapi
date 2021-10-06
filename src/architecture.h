@@ -398,8 +398,8 @@ public:
                                       size_t offset, size_t value_size,
                                       const void *value) const = 0;
 
-  amd_dbgapi_status_t get_info (amd_dbgapi_architecture_info_t query,
-                                size_t value_size, void *value) const;
+  void get_info (amd_dbgapi_architecture_info_t query, size_t value_size,
+                 void *value) const;
 
   template <typename Object, typename... Args> auto &create (Args &&...args)
   {

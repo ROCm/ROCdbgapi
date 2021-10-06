@@ -61,8 +61,8 @@ public:
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }
 
-  amd_dbgapi_status_t get_info (amd_dbgapi_code_object_info_t query,
-                                size_t value_size, void *value) const;
+  void get_info (amd_dbgapi_code_object_info_t query, size_t value_size,
+                 void *value) const;
 
   process_t &process () const { return m_process; }
 };

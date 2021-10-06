@@ -75,8 +75,8 @@ public:
   amd_dbgapi_global_address_t kernel_descriptor_address () const;
   amd_dbgapi_global_address_t kernel_code_entry_address () const;
 
-  amd_dbgapi_status_t get_info (amd_dbgapi_dispatch_info_t query,
-                                size_t value_size, void *value) const;
+  void get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
+                 void *value) const;
 
   queue_t &queue () const { return m_queue; }
   agent_t &agent () const { return queue ().agent (); }

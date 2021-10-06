@@ -266,11 +266,12 @@ public:
   }
 
   static auto all () { return s_process_map.range (); }
+  static std::vector<process_t *> match (amd_dbgapi_process_id_t process_id);
   static process_t *find (amd_dbgapi_process_id_t process_id);
   static process_t *find (amd_dbgapi_client_process_id_t client_process_id);
 
-  amd_dbgapi_status_t get_info (amd_dbgapi_process_info_t query,
-                                size_t value_size, void *value) const;
+  void get_info (amd_dbgapi_process_info_t query, size_t value_size,
+                 void *value) const;
 
   amd_dbgapi_status_t get_os_pid (amd_dbgapi_os_process_id_t *pid) const;
   amd_dbgapi_status_t

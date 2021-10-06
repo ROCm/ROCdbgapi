@@ -82,8 +82,8 @@ public:
   static void retain (displaced_stepping_t *displaced_stepping);
   static void release (displaced_stepping_t *displaced_stepping);
 
-  amd_dbgapi_status_t get_info (amd_dbgapi_displaced_stepping_info_t query,
-                                size_t value_size, void *value) const;
+  void get_info (amd_dbgapi_displaced_stepping_info_t query, size_t value_size,
+                 void *value) const;
 
   queue_t &queue () const { return m_queue; }
   agent_t &agent () const { return queue ().agent (); }

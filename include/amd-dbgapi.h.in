@@ -3027,6 +3027,11 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p dispatch_count or \p
  * dispatches are NULL, or \p changed is invalid.  \p dispatch_count, \p
  * dispatches, and \p changed are unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be reported if
+ * the amd_dbgapi_callbacks_s::allocate_memory callback used to allocate \p
+ * dispatches returns NULL.  \p dispatch_count, \p dispatches, and \p changed
+ * are unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_dispatch_list (
     amd_dbgapi_process_id_t process_id, size_t *dispatch_count,

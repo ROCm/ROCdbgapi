@@ -102,8 +102,8 @@ public:
   amd_dbgapi_size_t address_size () const { return m_address_size; }
   amd_dbgapi_segment_address_t null_address () const { return m_null_address; }
 
-  amd_dbgapi_status_t get_info (amd_dbgapi_address_space_info_t query,
-                                size_t value_size, void *value) const;
+  void get_info (amd_dbgapi_address_space_info_t query, size_t value_size,
+                 void *value) const;
 
   const architecture_t &architecture () const { return m_architecture; }
 };
@@ -135,8 +135,8 @@ public:
   const std::string &name () const { return m_name; }
   const address_space_t &address_space () const { return m_address_space; }
 
-  amd_dbgapi_status_t get_info (amd_dbgapi_address_class_info_t query,
-                                size_t value_size, void *value) const;
+  void get_info (amd_dbgapi_address_class_info_t query, size_t value_size,
+                 void *value) const;
 
   const architecture_t &architecture () const { return m_architecture; }
 

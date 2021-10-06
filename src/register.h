@@ -251,8 +251,8 @@ public:
   bool contains (amdgpu_regnum_t regnum) const;
   std::set<amdgpu_regnum_t> register_set () const;
 
-  amd_dbgapi_status_t get_info (amd_dbgapi_register_class_info_t query,
-                                size_t value_size, void *value) const;
+  void get_info (amd_dbgapi_register_class_info_t query, size_t value_size,
+                 void *value) const;
 
   const architecture_t &architecture () const { return m_architecture; }
 

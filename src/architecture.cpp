@@ -3122,21 +3122,14 @@ gfx9_architecture_t::dispatch_packet_address (
 {
   static constexpr uint64_t aql_packet_size = 64;
 
-  amd_dbgapi_global_address_t packets_address;
-  amd_dbgapi_status_t status = cwsr_record.queue ().get_info (
-    AMD_DBGAPI_QUEUE_INFO_ADDRESS, sizeof (packets_address), &packets_address);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    fatal_error ("Could not get the queue address (rc=%d)", status);
-
   const amd_dbgapi_global_address_t ttmp6_address
     = cwsr_record.register_address (amdgpu_regnum_t::ttmp6).value ();
 
   uint32_t ttmp6;
   cwsr_record.process ().read_global_memory (ttmp6_address, &ttmp6);
 
-  amd_dbgapi_os_queue_packet_id_t os_queue_packet_id
-    = ttmp6_queue_packet_id (ttmp6);
-  return packets_address + (os_queue_packet_id * aql_packet_size);
+  return cwsr_record.queue ().address ()
+         + (ttmp6_queue_packet_id (ttmp6) * aql_packet_size);
 }
 
 std::pair<amd_dbgapi_size_t /* offset  */, amd_dbgapi_size_t /* size  */>
@@ -4624,41 +4617,47 @@ architecture_t::is_register_available (amdgpu_regnum_t regnum) const
   return false;
 }
 
-amd_dbgapi_status_t
+void
 architecture_t::get_info (amd_dbgapi_architecture_info_t query,
                           size_t value_size, void *value) const
 {
   switch (query)
     {
     case AMD_DBGAPI_ARCHITECTURE_INFO_NAME:
-      return utils::get_info (value_size, value, m_target_triple);
+      utils::get_info (value_size, value, m_target_triple);
+      return;
 
     case AMD_DBGAPI_ARCHITECTURE_INFO_ELF_AMDGPU_MACHINE:
-      return utils::get_info (value_size, value, elf_amdgpu_machine ());
+      utils::get_info (value_size, value, elf_amdgpu_machine ());
+      return;
 
     case AMD_DBGAPI_ARCHITECTURE_INFO_LARGEST_INSTRUCTION_SIZE:
-      return utils::get_info (value_size, value, largest_instruction_size ());
+      utils::get_info (value_size, value, largest_instruction_size ());
+      return;
 
     case AMD_DBGAPI_ARCHITECTURE_INFO_MINIMUM_INSTRUCTION_ALIGNMENT:
-      return utils::get_info (value_size, value,
-                              minimum_instruction_alignment ());
+      utils::get_info (value_size, value, minimum_instruction_alignment ());
+      return;
 
     case AMD_DBGAPI_ARCHITECTURE_INFO_BREAKPOINT_INSTRUCTION_SIZE:
-      return utils::get_info (value_size, value,
-                              breakpoint_instruction ().size ());
+      utils::get_info (value_size, value, breakpoint_instruction ().size ());
+      return;
 
     case AMD_DBGAPI_ARCHITECTURE_INFO_BREAKPOINT_INSTRUCTION:
-      return utils::get_info (value_size, value, breakpoint_instruction ());
+      utils::get_info (value_size, value, breakpoint_instruction ());
+      return;
 
     case AMD_DBGAPI_ARCHITECTURE_INFO_BREAKPOINT_INSTRUCTION_PC_ADJUST:
-      return utils::get_info (value_size, value,
-                              breakpoint_instruction_pc_adjust ());
+      utils::get_info (value_size, value, breakpoint_instruction_pc_adjust ());
+      return;
 
     case AMD_DBGAPI_ARCHITECTURE_INFO_PC_REGISTER:
-      return utils::get_info (value_size, value,
-                              regnum_to_register_id (amdgpu_regnum_t::pc));
+      utils::get_info (value_size, value,
+                       regnum_to_register_id (amdgpu_regnum_t::pc));
+      return;
     }
-  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
+  throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 }
 
 template <typename Architecture, typename... Args>
@@ -4738,16 +4737,22 @@ amd_dbgapi_architecture_get_info (amd_dbgapi_architecture_id_t architecture_id,
   TRY;
 
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   const architecture_t *architecture = architecture_t::find (architecture_id);
 
   if (!architecture)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID;
+    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID);
 
-  return architecture->get_info (query, value_size, value);
+  architecture->get_info (query, value_size, value);
 
-  CATCH ();
+  return AMD_DBGAPI_STATUS_SUCCESS;
+
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY,
+         AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
   TRACE_END (make_query_ref (query, param_out (value)));
 }
 

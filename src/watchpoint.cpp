@@ -30,17 +30,18 @@
 namespace amd::dbgapi
 {
 
-amd_dbgapi_status_t
+void
 watchpoint_t::get_info (amd_dbgapi_watchpoint_info_t query, size_t value_size,
                         void *value) const
 {
   switch (query)
     {
     case AMD_DBGAPI_WATCHPOINT_INFO_PROCESS:
-      return utils::get_info (value_size, value, process ().id ());
+      utils::get_info (value_size, value, process ().id ());
+      return;
     }
 
-  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+  throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 }
 
 } /* namespace amd::dbgapi */
@@ -143,15 +144,21 @@ amd_dbgapi_watchpoint_get_info (amd_dbgapi_watchpoint_id_t watchpoint_id,
   TRY;
 
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   watchpoint_t *watchpoint = find (watchpoint_id);
 
   if (!watchpoint)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID;
+    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID);
 
-  return watchpoint->get_info (query, value_size, value);
+  watchpoint->get_info (query, value_size, value);
 
-  CATCH ();
+  return AMD_DBGAPI_STATUS_SUCCESS;
+
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY,
+         AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
   TRACE_END (make_query_ref (query, param_out (value)));
 }

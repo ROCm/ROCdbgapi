@@ -31,22 +31,26 @@
 namespace amd::dbgapi
 {
 
-amd_dbgapi_status_t
+void
 code_object_t::get_info (amd_dbgapi_code_object_info_t query,
                          size_t value_size, void *value) const
 {
   switch (query)
     {
     case AMD_DBGAPI_CODE_OBJECT_INFO_PROCESS:
-      return utils::get_info (value_size, value, process ().id ());
+      utils::get_info (value_size, value, process ().id ());
+      return;
 
     case AMD_DBGAPI_CODE_OBJECT_INFO_URI_NAME:
-      return utils::get_info (value_size, value, m_uri);
+      utils::get_info (value_size, value, m_uri);
+      return;
 
     case AMD_DBGAPI_CODE_OBJECT_INFO_LOAD_ADDRESS:
-      return utils::get_info (value_size, value, m_load_address);
+      utils::get_info (value_size, value, m_load_address);
+      return;
     }
-  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
+  throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 }
 
 } /* namespace amd::dbgapi */
@@ -63,16 +67,22 @@ amd_dbgapi_code_object_get_info (amd_dbgapi_code_object_id_t code_object_id,
   TRY;
 
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   code_object_t *code_object = find (code_object_id);
 
   if (!code_object)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_CODE_OBJECT_ID;
+    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_CODE_OBJECT_ID);
 
-  return code_object->get_info (query, value_size, value);
+  code_object->get_info (query, value_size, value);
 
-  CATCH ();
+  return AMD_DBGAPI_STATUS_SUCCESS;
+
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_CODE_OBJECT_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY,
+         AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
   TRACE_END (make_query_ref (query, param_out (value)));
 }
 
@@ -86,27 +96,22 @@ amd_dbgapi_process_code_object_list (
   TRY;
 
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  std::vector<process_t *> processes;
-  if (process_id != AMD_DBGAPI_PROCESS_NONE)
-    {
-      process_t *process = process_t::find (process_id);
+  std::vector<process_t *> processes = process_t::match (process_id);
 
-      if (!process)
-        return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
+  if (!code_objects || !code_object_count)
+    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-      processes.emplace_back (process);
-    }
-  else
-    {
-      for (auto &&process : process_t::all ())
-        processes.emplace_back (&process);
-    }
+  std::tie (*code_objects, *code_object_count)
+    = utils::get_handle_list<code_object_t> (processes, changed);
 
-  return utils::get_handle_list<code_object_t> (processes, code_object_count,
-                                                code_objects, changed);
-  CATCH ();
+  return AMD_DBGAPI_STATUS_SUCCESS;
+
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
+         AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
   TRACE_END (
     make_ref (param_out (code_object_count)),
     make_ref (make_ref (param_out (code_objects)), *code_object_count),

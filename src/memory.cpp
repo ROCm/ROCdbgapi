@@ -35,52 +35,64 @@
 namespace amd::dbgapi
 {
 
-amd_dbgapi_status_t
+void
 address_class_t::get_info (amd_dbgapi_address_class_info_t query,
                            size_t value_size, void *value) const
 {
   switch (query)
     {
     case AMD_DBGAPI_ADDRESS_CLASS_INFO_ARCHITECTURE:
-      return utils::get_info (value_size, value, architecture ().id ());
+      utils::get_info (value_size, value, architecture ().id ());
+      return;
 
     case AMD_DBGAPI_ADDRESS_CLASS_INFO_NAME:
-      return utils::get_info (value_size, value, name ());
+      utils::get_info (value_size, value, name ());
+      return;
 
     case AMD_DBGAPI_ADDRESS_CLASS_INFO_ADDRESS_SPACE:
-      return utils::get_info (value_size, value, m_address_space.id ());
+      utils::get_info (value_size, value, m_address_space.id ());
+      return;
 
     case AMD_DBGAPI_ADDRESS_CLASS_INFO_DWARF:
-      return utils::get_info (value_size, value, dwarf_value ());
+      utils::get_info (value_size, value, dwarf_value ());
+      return;
     }
-  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
+  throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 }
 
-amd_dbgapi_status_t
+void
 address_space_t::get_info (amd_dbgapi_address_space_info_t query,
                            size_t value_size, void *value) const
 {
   switch (query)
     {
     case AMD_DBGAPI_ADDRESS_SPACE_INFO_ARCHITECTURE:
-      return utils::get_info (value_size, value, architecture ().id ());
+      utils::get_info (value_size, value, architecture ().id ());
+      return;
 
     case AMD_DBGAPI_ADDRESS_SPACE_INFO_NAME:
-      return utils::get_info (value_size, value, name ());
+      utils::get_info (value_size, value, name ());
+      return;
 
     case AMD_DBGAPI_ADDRESS_SPACE_INFO_ADDRESS_SIZE:
-      return utils::get_info (value_size, value, m_address_size);
+      utils::get_info (value_size, value, m_address_size);
+      return;
 
     case AMD_DBGAPI_ADDRESS_SPACE_INFO_NULL_ADDRESS:
-      return utils::get_info (value_size, value, m_null_address);
+      utils::get_info (value_size, value, m_null_address);
+      return;
 
     case AMD_DBGAPI_ADDRESS_SPACE_INFO_ACCESS:
-      return utils::get_info (value_size, value, m_access);
+      utils::get_info (value_size, value, m_access);
+      return;
 
     case AMD_DBGAPI_ADDRESS_SPACE_INFO_DWARF:
-      return utils::get_info (value_size, value, dwarf_value ());
+      utils::get_info (value_size, value, dwarf_value ());
+      return;
     }
-  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
+  throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 }
 
 decltype (memory_cache_t::m_next_id) memory_cache_t::m_next_id;
@@ -206,19 +218,25 @@ amd_dbgapi_address_class_get_info (
   TRY;
 
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   const address_class_t *address_class = find (address_class_id);
 
   if (!address_class)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_CLASS_ID;
+    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_CLASS_ID);
 
   if (!value)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-  return address_class->get_info (query, value_size, value);
+  address_class->get_info (query, value_size, value);
 
-  CATCH ();
+  return AMD_DBGAPI_STATUS_SUCCESS;
+
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_CLASS_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY,
+         AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
   TRACE_END (make_query_ref (query, param_out (value)));
 }
 
@@ -310,19 +328,25 @@ amd_dbgapi_address_space_get_info (
   TRY;
 
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   const address_space_t *address_space = find (address_space_id);
 
   if (!address_space)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID;
+    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID);
 
   if (!value)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-  return address_space->get_info (query, value_size, value);
+  address_space->get_info (query, value_size, value);
 
-  CATCH ();
+  return AMD_DBGAPI_STATUS_SUCCESS;
+
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY,
+         AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
   TRACE_END (make_query_ref (query, param_out (value)));
 }
 

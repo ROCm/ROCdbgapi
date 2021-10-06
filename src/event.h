@@ -104,8 +104,8 @@ public:
   state_t state () const { return m_state; }
   void set_state (state_t state);
 
-  amd_dbgapi_status_t get_info (amd_dbgapi_event_info_t query,
-                                size_t value_size, void *value) const;
+  void get_info (amd_dbgapi_event_info_t query, size_t value_size,
+                 void *value) const;
 
   std::string pretty_printer_string () const;
 

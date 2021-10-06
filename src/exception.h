@@ -143,7 +143,6 @@ void update_process_handles (process_t *process);
     return AMD_DBGAPI_STATUS_FATAL;                                           \
   }                                                                           \
   catch (...) { return AMD_DBGAPI_STATUS_FATAL; }                             \
-  return AMD_DBGAPI_STATUS_SUCCESS;                                           \
   }
 
 #define THROW(error_code) throw amd::dbgapi::api_error_t (error_code)

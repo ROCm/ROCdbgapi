@@ -269,8 +269,8 @@ public:
                        amd_dbgapi_segment_address_t segment_address,
                        void *read, const void *write, size_t size);
 
-  amd_dbgapi_status_t get_info (amd_dbgapi_wave_info_t query,
-                                size_t value_size, void *value) const;
+  void get_info (amd_dbgapi_wave_info_t query, size_t value_size,
+                 void *value) const;
 
   const dispatch_t &dispatch () const { return m_dispatch; }
   queue_t &queue () const { return dispatch ().queue (); }

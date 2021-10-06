@@ -440,6 +440,32 @@ process_t::set_precise_memory (bool enabled)
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
+std::vector<process_t *>
+process_t::match (amd_dbgapi_process_id_t process_id)
+{
+  std::vector<process_t *> processes;
+
+  if (process_id != AMD_DBGAPI_PROCESS_NONE)
+    {
+      process_t *process = process_t::find (process_id);
+
+      if (!process)
+        throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
+
+      processes.emplace_back (process);
+    }
+  else
+    {
+      for (auto &&process : process_t::all ())
+        {
+          process.update_queues ();
+          processes.emplace_back (&process);
+        }
+    }
+
+  return processes;
+}
+
 process_t *
 process_t::find (amd_dbgapi_process_id_t process_id)
 {
@@ -1537,35 +1563,39 @@ process_t::attach ()
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
-amd_dbgapi_status_t
+void
 process_t::get_info (amd_dbgapi_process_info_t query, size_t value_size,
                      void *value) const
 {
   switch (query)
     {
     case AMD_DBGAPI_PROCESS_INFO_NOTIFIER:
-      return utils::get_info (value_size, value,
-                              m_client_notifier_pipe.read_fd ());
+      utils::get_info (value_size, value, m_client_notifier_pipe.read_fd ());
+      return;
 
     case AMD_DBGAPI_PROCESS_INFO_WATCHPOINT_COUNT:
-      return utils::get_info (value_size, value, watchpoint_count ());
+      utils::get_info (value_size, value, watchpoint_count ());
+      return;
 
     case AMD_DBGAPI_PROCESS_INFO_WATCHPOINT_SHARE:
-      return utils::get_info (value_size, value, watchpoint_shared_kind ());
+      utils::get_info (value_size, value, watchpoint_shared_kind ());
+      return;
 
     case AMD_DBGAPI_PROCESS_INFO_PRECISE_MEMORY_SUPPORTED:
-      return utils::get_info (value_size, value,
-                              m_supports_precise_memory
-                                ? AMD_DBGAPI_MEMORY_PRECISION_PRECISE
-                                : AMD_DBGAPI_MEMORY_PRECISION_NONE);
+      utils::get_info (value_size, value,
+                       m_supports_precise_memory
+                         ? AMD_DBGAPI_MEMORY_PRECISION_PRECISE
+                         : AMD_DBGAPI_MEMORY_PRECISION_NONE);
+      return;
 
     case AMD_DBGAPI_PROCESS_INFO_OS_ID:
-      return !m_os_process_id
-               ? AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE
-               : utils::get_info (value_size, value, *m_os_process_id);
+      if (!m_os_process_id)
+        throw api_error_t (AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE);
+      utils::get_info (value_size, value, *m_os_process_id);
+      return;
     }
 
-  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+  throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 }
 
 void
@@ -2219,15 +2249,22 @@ amd_dbgapi_process_get_info (amd_dbgapi_process_id_t process_id,
   TRY;
 
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   process_t *process = process_t::find (process_id);
 
   if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
+    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
-  return process->get_info (query, value_size, value);
+  process->get_info (query, value_size, value);
 
-  CATCH ();
+  return AMD_DBGAPI_STATUS_SUCCESS;
+
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY,
+         AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE,
+         AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
   TRACE_END (make_query_ref (query, param_out (value)));
 }

@@ -61,17 +61,18 @@ displaced_stepping_t::~displaced_stepping_t ()
               to_string (id ()).c_str ());
 }
 
-amd_dbgapi_status_t
+void
 displaced_stepping_t::get_info (amd_dbgapi_displaced_stepping_info_t query,
                                 size_t value_size, void *value) const
 {
   switch (query)
     {
     case AMD_DBGAPI_DISPLACED_STEPPING_INFO_PROCESS:
-      return utils::get_info (value_size, value, process ().id ());
+      utils::get_info (value_size, value, process ().id ());
+      return;
     }
 
-  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+  throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 }
 
 void
@@ -194,7 +195,7 @@ amd_dbgapi_displaced_stepping_complete (
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_code_displaced_stepping_get_info (
+amd_dbgapi_displaced_stepping_get_info (
   amd_dbgapi_displaced_stepping_id_t displaced_stepping_id,
   amd_dbgapi_displaced_stepping_info_t query, size_t value_size, void *value)
 {
@@ -203,15 +204,21 @@ amd_dbgapi_code_displaced_stepping_get_info (
   TRY;
 
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   displaced_stepping_t *displaced_stepping = find (displaced_stepping_id);
 
   if (!displaced_stepping)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_DISPLACED_STEPPING_ID;
+    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_DISPLACED_STEPPING_ID);
 
-  return displaced_stepping->get_info (query, value_size, value);
+  displaced_stepping->get_info (query, value_size, value);
 
-  CATCH ();
+  return AMD_DBGAPI_STATUS_SUCCESS;
+
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_DISPLACED_STEPPING_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY,
+         AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
   TRACE_END (make_query_ref (query, param_out (value)));
 }

@@ -57,8 +57,8 @@ public:
   amd_dbgapi_global_address_t address () const { return m_address; }
   action_callback_t action () const { return m_action; }
 
-  amd_dbgapi_status_t get_info (amd_dbgapi_breakpoint_info_t query,
-                                size_t value_size, void *value) const;
+  void get_info (amd_dbgapi_breakpoint_info_t query, size_t value_size,
+                 void *value) const;
 
   process_t &process () const { return m_process; }
 };

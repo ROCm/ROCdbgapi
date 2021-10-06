@@ -191,56 +191,63 @@ event_t::set_state (state_t state)
   m_state = state;
 }
 
-amd_dbgapi_status_t
+void
 event_t::get_info (amd_dbgapi_event_info_t query, size_t value_size,
                    void *value) const
 {
   switch (query)
     {
     case AMD_DBGAPI_EVENT_INFO_PROCESS:
-      return utils::get_info (value_size, value, process ().id ());
+      utils::get_info (value_size, value, process ().id ());
+      return;
 
     case AMD_DBGAPI_EVENT_INFO_KIND:
-      return utils::get_info (value_size, value, m_event_kind);
+      utils::get_info (value_size, value, m_event_kind);
+      return;
 
     case AMD_DBGAPI_EVENT_INFO_WAVE:
       if (kind () != AMD_DBGAPI_EVENT_KIND_WAVE_STOP
           && kind () != AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED)
-        return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+        throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-      return utils::get_info (value_size, value,
-                              std::get<wave_event_t> (m_data).wave_id);
+      utils::get_info (value_size, value,
+                       std::get<wave_event_t> (m_data).wave_id);
+      return;
 
     case AMD_DBGAPI_EVENT_INFO_BREAKPOINT:
       if (kind () != AMD_DBGAPI_EVENT_KIND_BREAKPOINT_RESUME)
-        return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+        throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-      return utils::get_info (
+      utils::get_info (
         value_size, value,
         std::get<breakpoint_resume_event_t> (m_data).breakpoint_id);
+      return;
 
     case AMD_DBGAPI_EVENT_INFO_CLIENT_THREAD:
       if (kind () != AMD_DBGAPI_EVENT_KIND_BREAKPOINT_RESUME)
-        return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+        throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-      return utils::get_info (
+      utils::get_info (
         value_size, value,
         std::get<breakpoint_resume_event_t> (m_data).client_thread_id);
+      return;
 
     case AMD_DBGAPI_EVENT_INFO_RUNTIME_STATE:
       if (kind () != AMD_DBGAPI_EVENT_KIND_RUNTIME)
-        return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+        throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-      return utils::get_info (
-        value_size, value, std::get<runtime_event_t> (m_data).runtime_state);
+      utils::get_info (value_size, value,
+                       std::get<runtime_event_t> (m_data).runtime_state);
+      return;
 
     case AMD_DBGAPI_EVENT_INFO_QUEUE:
       if (kind () != AMD_DBGAPI_EVENT_KIND_QUEUE_ERROR)
-        return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+        throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-      return AMD_DBGAPI_STATUS_ERROR_NOT_IMPLEMENTED;
+      throw api_error_t (AMD_DBGAPI_STATUS_ERROR_NOT_IMPLEMENTED);
     }
-  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
+  throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 }
 
 } /* namespace amd::dbgapi */
@@ -307,16 +314,22 @@ amd_dbgapi_event_get_info (amd_dbgapi_event_id_t event_id,
   TRY;
 
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   event_t *event = find (event_id);
 
   if (!event || event->state () < event_t::state_t::reported)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID;
+    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID);
 
-  return event->get_info (query, value_size, value);
+  event->get_info (query, value_size, value);
 
-  CATCH ();
+  return AMD_DBGAPI_STATUS_SUCCESS;
+
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY,
+         AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
   TRACE_END (make_query_ref (query, param_out (value)));
 }
 

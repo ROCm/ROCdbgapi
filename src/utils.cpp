@@ -101,92 +101,84 @@ static_assert (
 } /* namespace detail */
 
 template <>
-amd_dbgapi_status_t
+void
 get_info (size_t value_size, void *ret, const std::string &value)
 {
   char *retval;
 
   if (!ret)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+    throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
   if (value_size != sizeof (retval))
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
+    throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
   const size_t size = value.size ();
   retval = static_cast<char *> (amd::dbgapi::allocate_memory (size + 1));
   if (!retval)
-    return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
+    throw api_error_t (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
 
   value.copy (retval, size);
   retval[size] = '\0';
 
   *static_cast<decltype (retval) *> (ret) = retval;
-  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 template <>
-amd_dbgapi_status_t
+void
 get_info (size_t value_size, void *ret, const instruction_t &value)
 {
   uint8_t *retval;
 
   if (!ret)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+    throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
   if (value_size != sizeof (retval))
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
+    throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
   const size_t size = value.size ();
   retval = static_cast<uint8_t *> (amd::dbgapi::allocate_memory (size));
   if (size && !retval)
-    return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
+    throw api_error_t (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
 
   memcpy (retval, value.data (), size);
 
   *static_cast<uint8_t **> (ret) = retval;
-  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 template <typename T>
-amd_dbgapi_status_t
+void
 get_info (size_t value_size, void *ret, const std::vector<T> &value)
 {
   T *retval;
 
   if (!ret)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+    throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
   if (value_size != sizeof (retval))
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
+    throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
   const size_t size = sizeof (T) * value.size ();
   retval = static_cast<T *> (amd::dbgapi::allocate_memory (size));
   if (size && !retval)
-    return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
+    throw api_error_t (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
 
   memcpy (retval, value.data (), size);
 
   *static_cast<decltype (retval) *> (ret) = retval;
-  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
-template amd_dbgapi_status_t
-get_info (size_t value_size, void *ret,
-          const std::vector<amd_dbgapi_watchpoint_id_t> &value);
+template void get_info (size_t value_size, void *ret,
+                        const std::vector<amd_dbgapi_watchpoint_id_t> &value);
 
-template amd_dbgapi_status_t get_info (size_t value_size, void *ret,
-                                       const std::vector<uint8_t> &value);
+template void get_info (size_t value_size, void *ret,
+                        const std::vector<uint8_t> &value);
 
 template <typename Object>
-amd_dbgapi_status_t
+std::pair<typename Object::handle_type * /* objects */, size_t /* count */>
 get_handle_list (const std::vector<process_t *> &processes,
-                 size_t *object_count, typename Object::handle_type **objects,
                  amd_dbgapi_changed_t *changed)
 {
   using Handle = typename Object::handle_type;
-
-  if (!objects || !object_count)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   /* Check whether the Objects have changed since the last time get_handle_list
      was called. The flag is set whenever objects are created, or destroyed, or
@@ -200,10 +192,8 @@ get_handle_list (const std::vector<process_t *> &processes,
 
       if (!one_changed)
         {
-          *objects = nullptr;
-          *object_count = 0;
           *changed = AMD_DBGAPI_CHANGED_NO;
-          return AMD_DBGAPI_STATUS_SUCCESS;
+          return { nullptr, 0 };
         }
     }
 
@@ -218,7 +208,7 @@ get_handle_list (const std::vector<process_t *> &processes,
    */
   retval = static_cast<Handle *> (allocate_memory (count * sizeof (Handle)));
   if (count && !retval)
-    return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
+    throw api_error_t (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
 
   size_t pos{ 0 };
   for (auto &&process : processes)
@@ -231,34 +221,32 @@ get_handle_list (const std::vector<process_t *> &processes,
         retval[pos++] = object.id ();
       }
 
-  *objects = retval;
-  *object_count = count;
-
   if (changed)
     *changed = AMD_DBGAPI_CHANGED_YES;
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+  return { retval, count };
 }
 
-template amd_dbgapi_status_t get_handle_list<code_object_t> (
-  const std::vector<process_t *> &processes, size_t *object_count,
-  amd_dbgapi_code_object_id_t **objects, amd_dbgapi_changed_t *changed);
+template std::pair<amd_dbgapi_code_object_id_t * /* objects */,
+                   size_t /* count */>
+get_handle_list<code_object_t> (const std::vector<process_t *> &processes,
+                                amd_dbgapi_changed_t *changed);
 
-template amd_dbgapi_status_t get_handle_list<agent_t> (
-  const std::vector<process_t *> &processes, size_t *object_count,
-  amd_dbgapi_agent_id_t **objects, amd_dbgapi_changed_t *changed);
+template std::pair<amd_dbgapi_agent_id_t * /* objects */, size_t /* count */>
+get_handle_list<agent_t> (const std::vector<process_t *> &processes,
+                          amd_dbgapi_changed_t *changed);
 
-template amd_dbgapi_status_t get_handle_list<queue_t> (
-  const std::vector<process_t *> &processes, size_t *object_count,
-  amd_dbgapi_queue_id_t **objects, amd_dbgapi_changed_t *changed);
+template std::pair<amd_dbgapi_queue_id_t * /* objects */, size_t /* count */>
+get_handle_list<queue_t> (const std::vector<process_t *> &processes,
+                          amd_dbgapi_changed_t *changed);
 
-template amd_dbgapi_status_t get_handle_list<dispatch_t> (
-  const std::vector<process_t *> &processes, size_t *object_count,
-  amd_dbgapi_dispatch_id_t **objects, amd_dbgapi_changed_t *changed);
+template std::pair<amd_dbgapi_dispatch_id_t * /* objects */,
+                   size_t /* count */>
+get_handle_list<dispatch_t> (const std::vector<process_t *> &processes,
+                             amd_dbgapi_changed_t *changed);
 
-template amd_dbgapi_status_t
+template std::pair<amd_dbgapi_wave_id_t * /* objects */, size_t /* count */>
 get_handle_list<wave_t> (const std::vector<process_t *> &processes,
-                         size_t *object_count, amd_dbgapi_wave_id_t **objects,
                          amd_dbgapi_changed_t *changed);
 
 } /* namespace utils */

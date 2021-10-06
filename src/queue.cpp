@@ -836,40 +836,60 @@ queue_t::set_state (state_t state)
     }
 }
 
-amd_dbgapi_status_t
+amd_dbgapi_global_address_t
+queue_t::address () const
+{
+  return m_impl->packets_address ();
+}
+
+amd_dbgapi_size_t
+queue_t::size () const
+{
+  return m_impl->packets_size ();
+}
+
+void
 queue_t::get_info (amd_dbgapi_queue_info_t query, size_t value_size,
                    void *value) const
 {
   switch (query)
     {
     case AMD_DBGAPI_QUEUE_INFO_AGENT:
-      return utils::get_info (value_size, value, agent ().id ());
+      utils::get_info (value_size, value, agent ().id ());
+      return;
 
     case AMD_DBGAPI_QUEUE_INFO_PROCESS:
-      return utils::get_info (value_size, value, process ().id ());
+      utils::get_info (value_size, value, process ().id ());
+      return;
 
     case AMD_DBGAPI_QUEUE_INFO_ARCHITECTURE:
-      return utils::get_info (value_size, value, architecture ().id ());
+      utils::get_info (value_size, value, architecture ().id ());
+      return;
 
     case AMD_DBGAPI_QUEUE_INFO_TYPE:
-      return utils::get_info (value_size, value, m_impl->type ());
+      utils::get_info (value_size, value, m_impl->type ());
+      return;
 
     case AMD_DBGAPI_QUEUE_INFO_OS_ID:
-      return utils::get_info (
+      utils::get_info (
         value_size, value,
         static_cast<amd_dbgapi_os_queue_id_t> (m_impl->os_queue_id ()));
+      return;
 
     case AMD_DBGAPI_QUEUE_INFO_ADDRESS:
-      return utils::get_info (value_size, value, m_impl->packets_address ());
+      utils::get_info (value_size, value, address ());
+      return;
 
     case AMD_DBGAPI_QUEUE_INFO_SIZE:
-      return utils::get_info (value_size, value, m_impl->packets_size ());
+      utils::get_info (value_size, value, size ());
+      return;
 
     case AMD_DBGAPI_QUEUE_INFO_STATE:
     case AMD_DBGAPI_QUEUE_INFO_ERROR_REASON:
-      return AMD_DBGAPI_STATUS_ERROR_NOT_IMPLEMENTED;
+      throw api_error_t (AMD_DBGAPI_STATUS_ERROR_NOT_IMPLEMENTED);
     }
-  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
+  throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 }
 
 scoped_queue_suspend_t::scoped_queue_suspend_t (queue_t &queue,
@@ -959,16 +979,22 @@ amd_dbgapi_queue_get_info (amd_dbgapi_queue_id_t queue_id,
   TRY;
 
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   queue_t *queue = find (queue_id);
 
   if (!queue)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_QUEUE_ID;
+    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_QUEUE_ID);
 
-  return queue->get_info (query, value_size, value);
+  queue->get_info (query, value_size, value);
 
-  CATCH ();
+  return AMD_DBGAPI_STATUS_SUCCESS;
+
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_QUEUE_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY,
+         AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
   TRACE_END (make_query_ref (query, param_out (value)));
 }
 
@@ -983,31 +1009,25 @@ amd_dbgapi_process_queue_list (amd_dbgapi_process_id_t process_id,
   TRY;
 
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  std::vector<process_t *> processes;
-  if (process_id != AMD_DBGAPI_PROCESS_NONE)
-    {
-      process_t *process = process_t::find (process_id);
+  std::vector<process_t *> processes = process_t::match (process_id);
 
-      if (!process)
-        return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
+  if (!queues || !queue_count)
+    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-      process->update_queues ();
-      processes.emplace_back (process);
-    }
-  else
-    {
-      for (auto &&process : process_t::all ())
-        {
-          process.update_queues ();
-          processes.emplace_back (&process);
-        }
-    }
+  for (auto &&process : processes)
+    process->update_queues ();
 
-  return utils::get_handle_list<queue_t> (processes, queue_count, queues,
-                                          changed);
-  CATCH ();
+  std::tie (*queues, *queue_count)
+    = utils::get_handle_list<queue_t> (processes, changed);
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
+         AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
   TRACE_END (make_ref (param_out (queue_count)),
              make_ref (make_ref (param_out (queues)), *queue_count),
              make_ref (param_out (changed)));
