@@ -37,7 +37,7 @@ class breakpoint_t : public detail::handle_object<amd_dbgapi_breakpoint_id_t>
 private:
   using action_callback_t
     = std::function<void (breakpoint_t &, amd_dbgapi_client_thread_id_t,
-    amd_dbgapi_breakpoint_action_t *)>;
+                          amd_dbgapi_breakpoint_action_t *)>;
 
   bool m_inserted{ false };
 

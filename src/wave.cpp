@@ -1047,29 +1047,29 @@ amd_dbgapi_wave_stop (amd_dbgapi_wave_id_t wave_id)
   TRACE_BEGIN (param_in (wave_id));
   TRY
   {
-  if (!detail::is_initialized)
+    if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  wave_t *wave = find (wave_id);
+    wave_t *wave = find (wave_id);
 
-  if (!wave)
+    if (!wave)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
-  if (wave->client_visible_state () == AMD_DBGAPI_WAVE_STATE_STOP)
+    if (wave->client_visible_state () == AMD_DBGAPI_WAVE_STATE_STOP)
       THROW (AMD_DBGAPI_STATUS_ERROR_WAVE_STOPPED);
 
-  if (wave->stop_requested ())
+    if (wave->stop_requested ())
       THROW (AMD_DBGAPI_STATUS_ERROR_WAVE_OUTSTANDING_STOP);
 
-  scoped_queue_suspend_t suspend (wave->queue (), "stop wave");
+    scoped_queue_suspend_t suspend (wave->queue (), "stop wave");
 
-  /* Look for the wave_id again, the wave may have exited.  */
-  if (!(wave = find (wave_id)))
+    /* Look for the wave_id again, the wave may have exited.  */
+    if (!(wave = find (wave_id)))
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
-  wave->set_state (AMD_DBGAPI_WAVE_STATE_STOP);
+    wave->set_state (AMD_DBGAPI_WAVE_STATE_STOP);
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID,
@@ -1087,51 +1087,51 @@ amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
                param_in (exceptions));
   TRY
   {
-  if (!detail::is_initialized)
+    if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  wave_t *wave = find (wave_id);
+    wave_t *wave = find (wave_id);
 
-  if (!wave)
+    if (!wave)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
-  if (resume_mode != AMD_DBGAPI_RESUME_MODE_NORMAL
-      && resume_mode != AMD_DBGAPI_RESUME_MODE_SINGLE_STEP)
+    if (resume_mode != AMD_DBGAPI_RESUME_MODE_NORMAL
+        && resume_mode != AMD_DBGAPI_RESUME_MODE_SINGLE_STEP)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-  if ((exceptions
-       & ~(AMD_DBGAPI_EXCEPTION_WAVE_ABORT | AMD_DBGAPI_EXCEPTION_WAVE_TRAP
-           | AMD_DBGAPI_EXCEPTION_WAVE_MATH_ERROR
-           | AMD_DBGAPI_EXCEPTION_WAVE_ILLEGAL_INSTRUCTION
-           | AMD_DBGAPI_EXCEPTION_WAVE_MEMORY_VIOLATION
-           | AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION))
-      != AMD_DBGAPI_EXCEPTION_NONE)
+    if ((exceptions
+         & ~(AMD_DBGAPI_EXCEPTION_WAVE_ABORT | AMD_DBGAPI_EXCEPTION_WAVE_TRAP
+             | AMD_DBGAPI_EXCEPTION_WAVE_MATH_ERROR
+             | AMD_DBGAPI_EXCEPTION_WAVE_ILLEGAL_INSTRUCTION
+             | AMD_DBGAPI_EXCEPTION_WAVE_MEMORY_VIOLATION
+             | AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION))
+        != AMD_DBGAPI_EXCEPTION_NONE)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-  if (wave->client_visible_state () != AMD_DBGAPI_WAVE_STATE_STOP)
+    if (wave->client_visible_state () != AMD_DBGAPI_WAVE_STATE_STOP)
       THROW (AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED);
 
-  /* The wave is not resumable if the stop event is not yet processed.  */
-  if (const event_t *event = wave->last_stop_event ();
-      event && event->state () < event_t::state_t::processed)
+    /* The wave is not resumable if the stop event is not yet processed.  */
+    if (const event_t *event = wave->last_stop_event ();
+        event && event->state () < event_t::state_t::processed)
       THROW (AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_RESUMABLE);
 
-  if (wave->displaced_stepping ()
-      && resume_mode != AMD_DBGAPI_RESUME_MODE_SINGLE_STEP)
+    if (wave->displaced_stepping ()
+        && resume_mode != AMD_DBGAPI_RESUME_MODE_SINGLE_STEP)
       THROW (AMD_DBGAPI_STATUS_ERROR_RESUME_DISPLACED_STEPPING);
 
-  scoped_queue_suspend_t suspend (wave->queue (), "resume wave");
+    scoped_queue_suspend_t suspend (wave->queue (), "resume wave");
 
-  /* Look for the wave_id again, the wave may have exited.  */
-  if (!(wave = find (wave_id)))
+    /* Look for the wave_id again, the wave may have exited.  */
+    if (!(wave = find (wave_id)))
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
-  wave->set_state (resume_mode == AMD_DBGAPI_RESUME_MODE_SINGLE_STEP
-                     ? AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
-                     : AMD_DBGAPI_WAVE_STATE_RUN,
-                   exceptions);
+    wave->set_state (resume_mode == AMD_DBGAPI_RESUME_MODE_SINGLE_STEP
+                       ? AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
+                       : AMD_DBGAPI_WAVE_STATE_RUN,
+                     exceptions);
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID,
@@ -1151,29 +1151,29 @@ amd_dbgapi_wave_get_info (amd_dbgapi_wave_id_t wave_id,
                param_in (value));
   TRY
   {
-  if (!detail::is_initialized)
-    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
+    if (!detail::is_initialized)
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  wave_t *wave = find (wave_id);
+    wave_t *wave = find (wave_id);
 
-  if (!wave)
-    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
+    if (!wave)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
-  switch (query)
-    {
-    case AMD_DBGAPI_WAVE_INFO_STOP_REASON:
-    case AMD_DBGAPI_WAVE_INFO_PC:
-    case AMD_DBGAPI_WAVE_INFO_EXEC_MASK:
-    case AMD_DBGAPI_WAVE_INFO_WATCHPOINTS:
-      if (wave->client_visible_state () != AMD_DBGAPI_WAVE_STATE_STOP)
-        THROW (AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED);
-    default:
-      break;
-    };
+    switch (query)
+      {
+      case AMD_DBGAPI_WAVE_INFO_STOP_REASON:
+      case AMD_DBGAPI_WAVE_INFO_PC:
+      case AMD_DBGAPI_WAVE_INFO_EXEC_MASK:
+      case AMD_DBGAPI_WAVE_INFO_WATCHPOINTS:
+        if (wave->client_visible_state () != AMD_DBGAPI_WAVE_STATE_STOP)
+          THROW (AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED);
+      default:
+        break;
+      };
 
-  wave->get_info (query, value_size, value);
+    wave->get_info (query, value_size, value);
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID,
@@ -1194,47 +1194,47 @@ amd_dbgapi_process_wave_list (amd_dbgapi_process_id_t process_id,
                param_in (changed));
   TRY
   {
-  if (!detail::is_initialized)
-    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
+    if (!detail::is_initialized)
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  std::vector<process_t *> processes = process_t::match (process_id);
+    std::vector<process_t *> processes = process_t::match (process_id);
 
-  if (!waves || !wave_count)
-    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
+    if (!waves || !wave_count)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-  std::vector<std::pair<process_t *, std::vector<queue_t *>>>
-    queues_needing_resume;
+    std::vector<std::pair<process_t *, std::vector<queue_t *>>>
+      queues_needing_resume;
 
-  for (auto &&process : processes)
-    {
-      process->update_queues ();
+    for (auto &&process : processes)
+      {
+        process->update_queues ();
 
-      std::vector<queue_t *> queues;
-      for (auto &&queue : process->range<queue_t> ())
-        if (!queue.is_suspended ())
-          queues.emplace_back (&queue);
+        std::vector<queue_t *> queues;
+        for (auto &&queue : process->range<queue_t> ())
+          if (!queue.is_suspended ())
+            queues.emplace_back (&queue);
 
-      process->suspend_queues (queues, "refresh wave list");
+        process->suspend_queues (queues, "refresh wave list");
 
-      if (process->forward_progress_needed ())
-        queues_needing_resume.emplace_back (process, std::move (queues));
-    }
+        if (process->forward_progress_needed ())
+          queues_needing_resume.emplace_back (process, std::move (queues));
+      }
 
-  amd_dbgapi_changed_t wave_list_changed;
-  auto wave_list = utils::get_handle_list<wave_t> (
-    processes, changed ? &wave_list_changed : nullptr);
+    amd_dbgapi_changed_t wave_list_changed;
+    auto wave_list = utils::get_handle_list<wave_t> (
+      processes, changed ? &wave_list_changed : nullptr);
 
-  auto deallocate_wave_list = utils::make_scope_fail (
-    [&] () { amd::dbgapi::deallocate_memory (waves); });
+    auto deallocate_wave_list = utils::make_scope_fail (
+      [&] () { amd::dbgapi::deallocate_memory (waves); });
 
-  for (auto &&[process, queues] : queues_needing_resume)
-    process->resume_queues (queues, "refresh wave list");
+    for (auto &&[process, queues] : queues_needing_resume)
+      process->resume_queues (queues, "refresh wave list");
 
-  std::tie (*waves, *wave_count) = wave_list;
-  if (changed)
-    *changed = wave_list_changed;
+    std::tie (*waves, *wave_count) = wave_list;
+    if (changed)
+      *changed = wave_list_changed;
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,

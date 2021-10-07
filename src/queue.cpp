@@ -153,12 +153,12 @@ public:
   ~aql_queue_impl_t () override;
 
   void active_packets_info (amd_dbgapi_os_queue_packet_id_t *read_packet_id_p,
-                       amd_dbgapi_os_queue_packet_id_t *write_packet_id_p,
-                       size_t *packets_byte_size_p) const override;
+                            amd_dbgapi_os_queue_packet_id_t *write_packet_id_p,
+                            size_t *packets_byte_size_p) const override;
 
   void active_packets_bytes (amd_dbgapi_os_queue_packet_id_t read_packet_id,
-                        amd_dbgapi_os_queue_packet_id_t write_packet_id,
-                        void *memory, size_t memory_size) const override;
+                             amd_dbgapi_os_queue_packet_id_t write_packet_id,
+                             void *memory, size_t memory_size) const override;
 
   amd_dbgapi_os_queue_type_t type () const override;
 
@@ -784,7 +784,7 @@ queue_t::active_packets_info (
   size_t *packets_byte_size_p) const
 {
   m_impl->active_packets_info (read_packet_id_p, write_packet_id_p,
-                                      packets_byte_size_p);
+                               packets_byte_size_p);
 }
 
 void
@@ -793,7 +793,7 @@ queue_t::active_packets_bytes (amd_dbgapi_os_queue_packet_id_t read_packet_id,
                                void *memory, size_t memory_size) const
 {
   m_impl->active_packets_bytes (read_packet_id, write_packet_id, memory,
-                                       memory_size);
+                                memory_size);
 }
 
 os_queue_id_t
@@ -972,17 +972,17 @@ amd_dbgapi_queue_get_info (amd_dbgapi_queue_id_t queue_id,
                param_in (value));
   TRY
   {
-  if (!detail::is_initialized)
-    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
+    if (!detail::is_initialized)
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  queue_t *queue = find (queue_id);
+    queue_t *queue = find (queue_id);
 
-  if (!queue)
-    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_QUEUE_ID);
+    if (!queue)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_QUEUE_ID);
 
-  queue->get_info (query, value_size, value);
+    queue->get_info (query, value_size, value);
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_QUEUE_ID,
@@ -1002,21 +1002,21 @@ amd_dbgapi_process_queue_list (amd_dbgapi_process_id_t process_id,
                param_in (queues), param_in (changed));
   TRY
   {
-  if (!detail::is_initialized)
-    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
+    if (!detail::is_initialized)
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  std::vector<process_t *> processes = process_t::match (process_id);
+    std::vector<process_t *> processes = process_t::match (process_id);
 
-  if (!queues || !queue_count)
-    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
+    if (!queues || !queue_count)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-  for (auto &&process : processes)
-    process->update_queues ();
+    for (auto &&process : processes)
+      process->update_queues ();
 
-  std::tie (*queues, *queue_count)
-    = utils::get_handle_list<queue_t> (processes, changed);
+    std::tie (*queues, *queue_count)
+      = utils::get_handle_list<queue_t> (processes, changed);
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
@@ -1039,30 +1039,30 @@ amd_dbgapi_queue_packet_list (
                param_in (packets_bytes_p));
   TRY
   {
-  if (!detail::is_initialized)
+    if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  if (!read_packet_id_p || !write_packet_id_p || !packets_byte_size_p)
+    if (!read_packet_id_p || !write_packet_id_p || !packets_byte_size_p)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-  queue_t *queue = find (queue_id);
+    queue_t *queue = find (queue_id);
 
-  if (!queue)
+    if (!queue)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_QUEUE_ID);
 
-  scoped_queue_suspend_t suspend (*queue, "refresh packet list");
+    scoped_queue_suspend_t suspend (*queue, "refresh packet list");
 
-  amd_dbgapi_os_queue_packet_id_t read_packet_id, write_packet_id;
-  size_t memory_size;
+    amd_dbgapi_os_queue_packet_id_t read_packet_id, write_packet_id;
+    size_t memory_size;
 
     queue->active_packets_info (&read_packet_id, &write_packet_id,
                                 &memory_size);
 
-  if (packets_bytes_p)
-    {
-      void *memory = amd::dbgapi::allocate_memory (memory_size);
+    if (packets_bytes_p)
+      {
+        void *memory = amd::dbgapi::allocate_memory (memory_size);
 
-      if (memory_size && !memory)
+        if (memory_size && !memory)
           THROW (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
 
         auto deallocate_memory = utils::make_scope_fail (
@@ -1071,14 +1071,14 @@ amd_dbgapi_queue_packet_list (
         queue->active_packets_bytes (read_packet_id, write_packet_id, memory,
                                      memory_size);
 
-      *packets_bytes_p = memory;
-    }
+        *packets_bytes_p = memory;
+      }
 
-  *read_packet_id_p = read_packet_id;
-  *write_packet_id_p = write_packet_id;
-  *packets_byte_size_p = memory_size;
+    *read_packet_id_p = read_packet_id;
+    *write_packet_id_p = write_packet_id;
+    *packets_byte_size_p = memory_size;
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,

@@ -108,40 +108,40 @@ amd_dbgapi_displaced_stepping_start (
                param_in (displaced_stepping_id));
   TRY
   {
-  if (!detail::is_initialized)
+    if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  if (!saved_instruction_bytes || !displaced_stepping_id)
+    if (!saved_instruction_bytes || !displaced_stepping_id)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-  wave_t *wave = find (wave_id);
+    wave_t *wave = find (wave_id);
 
-  if (!wave)
+    if (!wave)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
-  if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
+    if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
       THROW (AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED);
 
-  /* Already displaced stepping?  */
-  if (wave->displaced_stepping ())
+    /* Already displaced stepping?  */
+    if (wave->displaced_stepping ())
       THROW (AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_ACTIVE);
 
-  /* wave_t::displaced_stepping_start writes registers, so we need the queue
-     to be suspended.  (FIXME: Can we check if the instruction is
-     simulated?)  */
+    /* wave_t::displaced_stepping_start writes registers, so we need the queue
+       to be suspended.  (FIXME: Can we check if the instruction is
+       simulated?)  */
     scoped_queue_suspend_t suspend (wave->queue (),
                                     "displaced stepping start");
 
     /* Find the wave again, after suspending the queue, to determine if the
        wave has terminated.  */
-  if (!(wave = find (wave_id)))
+    if (!(wave = find (wave_id)))
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
-  wave->displaced_stepping_start (saved_instruction_bytes);
+    wave->displaced_stepping_start (saved_instruction_bytes);
 
-  *displaced_stepping_id = wave->displaced_stepping ()->id ();
+    *displaced_stepping_id = wave->displaced_stepping ()->id ();
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID,
@@ -162,41 +162,41 @@ amd_dbgapi_displaced_stepping_complete (
   TRACE_BEGIN (param_in (wave_id), param_in (displaced_stepping_id));
   TRY
   {
-  if (!detail::is_initialized)
+    if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  wave_t *wave = find (wave_id);
+    wave_t *wave = find (wave_id);
 
-  if (!wave)
+    if (!wave)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
-  if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
+    if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
       THROW (AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED);
 
-  displaced_stepping_t *displaced_stepping = find (displaced_stepping_id);
+    displaced_stepping_t *displaced_stepping = find (displaced_stepping_id);
 
-  if (!displaced_stepping)
+    if (!displaced_stepping)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_DISPLACED_STEPPING_ID);
 
-  /* Not displaced stepping or stepping with a different displaced stepping
-     buffer?  */
-  if (wave->displaced_stepping () != displaced_stepping)
+    /* Not displaced stepping or stepping with a different displaced stepping
+       buffer?  */
+    if (wave->displaced_stepping () != displaced_stepping)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
-  /* displaced_stepping_t::complete may write uncached registers, so we need
-     the queue to be suspended.  (FIXME: Can we check if the instruction is
-     simulated?)  */
-  scoped_queue_suspend_t suspend (wave->queue (),
-                                  "displaced stepping complete");
+    /* displaced_stepping_t::complete may write uncached registers, so we need
+       the queue to be suspended.  (FIXME: Can we check if the instruction is
+       simulated?)  */
+    scoped_queue_suspend_t suspend (wave->queue (),
+                                    "displaced stepping complete");
 
     /* Find the wave again, after suspending the queue, to determine if the
        wave has terminated.  */
-  if (!(wave = find (wave_id)))
+    if (!(wave = find (wave_id)))
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
-  wave->displaced_stepping_complete ();
+    wave->displaced_stepping_complete ();
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID,
@@ -215,17 +215,17 @@ amd_dbgapi_displaced_stepping_get_info (
                param_in (value_size), param_in (value));
   TRY
   {
-  if (!detail::is_initialized)
-    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
+    if (!detail::is_initialized)
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  displaced_stepping_t *displaced_stepping = find (displaced_stepping_id);
+    displaced_stepping_t *displaced_stepping = find (displaced_stepping_id);
 
-  if (!displaced_stepping)
-    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_DISPLACED_STEPPING_ID);
+    if (!displaced_stepping)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_DISPLACED_STEPPING_ID);
 
-  displaced_stepping->get_info (query, value_size, value);
+    displaced_stepping->get_info (query, value_size, value);
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_DISPLACED_STEPPING_ID,

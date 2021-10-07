@@ -207,7 +207,7 @@ public:
   void set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode);
 
   void set_wave_launch_trap_override (os_wave_launch_trap_mask_t value,
-                                 os_wave_launch_trap_mask_t mask);
+                                      os_wave_launch_trap_mask_t mask);
 
   void set_precise_memory (bool enabled);
 
@@ -246,8 +246,8 @@ public:
   size_t watchpoint_count () const;
   amd_dbgapi_watchpoint_share_kind_t watchpoint_shared_kind () const;
   void insert_watchpoint (const watchpoint_t &watchpoint,
-                     amd_dbgapi_global_address_t *adjusted_address,
-                     amd_dbgapi_global_address_t *adjusted_size);
+                          amd_dbgapi_global_address_t *adjusted_address,
+                          amd_dbgapi_global_address_t *adjusted_size);
   void remove_watchpoint (const watchpoint_t &watchpoint);
   const watchpoint_t *find_watchpoint (os_watch_id_t os_watch_id) const;
 

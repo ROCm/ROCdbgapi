@@ -2081,36 +2081,36 @@ amd_dbgapi_process_set_progress (amd_dbgapi_process_id_t process_id,
   TRACE_BEGIN (param_in (process_id), param_in (progress));
   TRY
   {
-  if (!detail::is_initialized)
+    if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  bool forward_progress_needed;
-  switch (progress)
-    {
-    case AMD_DBGAPI_PROGRESS_NORMAL:
-      forward_progress_needed = true;
-      break;
-    case AMD_DBGAPI_PROGRESS_NO_FORWARD:
-      forward_progress_needed = false;
-      break;
-    default:
+    bool forward_progress_needed;
+    switch (progress)
+      {
+      case AMD_DBGAPI_PROGRESS_NORMAL:
+        forward_progress_needed = true;
+        break;
+      case AMD_DBGAPI_PROGRESS_NO_FORWARD:
+        forward_progress_needed = false;
+        break;
+      default:
         THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
-    }
+      }
 
-  if (process_id == AMD_DBGAPI_PROCESS_NONE)
-    {
-      for (auto &&process : process_t::all ())
-        process.set_forward_progress_needed (forward_progress_needed);
-    }
-  else
-    {
-      if (process_t *process = process_t::find (process_id); process)
-        process->set_forward_progress_needed (forward_progress_needed);
-      else
+    if (process_id == AMD_DBGAPI_PROCESS_NONE)
+      {
+        for (auto &&process : process_t::all ())
+          process.set_forward_progress_needed (forward_progress_needed);
+      }
+    else
+      {
+        if (process_t *process = process_t::find (process_id); process)
+          process->set_forward_progress_needed (forward_progress_needed);
+        else
           THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
-    }
+      }
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
@@ -2125,27 +2125,27 @@ amd_dbgapi_process_set_wave_creation (amd_dbgapi_process_id_t process_id,
   TRACE_BEGIN (param_in (process_id), param_in (creation));
   TRY
   {
-  if (!detail::is_initialized)
+    if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  process_t *process = process_t::find (process_id);
+    process_t *process = process_t::find (process_id);
 
-  if (!process)
+    if (!process)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
-  switch (creation)
-    {
-    case AMD_DBGAPI_WAVE_CREATION_NORMAL:
+    switch (creation)
+      {
+      case AMD_DBGAPI_WAVE_CREATION_NORMAL:
         process->set_wave_launch_mode (os_wave_launch_mode_t::normal);
-      break;
-    case AMD_DBGAPI_WAVE_CREATION_STOP:
+        break;
+      case AMD_DBGAPI_WAVE_CREATION_STOP:
         process->set_wave_launch_mode (os_wave_launch_mode_t::halt);
-      break;
-    default:
+        break;
+      default:
         THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
-    }
+      }
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
@@ -2160,49 +2160,49 @@ amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
   TRACE_BEGIN (param_in (client_process_id), param_in (process_id));
   TRY
   {
-  if (!detail::is_initialized)
+    if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  if (!client_process_id || !process_id)
+    if (!client_process_id || !process_id)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-  /* Return an error if the client_process_id is already attached to another
-     process instance.  */
-  if (process_t::find (client_process_id))
+    /* Return an error if the client_process_id is already attached to another
+       process instance.  */
+    if (process_t::find (client_process_id))
       THROW (AMD_DBGAPI_STATUS_ERROR_ALREADY_ATTACHED);
 
-  process_t *process;
+    process_t *process;
 
-  try
-    {
-      process = &process_t::create_process (client_process_id);
-    }
-  catch (const exception_t &)
-    {
-      /* process_t::create_process could throw a fatal error if it fails to
-         create a new os_driver instance or create a pipe for the notifier,
-         simply return an error.  */
+    try
+      {
+        process = &process_t::create_process (client_process_id);
+      }
+    catch (const exception_t &)
+      {
+        /* process_t::create_process could throw a fatal error if it fails to
+           create a new os_driver instance or create a pipe for the notifier,
+           simply return an error.  */
         THROW (AMD_DBGAPI_STATUS_ERROR);
-    }
+      }
 
     try
       {
         process->attach ();
       }
     catch (const process_exited_exception_t &)
-    {
+      {
         /* Leave the process attached in case of a process exited exception. */
       }
     catch (const api_error_t &e)
       {
         /* For all other exceptions, destroy the newly created process.  */
-      process_t::destroy_process (process);
+        process_t::destroy_process (process);
         THROW (e.code ());
-    }
+      }
 
-  *process_id = amd_dbgapi_process_id_t{ process->id () };
+    *process_id = amd_dbgapi_process_id_t{ process->id () };
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_ALREADY_ATTACHED,
@@ -2217,24 +2217,24 @@ amd_dbgapi_process_detach (amd_dbgapi_process_id_t process_id)
   TRACE_BEGIN (param_in (process_id));
   TRY
   {
-  if (!detail::is_initialized)
+    if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  process_t *process = process_t::find (process_id);
+    process_t *process = process_t::find (process_id);
 
-  if (!process)
+    if (!process)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
-  try
-    {
-      process->detach ();
-    }
-  catch (const process_exited_exception_t &)
-    {
-    }
-  process_t::destroy_process (process);
+    try
+      {
+        process->detach ();
+      }
+    catch (const process_exited_exception_t &)
+      {
+      }
+    process_t::destroy_process (process);
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
@@ -2250,17 +2250,17 @@ amd_dbgapi_process_get_info (amd_dbgapi_process_id_t process_id,
                param_in (value));
   TRY
   {
-  if (!detail::is_initialized)
-    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
+    if (!detail::is_initialized)
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  process_t *process = process_t::find (process_id);
+    process_t *process = process_t::find (process_id);
 
-  if (!process)
-    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
+    if (!process)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
-  process->get_info (query, value_size, value);
+    process->get_info (query, value_size, value);
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,

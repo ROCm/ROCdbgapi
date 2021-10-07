@@ -62,37 +62,37 @@ amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
                param_in (watchpoint_address), param_in (watchpoint_size));
   TRY
   {
-  if (!detail::is_initialized)
+    if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  process_t *process = process_t::find (process_id);
+    process_t *process = process_t::find (process_id);
 
-  if (!process)
+    if (!process)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
-  if (!size || !watchpoint_id || !watchpoint_address || !watchpoint_size)
+    if (!size || !watchpoint_id || !watchpoint_address || !watchpoint_size)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-  switch (kind)
-    {
-    case AMD_DBGAPI_WATCHPOINT_KIND_LOAD:
-    case AMD_DBGAPI_WATCHPOINT_KIND_STORE_AND_RMW:
-    case AMD_DBGAPI_WATCHPOINT_KIND_RMW:
-    case AMD_DBGAPI_WATCHPOINT_KIND_ALL:
-      break;
-    default:
+    switch (kind)
+      {
+      case AMD_DBGAPI_WATCHPOINT_KIND_LOAD:
+      case AMD_DBGAPI_WATCHPOINT_KIND_STORE_AND_RMW:
+      case AMD_DBGAPI_WATCHPOINT_KIND_RMW:
+      case AMD_DBGAPI_WATCHPOINT_KIND_ALL:
+        break;
+      default:
         THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
-    }
+      }
 
-  watchpoint_t &watchpoint
-    = process->create<watchpoint_t> (*process, address, size, kind);
+    watchpoint_t &watchpoint
+      = process->create<watchpoint_t> (*process, address, size, kind);
     auto destroy_watchpoint
       = utils::make_scope_fail ([&] () { process->destroy (&watchpoint); });
 
     process->insert_watchpoint (watchpoint, watchpoint_address,
                                 watchpoint_size);
 
-  *watchpoint_id = watchpoint.id ();
+    *watchpoint_id = watchpoint.id ();
 
     return AMD_DBGAPI_STATUS_SUCCESS;
   }
@@ -113,23 +113,23 @@ amd_dbgapi_remove_watchpoint (amd_dbgapi_process_id_t process_id,
   TRACE_BEGIN (param_in (process_id), param_in (watchpoint_id));
   TRY
   {
-  if (!detail::is_initialized)
+    if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  process_t *process = process_t::find (process_id);
+    process_t *process = process_t::find (process_id);
 
-  if (!process)
+    if (!process)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
-  watchpoint_t *watchpoint = process->find (watchpoint_id);
+    watchpoint_t *watchpoint = process->find (watchpoint_id);
 
-  if (!watchpoint)
+    if (!watchpoint)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID);
 
-  process->remove_watchpoint (*watchpoint);
-  process->destroy (watchpoint);
+    process->remove_watchpoint (*watchpoint);
+    process->destroy (watchpoint);
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
@@ -146,17 +146,17 @@ amd_dbgapi_watchpoint_get_info (amd_dbgapi_watchpoint_id_t watchpoint_id,
                param_in (value_size), param_in (value));
   TRY
   {
-  if (!detail::is_initialized)
-    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
+    if (!detail::is_initialized)
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  watchpoint_t *watchpoint = find (watchpoint_id);
+    watchpoint_t *watchpoint = find (watchpoint_id);
 
-  if (!watchpoint)
-    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID);
+    if (!watchpoint)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID);
 
-  watchpoint->get_info (query, value_size, value);
+    watchpoint->get_info (query, value_size, value);
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID,

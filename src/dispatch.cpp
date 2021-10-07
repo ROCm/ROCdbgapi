@@ -197,17 +197,17 @@ amd_dbgapi_dispatch_get_info (amd_dbgapi_dispatch_id_t dispatch_id,
                param_in (value));
   TRY
   {
-  if (!detail::is_initialized)
-    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
+    if (!detail::is_initialized)
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  dispatch_t *dispatch = find (dispatch_id);
+    dispatch_t *dispatch = find (dispatch_id);
 
-  if (!dispatch)
-    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_DISPATCH_ID);
+    if (!dispatch)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_DISPATCH_ID);
 
-  dispatch->get_info (query, value_size, value);
+    dispatch->get_info (query, value_size, value);
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_DISPATCH_ID,
@@ -227,47 +227,47 @@ amd_dbgapi_process_dispatch_list (amd_dbgapi_process_id_t process_id,
                param_in (dispatches), param_in (changed));
   TRY
   {
-  if (!detail::is_initialized)
-    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
+    if (!detail::is_initialized)
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  std::vector<process_t *> processes = process_t::match (process_id);
+    std::vector<process_t *> processes = process_t::match (process_id);
 
-  if (!dispatches || !dispatch_count)
-    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
+    if (!dispatches || !dispatch_count)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-  std::vector<std::pair<process_t *, std::vector<queue_t *>>>
-    queues_needing_resume;
+    std::vector<std::pair<process_t *, std::vector<queue_t *>>>
+      queues_needing_resume;
 
-  for (auto &&process : processes)
-    {
-      process->update_queues ();
+    for (auto &&process : processes)
+      {
+        process->update_queues ();
 
-      std::vector<queue_t *> queues;
-      for (auto &&queue : process->range<queue_t> ())
-        if (!queue.is_suspended ())
-          queues.emplace_back (&queue);
+        std::vector<queue_t *> queues;
+        for (auto &&queue : process->range<queue_t> ())
+          if (!queue.is_suspended ())
+            queues.emplace_back (&queue);
 
-      process->suspend_queues (queues, "refresh dispatch list");
+        process->suspend_queues (queues, "refresh dispatch list");
 
-      if (process->forward_progress_needed ())
-        queues_needing_resume.emplace_back (process, std::move (queues));
-    }
+        if (process->forward_progress_needed ())
+          queues_needing_resume.emplace_back (process, std::move (queues));
+      }
 
-  amd_dbgapi_changed_t dispatch_list_changed;
-  auto dispatch_list = utils::get_handle_list<dispatch_t> (
-    processes, changed ? &dispatch_list_changed : nullptr);
+    amd_dbgapi_changed_t dispatch_list_changed;
+    auto dispatch_list = utils::get_handle_list<dispatch_t> (
+      processes, changed ? &dispatch_list_changed : nullptr);
 
-  auto deallocate_dispatch_list = utils::make_scope_fail (
-    [&] () { amd::dbgapi::deallocate_memory (dispatches); });
+    auto deallocate_dispatch_list = utils::make_scope_fail (
+      [&] () { amd::dbgapi::deallocate_memory (dispatches); });
 
-  for (auto &&[process, queues] : queues_needing_resume)
-    process->resume_queues (queues, "refresh dispatch list");
+    for (auto &&[process, queues] : queues_needing_resume)
+      process->resume_queues (queues, "refresh dispatch list");
 
-  std::tie (*dispatches, *dispatch_count) = dispatch_list;
-  if (changed)
-    *changed = dispatch_list_changed;
+    std::tie (*dispatches, *dispatch_count) = dispatch_list;
+    if (changed)
+      *changed = dispatch_list_changed;
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,

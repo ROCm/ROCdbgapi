@@ -262,43 +262,43 @@ amd_dbgapi_process_next_pending_event (amd_dbgapi_process_id_t process_id,
   TRACE_BEGIN (param_in (process_id), param_in (event_id), param_in (kind));
   TRY
   {
-  if (!detail::is_initialized)
+    if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  if (!event_id || !kind)
+    if (!event_id || !kind)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-  event_t *event = nullptr;
+    event_t *event = nullptr;
 
-  if (process_id != AMD_DBGAPI_PROCESS_NONE)
-    {
-      process_t *process = process_t::find (process_id);
+    if (process_id != AMD_DBGAPI_PROCESS_NONE)
+      {
+        process_t *process = process_t::find (process_id);
 
-      if (!process)
+        if (!process)
           THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
-      event = process->next_pending_event ();
-    }
-  else
-    {
-      for (auto &&process : process_t::all ())
-        if ((event = process.next_pending_event ()))
-          break;
-    }
+        event = process->next_pending_event ();
+      }
+    else
+      {
+        for (auto &&process : process_t::all ())
+          if ((event = process.next_pending_event ()))
+            break;
+      }
 
-  if (!event)
-    {
-      *event_id = AMD_DBGAPI_EVENT_NONE;
-      *kind = AMD_DBGAPI_EVENT_KIND_NONE;
-    }
-  else
-    {
-      *event_id = event->id ();
-      *kind = event->kind ();
-      event->set_state (event_t::state_t::reported);
-    }
+    if (!event)
+      {
+        *event_id = AMD_DBGAPI_EVENT_NONE;
+        *kind = AMD_DBGAPI_EVENT_KIND_NONE;
+      }
+    else
+      {
+        *event_id = event->id ();
+        *kind = event->kind ();
+        event->set_state (event_t::state_t::reported);
+      }
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
@@ -315,17 +315,17 @@ amd_dbgapi_event_get_info (amd_dbgapi_event_id_t event_id,
                param_in (value));
   TRY
   {
-  if (!detail::is_initialized)
-    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
+    if (!detail::is_initialized)
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  event_t *event = find (event_id);
+    event_t *event = find (event_id);
 
-  if (!event || event->state () < event_t::state_t::reported)
-    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID);
+    if (!event || event->state () < event_t::state_t::reported)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID);
 
-  event->get_info (query, value_size, value);
+    event->get_info (query, value_size, value);
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID,
@@ -341,20 +341,20 @@ amd_dbgapi_event_processed (amd_dbgapi_event_id_t event_id)
   TRACE_BEGIN (param_in (event_id));
   TRY
   {
-  if (!detail::is_initialized)
+    if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  event_t *event = find (event_id);
+    event_t *event = find (event_id);
 
-  if (!event || event->state () < event_t::state_t::reported)
+    if (!event || event->state () < event_t::state_t::reported)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID);
 
-  event->set_state (event_t::state_t::processed);
+    event->set_state (event_t::state_t::processed);
 
-  /* We are done with this event, remove it from the map.  */
-  event->process ().destroy (event);
+    /* We are done with this event, remove it from the map.  */
+    event->process ().destroy (event);
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID,

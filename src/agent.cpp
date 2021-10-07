@@ -168,17 +168,17 @@ amd_dbgapi_agent_get_info (amd_dbgapi_agent_id_t agent_id,
                param_in (value));
   TRY
   {
-  if (!detail::is_initialized)
-    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
+    if (!detail::is_initialized)
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  agent_t *agent = find (agent_id);
+    agent_t *agent = find (agent_id);
 
-  if (!agent)
-    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_AGENT_ID);
+    if (!agent)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_AGENT_ID);
 
-  agent->get_info (query, value_size, value);
+    agent->get_info (query, value_size, value);
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_AGENT_ID,
@@ -199,21 +199,21 @@ amd_dbgapi_process_agent_list (amd_dbgapi_process_id_t process_id,
                param_in (agents), param_in (changed));
   TRY
   {
-  if (!detail::is_initialized)
-    THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
+    if (!detail::is_initialized)
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  std::vector<process_t *> processes = process_t::match (process_id);
+    std::vector<process_t *> processes = process_t::match (process_id);
 
-  if (!agents || !agent_count)
-    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
+    if (!agents || !agent_count)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-  for (auto &&process : processes)
-    process->update_agents ();
+    for (auto &&process : processes)
+      process->update_agents ();
 
-  std::tie (*agents, *agent_count)
-    = utils::get_handle_list<agent_t> (processes, changed);
+    std::tie (*agents, *agent_count)
+      = utils::get_handle_list<agent_t> (processes, changed);
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
