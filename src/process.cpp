@@ -48,20 +48,6 @@
 
 #include <link.h>
 
-#if defined(WITH_API_TRACING)
-
-#define TRACE_CALLBACK_BEGIN(...)                                             \
-  TRACE_BEGIN_HELPER (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "callback: ", __VA_ARGS__)
-
-#define TRACE_CALLBACK_END(...) TRACE_END_HELPER (__VA_ARGS__)
-
-#else /* !defined (WITH_API_TRACING) */
-
-#define TRACE_CALLBACK_BEGIN(...)
-#define TRACE_CALLBACK_END(...)
-
-#endif /* !defined (WITH_API_TRACING) */
-
 namespace amd::dbgapi
 {
 
@@ -2051,22 +2037,6 @@ process_t::remove_breakpoint (amd_dbgapi_breakpoint_id_t breakpoint_id)
   TRACE_CALLBACK_BEGIN (param_in (breakpoint_id));
   return detail::process_callbacks.remove_breakpoint (m_client_process_id,
                                                       breakpoint_id);
-  TRACE_CALLBACK_END ();
-}
-
-void *
-allocate_memory (size_t byte_size)
-{
-  TRACE_CALLBACK_BEGIN (byte_size);
-  return detail::process_callbacks.allocate_memory (byte_size);
-  TRACE_CALLBACK_END ();
-}
-
-void
-deallocate_memory (void *data)
-{
-  TRACE_CALLBACK_BEGIN (data);
-  detail::process_callbacks.deallocate_memory (data);
   TRACE_CALLBACK_END ();
 }
 

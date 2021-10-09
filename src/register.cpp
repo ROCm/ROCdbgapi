@@ -312,18 +312,15 @@ amd_dbgapi_architecture_register_class_list (
 
     size_t count = architecture->count<register_class_t> ();
 
-    amd_dbgapi_register_class_id_t *class_ids
-      = static_cast<amd_dbgapi_register_class_id_t *> (
-        allocate_memory (count * sizeof (amd_dbgapi_register_class_id_t)));
+    auto class_ids = allocate_memory<amd_dbgapi_register_class_id_t[]> (
+      count * sizeof (amd_dbgapi_register_class_id_t));
 
-    if (count && !class_ids)
-      THROW (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
+    size_t pos = 0;
+    for (auto &&register_class : architecture->range<register_class_t> ())
+      class_ids[pos++] = register_class.id ();
 
     *register_class_count = count;
-    *register_classes = class_ids;
-
-    for (auto &&register_class : architecture->range<register_class_t> ())
-      *class_ids++ = register_class.id ();
+    *register_classes = class_ids.release ();
 
     return AMD_DBGAPI_STATUS_SUCCESS;
   }
@@ -435,18 +432,15 @@ amd_dbgapi_architecture_register_list (
 
     auto arch_registers = architecture->register_set ();
 
-    auto *retval = static_cast<amd_dbgapi_register_id_t *> (allocate_memory (
-      arch_registers.size () * sizeof (amd_dbgapi_register_id_t)));
-
-    if (!retval)
-      THROW (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
+    auto retval = allocate_memory<amd_dbgapi_register_id_t[]> (
+      arch_registers.size () * sizeof (amd_dbgapi_register_id_t));
 
     size_t count = 0;
     for (auto it = arch_registers.begin (); it != arch_registers.end (); ++it)
       retval[count++] = architecture->regnum_to_register_id (*it);
 
     *register_count = count;
-    *registers = retval;
+    *registers = retval.release ();
 
     return AMD_DBGAPI_STATUS_SUCCESS;
   }
@@ -748,11 +742,8 @@ amd_dbgapi_wave_register_list (amd_dbgapi_wave_id_t wave_id,
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     auto architecture_registers = wave->architecture ().register_set ();
-    auto *retval = static_cast<amd_dbgapi_register_id_t *> (allocate_memory (
-      architecture_registers.size () * sizeof (amd_dbgapi_register_id_t)));
-
-    if (!retval)
-      THROW (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
+    auto retval = allocate_memory<amd_dbgapi_register_id_t[]> (
+      architecture_registers.size () * sizeof (amd_dbgapi_register_id_t));
 
     size_t count = 0;
     for (auto &&regnum : architecture_registers)
@@ -760,7 +751,7 @@ amd_dbgapi_wave_register_list (amd_dbgapi_wave_id_t wave_id,
         retval[count++] = wave->architecture ().regnum_to_register_id (regnum);
 
     *register_count = count;
-    *registers = retval;
+    *registers = retval.release ();
 
     return AMD_DBGAPI_STATUS_SUCCESS;
   }

@@ -997,20 +997,10 @@ wave_t::get_info (amd_dbgapi_wave_info_t query, size_t value_size,
 
     case AMD_DBGAPI_WAVE_INFO_WATCHPOINTS:
       {
-        amd_dbgapi_watchpoint_list_t list{};
-
         auto os_watch_ids = architecture ().triggered_watchpoints (*this);
-        list.count = os_watch_ids.size ();
 
-        list.watchpoint_ids = static_cast<amd_dbgapi_watchpoint_id_t *> (
-          amd::dbgapi::allocate_memory (
-            list.count * sizeof (amd_dbgapi_watchpoint_id_t)));
-
-        if (list.count && !list.watchpoint_ids)
-          throw api_error_t (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
-
-        auto deallocate_watchpoint_ids = utils::make_scope_fail (
-          [&] () { amd::dbgapi::deallocate_memory (list.watchpoint_ids); });
+        auto watchpoint_ids = allocate_memory<amd_dbgapi_watchpoint_id_t[]> (
+          os_watch_ids.size () * sizeof (amd_dbgapi_watchpoint_id_t));
 
         auto watchpoint_id = [this] (os_watch_id_t os_watch_id)
         {
@@ -1023,9 +1013,13 @@ wave_t::get_info (amd_dbgapi_wave_info_t query, size_t value_size,
         };
 
         std::transform (os_watch_ids.begin (), os_watch_ids.end (),
-                        list.watchpoint_ids, watchpoint_id);
+                        watchpoint_ids.get (), watchpoint_id);
 
-        utils::get_info (value_size, value, list);
+        utils::get_info (value_size, value,
+                         amd_dbgapi_watchpoint_list_t{
+                           os_watch_ids.size (), watchpoint_ids.get () });
+
+        watchpoint_ids.release ();
         return;
       }
 

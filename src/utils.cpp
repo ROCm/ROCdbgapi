@@ -104,67 +104,55 @@ template <>
 void
 get_info (size_t value_size, void *ret, const std::string &value)
 {
-  char *retval;
-
   if (!ret)
     throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-  if (value_size != sizeof (retval))
+  if (value_size != sizeof (char *))
     throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
   const size_t size = value.size ();
-  retval = static_cast<char *> (amd::dbgapi::allocate_memory (size + 1));
-  if (!retval)
-    throw api_error_t (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
+  auto retval = amd::dbgapi::allocate_memory<char[]> (size + 1);
 
-  value.copy (retval, size);
+  value.copy (retval.get (), size);
   retval[size] = '\0';
 
-  *static_cast<decltype (retval) *> (ret) = retval;
+  *static_cast<char **> (ret) = retval.release ();
 }
 
 template <>
 void
 get_info (size_t value_size, void *ret, const instruction_t &value)
 {
-  uint8_t *retval;
-
   if (!ret)
     throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-  if (value_size != sizeof (retval))
+  if (value_size != sizeof (uint8_t *))
     throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
   const size_t size = value.size ();
-  retval = static_cast<uint8_t *> (amd::dbgapi::allocate_memory (size));
-  if (size && !retval)
-    throw api_error_t (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
+  auto retval = amd::dbgapi::allocate_memory<uint8_t[]> (size);
 
-  memcpy (retval, value.data (), size);
+  memcpy (retval.get (), value.data (), size);
 
-  *static_cast<uint8_t **> (ret) = retval;
+  *static_cast<uint8_t **> (ret) = retval.release ();
 }
 
 template <typename T>
 void
 get_info (size_t value_size, void *ret, const std::vector<T> &value)
 {
-  T *retval;
-
   if (!ret)
     throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-  if (value_size != sizeof (retval))
+  if (value_size != sizeof (T *))
     throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
   const size_t size = sizeof (T) * value.size ();
-  retval = static_cast<T *> (amd::dbgapi::allocate_memory (size));
-  if (size && !retval)
-    throw api_error_t (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
+  auto retval = amd::dbgapi::allocate_memory<T[]> (size);
 
-  memcpy (retval, value.data (), size);
+  memcpy (retval.get (), value.data (), size);
 
-  *static_cast<decltype (retval) *> (ret) = retval;
+  *static_cast<T **> (ret) = retval.release ();
 }
 
 template void get_info (size_t value_size, void *ret,
@@ -201,14 +189,10 @@ get_handle_list (const std::vector<process_t *> &processes,
   for (auto &&process : processes)
     count += process->count<Object> ();
 
-  Handle *retval;
-
   /* The size allocated includes space for all objects, so it is larger than
      necessary if there are invalid objects, but that is conservatively safe.
    */
-  retval = static_cast<Handle *> (allocate_memory (count * sizeof (Handle)));
-  if (count && !retval)
-    throw api_error_t (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
+  auto retval = allocate_memory<Handle[]> (count * sizeof (Handle));
 
   size_t pos{ 0 };
   for (auto &&process : processes)
@@ -224,7 +208,7 @@ get_handle_list (const std::vector<process_t *> &processes,
   if (changed)
     *changed = AMD_DBGAPI_CHANGED_YES;
 
-  return { retval, count };
+  return { retval.release (), count };
 }
 
 template std::pair<amd_dbgapi_code_object_id_t * /* objects */,

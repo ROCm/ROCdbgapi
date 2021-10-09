@@ -262,19 +262,15 @@ amd_dbgapi_architecture_address_class_list (
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID);
 
     size_t count = architecture->count<address_class_t> ();
+    auto class_ids = allocate_memory<amd_dbgapi_address_class_id_t[]> (
+      count * sizeof (amd_dbgapi_address_class_id_t));
 
-    amd_dbgapi_address_class_id_t *class_ids
-      = static_cast<amd_dbgapi_address_class_id_t *> (
-        allocate_memory (count * sizeof (amd_dbgapi_address_class_id_t)));
-
-    if (count && !class_ids)
-      THROW (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
+    size_t pos = 0;
+    for (auto &&address_class : architecture->range<address_class_t> ())
+      class_ids[pos++] = address_class.id ();
 
     *address_class_count = count;
-    *address_classes = class_ids;
-
-    for (auto &&address_class : architecture->range<address_class_t> ())
-      *class_ids++ = address_class.id ();
+    *address_classes = class_ids.release ();
 
     return AMD_DBGAPI_STATUS_SUCCESS;
   }
@@ -380,19 +376,15 @@ amd_dbgapi_architecture_address_space_list (
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID);
 
     size_t count = architecture->count<address_space_t> ();
+    auto space_ids = allocate_memory<amd_dbgapi_address_space_id_t[]> (
+      count * sizeof (amd_dbgapi_address_space_id_t));
 
-    amd_dbgapi_address_space_id_t *space_ids
-      = static_cast<amd_dbgapi_address_space_id_t *> (
-        allocate_memory (count * sizeof (amd_dbgapi_address_space_id_t)));
-
-    if (count && !space_ids)
-      THROW (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
+    size_t pos = 0;
+    for (auto &&address_space : architecture->range<address_space_t> ())
+      space_ids[pos++] = address_space.id ();
 
     *address_space_count = count;
-    *address_spaces = space_ids;
-
-    for (auto &&address_space : architecture->range<address_space_t> ())
-      *space_ids++ = address_space.id ();
+    *address_spaces = space_ids.release ();
 
     return AMD_DBGAPI_STATUS_SUCCESS;
   }

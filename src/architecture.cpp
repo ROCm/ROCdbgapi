@@ -4858,12 +4858,10 @@ amd_dbgapi_disassemble_instruction (
 
     /* Return the instruction text in client allocated memory.  */
     size_t mem_size = instruction_str.size () + 1;
-    void *mem = allocate_memory (mem_size);
-    if (!mem)
-      THROW (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
+    auto mem = allocate_memory<char[]> (mem_size);
 
-    memcpy (mem, instruction_str.c_str (), mem_size);
-    *instruction_text = static_cast<char *> (mem);
+    memcpy (mem.get (), instruction_str.c_str (), mem_size);
+    *instruction_text = mem.release ();
     *size = instruction_size;
 
     return AMD_DBGAPI_STATUS_SUCCESS;
@@ -4923,8 +4921,8 @@ amd_dbgapi_classify_instruction (
 
     if (instruction_information_p)
       {
-        size_t mem_size
-          = information.size () * sizeof (decltype (information)::value_type);
+        using information_type = decltype (information)::value_type;
+        size_t mem_size = information.size () * sizeof (information_type);
 
         if (!mem_size)
           {
@@ -4932,12 +4930,9 @@ amd_dbgapi_classify_instruction (
           }
         else
           {
-            void *mem = allocate_memory (mem_size);
-            if (!mem)
-              THROW (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
-
-            memcpy (mem, information.data (), mem_size);
-            *instruction_information_p = mem;
+            auto mem = allocate_memory (mem_size);
+            memcpy (mem.get (), information.data (), mem_size);
+            *instruction_information_p = mem.release ();
           }
       }
 

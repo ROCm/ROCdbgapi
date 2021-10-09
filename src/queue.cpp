@@ -1060,18 +1060,12 @@ amd_dbgapi_queue_packet_list (
 
     if (packets_bytes_p)
       {
-        void *memory = amd::dbgapi::allocate_memory (memory_size);
+        auto memory = allocate_memory (memory_size);
 
-        if (memory_size && !memory)
-          THROW (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
+        queue->active_packets_bytes (read_packet_id, write_packet_id,
+                                     memory.get (), memory_size);
 
-        auto deallocate_memory = utils::make_scope_fail (
-          [&] () { amd::dbgapi::deallocate_memory (memory); });
-
-        queue->active_packets_bytes (read_packet_id, write_packet_id, memory,
-                                     memory_size);
-
-        *packets_bytes_p = memory;
+        *packets_bytes_p = memory.release ();
       }
 
     *read_packet_id_p = read_packet_id;

@@ -27,6 +27,7 @@
 
 #include <cstdarg>
 #include <cstddef>
+#include <memory>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -87,6 +88,13 @@ inline std::string
 to_string (char *v)
 {
   return to_string (const_cast<const char *> (v));
+}
+
+template <typename T, typename D>
+inline std::string
+to_string (const std::unique_ptr<T, D> &v)
+{
+  return to_string (static_cast<void *> (v.get ()));
 }
 
 namespace detail
@@ -537,18 +545,21 @@ struct tracer_closure
 {
   Result m_result;
 
-  tracer_closure (Functor &&f) : m_result (std::forward<Functor> (f) ()){};
-  Result operator() () const { return m_result; }
+  tracer_closure (Functor &&f)
+    : m_result (std::move (std::forward<Functor> (f) ())){};
+  Result &&operator() () && { return std::move (m_result); }
 
-  operator std::string () const { return to_string (m_result); }
+  bool operator== (const Result &rhs) const { return m_result == rhs; }
+
+  std::string str () const { return to_string (m_result); }
 };
 
 template <typename Functor> struct tracer_closure<Functor, void>
 {
   tracer_closure (Functor &&f) { std::forward<Functor> (f) (); }
-  void operator() () const {}
+  void operator() () && {}
 
-  operator std::string () const { return "void"; }
+  std::string str () const { return "void"; }
 };
 
 } /* namespace detail */
@@ -610,13 +621,14 @@ tracer<LogLevel>::leave (std::tuple<Args...> &&out_args,
 {
   if (m_logging_enabled)
     {
-      std::string results_str = result;
+      std::string results_str = result.str ();
 
       /* Print the outargs unless the return type is amd_dbgapi_status_t and
          the result is not AMD_DBGAPI_STATUS_SUCCESS.  */
       bool print_out_args = true;
-      if constexpr (std::is_same_v<decltype (result ()), amd_dbgapi_status_t>)
-        print_out_args = result () == AMD_DBGAPI_STATUS_SUCCESS;
+      if constexpr (std::is_same_v<decltype (std::declval<Functor> () ()),
+                                   amd_dbgapi_status_t>)
+        print_out_args = (result == AMD_DBGAPI_STATUS_SUCCESS);
 
       if (print_out_args && sizeof...(Args) != 0)
         if (auto &&out_args_str = to_string (std::move (out_args));
@@ -627,7 +639,7 @@ tracer<LogLevel>::leave (std::tuple<Args...> &&out_args,
       detail::log (LogLevel, "%s} = %s", m_prefix, results_str.c_str ());
     }
 
-  return result ();
+  return std::move (result) ();
 }
 
 #if defined(WITH_API_TRACING)
@@ -645,10 +657,17 @@ tracer<LogLevel>::leave (std::tuple<Args...> &&out_args,
 
 #define TRACE_END(...) TRACE_END_HELPER (__VA_ARGS__)
 
+#define TRACE_CALLBACK_BEGIN(...)                                             \
+  TRACE_BEGIN_HELPER (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "callback: ", __VA_ARGS__)
+
+#define TRACE_CALLBACK_END(...) TRACE_END_HELPER (__VA_ARGS__)
+
 #else /* !defined (WITH_API_TRACING) */
 
 #define TRACE_BEGIN(...)
 #define TRACE_END(...)
+#define TRACE_CALLBACK_BEGIN(...)
+#define TRACE_CALLBACK_END(...)
 
 #endif /* !defined (WITH_API_TRACING) */
 

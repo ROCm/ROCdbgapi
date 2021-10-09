@@ -455,8 +455,44 @@ process_t::is_flag_set (flag_t flag) const
   return (m_flags & flag) != 0;
 }
 
-void *allocate_memory (size_t byte_size);
-void deallocate_memory (void *data);
+namespace /* anonymous */
+{
+
+void
+deallocate_memory (void *data)
+{
+  TRACE_CALLBACK_BEGIN (data);
+  detail::process_callbacks.deallocate_memory (data);
+  TRACE_CALLBACK_END ();
+}
+
+} /* namespace anonymous */
+
+namespace detail
+{
+
+struct DeallocateMemory
+{
+  constexpr DeallocateMemory () noexcept = default;
+  void operator() (void *mem) const noexcept { deallocate_memory (mem); }
+};
+
+} /* namespace detail */
+
+template <typename T = void, typename D = detail::DeallocateMemory>
+std::unique_ptr<T, D>
+allocate_memory (size_t byte_size)
+{
+  TRACE_CALLBACK_BEGIN (byte_size);
+  void *memory = detail::process_callbacks.allocate_memory (byte_size);
+
+  if (!memory && byte_size)
+    throw api_error_t (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
+
+  return std::unique_ptr<T, D> (
+    static_cast<typename std::unique_ptr<T, D>::pointer> (memory));
+  TRACE_CALLBACK_END ();
+}
 
 } /* namespace amd::dbgapi */
 
