@@ -59,8 +59,8 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
                               const char **status_string)
 {
   TRACE_BEGIN (status, status_string);
-  TRY;
-
+  TRY
+  {
   const char *string = nullptr;
   switch (status)
     {
@@ -86,7 +86,8 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
       string = "An invalid argument was given to the function";
       break;
     case AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY:
-      string = "An invalid combination of arguments was given to the function";
+        string = "An invalid combination of arguments was given to the "
+                 "function";
       break;
     case AMD_DBGAPI_STATUS_ERROR_ALREADY_INITIALIZED:
       string = "The library is already initialized";
@@ -98,7 +99,8 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
       string = "There is a restriction that prevents debugging";
       break;
     case AMD_DBGAPI_STATUS_ERROR_ALREADY_ATTACHED:
-      string = "The process is already attached to the given inferior process";
+        string = "The process is already attached to the given inferior "
+                 "process";
       break;
     case AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID:
       string = "The architecture handle is invalid";
@@ -179,8 +181,8 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
       string = "The address space handle is invalid";
       break;
     case AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS:
-      string
-        = "An error occurred while trying to access memory in the inferior";
+        string = "An error occurred while trying to access memory in "
+                 "the inferior";
       break;
     case AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION:
       string = "The segment address cannot be converted to the "
@@ -201,16 +203,17 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
     case AMD_DBGAPI_STATUS_ERROR_SYMBOL_NOT_FOUND:
       string = "The symbol was not found";
       break;
-      /* Don't add a default here, so that we can catch at compile time when an
-          enum value is missing.  */
+        /* Don't add a default here, so that we can catch at compile time when
+           an enum value is missing.  */
     }
 
   if (!status_string || !string)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
   *status_string = string;
-  return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH ();
+    return AMD_DBGAPI_STATUS_SUCCESS;
+  }
+  CATCH (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
   TRACE_END (make_ref (status_string));
 }

@@ -198,7 +198,7 @@ protected:
   amd_comgr_disassembly_info_t disassembly_info () const;
 
 public:
-  amd_dbgapi_status_t convert_address_space (
+  void convert_address_space (
     const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
     const address_space_t &from_address_space,
     const address_space_t &to_address_space,
@@ -548,7 +548,7 @@ generic_address_for_address_space (
 
 } /* namespace */
 
-amd_dbgapi_status_t
+void
 amdgcn_architecture_t::convert_address_space (
   const wave_t &wave, amd_dbgapi_lane_id_t /* lane_id  */,
   const address_space_t &from_address_space,
@@ -562,7 +562,7 @@ amdgcn_architecture_t::convert_address_space (
   if (from_address_space.kind () == to_address_space.kind ())
     {
       *to_address = from_address;
-      return AMD_DBGAPI_STATUS_SUCCESS;
+      return;
     }
 
   if (from_address_space.kind () == address_space_t::generic)
@@ -570,35 +570,38 @@ amdgcn_architecture_t::convert_address_space (
       if (from_address == from_address_space.null_address ())
         {
           *to_address = to_address_space.null_address ();
-          return AMD_DBGAPI_STATUS_SUCCESS;
+          return;
         }
 
       /* Check that the generic from_address is compatible with the
          to_address_space.  */
       if (address_space_for_generic_address (wave, from_address).kind ()
           != to_address_space.kind ())
-        return AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION;
+        throw api_error_t (
+          AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
 
       *to_address
         = from_address
           & utils::bit_mask (0, to_address_space.address_size () - 1);
 
-      return AMD_DBGAPI_STATUS_SUCCESS;
+      return;
     }
 
   /* Other conversions from local, private or global can only be to the generic
      address space.  */
 
   if (to_address_space.kind () != address_space_t::generic)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION;
+    throw api_error_t (
+      AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
 
   auto generic_address = generic_address_for_address_space (
     wave, from_address_space, from_address);
+
   if (!generic_address)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION;
+    throw api_error_t (
+      AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
 
   *to_address = *generic_address;
-  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 void
@@ -4705,25 +4708,27 @@ amd_dbgapi_get_architecture (uint32_t elf_amdgpu_machine,
                              amd_dbgapi_architecture_id_t *architecture_id)
 {
   TRACE_BEGIN (param_in (elf_amdgpu_machine), param_in (architecture_id));
-  TRY;
-
+  TRY
+  {
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   if (!architecture_id)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
   const architecture_t *architecture = architecture_t::find (
     static_cast<elf_amdgpu_machine_t> (elf_amdgpu_machine));
 
   if (!architecture)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ELF_AMDGPU_MACHINE;
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ELF_AMDGPU_MACHINE);
 
   *architecture_id = architecture->id ();
 
   return AMD_DBGAPI_STATUS_SUCCESS;
-
-  CATCH ();
+  }
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ELF_AMDGPU_MACHINE,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
   TRACE_END (make_ref (param_out (architecture_id)));
 }
 
@@ -4734,12 +4739,13 @@ amd_dbgapi_architecture_get_info (amd_dbgapi_architecture_id_t architecture_id,
 {
   TRACE_BEGIN (param_in (architecture_id), param_in (query),
                param_in (value_size), param_in (value));
-  TRY;
-
+  TRY
+  {
   if (!detail::is_initialized)
     THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-  const architecture_t *architecture = architecture_t::find (architecture_id);
+    const architecture_t *architecture
+      = architecture_t::find (architecture_id);
 
   if (!architecture)
     THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID);
@@ -4747,7 +4753,7 @@ amd_dbgapi_architecture_get_info (amd_dbgapi_architecture_id_t architecture_id,
   architecture->get_info (query, value_size, value);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
-
+  }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
@@ -4771,33 +4777,34 @@ amd_dbgapi_disassemble_instruction (
                make_hex (make_ref (param_in (memory), size ? *size : 0)),
                param_in (instruction_text), param_in (symbolizer_id),
                param_in (symbolizer));
-  TRY;
-
+  TRY
+  {
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   if (!memory || !size || !*size)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-  const architecture_t *architecture = architecture_t::find (architecture_id);
+    const architecture_t *architecture
+      = architecture_t::find (architecture_id);
 
   if (!architecture)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID;
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID);
 
   if (utils::align_down (address,
                          architecture->minimum_instruction_alignment ())
       != address)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
   instruction_t instruction (
-    *architecture,
-    std::vector<std::byte> (static_cast<const std::byte *> (memory),
+      *architecture, std::vector<std::byte> (
+                       static_cast<const std::byte *> (memory),
                             static_cast<const std::byte *> (memory) + *size));
 
   if (!instruction_text)
     {
       if (!instruction.is_valid ())
-        return AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION;
+          THROW (AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION);
 
       *size = instruction.size ();
       return AMD_DBGAPI_STATUS_SUCCESS;
@@ -4812,7 +4819,7 @@ amd_dbgapi_disassemble_instruction (
     = architecture->disassemble_instruction (address, instruction);
 
   if (!instruction_size)
-    return AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION;
+      THROW (AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION);
 
   std::string address_operands_str;
   for (auto &&operand : address_operands)
@@ -4829,19 +4836,19 @@ amd_dbgapi_disassemble_instruction (
           if (status == AMD_DBGAPI_STATUS_SUCCESS)
             {
               if (!symbol_text)
-                return AMD_DBGAPI_STATUS_ERROR;
+                  THROW (AMD_DBGAPI_STATUS_ERROR);
 
-              const bool empty = !symbol_text[0];
-              address_operands_str += symbol_text;
-              deallocate_memory (symbol_text);
+                auto deallocate_symbol_text = utils::make_scope_exit (
+                  [&] () { deallocate_memory (symbol_text); });
 
-              if (empty)
-                return AMD_DBGAPI_STATUS_ERROR;
+                if (!symbol_text[0])
+                  THROW (AMD_DBGAPI_STATUS_ERROR);
 
+                address_operands_str += symbol_text;
               continue;
             }
           else if (status != AMD_DBGAPI_STATUS_ERROR_SYMBOL_NOT_FOUND)
-            return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
+              THROW (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
         }
 
       address_operands_str += string_printf ("%#lx", operand);
@@ -4853,15 +4860,19 @@ amd_dbgapi_disassemble_instruction (
   size_t mem_size = instruction_str.size () + 1;
   void *mem = allocate_memory (mem_size);
   if (!mem)
-    return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
+      THROW (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
 
   memcpy (mem, instruction_str.c_str (), mem_size);
   *instruction_text = static_cast<char *> (mem);
   *size = instruction_size;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
-
-  CATCH ();
+  }
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT, AMD_DBGAPI_STATUS_ERROR,
+         AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION,
+         AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
   TRACE_END (make_ref (param_out (size)),
              make_ref (param_out (instruction_text)));
 }
@@ -4880,23 +4891,24 @@ amd_dbgapi_classify_instruction (
                param_in (instruction_kind_p),
                param_in (instruction_properties_p),
                param_in (instruction_information_p));
-  TRY;
-
+  TRY
+  {
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   if (!memory || !size_p || !*size_p || !instruction_kind_p)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-  const architecture_t *architecture = architecture_t::find (architecture_id);
+    const architecture_t *architecture
+      = architecture_t::find (architecture_id);
 
   if (!architecture)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID;
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID);
 
   if (utils::align_down (address,
                          architecture->minimum_instruction_alignment ())
       != address)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
   instruction_t instruction (
     *architecture, std::vector<std::byte> (
@@ -4904,7 +4916,7 @@ amd_dbgapi_classify_instruction (
                      static_cast<const std::byte *> (memory) + *size_p));
 
   if (!instruction.is_valid ())
-    return AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION;
+      THROW (AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION);
 
   auto [kind, properties, size, information]
     = architecture->classify_instruction (address, instruction);
@@ -4922,22 +4934,26 @@ amd_dbgapi_classify_instruction (
         {
           void *mem = allocate_memory (mem_size);
           if (!mem)
-            return AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK;
+              THROW (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
 
           memcpy (mem, information.data (), mem_size);
           *instruction_information_p = mem;
         }
     }
 
-  if (instruction_properties_p)
-    *instruction_properties_p = properties;
+    if (instruction_properties_p)
+      *instruction_properties_p = properties;
 
-  *size_p = size;
-  *instruction_kind_p = kind;
+    *size_p = size;
+    *instruction_kind_p = kind;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
-
-  CATCH ();
+  }
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT, AMD_DBGAPI_STATUS_ERROR,
+         AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION,
+         AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
   TRACE_END (
     make_ref (param_out (size_p)), make_ref (param_out (instruction_kind_p)),
     make_ref (param_out (instruction_properties_p)),

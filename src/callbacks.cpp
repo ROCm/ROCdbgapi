@@ -38,21 +38,23 @@ breakpoint_t::breakpoint_t (amd_dbgapi_breakpoint_id_t breakpoint_id,
   : handle_object (breakpoint_id), m_address (address), m_action (action),
     m_process (process)
 {
-  m_inserted = m_process.insert_breakpoint (address, breakpoint_id)
-               == AMD_DBGAPI_STATUS_SUCCESS;
+  amd_dbgapi_status_t status
+    = m_process.insert_breakpoint (address, breakpoint_id);
+
+  m_inserted = (status == AMD_DBGAPI_STATUS_SUCCESS);
 
   if (!m_inserted)
-    warning ("Could not insert breakpoint at %#lx", address);
+    warning ("Could not insert breakpoint at %#lx (rc=%d)", address, status);
 }
 
 breakpoint_t::~breakpoint_t ()
 {
-  if (m_inserted)
-    {
-      amd_dbgapi_status_t status = process ().remove_breakpoint (id ());
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        warning ("remove_breakpoint failed (rc=%d)", status);
-    }
+  if (!m_inserted)
+    return;
+
+  amd_dbgapi_status_t status = process ().remove_breakpoint (id ());
+  if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    warning ("remove_breakpoint failed (rc=%d)", status);
 }
 
 void
@@ -81,22 +83,26 @@ amd_dbgapi_report_breakpoint_hit (
 {
   TRACE_BEGIN (param_in (breakpoint_id), param_in (client_thread_id),
                param_in (breakpoint_action));
-  TRY;
-
+  TRY
+  {
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   if (!breakpoint_action)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
   breakpoint_t *breakpoint = find (breakpoint_id);
 
   if (!breakpoint)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_BREAKPOINT_ID;
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_BREAKPOINT_ID);
 
-  return breakpoint->action () (*breakpoint, client_thread_id,
-                                breakpoint_action);
-  CATCH ();
+    breakpoint->action () (*breakpoint, client_thread_id, breakpoint_action);
+
+    return AMD_DBGAPI_STATUS_SUCCESS;
+  }
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_BREAKPOINT_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
   TRACE_END (make_ref (param_out (breakpoint_action)));
 }
 
@@ -107,8 +113,8 @@ amd_dbgapi_breakpoint_get_info (amd_dbgapi_breakpoint_id_t breakpoint_id,
 {
   TRACE_BEGIN (param_in (breakpoint_id), param_in (query),
                param_in (value_size), param_in (value));
-  TRY;
-
+  TRY
+  {
   if (!detail::is_initialized)
     THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
@@ -120,7 +126,7 @@ amd_dbgapi_breakpoint_get_info (amd_dbgapi_breakpoint_id_t breakpoint_id,
   breakpoint->get_info (query, value_size, value);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
-
+  }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_BREAKPOINT_ID,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,

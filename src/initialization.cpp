@@ -53,8 +53,8 @@ amd_dbgapi_initialize (struct amd_dbgapi_callbacks_s *callbacks)
   detail::process_callbacks = *callbacks;
 
   TRACE_BEGIN (callbacks);
-  TRY;
-
+  TRY
+  {
   process_t::reset_all_ids ();
   detail::is_initialized = true;
 
@@ -71,8 +71,10 @@ amd_dbgapi_initialize (struct amd_dbgapi_callbacks_s *callbacks)
     AMD_DBGAPI_BUILD_INFO);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
-
-  CATCH ();
+  }
+  CATCH (AMD_DBGAPI_STATUS_ERROR_ALREADY_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
+         AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
   TRACE_END ();
 }
 
@@ -88,10 +90,10 @@ amd_dbgapi_finalize ()
     });
 
   TRACE_BEGIN ();
-  TRY;
-
+  TRY
+  {
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   /* Detach all remaining processes.  */
   auto &&range = process_t::all ();
@@ -103,7 +105,8 @@ amd_dbgapi_finalize ()
     }
 
   return AMD_DBGAPI_STATUS_SUCCESS;
-
-  CATCH ();
+  }
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
   TRACE_END ();
 }

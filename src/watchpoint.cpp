@@ -60,18 +60,18 @@ amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
   TRACE_BEGIN (param_in (process_id), make_hex (param_in (address)),
                param_in (size), param_in (kind), param_in (watchpoint_id),
                param_in (watchpoint_address), param_in (watchpoint_size));
-  TRY;
-
+  TRY
+  {
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   process_t *process = process_t::find (process_id);
 
   if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
   if (!size || !watchpoint_id || !watchpoint_address || !watchpoint_size)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
   switch (kind)
     {
@@ -81,25 +81,26 @@ amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
     case AMD_DBGAPI_WATCHPOINT_KIND_ALL:
       break;
     default:
-      return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+        THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
     }
 
   watchpoint_t &watchpoint
     = process->create<watchpoint_t> (*process, address, size, kind);
+    auto destroy_watchpoint
+      = utils::make_scope_fail ([&] () { process->destroy (&watchpoint); });
 
-  amd_dbgapi_status_t status = process->insert_watchpoint (
-    watchpoint, watchpoint_address, watchpoint_size);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS
-      && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-    {
-      process->destroy (&watchpoint);
-      return status;
-    }
+    process->insert_watchpoint (watchpoint, watchpoint_address,
+                                watchpoint_size);
 
   *watchpoint_id = watchpoint.id ();
-  return AMD_DBGAPI_STATUS_SUCCESS;
 
-  CATCH ();
+    return AMD_DBGAPI_STATUS_SUCCESS;
+  }
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
+         AMD_DBGAPI_STATUS_ERROR_NO_WATCHPOINT_AVAILABLE,
+         AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
   TRACE_END (make_ref (param_out (watchpoint_id)),
              make_hex (make_ref (param_out (watchpoint_address))),
              make_ref (param_out (watchpoint_size)));
@@ -110,27 +111,29 @@ amd_dbgapi_remove_watchpoint (amd_dbgapi_process_id_t process_id,
                               amd_dbgapi_watchpoint_id_t watchpoint_id)
 {
   TRACE_BEGIN (param_in (process_id), param_in (watchpoint_id));
-  TRY;
-
+  TRY
+  {
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   process_t *process = process_t::find (process_id);
 
   if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
   watchpoint_t *watchpoint = process->find (watchpoint_id);
 
   if (!watchpoint)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID;
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID);
 
   process->remove_watchpoint (*watchpoint);
   process->destroy (watchpoint);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
-
-  CATCH ();
+  }
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID);
   TRACE_END ();
 }
 
@@ -141,8 +144,8 @@ amd_dbgapi_watchpoint_get_info (amd_dbgapi_watchpoint_id_t watchpoint_id,
 {
   TRACE_BEGIN (param_in (watchpoint_id), param_in (query),
                param_in (value_size), param_in (value));
-  TRY;
-
+  TRY
+  {
   if (!detail::is_initialized)
     THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
@@ -154,7 +157,7 @@ amd_dbgapi_watchpoint_get_info (amd_dbgapi_watchpoint_id_t watchpoint_id,
   watchpoint->get_info (query, value_size, value);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
-
+  }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,

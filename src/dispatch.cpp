@@ -195,8 +195,8 @@ amd_dbgapi_dispatch_get_info (amd_dbgapi_dispatch_id_t dispatch_id,
 {
   TRACE_BEGIN (param_in (dispatch_id), param_in (query), param_in (value_size),
                param_in (value));
-  TRY;
-
+  TRY
+  {
   if (!detail::is_initialized)
     THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
@@ -208,7 +208,7 @@ amd_dbgapi_dispatch_get_info (amd_dbgapi_dispatch_id_t dispatch_id,
   dispatch->get_info (query, value_size, value);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
-
+  }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_DISPATCH_ID,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
@@ -225,8 +225,8 @@ amd_dbgapi_process_dispatch_list (amd_dbgapi_process_id_t process_id,
 {
   TRACE_BEGIN (param_in (process_id), param_in (dispatch_count),
                param_in (dispatches), param_in (changed));
-  TRY;
-
+  TRY
+  {
   if (!detail::is_initialized)
     THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
@@ -268,7 +268,7 @@ amd_dbgapi_process_dispatch_list (amd_dbgapi_process_id_t process_id,
     *changed = dispatch_list_changed;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
-
+  }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,

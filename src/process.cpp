@@ -341,20 +341,20 @@ process_t::set_forward_progress_needed (bool forward_progress_needed)
     }
 }
 
-amd_dbgapi_status_t
+void
 process_t::set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode)
 {
   if (m_wave_launch_mode == wave_launch_mode)
-    return AMD_DBGAPI_STATUS_SUCCESS;
+    return;
 
   if (os_driver ().is_debug_enabled ())
     {
       amd_dbgapi_status_t status
         = os_driver ().set_wave_launch_mode (wave_launch_mode);
       if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-        return status;
+        throw process_exited_exception_t (*this);
       else if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        fatal_error ("agent_t::set_wave_launch_mode (%s) failed (rc=%d)",
+        fatal_error ("os_driver_t::set_wave_launch_mode (%s) failed (rc=%d)",
                      to_string (wave_launch_mode).c_str (), status);
 
       /* When changing the wave launch mode from WAVE_LAUNCH_MODE_HALT, all
@@ -386,10 +386,9 @@ process_t::set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode)
     }
 
   m_wave_launch_mode = wave_launch_mode;
-  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
-amd_dbgapi_status_t
+void
 process_t::set_wave_launch_trap_override (os_wave_launch_trap_mask_t value,
                                           os_wave_launch_trap_mask_t mask)
 {
@@ -399,7 +398,7 @@ process_t::set_wave_launch_trap_override (os_wave_launch_trap_mask_t value,
     = (m_wave_trap_mask & ~mask) | (value & mask);
 
   if (wave_trap_mask == m_wave_trap_mask)
-    return AMD_DBGAPI_STATUS_SUCCESS;
+    return;
 
   if (os_driver ().is_debug_enabled ())
     {
@@ -407,37 +406,35 @@ process_t::set_wave_launch_trap_override (os_wave_launch_trap_mask_t value,
         os_wave_launch_trap_override_t::apply, value, mask);
 
       if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-        return status;
+        throw process_exited_exception_t (*this);
       else if (status != AMD_DBGAPI_STATUS_SUCCESS)
         fatal_error ("os_driver::set_wave_launch_trap_override failed (rc=%d)",
                      status);
     }
 
   m_wave_trap_mask = wave_trap_mask;
-  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
-amd_dbgapi_status_t
+void
 process_t::set_precise_memory (bool enabled)
 {
   if (m_precise_memory == enabled)
-    return AMD_DBGAPI_STATUS_SUCCESS;
+    return;
 
   if (!m_supports_precise_memory)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
+    throw api_error_t (AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED);
 
   if (os_driver ().is_debug_enabled ())
     {
       amd_dbgapi_status_t status = os_driver ().set_precise_memory (enabled);
 
       if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-        return status;
+        throw process_exited_exception_t (*this);
       else if (status != AMD_DBGAPI_STATUS_SUCCESS)
         fatal_error ("os_driver::set_precise_memory failed (rc=%d)", status);
     }
 
   m_precise_memory = enabled;
-  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 std::vector<process_t *>
@@ -620,7 +617,7 @@ process_t::watchpoint_shared_kind () const
   return kind;
 }
 
-amd_dbgapi_status_t
+void
 process_t::insert_watchpoint (const watchpoint_t &watchpoint,
                               amd_dbgapi_global_address_t *adjusted_address,
                               amd_dbgapi_global_address_t *adjusted_size)
@@ -633,13 +630,9 @@ process_t::insert_watchpoint (const watchpoint_t &watchpoint,
   const bool first_watchpoint = count<watchpoint_t> () == 1;
   if (first_watchpoint)
     {
-      amd_dbgapi_status_t status;
-
-      status = set_wave_launch_trap_override (
+      set_wave_launch_trap_override (
         os_wave_launch_trap_mask_t::address_watch,
         os_wave_launch_trap_mask_t::address_watch);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        return status;
 
       update_queues ();
 
@@ -764,14 +757,16 @@ process_t::insert_watchpoint (const watchpoint_t &watchpoint,
       watch_mode = os_watch_mode_t::all;
       break;
     default:
-      return AMD_DBGAPI_STATUS_ERROR_NO_WATCHPOINT_AVAILABLE;
+      throw api_error_t (AMD_DBGAPI_STATUS_ERROR_NO_WATCHPOINT_AVAILABLE);
     }
 
   os_watch_id_t os_watch_id;
   amd_dbgapi_status_t status = os_driver ().set_address_watch (
     watch_address, watch_mask, watch_mode, &os_watch_id);
-  if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    return status;
+
+  if (status != AMD_DBGAPI_STATUS_SUCCESS
+      && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    fatal_error ("os_driver_t::set_address_watch () failed (rc=%d)", status);
 
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
               "%s: set address_watch%d [%#lx-%#lx] (%s)",
@@ -784,8 +779,6 @@ process_t::insert_watchpoint (const watchpoint_t &watchpoint,
 
   *adjusted_address = watch_address;
   *adjusted_size = -watch_mask;
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 void
@@ -815,13 +808,9 @@ process_t::remove_watchpoint (const watchpoint_t &watchpoint)
   const bool last_watchpoint = count<watchpoint_t> () == 1;
   if (last_watchpoint)
     {
-      status = set_wave_launch_trap_override (
+      set_wave_launch_trap_override (
         os_wave_launch_trap_mask_t::none,
         os_wave_launch_trap_mask_t::address_watch);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS
-          && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-        fatal_error ("process_t::set_wave_launch_trap_override failed (rc=%d)",
-                     status);
 
       update_queues ();
 
@@ -1416,7 +1405,7 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
                                      | saved_changed))
       {
         *action = AMD_DBGAPI_BREAKPOINT_ACTION_RESUME;
-        return AMD_DBGAPI_STATUS_SUCCESS;
+        return;
       }
 
     /* Create a breakpoint resume event that will be enqueued when the code
@@ -1435,7 +1424,6 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
        breakpoint resume event for this breakpoint_id and report it as
        processed.  */
     *action = AMD_DBGAPI_BREAKPOINT_ACTION_HALT;
-    return AMD_DBGAPI_STATUS_SUCCESS;
   };
 
   amd_dbgapi_global_address_t r_brk_address;
@@ -1506,7 +1494,7 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
   restriction_error.release ();
 }
 
-amd_dbgapi_status_t
+void
 process_t::attach ()
 {
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "attaching %s to %s",
@@ -1516,14 +1504,14 @@ process_t::attach ()
                 : string_printf ("OS process %d", *m_os_process_id).c_str ());
 
   if (os_driver ().check_version () != AMD_DBGAPI_STATUS_SUCCESS)
-    return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
+    throw api_error_t (AMD_DBGAPI_STATUS_ERROR_RESTRICTION);
 
   os_runtime_info_t runtime_info{};
   if (auto status = os_driver ().enable_debug (
         os_exception_mask_t::process_runtime,
         m_client_notifier_pipe.write_fd (), &runtime_info);
       status == AMD_DBGAPI_STATUS_ERROR_RESTRICTION)
-    return status;
+    throw api_error_t (AMD_DBGAPI_STATUS_ERROR_RESTRICTION);
   else if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
     runtime_info.runtime_state
       = static_cast<decltype (runtime_info.runtime_state)> (
@@ -1559,8 +1547,6 @@ process_t::attach ()
   disable_debug.release ();
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "debugging is enabled for %s",
               to_string (id ()).c_str ());
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 void
@@ -2093,10 +2079,10 @@ amd_dbgapi_process_set_progress (amd_dbgapi_process_id_t process_id,
                                  amd_dbgapi_progress_t progress)
 {
   TRACE_BEGIN (param_in (process_id), param_in (progress));
-  TRY;
-
+  TRY
+  {
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   bool forward_progress_needed;
   switch (progress)
@@ -2108,7 +2094,7 @@ amd_dbgapi_process_set_progress (amd_dbgapi_process_id_t process_id,
       forward_progress_needed = false;
       break;
     default:
-      return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+        THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
     }
 
   if (process_id == AMD_DBGAPI_PROCESS_NONE)
@@ -2121,12 +2107,14 @@ amd_dbgapi_process_set_progress (amd_dbgapi_process_id_t process_id,
       if (process_t *process = process_t::find (process_id); process)
         process->set_forward_progress_needed (forward_progress_needed);
       else
-        return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
+          THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
     }
 
   return AMD_DBGAPI_STATUS_SUCCESS;
-
-  CATCH ();
+  }
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
   TRACE_END ();
 }
 
@@ -2135,37 +2123,33 @@ amd_dbgapi_process_set_wave_creation (amd_dbgapi_process_id_t process_id,
                                       amd_dbgapi_wave_creation_t creation)
 {
   TRACE_BEGIN (param_in (process_id), param_in (creation));
-  TRY;
-
+  TRY
+  {
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   process_t *process = process_t::find (process_id);
 
   if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
-  amd_dbgapi_status_t status;
   switch (creation)
     {
     case AMD_DBGAPI_WAVE_CREATION_NORMAL:
-      status = process->set_wave_launch_mode (os_wave_launch_mode_t::normal);
+        process->set_wave_launch_mode (os_wave_launch_mode_t::normal);
       break;
     case AMD_DBGAPI_WAVE_CREATION_STOP:
-      status = process->set_wave_launch_mode (os_wave_launch_mode_t::halt);
+        process->set_wave_launch_mode (os_wave_launch_mode_t::halt);
       break;
     default:
-      return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+        THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
     }
 
-  if (status != AMD_DBGAPI_STATUS_SUCCESS
-      && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-    fatal_error ("Could not set wave creation for %s (rc=%d)",
-                 to_string (process_id).c_str (), status);
-
   return AMD_DBGAPI_STATUS_SUCCESS;
-
-  CATCH ();
+  }
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
   TRACE_END ();
 }
 
@@ -2174,20 +2158,21 @@ amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
                            amd_dbgapi_process_id_t *process_id)
 {
   TRACE_BEGIN (param_in (client_process_id), param_in (process_id));
-  TRY;
-
+  TRY
+  {
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   if (!client_process_id || !process_id)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
   /* Return an error if the client_process_id is already attached to another
      process instance.  */
   if (process_t::find (client_process_id))
-    return AMD_DBGAPI_STATUS_ERROR_ALREADY_ATTACHED;
+      THROW (AMD_DBGAPI_STATUS_ERROR_ALREADY_ATTACHED);
 
   process_t *process;
+
   try
     {
       process = &process_t::create_process (client_process_id);
@@ -2197,22 +2182,32 @@ amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
       /* process_t::create_process could throw a fatal error if it fails to
          create a new os_driver instance or create a pipe for the notifier,
          simply return an error.  */
-      return AMD_DBGAPI_STATUS_ERROR;
+        THROW (AMD_DBGAPI_STATUS_ERROR);
     }
 
-  amd_dbgapi_status_t status = process->attach ();
-  if (status != AMD_DBGAPI_STATUS_SUCCESS
-      && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    try
+      {
+        process->attach ();
+      }
+    catch (const process_exited_exception_t &)
     {
+        /* Leave the process attached in case of a process exited exception. */
+      }
+    catch (const api_error_t &e)
+      {
+        /* For all other exceptions, destroy the newly created process.  */
       process_t::destroy_process (process);
-      return status;
+        THROW (e.code ());
     }
 
   *process_id = amd_dbgapi_process_id_t{ process->id () };
 
   return AMD_DBGAPI_STATUS_SUCCESS;
-
-  CATCH ();
+  }
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_ALREADY_ATTACHED,
+         AMD_DBGAPI_STATUS_ERROR_RESTRICTION,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT, AMD_DBGAPI_STATUS_ERROR);
   TRACE_END (make_ref (param_out (process_id)));
 }
 
@@ -2220,22 +2215,29 @@ amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_process_detach (amd_dbgapi_process_id_t process_id)
 {
   TRACE_BEGIN (param_in (process_id));
-  TRY;
-
+  TRY
+  {
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   process_t *process = process_t::find (process_id);
 
   if (!process)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
-  process->detach ();
+  try
+    {
+      process->detach ();
+    }
+  catch (const process_exited_exception_t &)
+    {
+    }
   process_t::destroy_process (process);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
-
-  CATCH ();
+  }
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
   TRACE_END ();
 }
 
@@ -2246,8 +2248,8 @@ amd_dbgapi_process_get_info (amd_dbgapi_process_id_t process_id,
 {
   TRACE_BEGIN (param_in (process_id), param_in (query), param_in (value_size),
                param_in (value));
-  TRY;
-
+  TRY
+  {
   if (!detail::is_initialized)
     THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
@@ -2259,7 +2261,7 @@ amd_dbgapi_process_get_info (amd_dbgapi_process_id_t process_id,
   process->get_info (query, value_size, value);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
-
+  }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,

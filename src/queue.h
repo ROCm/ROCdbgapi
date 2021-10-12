@@ -92,12 +92,12 @@ public:
   amd_dbgapi_global_address_t address () const;
   amd_dbgapi_size_t size () const;
 
-  amd_dbgapi_status_t
+  void
   active_packets_info (amd_dbgapi_os_queue_packet_id_t *read_packet_id_p,
                        amd_dbgapi_os_queue_packet_id_t *write_packet_id_p,
                        size_t *packets_byte_size_p) const;
 
-  amd_dbgapi_status_t
+  void
   active_packets_bytes (amd_dbgapi_os_queue_packet_id_t read_packet_id,
                         amd_dbgapi_os_queue_packet_id_t write_packet_id,
                         void *memory, size_t memory_size) const;

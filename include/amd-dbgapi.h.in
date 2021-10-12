@@ -490,6 +490,12 @@ extern "C" {
  */
 #define AMD_DBGAPI_VERSION_0_56
 
+/**
+ * The function was introduced in version 0.57 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.57"``.
+ */
+#define AMD_DBGAPI_VERSION_0_57
+
 /** @} */
 
 /** \ingroup callbacks_group
@@ -4983,7 +4989,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_is_in_register_class (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
     amd_dbgapi_size_t offset, amd_dbgapi_size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_54;
+    void *value) AMD_DBGAPI_VERSION_0_57;
 
 /**
  * Write a register.
@@ -5046,7 +5052,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
     amd_dbgapi_size_t offset, amd_dbgapi_size_t value_size,
-    const void *value) AMD_DBGAPI_VERSION_0_54;
+    const void *value) AMD_DBGAPI_VERSION_0_57;
 
 /**
  * Prefetch register values.

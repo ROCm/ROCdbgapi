@@ -204,14 +204,12 @@ public:
   {
     return m_wave_launch_mode;
   }
-  amd_dbgapi_status_t
-  set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode);
+  void set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode);
 
-  amd_dbgapi_status_t
-  set_wave_launch_trap_override (os_wave_launch_trap_mask_t value,
+  void set_wave_launch_trap_override (os_wave_launch_trap_mask_t value,
                                  os_wave_launch_trap_mask_t mask);
 
-  amd_dbgapi_status_t set_precise_memory (bool enabled);
+  void set_precise_memory (bool enabled);
 
   /* Suspend/resume a list of queues.  Queues may become invalid as a result of
      suspension/resumption, but not destroyed.  Queues made invalid will
@@ -239,7 +237,7 @@ public:
     os_exception_mask_t exceptions,
     std::variant<process_t *, agent_t *, queue_t *> source) const;
 
-  amd_dbgapi_status_t attach ();
+  void attach ();
   void detach ();
 
   void enqueue_event (event_t &event);
@@ -247,8 +245,7 @@ public:
 
   size_t watchpoint_count () const;
   amd_dbgapi_watchpoint_share_kind_t watchpoint_shared_kind () const;
-  amd_dbgapi_status_t
-  insert_watchpoint (const watchpoint_t &watchpoint,
+  void insert_watchpoint (const watchpoint_t &watchpoint,
                      amd_dbgapi_global_address_t *adjusted_address,
                      amd_dbgapi_global_address_t *adjusted_size);
   void remove_watchpoint (const watchpoint_t &watchpoint);

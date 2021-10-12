@@ -244,7 +244,7 @@ public:
   scratch_slot (const architecture_t::cwsr_record_t &cwsr_record,
                 uint32_t compute_tmpring_size_register) const = 0;
 
-  virtual amd_dbgapi_status_t
+  virtual void
   convert_address_space (const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
                          const address_space_t &from_address_space,
                          const address_space_t &to_address_space,

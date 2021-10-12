@@ -260,13 +260,13 @@ amd_dbgapi_process_next_pending_event (amd_dbgapi_process_id_t process_id,
                                        amd_dbgapi_event_kind_t *kind)
 {
   TRACE_BEGIN (param_in (process_id), param_in (event_id), param_in (kind));
-  TRY;
-
+  TRY
+  {
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   if (!event_id || !kind)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
   event_t *event = nullptr;
 
@@ -275,7 +275,7 @@ amd_dbgapi_process_next_pending_event (amd_dbgapi_process_id_t process_id,
       process_t *process = process_t::find (process_id);
 
       if (!process)
-        return AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID;
+          THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
       event = process->next_pending_event ();
     }
@@ -299,8 +299,10 @@ amd_dbgapi_process_next_pending_event (amd_dbgapi_process_id_t process_id,
     }
 
   return AMD_DBGAPI_STATUS_SUCCESS;
-
-  CATCH ();
+  }
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
   TRACE_END (make_ref (param_out (event_id)), make_ref (param_out (kind)));
 }
 
@@ -311,8 +313,8 @@ amd_dbgapi_event_get_info (amd_dbgapi_event_id_t event_id,
 {
   TRACE_BEGIN (param_in (event_id), param_in (query), param_in (value_size),
                param_in (value));
-  TRY;
-
+  TRY
+  {
   if (!detail::is_initialized)
     THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
@@ -324,7 +326,7 @@ amd_dbgapi_event_get_info (amd_dbgapi_event_id_t event_id,
   event->get_info (query, value_size, value);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
-
+  }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
@@ -337,15 +339,15 @@ amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_event_processed (amd_dbgapi_event_id_t event_id)
 {
   TRACE_BEGIN (param_in (event_id));
-  TRY;
-
+  TRY
+  {
   if (!detail::is_initialized)
-    return AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED;
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
   event_t *event = find (event_id);
 
   if (!event || event->state () < event_t::state_t::reported)
-    return AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID;
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID);
 
   event->set_state (event_t::state_t::processed);
 
@@ -353,7 +355,9 @@ amd_dbgapi_event_processed (amd_dbgapi_event_id_t event_id)
   event->process ().destroy (event);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
-
-  CATCH ();
+  }
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
   TRACE_END ();
 }
