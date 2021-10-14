@@ -1686,7 +1686,7 @@ typedef enum
  * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE \p The requested information
- * is not available.  See ::amd_dbgapi_procss_info_t for queries that can
+ * is not available.  See ::amd_dbgapi_process_info_t for queries that can
  * produce this error.  \p value is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
@@ -1708,7 +1708,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
  * agents accessed by the process are configured to
  * ::AMD_DBGAPI_MEMORY_PRECISION_NONE.
  *
- * The client proccess handle must have been associated with a native operating
+ * The client process handle must have been associated with a native operating
  * system process, and the amd_dbgapi_callbacks_s::get_os_pid callback is used
  * to obtain it.
  *
@@ -2046,7 +2046,7 @@ typedef enum
    *
    * ``URI_ENCODED_OS_FILE_PATH`` is a file path specified as a URI encoded
    * UTF-8 string.  In URI encoding, every character that is not in the regular
-   * expression ``[a-zA-Z0-9/_.~-]`` is encoded as two uppercase hexidecimal
+   * expression ``[a-zA-Z0-9/_.~-]`` is encoded as two uppercase hexadecimal
    * digits proceeded by "%".  Directories in the path are separated by "/".
    *
    * ``offset`` is a 0-based byte offset to the start of the code object.  For
@@ -2567,7 +2567,7 @@ typedef enum
   AMD_DBGAPI_EXCEPTION_WAVE_ABORT = (1ULL << 0),
   /**
    * A wave on the queue executed an instruction that caused an exception.
-   * This includes executing a trap instruction (other than the trap repported
+   * This includes executing a trap instruction (other than the trap reported
    * as ::AMD_DBGAPI_EXCEPTION_WAVE_ABORT), executing an instruction that
    * causes a fatal halt, executing an instruction that causes an ECC error, or
    * executing an instruction that triggers a watchpoint (normally watchpoints
@@ -3389,7 +3389,7 @@ typedef enum
    */
   AMD_DBGAPI_WAVE_STOP_REASON_TRAP = (1ULL << 12),
   /**
-   * The wave stopped due to a memory violation.  It indicates a non-existant
+   * The wave stopped due to a memory violation.  It indicates a non-existent
    * page was accessed or a page without the necessary permission (such as
    * writing to a readonly page or executing a non-execute page).
    *
@@ -4618,7 +4618,7 @@ typedef enum
    *     bit_position  ::= DECIMAL_NUMBER
    *
    * ``IDENTIFIER`` is string starting with an alphabetic character followed by
-   * zero or more alphebetic, numeric, "_", or "." characters.
+   * zero or more alphabetic, numeric, "_", or "." characters.
    *
    * ``DECIMAL_NUMBER`` is a decimal C integral literal.
    *
@@ -5395,7 +5395,7 @@ typedef enum
 {
   /**
    * The address space supports all accesses.  Values accessed can change
-   * during the lifetie of the program.
+   * during the lifetime of the program.
    */
   AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL = 1,
   /**
@@ -6635,7 +6635,7 @@ typedef struct amd_dbgapi_client_thread_s *amd_dbgapi_client_thread_id_t;
 
 /**
  * Report that a breakpoint inserted by the
- * amd_dbgapi_callbacks_s::insert_breakpoint calback has been hit.
+ * amd_dbgapi_callbacks_s::insert_breakpoint callback has been hit.
  *
  * The thread that hit the breakpoint must remain halted while this
  * function executes, at which point it must be resumed if
