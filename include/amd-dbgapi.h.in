@@ -501,10 +501,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_56
 
 /**
- * The function was introduced in version 0.57 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.57"``.
+ * The function was introduced in version 0.58 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.58"``.
  */
-#define AMD_DBGAPI_VERSION_0_57
+#define AMD_DBGAPI_VERSION_0_58
 
 /** @} */
 
@@ -522,12 +522,8 @@ typedef struct amd_dbgapi_callbacks_s amd_dbgapi_callbacks_t;
  * functions using pointers.  The C language does not define the underlying
  * type used for enumeration types.  This interface requires that:
  *
- * - For the enumeration types \p amd_dbgapi_exceptions_t, \p
- *   amd_dbgapi_instruction_properties_t, \p amd_dbgapi_register_properties_t,
- *   and \p amd_dbgapi_wave_stop_reasons_t, the underlying type used by the
- *   client will be \p unsigned \p long \p long with a size of 64 bits.
- * - For all other enumeration types the underlying type used by the client
- *   will be \p int with a size of 32 bits.
+ * - For the all enumeration types the underlying type used by the client will
+ *   be \p int with a size of 32 bits.
  *
  * In addition, it requires that enumeration types passed by value to
  * functions, or returned as values from functions, will have the platform
@@ -1487,12 +1483,7 @@ typedef enum
   /**
    * The instruction has no properties.
    */
-  AMD_DBGAPI_INSTRUCTION_PROPERTY_NONE = 0ULL,
-  /**
-   * A reserved value only present to ensure that the underlying representation
-   * of this enumeration type is \p uint64_t.
-   */
-  AMD_DBGAPI_INSTRUCTION_PROPERTY_RESERVED = (1ULL << 63)
+  AMD_DBGAPI_INSTRUCTION_PROPERTY_NONE = 0ULL
 } amd_dbgapi_instruction_properties_t;
 
 /**
@@ -1574,7 +1565,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_classify_instruction (
     amd_dbgapi_global_address_t address, amd_dbgapi_size_t *size,
     const void *memory, amd_dbgapi_instruction_kind_t *instruction_kind,
     amd_dbgapi_instruction_properties_t *instruction_properties,
-    void **instruction_information) AMD_DBGAPI_VERSION_0_54;
+    void **instruction_information) AMD_DBGAPI_VERSION_0_58;
 
 /** @} */
 
@@ -2479,7 +2470,7 @@ typedef enum
    * Return the set of exceptions that caused the queue to enter the queue
    * error state.  If the queue is not in the queue error state then
    * ::AMD_DBGAPI_EXCEPTION_NONE is returned.  The type of this attribute is
-   * \p uint64_t with values defined by ::amd_dbgapi_exceptions_t.
+   * \p uint32_t with values defined by ::amd_dbgapi_exceptions_t.
    */
   AMD_DBGAPI_QUEUE_INFO_ERROR_REASON = 6,
   /**
@@ -2539,7 +2530,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_get_info (
     amd_dbgapi_queue_id_t queue_id, amd_dbgapi_queue_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_56;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_58;
 
 /**
  * Queue state.
@@ -2657,12 +2648,7 @@ typedef enum
    * step will report a ::AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED event
    * to indicate that the single step has been cancelled.
    */
-  AMD_DBGAPI_EXCEPTION_QUEUE_PREEMPTION_ERROR = (1ULL << 31),
-  /**
-   * A reserved value only present to ensure that the underlying representation
-   * of this enumeration type is \p uint64_t.
-   */
-  AMD_DBGAPI_EXCEPTION_RESERVED = (1ULL << 63)
+  AMD_DBGAPI_EXCEPTION_QUEUE_PREEMPTION_ERROR = (1ULL << 31)
 } amd_dbgapi_exceptions_t;
 
 /**
@@ -3102,7 +3088,7 @@ typedef enum
   AMD_DBGAPI_WAVE_INFO_STATE = 1,
   /**
    * Return the reason the wave stopped as a bit set.  The type of this
-   * attribute is \p uint64_t with values defined by
+   * attribute is \p uint32_t with values defined by
    * ::amd_dbgapi_wave_stop_reasons_t.  The wave must be stopped to make this
    * query.
    */
@@ -3242,7 +3228,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_get_info (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_wave_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_54;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_58;
 
 /**
  * The execution state of a wave.
@@ -3464,12 +3450,7 @@ typedef enum
    * This stop reason would normally put the wave's queue into the queue error
    * state and include the ::AMD_DBGAPI_EXCEPTION_WAVE_TRAP queue error reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_FATAL_HALT = (1ULL << 17),
-  /**
-   * A reserved value only present to ensure that the underlying representation
-   * of this enumeration type is \p uint64_t.
-   */
-  AMD_DBGAPI_WAVE_STOP_REASON_RESERVED = (1ULL << 63)
+  AMD_DBGAPI_WAVE_STOP_REASON_FATAL_HALT = (1ULL << 17)
 } amd_dbgapi_wave_stop_reasons_t;
 
 /**
@@ -3774,7 +3755,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_resume (
   amd_dbgapi_wave_id_t wave_id, amd_dbgapi_resume_mode_t resume_mode,
-  amd_dbgapi_exceptions_t exceptions) AMD_DBGAPI_VERSION_0_54;
+  amd_dbgapi_exceptions_t exceptions) AMD_DBGAPI_VERSION_0_58;
 
 /** @} */
 
@@ -4559,12 +4540,7 @@ typedef enum
    * is advisable to invalidate any cached registers with the
    * ::AMD_DBGAPI_REGISTER_PROPERTY_VOLATILE property.
    */
-  AMD_DBGAPI_REGISTER_PROPERTY_INVALIDATE_VOLATILE = (1ULL << 2),
-  /**
-   * A reserved value only present to ensure that the underlying representation
-   * of this enumeration type is \p uint64_t.
-   */
-  AMD_DBGAPI_REGISTER_PROPERTY_RESERVED = (1ULL << 63)
+  AMD_DBGAPI_REGISTER_PROPERTY_INVALIDATE_VOLATILE = (1ULL << 2)
 } amd_dbgapi_register_properties_t;
 
 /**
@@ -4660,7 +4636,7 @@ typedef enum
   AMD_DBGAPI_REGISTER_INFO_DWARF = 5,
   /**
    * Return the register's properties.  The type of this attribute is \p
-   * uint64_t with values defined by ::amd_dbgapi_register_properties_t.
+   * uint32_t with values defined by ::amd_dbgapi_register_properties_t.
    */
   AMD_DBGAPI_REGISTER_INFO_PROPERTIES = 6
 } amd_dbgapi_register_info_t;
@@ -4706,7 +4682,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_get_info (
     amd_dbgapi_register_id_t register_id, amd_dbgapi_register_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_56;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_58;
 
 /**
  * Indication of if a wave has a register.
@@ -5009,7 +4985,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_is_in_register_class (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
     amd_dbgapi_size_t offset, amd_dbgapi_size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_57;
+    void *value) AMD_DBGAPI_VERSION_0_58;
 
 /**
  * Write a register.
@@ -5072,7 +5048,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
     amd_dbgapi_size_t offset, amd_dbgapi_size_t value_size,
-    const void *value) AMD_DBGAPI_VERSION_0_57;
+    const void *value) AMD_DBGAPI_VERSION_0_58;
 
 /**
  * Prefetch register values.

@@ -422,7 +422,6 @@ one_instruction_property_to_string (
   switch (instruction_property)
     {
       CASE (INSTRUCTION_PROPERTY_NONE);
-      CASE (INSTRUCTION_PROPERTY_RESERVED);
     }
   return to_string (make_hex (instruction_property));
 }
@@ -467,7 +466,6 @@ one_register_property_to_string (
       CASE (REGISTER_PROPERTY_READONLY_BITS);
       CASE (REGISTER_PROPERTY_VOLATILE);
       CASE (REGISTER_PROPERTY_INVALIDATE_VOLATILE);
-      CASE (REGISTER_PROPERTY_RESERVED);
     }
   return to_string (make_hex (register_property));
 }
@@ -896,7 +894,6 @@ one_queue_error_reason_to_string (amd_dbgapi_exceptions_t queue_error_reason)
       CASE (EXCEPTION_PACKET_DISPATCH_REGISTER_COUNT_TOO_LARGE);
       CASE (EXCEPTION_PACKET_VENDOR_UNSUPPORTED);
       CASE (EXCEPTION_QUEUE_PREEMPTION_ERROR);
-      CASE (EXCEPTION_RESERVED);
     }
   return to_string (make_hex (queue_error_reason));
 }
@@ -1148,7 +1145,6 @@ one_stop_reason_to_string (amd_dbgapi_wave_stop_reasons_t stop_reason)
       CASE (WAVE_STOP_REASON_ILLEGAL_INSTRUCTION);
       CASE (WAVE_STOP_REASON_ECC_ERROR);
       CASE (WAVE_STOP_REASON_FATAL_HALT);
-      CASE (WAVE_STOP_REASON_RESERVED);
     }
   return to_string (make_hex (stop_reason));
 }
