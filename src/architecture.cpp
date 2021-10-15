@@ -2740,7 +2740,7 @@ gfx9_architecture_t::register_type (amdgpu_regnum_t regnum) const
              "  bool EXCP_HI.ADDR_WATCH1 @12;"
              "  bool EXCP_HI.ADDR_WATCH2 @13;"
              "  bool EXCP_HI.ADDR_WATCH3 @14;"
-             "  uint32_t EXCP_CYCLE @16-19;"
+             "  uint32_t EXCP_CYCLE @16-21;"
              "  bool XNACK_ERROR @28;"
              "  enum dp_rate {"
              "    NONE    = 0,"
