@@ -177,6 +177,9 @@ public:
     /* cwsr_record_t is a polymorphic base class.  */
     virtual ~cwsr_record_t () = default;
 
+    /* Return the globally unique wave identifier.  */
+    virtual std::optional<amd_dbgapi_wave_id_t> id () const = 0;
+
     /* Number of work-items in one wave.  */
     virtual size_t lane_count () const = 0;
     /* Last wave of threadgroup.  */

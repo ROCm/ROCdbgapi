@@ -343,10 +343,9 @@ aql_queue_impl_t::update_waves ()
   auto callback = [=, &process, &group_leader] (auto cwsr_record)
   {
     dbgapi_assert (m_queue == cwsr_record->queue ());
-
-    amd_dbgapi_wave_id_t wave_id;
     wave_t::visibility_t visibility{ wave_t::visibility_t::visible };
 
+    std::optional<amd_dbgapi_wave_id_t> wave_id;
     if (process.is_flag_set (process_t::flag_t::runtime_enable_during_attach))
       {
         /* Assign new ids to all waves regardless of the content of their
@@ -356,49 +355,32 @@ aql_queue_impl_t::update_waves ()
 
            We will never have hidden waves when assigning new ids. All waves
            seen in the control stack get a new wave_t instance with a new wave
-           id.  */
-        wave_id = wave_t::undefined;
+           id.
+         */
       }
     else
-      {
-        dbgapi_assert (
-          process.is_flag_set (process_t::flag_t::ttmps_setup_enabled)
-          && "ttmps are not initialized");
+      wave_id = cwsr_record->id ();
 
-        /* The wave id is preserved in ttmp registers.  */
-        const amd_dbgapi_global_address_t wave_id_address
-          = cwsr_record->register_address (amdgpu_regnum_t::wave_id).value ();
-
-        process.read_global_memory (wave_id_address, &wave_id);
-
-        /* If this is a new wave, check its visibility.  Waves halted at launch
-           should remain hidden until the wave creation mode is changed to
-           NORMAL.  A wave is halted at launch if it is halted without having
-           entered the trap handler.
-         */
-        if (wave_id == wave_t::undefined)
-          {
-            const bool halted = cwsr_record->is_halted ();
-            const bool stopped = cwsr_record->is_stopped ();
-
-            /* Waves halted at launch are halted but not stopped.  */
-            if (process.wave_launch_mode () == os_wave_launch_mode_t::halt
-                && halted && !stopped)
-              visibility = wave_t::visibility_t::hidden_halted_at_launch;
-          }
-      }
+    /* If this is a new wave, check its visibility.  Waves halted at launch
+       should remain hidden until the wave creation mode is changed to
+       NORMAL.  A wave is halted at launch if it is halted without having
+       entered the trap handler.
+     */
+    if (!wave_id && process.wave_launch_mode () == os_wave_launch_mode_t::halt
+        && cwsr_record->is_halted () && !cwsr_record->is_stopped ())
+      visibility = wave_t::visibility_t::hidden_halted_at_launch;
 
     wave_t *wave = nullptr;
 
-    if (wave_id != wave_t::undefined)
+    if (wave_id)
       {
         static constexpr bool including_invisible_waves = true;
         /* The wave already exists, so we should find it and update its context
            save area address.  Search all waves, visible and invisible.  */
-        wave = process.find (wave_id, including_invisible_waves);
+        wave = process.find (*wave_id, including_invisible_waves);
         if (!wave)
           warning ("%s not found in the process map",
-                   to_string (wave_id).c_str ());
+                   to_string (*wave_id).c_str ());
       }
 
     const dispatch_t *dispatch = &m_dummy_dispatch;
@@ -465,7 +447,7 @@ aql_queue_impl_t::update_waves ()
 
     if (!wave)
       {
-        wave = &process.create<wave_t> (*dispatch, m_callbacks);
+        wave = &process.create<wave_t> (wave_id, *dispatch, m_callbacks);
         wave->set_visibility (visibility);
       }
 

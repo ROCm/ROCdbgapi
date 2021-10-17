@@ -165,9 +165,9 @@ process_t::detach ()
               wave.displaced_stepping_complete ();
             }
 
-          /* Restore the wave_id register to its default value.  */
-          uint64_t zero = 0;
-          wave.write_register (amdgpu_regnum_t::wave_id, &zero);
+          /* Invalidate the wave_id.  */
+          amd_dbgapi_wave_id_t wave_id = wave_t::undefined;
+          wave.write_register (amdgpu_regnum_t::wave_id, &wave_id);
 
           /* Resume the wave if it is single-stepping, or if it is stopped
              because of a debug event (completed single-step, breakpoint,
@@ -176,9 +176,7 @@ process_t::detach ()
           if ((wave.state () == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
               || (wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
                   && !(wave.stop_reason ()
-                       & ~(AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP
-                           | AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT
-                           | AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT))))
+                       & ~wave_t::resumable_stop_reason_mask)))
             {
               wave.set_state (AMD_DBGAPI_WAVE_STATE_RUN);
             }

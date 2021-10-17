@@ -93,6 +93,9 @@ protected:
   static constexpr uint32_t ttmp6_saved_trap_id_mask
     = utils::bit_mask (25, 28);
   static constexpr int ttmp6_saved_trap_id_shift = 25;
+  static constexpr uint32_t ttmp6_queue_packet_id_mask
+    = utils::bit_mask (0, 24);
+  static constexpr int ttmp6_queue_packet_id_shift = 0;
 
   /* See https://llvm.org/docs/AMDGPUUsage.html#trap-handler-abi  */
   enum class trap_id_t : uint8_t
@@ -112,11 +115,6 @@ protected:
     if (uint8_t trap_id = utils::bit_extract (x, 25, 28); trap_id != 0)
       return trap_id_t{ trap_id };
     return std::nullopt;
-  }
-
-  static constexpr uint32_t ttmp6_queue_packet_id (uint32_t x)
-  {
-    return utils::bit_extract (x, 0, 24);
   }
 
   static constexpr uint32_t sq_wave_mode_debug_en_mask = 1 << 11;
@@ -2020,6 +2018,7 @@ amdgcn_architecture_t::is_pseudo_register_available (
     case amdgpu_regnum_t::pseudo_status:
     case amdgpu_regnum_t::pseudo_exec_64:
     case amdgpu_regnum_t::pseudo_vcc_64:
+    case amdgpu_regnum_t::wave_id:
     case amdgpu_regnum_t::wave_in_group:
     case amdgpu_regnum_t::csp:
       return true;
@@ -2080,6 +2079,19 @@ amdgcn_architecture_t::read_pseudo_register (const wave_t &wave,
 
       memcpy (static_cast<char *> (value) + offset,
               reinterpret_cast<const char *> (&ttmp11) + offset, value_size);
+      return;
+    }
+
+  if (regnum == amdgpu_regnum_t::wave_id)
+    {
+      std::array<uint32_t, 2> wave_id;
+
+      wave.read_register (amdgpu_regnum_t::ttmp4, &wave_id[0]);
+      wave.read_register (amdgpu_regnum_t::ttmp5, &wave_id[1]);
+
+      memcpy (static_cast<char *> (value) + offset,
+              reinterpret_cast<const char *> (wave_id.data ()) + offset,
+              value_size);
       return;
     }
 
@@ -2176,6 +2188,21 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
 
       wave.write_register (amdgpu_regnum_t::status, &status_reg);
       wave.write_register (amdgpu_regnum_t::ttmp6, &ttmp6);
+      return;
+    }
+
+  if (regnum == amdgpu_regnum_t::wave_id)
+    {
+      std::array<uint32_t, 2> wave_id;
+
+      wave.read_register (amdgpu_regnum_t::ttmp4, &wave_id[0]);
+      wave.read_register (amdgpu_regnum_t::ttmp5, &wave_id[1]);
+
+      memcpy (reinterpret_cast<char *> (wave_id.data ()) + offset,
+              static_cast<const char *> (value) + offset, value_size);
+
+      wave.write_register (amdgpu_regnum_t::ttmp4, &wave_id[0]);
+      wave.write_register (amdgpu_regnum_t::ttmp5, &wave_id[1]);
       return;
     }
 
@@ -2280,6 +2307,8 @@ protected:
         m_context_save_address (context_save_address)
     {
     }
+
+    std::optional<amd_dbgapi_wave_id_t> id () const override;
 
     /* Number for vector registers.  */
     size_t vgpr_count () const override;
@@ -2546,6 +2575,24 @@ gfx9_architecture_t::wave_get_state (wave_t &wave) const
     }
 
   return { AMD_DBGAPI_WAVE_STATE_STOP, stop_reason };
+}
+
+std::optional<amd_dbgapi_wave_id_t>
+gfx9_architecture_t::cwsr_record_t::id () const
+{
+  dbgapi_assert (
+    process ().is_flag_set (process_t::flag_t::ttmps_setup_enabled));
+
+  const amd_dbgapi_global_address_t wave_id_address
+    = register_address (amdgpu_regnum_t::ttmp4).value ();
+
+  amd_dbgapi_wave_id_t wave_id;
+  process ().read_global_memory (wave_id_address, &wave_id);
+
+  if (wave_id == wave_t::undefined)
+    return std::nullopt;
+
+  return wave_id;
 }
 
 size_t
@@ -2983,9 +3030,6 @@ gfx9_architecture_t::cwsr_record_t::register_address (
 
   switch (regnum)
     {
-    case amdgpu_regnum_t::wave_id:
-      regnum = amdgpu_regnum_t::ttmp4;
-      break;
     case amdgpu_regnum_t::dispatch_grid:
       regnum = amdgpu_regnum_t::ttmp8;
       break;
@@ -3158,8 +3202,10 @@ gfx9_architecture_t::dispatch_packet_address (
   uint32_t ttmp6;
   cwsr_record.process ().read_global_memory (ttmp6_address, &ttmp6);
 
+  amd_dbgapi_os_queue_packet_id_t os_queue_packet_id
+    = (ttmp6 & ttmp6_queue_packet_id_mask) >> ttmp6_queue_packet_id_shift;
   return cwsr_record.queue ().address ()
-         + (ttmp6_queue_packet_id (ttmp6) * aql_packet_size);
+         + (os_queue_packet_id * aql_packet_size);
 }
 
 std::pair<amd_dbgapi_size_t /* offset  */, amd_dbgapi_size_t /* size  */>
