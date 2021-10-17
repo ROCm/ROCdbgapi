@@ -1368,9 +1368,7 @@ amdgcn_architecture_t::wave_get_state (wave_t &wave) const
     pc = wave.pc ();
 
   amd_dbgapi_wave_stop_reasons_t stop_reason
-    = wave.state () == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
-        ? AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP
-        : AMD_DBGAPI_WAVE_STOP_REASON_NONE;
+    = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
 
   uint32_t trapsts, mode_reg;
   wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
@@ -1442,49 +1440,6 @@ amdgcn_architecture_t::wave_get_state (wave_t &wave) const
             return instruction && is_trap (*instruction);
           }())
         fatal_error ("trap exception not raised by a trap instruction");
-    }
-
-  /* Check for spurious single-step stop events:
-
-     Current architectures do not report single-step exceptions in the trapsts
-     register, so there is no way to tell if a single-step exception has
-     occurred in the presence of other exceptions (for example, context save).
-
-     To work around this limitation, the 1st level trap handler calls the 2nd
-     level trap handler when mode.debug_en == 1  && status.halt == 0, which may
-     cause a spurious single-step stop event to be reported.
-
-     To detect spurious events, a wave's last stopped pc is recorded before it
-     is resumed so that it is possible to tell if the pc has changed as the
-     result of executing the instruction.
-
-     Non-sequential instructions may jump to self, making detecting execution
-     difficult, so they are simulated when the wave is resumed instead of
-     single-stepped on hardware.
-
-     Instructions with invalid encodings, which may be non-sequential but
-     cannot be simulated, may still report the spurious single-step exception
-     to avoid infinite loops.
-   */
-
-  if (pc == wave.last_stopped_pc ()
-      /* The only exception present is a single-step exception.  */
-      && stop_reason == AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP)
-    {
-      if (auto instruction = wave.instruction_at_pc ();
-          /* The instruction is sequential.  */
-          instruction && is_sequential (*instruction))
-        {
-          /* Resume the wave in single-step mode.  */
-          wave_set_state (wave, AMD_DBGAPI_WAVE_STATE_SINGLE_STEP);
-
-          dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                      "%s (pc=%#lx) ignore spurious single-step",
-                      to_string (wave.id ()).c_str (), pc);
-
-          return { AMD_DBGAPI_WAVE_STATE_SINGLE_STEP,
-                   AMD_DBGAPI_WAVE_STOP_REASON_NONE };
-        }
     }
 
   return { AMD_DBGAPI_WAVE_STATE_STOP, stop_reason };
@@ -1593,10 +1548,13 @@ amdgcn_architecture_t::wave_set_state (
                             | sq_wave_trapsts_excp_hi_addr_watch2_mask
                             | sq_wave_trapsts_excp_hi_addr_watch3_mask;
 
-      uint32_t trapsts;
-      wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
-      trapsts &= ~clear_exceptions;
-      wave.write_register (amdgpu_regnum_t::trapsts, &trapsts);
+      if (clear_exceptions)
+        {
+          uint32_t trapsts;
+          wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
+          trapsts &= ~clear_exceptions;
+          wave.write_register (amdgpu_regnum_t::trapsts, &trapsts);
+        }
     }
 }
 
@@ -2378,6 +2336,9 @@ protected:
   size_t scalar_register_count () const override { return 102; }
   size_t scalar_alias_count () const override { return 6; }
 
+  std::pair<amd_dbgapi_wave_state_t, amd_dbgapi_wave_stop_reasons_t>
+  wave_get_state (wave_t &wave) const override;
+
   gfx9_architecture_t (elf_amdgpu_machine_t e_machine,
                        std::string target_triple);
 
@@ -2519,6 +2480,72 @@ gfx9_architecture_t::gfx9_architecture_t (elf_amdgpu_machine_t e_machine,
                                    amdgpu_regnum_t::pseudo_exec_64);
   general_registers.add_registers (amdgpu_regnum_t::pseudo_vcc_64,
                                    amdgpu_regnum_t::pseudo_vcc_64);
+}
+
+std::pair<amd_dbgapi_wave_state_t, amd_dbgapi_wave_stop_reasons_t>
+gfx9_architecture_t::wave_get_state (wave_t &wave) const
+{
+  amd_dbgapi_wave_state_t prev_state = wave.state ();
+  auto [new_state, stop_reason] = amdgcn_architecture_t::wave_get_state (wave);
+
+  if (prev_state != AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
+      || new_state != AMD_DBGAPI_WAVE_STATE_STOP)
+    return { new_state, stop_reason };
+
+  /* Check for spurious single-step stop events (if the architecture does not
+     support precise single-step exceptions reporting):
+
+     Current architectures do not report single-step exceptions in the trapsts
+     register, so there is no way to tell if a single-step exception has
+     occurred in the presence of other exceptions (for example, context save).
+
+     To work around this limitation, the 1st level trap handler calls the 2nd
+     level trap handler when mode.debug_en == 1  && status.halt == 0, which may
+     cause a spurious single-step stop event to be reported.
+
+     To detect spurious events, a wave's last stopped pc is recorded before it
+     is resumed so that it is possible to tell if the pc has changed as the
+     result of executing the instruction.
+
+     Non-sequential instructions may jump to self, making detecting execution
+     difficult, so they are simulated when the wave is resumed instead of
+     single-stepped on hardware.
+
+     Instructions with invalid encodings, which may be non-sequential but
+     cannot be simulated, may still report the spurious single-step exception
+     to avoid infinite loops.
+   */
+
+  if (wave.pc () != wave.last_stopped_pc ())
+    {
+      stop_reason |= AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP;
+    }
+  else if (stop_reason == AMD_DBGAPI_WAVE_STOP_REASON_NONE)
+    /* The only exception present is a single-step exception.  */
+    {
+      if (auto instruction = wave.instruction_at_pc ();
+          /* The instruction is sequential.  */
+          instruction && is_sequential (*instruction))
+        {
+          /* Resume the wave in single-step mode.  */
+          wave_set_state (wave, AMD_DBGAPI_WAVE_STATE_SINGLE_STEP);
+
+          dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+                      "%s (pc=%#lx) ignore spurious single-step",
+                      to_string (wave.id ()).c_str (), wave.pc ());
+
+          return { AMD_DBGAPI_WAVE_STATE_SINGLE_STEP,
+                   AMD_DBGAPI_WAVE_STOP_REASON_NONE };
+        }
+
+      /* The pc is unchanged, the instruction is inaccessible, invalid, or
+         non-sequential, and no other exceptions were reported, yet the wave
+         has stopped. The best we can do is report a possibly spurious
+         single-step exception.  */
+      stop_reason |= AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP;
+    }
+
+  return { AMD_DBGAPI_WAVE_STATE_STOP, stop_reason };
 }
 
 size_t
