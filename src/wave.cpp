@@ -127,7 +127,7 @@ wave_t::instruction_at_pc (size_t pc_adjust) const
     }
   catch (...)
     {
-      return {};
+      return std::nullopt;
     }
 
   /* Trim partial and unread words.  */

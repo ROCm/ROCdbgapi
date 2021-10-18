@@ -189,7 +189,7 @@ amdgpu_regnum_to_dwarf_register (amdgpu_regnum_t regnum)
       return 3072 + (regnum - amdgpu_regnum_t::first_accvgpr_64);
     }
 
-  return {};
+  return std::nullopt;
 }
 
 std::optional<amdgpu_regnum_t>
@@ -251,7 +251,7 @@ dwarf_register_to_amdgpu_regnum (uint64_t dwarf_register)
       return amdgpu_regnum_t::first_accvgpr_64 + (dwarf_register - 3072);
     }
 
-  return {};
+  return std::nullopt;
 }
 
 } /* anonymous namespace */

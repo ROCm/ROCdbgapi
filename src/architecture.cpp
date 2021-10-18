@@ -533,7 +533,7 @@ generic_address_for_address_space (
     aperture = wave.agent ().private_address_space_aperture ();
   else if (segment_address_space.kind () != address_space_t::global)
     /* not a valid address space conversion.  */
-    return {};
+    return std::nullopt;
 
   if (segment_address == segment_address_space.null_address ())
     return segment_address_space.null_address ();
@@ -4147,7 +4147,7 @@ gfx10_architecture_t::cwsr_record_t::register_address (
     case amdgpu_regnum_t::xnack_mask_hi:
     case amdgpu_regnum_t::xnack_mask_64:
       /* On gfx10, xnack_mask is now a 32bit register.  */
-      return {};
+      return std::nullopt;
 
     case amdgpu_regnum_t::flat_scratch:
       /* On gfx10, flat_scratch is an architected register, so it is saved
