@@ -1187,8 +1187,8 @@ process_t::update_queues ()
              we always create a new queue_t for every queue_id reported by the
              snapshot ioctl.  */
 
-          /* create<queue_t> requests a new id if queue_id is {0}.  */
-          queue = &create<queue_t> (queue_id,    /* queue_id */
+          /* queue_t::create requests a new id if queue_id is {0}.  */
+          queue = &queue_t::create (queue_id,    /* queue_id */
                                     *agent,      /* agent */
                                     queue_info); /* queue_info */
 
@@ -1748,8 +1748,13 @@ process_t::query_debug_event (os_exception_mask_t cleared_exceptions)
              the original queue_id in the process. The event will be
              dropped.  */
 
+          os_queue_snapshot_entry_t queue_info{};
+          queue_info.queue_id = os_queue_id;
+
+          /* FIXME: need a dummy agent, for now, use the 1st agent in the
+             process, there must be at least 1 agent if we have exceptions.  */
           amd_dbgapi_queue_id_t queue_id
-            = create<queue_t> (m_dummy_agent, os_queue_id).id ();
+            = queue_t::create (std::nullopt, m_dummy_agent, queue_info).id ();
 
           update_queues ();
 

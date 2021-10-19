@@ -44,8 +44,6 @@ class process_t;
 class queue_t : public detail::handle_object<amd_dbgapi_queue_id_t>
 {
 public:
-  class queue_impl_t; /* Base class for all queue implementations.  */
-
   enum class state_t
   {
     invalid,   /* The queue is invalid. Calls to os_queue_id () will return the
@@ -57,28 +55,35 @@ public:
 
   };
 
+protected:
+  os_queue_snapshot_entry_t const m_os_queue_info;
+
 private:
   state_t m_state{ state_t::running };
   epoch_t m_mark{ 0 };
 
   const agent_t &m_agent;
 
-  /* Must be initialized last.  */
-  std::unique_ptr<queue_impl_t> m_impl;
-
 public:
   queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
-           const os_queue_snapshot_entry_t &os_queue_info);
+           const os_queue_snapshot_entry_t &os_queue_info)
+    : handle_object (queue_id), m_os_queue_info (os_queue_info),
+      m_agent (agent)
+  {
+  }
 
-  /* Construct a temporary queue instance that must be updated by the next
-     process_t::update_queues ().  */
-  queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
-           os_queue_id_t os_queue_id);
+  virtual ~queue_t () = default;
 
-  ~queue_t ();
+  static queue_t &create (std::optional<amd_dbgapi_queue_id_t> queue_id,
+                          const agent_t &agent,
+                          const os_queue_snapshot_entry_t &os_queue_info);
+
+  /* Return the queue's type.  */
+  virtual amd_dbgapi_os_queue_type_t type () const = 0;
 
   state_t state () const { return m_state; }
   void set_state (state_t state);
+  virtual void state_changed (queue_t::state_t) {}
 
   bool is_valid () const { return m_state != state_t::invalid; }
   bool is_suspended () const { return m_state == state_t::suspended; }
@@ -94,16 +99,20 @@ public:
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }
 
+  /* Return the address of the memory holding the queue packets.  */
   amd_dbgapi_global_address_t address () const;
+  /* Return the size of the memory holding the queue packets.  */
   amd_dbgapi_size_t size () const;
 
-  void active_packets_info (amd_dbgapi_os_queue_packet_id_t *read_packet_id_p,
-                            amd_dbgapi_os_queue_packet_id_t *write_packet_id_p,
-                            size_t *packets_byte_size_p) const;
+  virtual void
+  active_packets_info (amd_dbgapi_os_queue_packet_id_t *read_packet_id_p,
+                       amd_dbgapi_os_queue_packet_id_t *write_packet_id_p,
+                       size_t *packets_byte_size_p) const = 0;
 
-  void active_packets_bytes (amd_dbgapi_os_queue_packet_id_t read_packet_id,
-                             amd_dbgapi_os_queue_packet_id_t write_packet_id,
-                             void *memory, size_t memory_size) const;
+  virtual void
+  active_packets_bytes (amd_dbgapi_os_queue_packet_id_t read_packet_id,
+                        amd_dbgapi_os_queue_packet_id_t write_packet_id,
+                        void *memory, size_t memory_size) const = 0;
 
   void get_info (amd_dbgapi_queue_info_t query, size_t value_size,
                  void *value) const;
