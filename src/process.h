@@ -264,11 +264,7 @@ public:
   amd_dbgapi_status_t
   remove_breakpoint (amd_dbgapi_breakpoint_id_t breakpoint_id);
 
-  template <typename Object, typename... Args> auto &create (Args &&...args)
-  {
-    return std::get<handle_object_set_t<Object>> (m_handle_object_sets)
-      .create_object (std::forward<Args> (args)...);
-  }
+  template <typename Object, typename... Args> auto &create (Args &&...args);
 
   /* Destroy the given object.  */
   template <typename Object> void destroy (Object *object)
@@ -382,6 +378,41 @@ process_t::write_global_memory (amd_dbgapi_global_address_t address,
     {
       fatal_error ("process_t::write_global_memory failed: %s", e.what ());
     }
+}
+
+namespace detail
+{
+template <typename Object, std::size_t N, typename... Args>
+struct get_base_type_index
+{
+  static constexpr auto value = N;
+};
+
+template <typename Object, std::size_t N, typename HandleObjectSet,
+          typename... Args>
+struct get_base_type_index<Object, N, HandleObjectSet, Args...>
+{
+  static constexpr auto value
+    = std::is_base_of_v<typename HandleObjectSet::object_type, Object>
+        ? N
+        : get_base_type_index<Object, N + 1, Args...>::value;
+};
+
+template <typename Object, typename... Args>
+auto &
+get_base_type_element (std::tuple<Args...> &tuple)
+{
+  return std::get<detail::get_base_type_index<Object, 0, Args...>::value> (
+    tuple);
+}
+} /* namespace detail */
+
+template <typename Object, typename... Args>
+auto &
+process_t::create (Args &&...args)
+{
+  return detail::get_base_type_element<Object> (m_handle_object_sets)
+    .template create_object<Object> (std::forward<Args> (args)...);
 }
 
 namespace detail

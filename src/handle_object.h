@@ -24,6 +24,7 @@
 #include "utils.h"
 
 #include <algorithm>
+#include <memory>
 #include <type_traits>
 #include <unordered_map>
 
@@ -64,12 +65,6 @@ protected:
   handle_object (handle_object &&) = delete;
   handle_object &operator= (const handle_object &) = delete;
   handle_object &operator= (handle_object &&) = delete;
-
-  /* handle_objects are not heap objects.  */
-  static void *operator new (std::size_t) = delete;
-  static void *operator new[] (std::size_t) = delete;
-  static void operator delete (void *) = delete;
-  static void operator delete[] (void *) = delete;
 
 public:
   handle_type id () const { return m_id; }
@@ -172,7 +167,8 @@ template <typename Object> class handle_object_set_t
 public:
   using object_type = Object;
   using handle_type = utils::detected_t<detail::object_id_t, Object>;
-  using map_type = std::unordered_map<handle_type, Object, hash<handle_type>>;
+  using map_type = std::unordered_map<handle_type, std::unique_ptr<Object>,
+                                      hash<handle_type>>;
 
 private:
   /* Flag to tell if the content of the map has changed.  */
@@ -208,8 +204,8 @@ public:
       ++m_it;
       return i;
     }
-    reference operator* () { return m_it->second; }
-    pointer operator-> () { return &m_it->second; }
+    reference operator* () { return *m_it->second; }
+    pointer operator-> () { return m_it->second.get (); }
     bool operator== (const self_type &rhs) { return m_it == rhs.m_it; }
     bool operator!= (const self_type &rhs) { return m_it != rhs.m_it; }
   };
@@ -240,8 +236,8 @@ public:
       ++m_it;
       return i;
     }
-    const_reference operator* () const { return m_it->second; }
-    const_pointer operator-> () const { return &m_it->second; }
+    const_reference operator* () const { return *m_it->second; }
+    const_pointer operator-> () const { return m_it->second.get (); }
     bool operator== (const self_type &rhs) const { return m_it == rhs.m_it; }
     bool operator!= (const self_type &rhs) const { return m_it != rhs.m_it; }
   };
@@ -280,13 +276,14 @@ public:
   /* Default constructor.  */
   handle_object_set_t () = default;
 
-  template <typename... Args>
+  template <typename Derived = Object, typename... Args>
   inline Object &create_object (std::optional<handle_type> id, Args &&...args);
 
-  template <typename... Args> Object &create_object (Args &&...args)
+  template <typename Derived = Object, typename... Args>
+  Object &create_object (Args &&...args)
   {
-    return create_object (std::optional<handle_type>{},
-                          std::forward<Args> (args)...);
+    return create_object<Derived> (std::optional<handle_type>{},
+                                   std::forward<Args> (args)...);
   }
 
   void destroy (Object *object)
@@ -316,15 +313,17 @@ public:
   Object *find (handle_type id, bool all = false)
   {
     auto it = m_map.find (id);
-    return (it != m_map.end () && (all || is_valid (it->second))) ? &it->second
-                                                                  : nullptr;
+    return (it != m_map.end () && (all || is_valid (*it->second)))
+             ? it->second.get ()
+             : nullptr;
   }
 
   const Object *find (handle_type id, bool all = false) const
   {
     auto it = m_map.find (id);
-    return (it != m_map.end () && (all || is_valid (it->second))) ? &it->second
-                                                                  : nullptr;
+    return (it != m_map.end () && (all || is_valid (*it->second)))
+             ? it->second.get ()
+             : nullptr;
   }
 
   template <typename Functor>
@@ -333,10 +332,10 @@ public:
     auto it = std::find_if (m_map.begin (), m_map.end (),
                             [=] (const auto &value)
                             {
-                              return bool{ (all || is_valid (value.second))
-                                           && predicate (value.second) };
+                              return bool{ (all || is_valid (*value.second))
+                                           && predicate (*value.second) };
                             });
-    return (it != m_map.end ()) ? &it->second : nullptr;
+    return (it != m_map.end ()) ? it->second.get () : nullptr;
   }
 
   template <typename Functor>
@@ -345,10 +344,10 @@ public:
     auto it = std::find_if (m_map.begin (), m_map.end (),
                             [=] (const auto &value)
                             {
-                              return bool{ (all || is_valid (value.second))
-                                           && predicate (value.second) };
+                              return bool{ (all || is_valid (*value.second))
+                                           && predicate (*value.second) };
                             });
-    return (it != m_map.end ()) ? &it->second : nullptr;
+    return (it != m_map.end ()) ? it->second.get () : nullptr;
   }
 
   iterator begin () { return iterator (m_map.begin ()); }
@@ -398,7 +397,7 @@ public:
 };
 
 template <typename Object>
-template <typename... Args>
+template <typename Derived, typename... Args>
 inline Object &
 handle_object_set_t<Object>::create_object (std::optional<handle_type> id,
                                             Args &&...args)
@@ -411,7 +410,7 @@ handle_object_set_t<Object>::create_object (std::optional<handle_type> id,
 
   auto [it, success] = m_map.emplace (
     std::piecewise_construct, std::forward_as_tuple (*id),
-    std::forward_as_tuple (*id, std::forward<Args> (args)...));
+    std::forward_as_tuple (new Derived (*id, std::forward<Args> (args)...)));
 
   if (!success)
     fatal_error ("could not create new object");
@@ -423,7 +422,7 @@ handle_object_set_t<Object>::create_object (std::optional<handle_type> id,
     }
 
   m_changed = true;
-  return it->second;
+  return *it->second.get ();
 }
 
 namespace detail
