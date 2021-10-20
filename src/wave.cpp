@@ -895,8 +895,9 @@ wave_t::xfer_segment_memory (const address_space_t &address_space,
                                                             write, size);
 
     default:
-      fatal_error ("xfer_segment_memory from address space `%s' not supported",
-                   address_space.name ().c_str ());
+      throw memory_access_error_t (string_printf (
+        "xfer_segment_memory from address space `%s' not supported",
+        address_space.name ().c_str ()));
     }
 }
 

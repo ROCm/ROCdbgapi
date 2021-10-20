@@ -78,13 +78,20 @@ public:
 class memory_access_error_t : public api_error_t
 {
 private:
-  amd_dbgapi_global_address_t m_address;
+  std::optional<amd_dbgapi_global_address_t> m_address;
 
 public:
   memory_access_error_t (amd_dbgapi_global_address_t address,
-                         std::string messages = {});
+                         std::string message = {});
+  memory_access_error_t (std::string message = {})
+    : api_error_t (AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS, message)
+  {
+  }
 
-  amd_dbgapi_global_address_t address () const noexcept { return m_address; }
+  std::optional<amd_dbgapi_global_address_t> address () const noexcept
+  {
+    return m_address;
+  }
 };
 
 class fatal_error_t : public api_error_t
