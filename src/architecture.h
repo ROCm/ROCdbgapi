@@ -170,10 +170,10 @@ public:
   class cwsr_record_t
   {
   private:
-    queue_t &m_queue;
+    compute_queue_t &m_queue;
 
   public:
-    cwsr_record_t (queue_t &queue) : m_queue (queue) {}
+    cwsr_record_t (compute_queue_t &queue) : m_queue (queue) {}
     /* cwsr_record_t is a polymorphic base class.  */
     virtual ~cwsr_record_t () = default;
 
@@ -200,12 +200,20 @@ public:
     virtual std::optional<amd_dbgapi_global_address_t>
     register_address (amdgpu_regnum_t regnum) const = 0;
 
+    /* Return true is a scratch slot is allocated for this record.  */
+    virtual bool is_scratch_enabled () const = 0;
+
+    /* The shader engine ID this wave was created on.  */
+    virtual uint32_t shader_engine_id () const = 0;
+    /* Scratch region slot ID.  */
+    virtual uint32_t scratch_scoreboard_id () const = 0;
+
     /* The address of the first byte in the wave's context save.  */
     virtual amd_dbgapi_global_address_t begin () const = 0;
     /* The address of the byte following the last byte in the context save. */
     virtual amd_dbgapi_global_address_t end () const = 0;
 
-    queue_t &queue () const { return m_queue; }
+    compute_queue_t &queue () const { return m_queue; }
     const agent_t &agent () const { return queue ().agent (); }
     process_t &process () const { return agent ().process (); }
   };
@@ -234,18 +242,20 @@ public:
   /* FIXME: add SQ prefetch instruction bytes size.  */
 
   virtual void control_stack_iterate (
-    queue_t &queue, const uint32_t *control_stack, size_t control_stack_words,
-    amd_dbgapi_global_address_t wave_area_address,
+    compute_queue_t &queue, const uint32_t *control_stack,
+    size_t control_stack_words, amd_dbgapi_global_address_t wave_area_address,
     amd_dbgapi_size_t wave_area_size,
     const std::function<void (std::unique_ptr<cwsr_record_t>)> &wave_callback)
     const = 0;
 
   virtual amd_dbgapi_global_address_t dispatch_packet_address (
     const architecture_t::cwsr_record_t &cwsr_record) const = 0;
+
   virtual std::pair<amd_dbgapi_size_t /* offset  */,
                     amd_dbgapi_size_t /* size  */>
-  scratch_slot (const architecture_t::cwsr_record_t &cwsr_record,
-                uint32_t compute_tmpring_size_register) const = 0;
+  scratch_memory_region (uint32_t compute_tmpring_size_register,
+                         uint32_t bank_count, uint32_t bank_id,
+                         uint32_t slot_id) const = 0;
 
   virtual void
   convert_address_space (const wave_t &wave, amd_dbgapi_lane_id_t lane_id,

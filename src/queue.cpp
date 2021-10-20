@@ -49,7 +49,7 @@ namespace amd::dbgapi
 namespace detail
 {
 
-class aql_queue_t : public queue_t
+class aql_queue_t : public compute_queue_t
 {
 private:
   static constexpr uint64_t aql_packet_size = 64;
@@ -84,16 +84,37 @@ private:
   utils::doubly_linked_list_t<memory_cache_t> m_dirty_caches{};
 
   dispatch_t const m_dummy_dispatch;
-  wave_t::callbacks_t m_callbacks{};
   hsa_queue_t m_hsa_queue{};
 
-  amd_dbgapi_status_t update_waves ();
-  instruction_buffer_t allocate_instruction_buffer ();
+  instruction_buffer_t allocate_instruction_buffer () override;
+
+  void state_changed () override;
+
+  void update_waves ();
 
 public:
   aql_queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
                const os_queue_snapshot_entry_t &os_queue_info);
   ~aql_queue_t () override;
+
+  /* Return the queue type.  */
+  amd_dbgapi_os_queue_type_t type () const override;
+
+  /* Return the address of a park instruction.  */
+  amd_dbgapi_global_address_t park_instruction_address () override
+  {
+    return m_park_instruction_buffer->begin ();
+  }
+
+  /* Return the address of a terminating instruction.  */
+  amd_dbgapi_global_address_t terminating_instruction_address () override
+  {
+    return m_terminating_instruction_buffer->begin ();
+  }
+
+  std::pair<amd_dbgapi_global_address_t /* address */,
+            amd_dbgapi_size_t /* size */>
+  scratch_memory_region (uint32_t engine_id, uint32_t slot_id) const override;
 
   void active_packets_info (amd_dbgapi_os_queue_packet_id_t *read_packet_id_p,
                             amd_dbgapi_os_queue_packet_id_t *write_packet_id_p,
@@ -103,15 +124,17 @@ public:
                              amd_dbgapi_os_queue_packet_id_t write_packet_id,
                              void *memory, size_t memory_size) const override;
 
-  /* Return the queue's type.  */
-  amd_dbgapi_os_queue_type_t type () const override;
-
-  void state_changed (queue_t::state_t state) override;
+  /* Insert the given cache into the queue's dirty cache list.  */
+  void register_dirty_cache (memory_cache_t &cache) override
+  {
+    if (!cache.is_inserted ())
+      m_dirty_caches.insert (cache);
+  }
 };
 
 aql_queue_t::aql_queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
                           const os_queue_snapshot_entry_t &os_queue_info)
-  : queue_t (queue_id, agent, os_queue_info),
+  : compute_queue_t (queue_id, agent, os_queue_info),
     m_dummy_dispatch (AMD_DBGAPI_DISPATCH_NONE, *this, 0, 0)
 {
   const architecture_t &architecture = this->architecture ();
@@ -174,30 +197,6 @@ aql_queue_t::aql_queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
 
   if ((m_hsa_queue.size * 64) != size ())
     fatal_error ("hsa_queue_t size != kfd queue info ring size");
-
-  m_callbacks = {
-    /* Return the wave's scratch memory region (address and size).  */
-    [&] (const architecture_t::cwsr_record_t &cwsr_record)
-      -> std::pair<amd_dbgapi_global_address_t, amd_dbgapi_size_t>
-    {
-      auto [offset, size]
-        = architecture.scratch_slot (cwsr_record, m_compute_tmpring_size);
-
-      return std::make_pair (m_scratch_backing_memory_address + offset, size);
-    },
-    /* Return a new instruction buffer instance in this queue.  */
-    [&] () { return allocate_instruction_buffer (); },
-    /* Return the address of a park instruction.  */
-    [&] () { return m_park_instruction_buffer->begin (); },
-    /* Return the address of a terminating instruction.  */
-    [&] () { return m_terminating_instruction_buffer->begin (); },
-    /* Insert the given register cache into the queue's dirty cache list.  */
-    [&] (memory_cache_t &cache)
-    {
-      if (!cache.is_inserted ())
-        m_dirty_caches.insert (cache);
-    },
-  };
 }
 
 aql_queue_t::~aql_queue_t ()
@@ -265,15 +264,56 @@ aql_queue_t::allocate_instruction_buffer ()
     debugger_memory_chunk_size - assert_instruction.size (), deleter);
 }
 
-amd_dbgapi_status_t
+void
+aql_queue_t::state_changed ()
+{
+  switch (state ())
+    {
+    case state_t::running:
+      for (auto it = m_dirty_caches.begin (); it != m_dirty_caches.end ();
+           it = m_dirty_caches.remove (*it))
+        it->flush ();
+      break;
+
+    case state_t::suspended:
+      /* Refresh the scratch_backing_memory_location and
+         scratch_backing_memory_size everytime the queue is suspended.
+
+         The scratch backing memory address is stored in the ABI-stable part of
+         the amd_queue_t. Since we know the address of the read_dispatch_id
+         (obtained from the KFD through the queue snapshot info), which is also
+         stored in the ABI-stable part of the amd_queue_t, we can calculate the
+         address of the pointer to the scratch_backing_memory_location and read
+         it.  We cannot cache this value as the runtime may change the
+         allocation dynamically.  */
+
+      process ().read_global_memory (
+        m_os_queue_info.read_pointer_address
+          + offsetof (amd_queue_t, scratch_backing_memory_location)
+          - offsetof (amd_queue_t, read_dispatch_id),
+        &m_scratch_backing_memory_address);
+
+      process ().read_global_memory (
+        m_os_queue_info.read_pointer_address
+          + offsetof (amd_queue_t, compute_tmpring_size)
+          - offsetof (amd_queue_t, read_dispatch_id),
+        &m_compute_tmpring_size);
+
+      /* Iterate the control stack and update/create waves that were saved in
+         the last context wave save.  Waves that are no longer present will be
+         destroyed.  */
+      update_waves ();
+      break;
+
+    case state_t::invalid:
+      break;
+    }
+}
+
+void
 aql_queue_t::update_waves ()
 {
   process_t &process = this->process ();
-
-  /* Value used to mark waves that are found in the context save area. When
-     sweeping, any wave found with a mark less than the current mark will be
-     deleted, as these waves are no longer active.  */
-  const epoch_t wave_mark = wave_t::next_mark ();
 
   /* Read the queue's write_dispatch_id and read_dispatch_id.  */
 
@@ -285,6 +325,10 @@ aql_queue_t::update_waves ()
   process.read_global_memory (m_os_queue_info.read_pointer_address,
                               &read_dispatch_id);
 
+  /* Value used to mark waves that are found in the context save area. When
+     sweeping, any wave found with a mark less than the current mark will be
+     deleted, as these waves are no longer active.  */
+  const epoch_t wave_mark = wave_t::next_mark ();
   wave_t *group_leader = nullptr;
 
   auto callback = [=, &process, &group_leader] (auto cwsr_record)
@@ -398,7 +442,7 @@ aql_queue_t::update_waves ()
 
     if (!wave)
       {
-        wave = &process.create<wave_t> (wave_id, *dispatch, m_callbacks);
+        wave = &process.create<wave_t> (wave_id, *dispatch);
         wave->set_visibility (visibility);
       }
 
@@ -492,8 +536,16 @@ aql_queue_t::update_waves ()
       it = process.destroy (it);
     else
       ++it;
+}
 
-  return AMD_DBGAPI_STATUS_SUCCESS;
+std::pair<amd_dbgapi_global_address_t /* address */,
+          amd_dbgapi_size_t /* size */>
+aql_queue_t::scratch_memory_region (uint32_t engine_id, uint32_t slot_id) const
+{
+  auto [offset, size] = architecture ().scratch_memory_region (
+    m_compute_tmpring_size, agent ().os_info ().shader_engine_count, engine_id,
+    slot_id);
+  return { m_scratch_backing_memory_address + offset, size };
 }
 
 void
@@ -578,48 +630,6 @@ aql_queue_t::type () const
       return AMD_DBGAPI_OS_QUEUE_TYPE_HSA_KERNEL_DISPATCH_COOPERATIVE;
     }
   return AMD_DBGAPI_OS_QUEUE_TYPE_UNKNOWN;
-}
-
-void
-aql_queue_t::state_changed (queue_t::state_t state)
-{
-  if (state == queue_t::state_t::running)
-    {
-      for (auto it = m_dirty_caches.begin (); it != m_dirty_caches.end ();
-           it = m_dirty_caches.remove (*it))
-        it->flush ();
-    }
-  if (state == queue_t::state_t::suspended)
-    {
-      /* Refresh the scratch_backing_memory_location and
-         scratch_backing_memory_size everytime we suspend the queue.  */
-
-      /* The scratch backing memory address is stored in the ABI-stable part
-         of the amd_queue_t. Since we know the address of the read_dispatch_id
-         (obtained from the KFD through the queue snapshot info), which is also
-         stored in the ABI-stable part of the amd_queue_t, we can calculate the
-         address of the pointer to the scratch_backing_memory_location and read
-         it.  We cannot cache this value as the runtime may change the
-         allocation dynamically.  */
-
-      process ().read_global_memory (
-        m_os_queue_info.read_pointer_address
-          + offsetof (amd_queue_t, scratch_backing_memory_location)
-          - offsetof (amd_queue_t, read_dispatch_id),
-        &m_scratch_backing_memory_address);
-
-      process ().read_global_memory (
-        m_os_queue_info.read_pointer_address
-          + offsetof (amd_queue_t, compute_tmpring_size)
-          - offsetof (amd_queue_t, read_dispatch_id),
-        &m_compute_tmpring_size);
-
-      /* Update the waves from the content of the queue's context save area. */
-      amd_dbgapi_status_t status = update_waves ();
-      if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        warning ("%s update_waves failed (rc=%d)", to_string (id ()).c_str (),
-                 status);
-    }
 }
 
 class unsupported_queue_t : public queue_t
@@ -717,11 +727,7 @@ queue_t::set_state (state_t state)
                  && "an invalid queue cannot change state");
 
   m_state = state;
-
-  /* Notify the queue_impl of the change of state. Some implementation may act
-     on some state transitions, for example a compute queue may update its
-     dispatches and waves.  */
-  state_changed (state);
+  state_changed ();
 
   if (state == state_t::invalid)
     dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "invalidated %s",

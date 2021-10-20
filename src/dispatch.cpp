@@ -37,7 +37,8 @@
 namespace amd::dbgapi
 {
 
-dispatch_t::dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id, queue_t &queue,
+dispatch_t::dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id,
+                        compute_queue_t &queue,
                         amd_dbgapi_os_queue_packet_id_t os_queue_packet_id,
                         amd_dbgapi_global_address_t packet_address)
   : handle_object (dispatch_id), m_os_queue_packet_id (os_queue_packet_id),

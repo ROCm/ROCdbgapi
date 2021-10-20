@@ -25,6 +25,7 @@
 #include "amd-dbgapi.h"
 #include "debug.h"
 #include "handle_object.h"
+#include "memory.h"
 #include "os_driver.h"
 #include "utils.h"
 
@@ -64,7 +65,14 @@ private:
 
   const agent_t &m_agent;
 
+  /* Called whenever the queue changes state.  */
+  virtual void state_changed () {}
+
 public:
+  static queue_t &create (std::optional<amd_dbgapi_queue_id_t> queue_id,
+                          const agent_t &agent,
+                          const os_queue_snapshot_entry_t &os_queue_info);
+
   queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
            const os_queue_snapshot_entry_t &os_queue_info)
     : handle_object (queue_id), m_os_queue_info (os_queue_info),
@@ -74,16 +82,11 @@ public:
 
   virtual ~queue_t () = default;
 
-  static queue_t &create (std::optional<amd_dbgapi_queue_id_t> queue_id,
-                          const agent_t &agent,
-                          const os_queue_snapshot_entry_t &os_queue_info);
-
   /* Return the queue's type.  */
   virtual amd_dbgapi_os_queue_type_t type () const = 0;
 
   state_t state () const { return m_state; }
   void set_state (state_t state);
-  virtual void state_changed (queue_t::state_t) {}
 
   bool is_valid () const { return m_state != state_t::invalid; }
   bool is_suspended () const { return m_state == state_t::suspended; }
@@ -126,6 +129,35 @@ public:
   }
 };
 
+/* Interface implemented by all compute queues.  */
+
+class compute_queue_t : public queue_t
+{
+protected:
+  compute_queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
+                   const os_queue_snapshot_entry_t &os_queue_info)
+    : queue_t (queue_id, agent, os_queue_info)
+  {
+  }
+
+public:
+  /* Return the address of a park instruction.  */
+  virtual amd_dbgapi_global_address_t park_instruction_address () = 0;
+  /* Return the address of a terminating instruction.  */
+  virtual amd_dbgapi_global_address_t terminating_instruction_address () = 0;
+
+  /* Return the wave's scratch memory region (address and size).  */
+  virtual std::pair<amd_dbgapi_global_address_t /* address */,
+                    amd_dbgapi_size_t /* size */>
+  scratch_memory_region (uint32_t engine_id, uint32_t slot_id) const = 0;
+
+  /* Return a new wave buffer instance in this queue.  */
+  virtual instruction_buffer_t allocate_instruction_buffer () = 0;
+
+  /* Insert the given cache into the queue's dirty cache list.  */
+  virtual void register_dirty_cache (memory_cache_t &cache) = 0;
+};
+
 /* Wraps a queue and provides a RAII mechanism to suspend it if it wasn't
    already suspended. The queue is suspended when the object is constructed,
    if the queue is not invalid or not already suspended.  When control leaves
@@ -146,68 +178,6 @@ public:
 public:
   const char *const m_reason;
   queue_t *m_queue;
-};
-
-/* An instruction_buffer holds the address and capacity of a global memory
-   region used to store instructions. It behaves like a std::unique_ptr but is
-   optimized to contain the instruction buffer instance data to avoid the cost
-   associated with allocate/free.  An instruction buffer can hold one or more
-   instructions, and is always terminated by a 'guard' instruction (s_trap). */
-class instruction_buffer_t
-{
-private:
-  using deleter_type = std::function<void (amd_dbgapi_global_address_t)>;
-
-  struct
-  {
-    std::optional<amd_dbgapi_global_address_t> m_buffer_address{};
-    uint32_t m_size{}; /* size of the instruction stored in this buffer.  */
-    uint32_t m_capacity{}; /* the buffer's capacity in bytes.  */
-
-    size_t size () const { return m_size; }
-    void resize (size_t size)
-    {
-      if (size > m_capacity)
-        fatal_error ("size exceeds capacity");
-      m_size = size;
-    }
-
-    amd_dbgapi_global_address_t begin () const { return end () - size (); }
-    amd_dbgapi_global_address_t end () const
-    {
-      dbgapi_assert (m_buffer_address.has_value ());
-      return *m_buffer_address + m_capacity;
-    }
-
-    bool empty () const { return !size (); }
-    void clear () { resize (0); }
-  } m_data;
-
-  deleter_type m_deleter; /* functor to deallocate the buffer when this
-                               buffer is reset.  */
-
-public:
-  instruction_buffer_t () : m_data (), m_deleter () {}
-
-  instruction_buffer_t (amd_dbgapi_global_address_t buffer_address,
-                        uint32_t capacity, deleter_type deleter);
-
-  instruction_buffer_t (instruction_buffer_t &&other);
-  instruction_buffer_t &operator= (instruction_buffer_t &&other);
-
-  /* Disable copies.  */
-  instruction_buffer_t (const instruction_buffer_t &other) = delete;
-  instruction_buffer_t &operator= (const instruction_buffer_t &other) = delete;
-
-  ~instruction_buffer_t () { reset (); }
-
-  decltype (m_data) *operator-> () { return &m_data; }
-  decltype (m_data) const *operator-> () const { return &m_data; }
-
-  operator bool () const { return m_data.m_buffer_address.has_value (); }
-
-  void reset ();
-  std::optional<amd_dbgapi_global_address_t> release ();
 };
 
 } /* namespace amd::dbgapi */

@@ -43,12 +43,11 @@
 namespace amd::dbgapi
 {
 
-wave_t::wave_t (amd_dbgapi_wave_id_t wave_id, const dispatch_t &dispatch,
-                const callbacks_t &callbacks)
+wave_t::wave_t (amd_dbgapi_wave_id_t wave_id, const dispatch_t &dispatch)
   : handle_object (wave_id),
     m_register_cache (dispatch.process (),
                       memory_cache_t::policy_t::write_back),
-    m_callbacks (callbacks), m_dispatch (dispatch)
+    m_dispatch (dispatch)
 {
 }
 
@@ -150,8 +149,7 @@ wave_t::park ()
      wave will never be halted at such instructions.  */
   m_parked_pc = pc ();
 
-  amd_dbgapi_global_address_t parked_pc
-    = m_callbacks.park_instruction_address ();
+  amd_dbgapi_global_address_t parked_pc = queue ().park_instruction_address ();
   write_register (amdgpu_regnum_t::pc, &parked_pc);
 
   m_is_parked = true;
@@ -196,7 +194,7 @@ wave_t::terminate ()
      never reported to the client as existing.  */
 
   amd_dbgapi_global_address_t terminate_pc
-    = m_callbacks.terminating_instruction_address ();
+    = queue ().terminating_instruction_address ();
 
   /* Make the PC point to an immutable terminating instruction.  */
   write_register (amdgpu_regnum_t::pc, &terminate_pc);
@@ -263,7 +261,7 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
 
       if (!simulate)
         {
-          instruction_buffer = m_callbacks.allocate_instruction_buffer ();
+          instruction_buffer = queue ().allocate_instruction_buffer ();
           instruction_buffer->resize (original_instruction.size ());
           amd_dbgapi_global_address_t instruction_addr
             = instruction_buffer->begin ();
@@ -709,7 +707,7 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
       /* If the cache is dirty, register it with the queue, it will be flushed
          when the queue is resumed.  */
       if (m_register_cache.is_dirty ())
-        m_callbacks.register_dirty_cache (m_register_cache);
+        queue ().register_dirty_cache (m_register_cache);
     }
   else
     {
@@ -729,7 +727,8 @@ wave_t::xfer_private_memory_swizzled (
   dbgapi_assert (lane_id != AMD_DBGAPI_LANE_NONE && lane_id < lane_count ());
 
   auto [scratch_base, scratch_size]
-    = m_callbacks.scratch_memory_region (*m_cwsr_record);
+    = queue ().scratch_memory_region (m_cwsr_record->shader_engine_id (),
+                                      m_cwsr_record->scratch_scoreboard_id ());
 
   size_t bytes = size;
   while (bytes > 0)
@@ -779,7 +778,8 @@ wave_t::xfer_private_memory_unswizzled (
   size_t size)
 {
   auto [scratch_base, scratch_size]
-    = m_callbacks.scratch_memory_region (*m_cwsr_record);
+    = queue ().scratch_memory_region (m_cwsr_record->shader_engine_id (),
+                                      m_cwsr_record->scratch_scoreboard_id ());
 
   if ((segment_address + size) > scratch_size)
     {

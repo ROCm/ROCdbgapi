@@ -85,23 +85,6 @@ public:
     hidden_at_terminating_instruction
   };
 
-  struct callbacks_t
-  {
-    /* Return the wave's scratch memory region (address and size).  */
-    std::function<std::pair<amd_dbgapi_global_address_t, amd_dbgapi_size_t> (
-      const architecture_t::cwsr_record_t &)>
-      scratch_memory_region{};
-    /* Return a new wave buffer instance in this queue.  */
-    std::function<instruction_buffer_t ()> allocate_instruction_buffer{};
-    /* Return the address of a park instruction.  */
-    std::function<amd_dbgapi_global_address_t ()> park_instruction_address{};
-    /* Return the address of a terminating instruction.  */
-    std::function<amd_dbgapi_global_address_t ()>
-      terminating_instruction_address{};
-    /* Insert the given cache into the queue's dirty cache list.  */
-    std::function<void (memory_cache_t &)> register_dirty_cache{};
-  };
-
 private:
   amd_dbgapi_wave_state_t m_state{ AMD_DBGAPI_WAVE_STATE_RUN };
   bool m_stop_requested{ false };
@@ -122,7 +105,6 @@ private:
 
   displaced_stepping_t *m_displaced_stepping{ nullptr };
   const wave_t *m_group_leader{ nullptr };
-  const callbacks_t &m_callbacks;
   const dispatch_t &m_dispatch;
 
   [[nodiscard]] size_t
@@ -144,8 +126,7 @@ private:
   void unpark ();
 
 public:
-  wave_t (amd_dbgapi_wave_id_t wave_id, const dispatch_t &dispatch,
-          const callbacks_t &callbacks);
+  wave_t (amd_dbgapi_wave_id_t wave_id, const dispatch_t &dispatch);
   ~wave_t ();
 
   /* Disable copies.  */
@@ -263,11 +244,6 @@ public:
       }
   }
 
-  amd_dbgapi_global_address_t park_instruction_address () const
-  {
-    return m_callbacks.park_instruction_address ();
-  }
-
   [[nodiscard]] size_t
   xfer_segment_memory (const address_space_t &address_space,
                        amd_dbgapi_lane_id_t lane_id,
@@ -278,7 +254,7 @@ public:
                  void *value) const;
 
   const dispatch_t &dispatch () const { return m_dispatch; }
-  queue_t &queue () const { return dispatch ().queue (); }
+  compute_queue_t &queue () const { return dispatch ().queue (); }
   const agent_t &agent () const { return queue ().agent (); }
   process_t &process () const { return agent ().process (); }
   const architecture_t &architecture () const

@@ -62,10 +62,10 @@ private:
   hsa_kernel_dispatch_packet_t m_packet{};
 
   kernel_descriptor_t m_kernel_descriptor{};
-  queue_t &m_queue;
+  compute_queue_t &m_queue;
 
 public:
-  dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id, queue_t &queue,
+  dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id, compute_queue_t &queue,
               amd_dbgapi_os_queue_packet_id_t os_queue_packet_id,
               amd_dbgapi_global_address_t packet_address);
 
@@ -78,7 +78,7 @@ public:
   void get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
                  void *value) const;
 
-  queue_t &queue () const { return m_queue; }
+  compute_queue_t &queue () const { return m_queue; }
   const agent_t &agent () const { return queue ().agent (); }
   process_t &process () const { return agent ().process (); }
   const architecture_t &architecture () const

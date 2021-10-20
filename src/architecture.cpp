@@ -159,26 +159,15 @@ protected:
   class cwsr_record_t : public architecture_t::cwsr_record_t
   {
   protected:
-    cwsr_record_t (queue_t &queue) : architecture_t::cwsr_record_t (queue) {}
+    cwsr_record_t (compute_queue_t &queue)
+      : architecture_t::cwsr_record_t (queue)
+    {
+    }
 
     /* Number for vector registers.  */
     virtual size_t vgpr_count () const = 0;
     /* Number of scalar registers.  */
     virtual size_t sgpr_count () const = 0;
-
-    /* Return true is a scratch slot is allocated for this record.  */
-    virtual bool is_scratch_enabled () const = 0;
-
-    /* The shader engine ID this wave was created on.  */
-    virtual uint32_t shader_engine_id () const = 0;
-    /* Scratch region slot ID.  */
-    virtual uint32_t scratch_scoreboard_id () const = 0;
-
-  public:
-    /* Offset of the scratch slot in the queue allocated scratch region.  */
-    virtual std::optional<size_t>
-    scratch_slot_offset (size_t scratch_slot_size,
-                         size_t scratch_slot_count) const;
   };
 
   amdgcn_architecture_t (elf_amdgpu_machine_t e_machine,
@@ -1306,7 +1295,8 @@ amdgcn_architecture_t::simulate_trap_handler (
       ttmp11 |= (utils::bit_extract (pc, 32, 47) << 7);
       wave.write_register (amdgpu_regnum_t::ttmp11, &ttmp11);
 
-      amd_dbgapi_global_address_t parked_pc = wave.park_instruction_address ();
+      amd_dbgapi_global_address_t parked_pc
+        = wave.queue ().park_instruction_address ();
       wave.write_register (amdgpu_regnum_t::pc, &parked_pc);
     }
   else
@@ -2233,20 +2223,6 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
   dbgapi_assert_not_reached ("Unhandled pseudo register");
 }
 
-std::optional<size_t>
-amdgcn_architecture_t::cwsr_record_t::scratch_slot_offset (
-  size_t scratch_slot_size, size_t scratch_slot_count) const
-{
-  if (!is_scratch_enabled ())
-    return std::nullopt;
-
-  dbgapi_assert (agent ().os_info ().shader_engine_count != 0);
-  return scratch_slot_size
-         * ((scratch_slot_count / agent ().os_info ().shader_engine_count)
-              * shader_engine_id ()
-            + scratch_scoreboard_id ());
-}
-
 /* Base class for all GFX9 architectures.  */
 
 class gfx9_architecture_t : public amdgcn_architecture_t
@@ -2306,7 +2282,7 @@ protected:
     }
 
   public:
-    cwsr_record_t (queue_t &queue, uint32_t compute_relaunch_wave,
+    cwsr_record_t (compute_queue_t &queue, uint32_t compute_relaunch_wave,
                    uint32_t compute_relaunch_state,
                    amd_dbgapi_global_address_t context_save_address)
       : amdgcn_architecture_t::cwsr_record_t (queue),
@@ -2359,7 +2335,7 @@ protected:
 
   virtual std::unique_ptr<architecture_t::cwsr_record_t>
   make_gfx9_cwsr_record (
-    queue_t &queue, uint32_t compute_relaunch_wave,
+    compute_queue_t &queue, uint32_t compute_relaunch_wave,
     uint32_t compute_relaunch_state,
     amd_dbgapi_global_address_t context_save_address) const
   {
@@ -2406,8 +2382,8 @@ public:
   size_t largest_instruction_size () const override { return 8; }
 
   void control_stack_iterate (
-    queue_t &queue, const uint32_t *control_stack, size_t control_stack_words,
-    amd_dbgapi_global_address_t wave_area_address,
+    compute_queue_t &queue, const uint32_t *control_stack,
+    size_t control_stack_words, amd_dbgapi_global_address_t wave_area_address,
     amd_dbgapi_size_t wave_area_size,
     const std::function<void (std::unique_ptr<architecture_t::cwsr_record_t>)>
       &wave_callback) const override;
@@ -2416,8 +2392,9 @@ public:
     const architecture_t::cwsr_record_t &cwsr_record) const override;
 
   std::pair<amd_dbgapi_size_t /* offset  */, amd_dbgapi_size_t /* size  */>
-  scratch_slot (const architecture_t::cwsr_record_t &cwsr_record,
-                uint32_t compute_tmpring_size_register) const override;
+  scratch_memory_region (uint32_t compute_tmpring_size_register,
+                         uint32_t bank_count, uint32_t bank_id,
+                         uint32_t slot_id) const override;
 };
 
 gfx9_architecture_t::gfx9_architecture_t (elf_amdgpu_machine_t e_machine,
@@ -3151,8 +3128,8 @@ gfx9_architecture_t::cwsr_record_t::register_address (
 
 void
 gfx9_architecture_t::control_stack_iterate (
-  queue_t &queue, const uint32_t *control_stack, size_t control_stack_words,
-  amd_dbgapi_global_address_t wave_area_address,
+  compute_queue_t &queue, const uint32_t *control_stack,
+  size_t control_stack_words, amd_dbgapi_global_address_t wave_area_address,
   amd_dbgapi_size_t wave_area_size,
   const std::function<void (std::unique_ptr<architecture_t::cwsr_record_t>)>
     &wave_callback) const
@@ -3213,28 +3190,20 @@ gfx9_architecture_t::dispatch_packet_address (
 }
 
 std::pair<amd_dbgapi_size_t /* offset  */, amd_dbgapi_size_t /* size  */>
-gfx9_architecture_t::scratch_slot (
-  const architecture_t::cwsr_record_t &cwsr_record,
-  uint32_t compute_tmpring_size_register) const
+gfx9_architecture_t::scratch_memory_region (
+  uint32_t compute_tmpring_size_register, uint32_t bank_count,
+  uint32_t bank_id, uint32_t slot_id) const
 {
-  amd_dbgapi_size_t wave_slot_count
+  amd_dbgapi_size_t scratch_slot_count
     = utils::bit_extract (compute_tmpring_size_register, 0, 11);
-  amd_dbgapi_size_t wave_slot_size
+  amd_dbgapi_size_t scratch_slot_size
     = utils::bit_extract (compute_tmpring_size_register, 12, 24) * 1024;
 
-  dbgapi_assert (
-    dynamic_cast<const gfx9_architecture_t::cwsr_record_t *> (&cwsr_record)
-    != nullptr);
+  dbgapi_assert (bank_count != 0);
 
-  auto scratch_slot_offset
-    = static_cast<const gfx9_architecture_t::cwsr_record_t &> (cwsr_record)
-        .scratch_slot_offset (wave_slot_size, wave_slot_count);
-
-  if (!scratch_slot_offset)
-    /* Scratch is not enabled, return an empty slot.  */
-    return { 0, 0 };
-
-  return std::make_pair (*scratch_slot_offset, wave_slot_size);
+  return { scratch_slot_size
+             * ((scratch_slot_count / bank_count) * bank_id + slot_id),
+           scratch_slot_size };
 }
 
 /* Vega10 Architecture.  */
@@ -3269,7 +3238,7 @@ protected:
   class cwsr_record_t : public gfx9_architecture_t::cwsr_record_t
   {
   public:
-    cwsr_record_t (queue_t &queue, uint32_t compute_relaunch_wave,
+    cwsr_record_t (compute_queue_t &queue, uint32_t compute_relaunch_wave,
                    uint32_t compute_relaunch_state,
                    amd_dbgapi_global_address_t context_save_address)
       : gfx9_architecture_t::cwsr_record_t (queue, compute_relaunch_wave,
@@ -3285,7 +3254,7 @@ protected:
   };
 
   std::unique_ptr<architecture_t::cwsr_record_t> make_gfx9_cwsr_record (
-    queue_t &queue, uint32_t compute_relaunch_wave,
+    compute_queue_t &queue, uint32_t compute_relaunch_wave,
     uint32_t compute_relaunch_state,
     amd_dbgapi_global_address_t context_save_address) const override = 0;
 
@@ -3412,7 +3381,7 @@ class gfx908_t final : public mi_architecture_t
     }
 
   public:
-    cwsr_record_t (queue_t &queue, uint32_t compute_relaunch_wave,
+    cwsr_record_t (compute_queue_t &queue, uint32_t compute_relaunch_wave,
                    uint32_t compute_relaunch_state,
                    amd_dbgapi_global_address_t context_save_address)
       : mi_architecture_t::cwsr_record_t (queue, compute_relaunch_wave,
@@ -3430,7 +3399,7 @@ class gfx908_t final : public mi_architecture_t
   };
 
   std::unique_ptr<architecture_t::cwsr_record_t> make_gfx9_cwsr_record (
-    queue_t &queue, uint32_t compute_relaunch_wave,
+    compute_queue_t &queue, uint32_t compute_relaunch_wave,
     uint32_t compute_relaunch_state,
     amd_dbgapi_global_address_t context_save_address) const override
   {
@@ -3471,7 +3440,7 @@ protected:
     }
 
   public:
-    cwsr_record_t (queue_t &queue, uint32_t compute_relaunch_wave,
+    cwsr_record_t (compute_queue_t &queue, uint32_t compute_relaunch_wave,
                    uint32_t compute_relaunch_state,
                    amd_dbgapi_global_address_t context_save_address)
       : mi_architecture_t::cwsr_record_t (queue, compute_relaunch_wave,
@@ -3491,7 +3460,7 @@ protected:
   };
 
   std::unique_ptr<architecture_t::cwsr_record_t> make_gfx9_cwsr_record (
-    queue_t &queue, uint32_t compute_relaunch_wave,
+    compute_queue_t &queue, uint32_t compute_relaunch_wave,
     uint32_t compute_relaunch_state,
     amd_dbgapi_global_address_t context_save_address) const override
   {
@@ -3586,7 +3555,7 @@ protected:
     }
 
   public:
-    cwsr_record_t (queue_t &queue, uint32_t compute_relaunch_wave,
+    cwsr_record_t (compute_queue_t &queue, uint32_t compute_relaunch_wave,
                    uint32_t compute_relaunch_state,
                    uint32_t compute_relaunch2_state,
                    amd_dbgapi_global_address_t context_save_address)
@@ -3618,7 +3587,7 @@ protected:
 
   virtual std::unique_ptr<architecture_t::cwsr_record_t>
   make_gfx10_cwsr_record (
-    queue_t &queue, uint32_t compute_relaunch_wave,
+    compute_queue_t &queue, uint32_t compute_relaunch_wave,
     uint32_t compute_relaunch_state, uint32_t compute_relaunch2_state,
     amd_dbgapi_global_address_t context_save_address) const
   {
@@ -3686,8 +3655,8 @@ public:
                         const instruction_t &instruction) const override;
 
   void control_stack_iterate (
-    queue_t &queue, const uint32_t *control_stack, size_t control_stack_words,
-    amd_dbgapi_global_address_t wave_area_address,
+    compute_queue_t &queue, const uint32_t *control_stack,
+    size_t control_stack_words, amd_dbgapi_global_address_t wave_area_address,
     amd_dbgapi_size_t wave_area_size,
     const std::function<void (std::unique_ptr<architecture_t::cwsr_record_t>)>
       &wave_callback) const override;
@@ -4477,8 +4446,8 @@ gfx10_architecture_t::classify_instruction (
 
 void
 gfx10_architecture_t::control_stack_iterate (
-  queue_t &queue, const uint32_t *control_stack, size_t control_stack_words,
-  amd_dbgapi_global_address_t wave_area_address,
+  compute_queue_t &queue, const uint32_t *control_stack,
+  size_t control_stack_words, amd_dbgapi_global_address_t wave_area_address,
   amd_dbgapi_size_t wave_area_size,
   const std::function<void (std::unique_ptr<architecture_t::cwsr_record_t>)>
     &wave_callback) const

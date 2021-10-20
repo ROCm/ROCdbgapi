@@ -212,6 +212,68 @@ public:
               size_t value_size);
 };
 
+/* An instruction_buffer holds the address and capacity of a global memory
+   region used to store instructions. It behaves like a std::unique_ptr but is
+   optimized to contain the instruction buffer instance data to avoid the cost
+   associated with allocate/free.  An instruction buffer can hold one or more
+   instructions, and is always terminated by a 'guard' instruction (s_trap). */
+class instruction_buffer_t
+{
+private:
+  using deleter_type = std::function<void (amd_dbgapi_global_address_t)>;
+
+  struct
+  {
+    std::optional<amd_dbgapi_global_address_t> m_buffer_address{};
+    uint32_t m_size{}; /* size of the instruction stored in this buffer.  */
+    uint32_t m_capacity{}; /* the buffer's capacity in bytes.  */
+
+    size_t size () const { return m_size; }
+    void resize (size_t size)
+    {
+      if (size > m_capacity)
+        fatal_error ("size exceeds capacity");
+      m_size = size;
+    }
+
+    amd_dbgapi_global_address_t begin () const { return end () - size (); }
+    amd_dbgapi_global_address_t end () const
+    {
+      dbgapi_assert (m_buffer_address.has_value ());
+      return *m_buffer_address + m_capacity;
+    }
+
+    bool empty () const { return !size (); }
+    void clear () { resize (0); }
+  } m_data;
+
+  deleter_type m_deleter; /* functor to deallocate the buffer when this
+                               buffer is reset.  */
+
+public:
+  instruction_buffer_t () : m_data (), m_deleter () {}
+
+  instruction_buffer_t (amd_dbgapi_global_address_t buffer_address,
+                        uint32_t capacity, deleter_type deleter);
+
+  instruction_buffer_t (instruction_buffer_t &&other);
+  instruction_buffer_t &operator= (instruction_buffer_t &&other);
+
+  /* Disable copies.  */
+  instruction_buffer_t (const instruction_buffer_t &other) = delete;
+  instruction_buffer_t &operator= (const instruction_buffer_t &other) = delete;
+
+  ~instruction_buffer_t () { reset (); }
+
+  decltype (m_data) *operator-> () { return &m_data; }
+  decltype (m_data) const *operator-> () const { return &m_data; }
+
+  operator bool () const { return m_data.m_buffer_address.has_value (); }
+
+  void reset ();
+  std::optional<amd_dbgapi_global_address_t> release ();
+};
+
 } /* namespace amd::dbgapi */
 
 #endif /* AMD_DBGAPI_MEMORY_H */
