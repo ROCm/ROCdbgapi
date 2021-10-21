@@ -665,14 +665,6 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
 
   dbgapi_assert (reg_addr);
 
-  /* Reading a ttmp source when not in priviledged mode returns 0.  */
-  if (regnum >= amdgpu_regnum_t::first_ttmp
-      && regnum <= amdgpu_regnum_t::last_ttmp && !m_cwsr_record->is_priv ())
-    {
-      memset (static_cast<char *> (value) + offset, '\0', value_size);
-      return;
-    }
-
   if (m_is_parked && regnum == amdgpu_regnum_t::pc)
     {
       memcpy (static_cast<char *> (value) + offset,
@@ -718,11 +710,6 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
     return;
 
   dbgapi_assert (reg_addr);
-
-  /* Writing to a ttmp source when not in priviledged mode is a no-op.  */
-  if (regnum >= amdgpu_regnum_t::first_ttmp
-      && regnum <= amdgpu_regnum_t::last_ttmp && !m_cwsr_record->is_priv ())
-    return;
 
   if (m_is_parked && regnum == amdgpu_regnum_t::pc)
     {

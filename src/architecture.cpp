@@ -293,9 +293,11 @@ protected:
   template <int... op7>
   static bool is_sopp_encoding (const instruction_t &instruction);
 
-  /* Return the regnum for a scalar register operand.  */
+  /* Return the regnum for a scalar register operand.  If priv=false, the
+     trap temporaries are unavailable and should be handled as the null
+     register.  */
   virtual std::optional<amdgpu_regnum_t>
-  scalar_operand_to_regnum (int operand) const = 0;
+  scalar_operand_to_regnum (int operand, bool priv = false) const = 0;
   /* Return the maximum number of scalar registers  */
   virtual size_t scalar_register_count () const = 0;
   /* Return the number of aliased scalar registers (e.g. vcc, flat_scratch)  */
@@ -1843,6 +1845,8 @@ amdgcn_architecture_t::register_name (amdgpu_regnum_t regnum) const
       return "wave_in_group";
     case amdgpu_regnum_t::csp:
       return "csp";
+    case amdgpu_regnum_t::null:
+      return "null";
     default:
       break;
     }
@@ -1900,6 +1904,7 @@ amdgcn_architecture_t::register_type (amdgpu_regnum_t regnum) const
     case amdgpu_regnum_t::pseudo_status:
     case amdgpu_regnum_t::wave_in_group:
     case amdgpu_regnum_t::csp:
+    case amdgpu_regnum_t::null:
       return "uint32_t";
 
     case amdgpu_regnum_t::wave_id:
@@ -1965,6 +1970,7 @@ amdgcn_architecture_t::register_size (amdgpu_regnum_t regnum) const
     case amdgpu_regnum_t::pseudo_status:
     case amdgpu_regnum_t::wave_in_group:
     case amdgpu_regnum_t::csp:
+    case amdgpu_regnum_t::null:
       return sizeof (uint32_t);
 
     case amdgpu_regnum_t::wave_id:
@@ -2021,6 +2027,7 @@ amdgcn_architecture_t::is_pseudo_register_available (
     case amdgpu_regnum_t::wave_id:
     case amdgpu_regnum_t::wave_in_group:
     case amdgpu_regnum_t::csp:
+    case amdgpu_regnum_t::null:
       return true;
     default:
       return false;
@@ -2038,6 +2045,12 @@ amdgcn_architecture_t::read_pseudo_register (const wave_t &wave,
 
   dbgapi_assert (value_size && (offset + value_size) <= register_size (regnum)
                  && "read_pseudo_register is out of bounds");
+
+  if (regnum == amdgpu_regnum_t::null)
+    {
+      memset (static_cast<char *> (value) + offset, '\0', value_size);
+      return;
+    }
 
   if (regnum == amdgpu_regnum_t::pseudo_exec_64
       || regnum == amdgpu_regnum_t::pseudo_vcc_64)
@@ -2123,8 +2136,9 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
   dbgapi_assert (value_size && (offset + value_size) <= register_size (regnum)
                  && "write_pseudo_register is out of bounds");
 
-  if (regnum == amdgpu_regnum_t::wave_in_group)
-    /* Writing to wave_in_group is a no-op.  */
+  if (regnum == amdgpu_regnum_t::null
+      || regnum == amdgpu_regnum_t::wave_in_group)
+    /* Writing to null or wave_in_group is a no-op.  */
     return;
 
   if (regnum == amdgpu_regnum_t::pseudo_exec_64
@@ -2195,8 +2209,11 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
     {
       std::array<uint32_t, 2> wave_id;
 
-      wave.read_register (amdgpu_regnum_t::ttmp4, &wave_id[0]);
-      wave.read_register (amdgpu_regnum_t::ttmp5, &wave_id[1]);
+      if (offset != 0 || value_size != sizeof (wave_id))
+        {
+          wave.read_register (amdgpu_regnum_t::ttmp4, &wave_id[0]);
+          wave.read_register (amdgpu_regnum_t::ttmp5, &wave_id[1]);
+        }
 
       memcpy (reinterpret_cast<char *> (wave_id.data ()) + offset,
               static_cast<const char *> (value) + offset, value_size);
@@ -2361,7 +2378,7 @@ protected:
   }
 
   std::optional<amdgpu_regnum_t>
-  scalar_operand_to_regnum (int operand) const override;
+  scalar_operand_to_regnum (int operand, bool priv = false) const override;
   size_t scalar_register_count () const override { return 102; }
   size_t scalar_alias_count () const override { return 6; }
 
@@ -2690,7 +2707,7 @@ gfx9_architecture_t::cwsr_record_t::is_priv () const
 }
 
 std::optional<amdgpu_regnum_t>
-gfx9_architecture_t::scalar_operand_to_regnum (int operand) const
+gfx9_architecture_t::scalar_operand_to_regnum (int operand, bool priv) const
 {
   if (operand >= 0 && operand <= 101)
     {
@@ -2701,7 +2718,8 @@ gfx9_architecture_t::scalar_operand_to_regnum (int operand) const
   if (operand >= 108 && operand <= 123)
     {
       /* TTMP[0] through TTMP[15]  */
-      return amdgpu_regnum_t::first_ttmp + (operand - 108);
+      return priv ? amdgpu_regnum_t::first_ttmp + (operand - 108)
+                  : amdgpu_regnum_t::null;
     }
 
   switch (operand)
@@ -3625,7 +3643,7 @@ protected:
   }
 
   std::optional<amdgpu_regnum_t>
-  scalar_operand_to_regnum (int operand) const override;
+  scalar_operand_to_regnum (int operand, bool priv = false) const override;
   size_t scalar_register_count () const override { return 106; }
   size_t scalar_alias_count () const override { return 2; }
 
@@ -3780,9 +3798,6 @@ gfx10_architecture_t::register_name (amdgpu_regnum_t regnum) const
 
   switch (regnum)
     {
-    case amdgpu_regnum_t::null:
-      return "null";
-
     case amdgpu_regnum_t::xnack_mask_hi:
     case amdgpu_regnum_t::xnack_mask_64:
     case amdgpu_regnum_t::csp:
@@ -3899,9 +3914,6 @@ gfx10_architecture_t::register_type (amdgpu_regnum_t regnum) const
              "  } DP_RATE @29-31;"
              "}";
 
-    case amdgpu_regnum_t::null:
-      return "uint32_t";
-
     case amdgpu_regnum_t::xnack_mask_hi:
     case amdgpu_regnum_t::xnack_mask_64:
     case amdgpu_regnum_t::csp:
@@ -3931,9 +3943,6 @@ gfx10_architecture_t::register_size (amdgpu_regnum_t regnum) const
     }
   switch (regnum)
     {
-    case amdgpu_regnum_t::null:
-      return sizeof (uint32_t);
-
     case amdgpu_regnum_t::xnack_mask_hi:
     case amdgpu_regnum_t::xnack_mask_64:
     case amdgpu_regnum_t::csp:
@@ -3960,9 +3969,6 @@ gfx10_architecture_t::is_pseudo_register_available (
       || regnum == amdgpu_regnum_t::pseudo_vcc_64)
     return lane_count == 64;
 
-  if (regnum == amdgpu_regnum_t::null)
-    return true;
-
   return gfx9_architecture_t::is_pseudo_register_available (wave, regnum);
 }
 
@@ -3977,12 +3983,6 @@ gfx10_architecture_t::read_pseudo_register (const wave_t &wave,
 
   dbgapi_assert (value_size && (offset + value_size) <= register_size (regnum)
                  && "read_pseudo_register is out of bounds");
-
-  if (regnum == amdgpu_regnum_t::null)
-    {
-      memset (static_cast<char *> (value) + offset, '\0', value_size);
-      return;
-    }
 
   if (regnum == amdgpu_regnum_t::pseudo_exec_32
       || regnum == amdgpu_regnum_t::pseudo_vcc_32)
@@ -4011,10 +4011,6 @@ gfx10_architecture_t::write_pseudo_register (wave_t &wave,
 
   dbgapi_assert (value_size && (offset + value_size) <= register_size (regnum)
                  && "write_pseudo_register is out of bounds");
-
-  if (regnum == amdgpu_regnum_t::null)
-    /* Writing to null is a no-op.  */
-    return;
 
   if (regnum == amdgpu_regnum_t::pseudo_exec_32
       || regnum == amdgpu_regnum_t::pseudo_vcc_32)
@@ -4048,7 +4044,7 @@ gfx10_architecture_t::write_pseudo_register (wave_t &wave,
 }
 
 std::optional<amdgpu_regnum_t>
-gfx10_architecture_t::scalar_operand_to_regnum (int operand) const
+gfx10_architecture_t::scalar_operand_to_regnum (int operand, bool priv) const
 {
   if (operand >= 0 && operand <= 105)
     {
@@ -4059,7 +4055,8 @@ gfx10_architecture_t::scalar_operand_to_regnum (int operand) const
   if (operand >= 108 && operand <= 123)
     {
       /* TTMP[0] through TTMP[15]  */
-      return amdgpu_regnum_t::first_ttmp + (operand - 108);
+      return priv ? amdgpu_regnum_t::first_ttmp + (operand - 108)
+                  : amdgpu_regnum_t::null;
     }
 
   switch (operand)
