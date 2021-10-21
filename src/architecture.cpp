@@ -686,8 +686,8 @@ amdgcn_architecture_t::triggered_watchpoints (const wave_t &wave) const
     return {};
 
   /* We don't have to suspend the queue because trapsts is a cached hwreg.  */
-  dbgapi_assert (wave.register_cache_policy (amdgpu_regnum_t::trapsts)
-                 != memory_cache_t::policy_t::uncached);
+  dbgapi_assert (wave.process ().memory_cache ().contains_all (
+    *wave.register_address (amdgpu_regnum_t::trapsts), sizeof (uint32_t)));
 
   uint32_t trapsts;
   wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);

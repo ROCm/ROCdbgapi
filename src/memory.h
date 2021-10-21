@@ -27,6 +27,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 #include <type_traits>
@@ -148,7 +149,6 @@ private:
 };
 
 class memory_cache_t
-  : public utils::doubly_linked_list_t<memory_cache_t>::entry_type
 {
 public:
   enum class policy_t
@@ -164,52 +164,66 @@ public:
     write_back
   };
 
+  static constexpr size_t cache_line_size = 64;
+  static constexpr policy_t policy = policy_t::write_back;
+
 private:
-  static monotonic_counter_t<uint64_t, 1> m_next_id;
+  using delegate_fn_type = std::function<size_t (
+    amd_dbgapi_global_address_t /* address */, void * /* read */,
+    const void * /* write */, size_t /* size */)>;
 
-  uint64_t const m_id{ m_next_id () };
-  std::vector<uint8_t> m_cached_bytes{};
-  std::optional<amd_dbgapi_global_address_t> m_address{};
+  struct cache_line_t
+  {
+    std::array<std::byte, cache_line_size> m_data{};
+    bool m_dirty{ false };
+  };
 
-  bool m_dirty{ false };
+  std::map<amd_dbgapi_global_address_t, cache_line_t> m_cache_line_map;
+  delegate_fn_type const m_xfer_global_memory;
 
-  policy_t m_policy;
-  process_t &m_process;
+  void fetch_cache_line (cache_line_t &cache_line,
+                         amd_dbgapi_global_address_t address) const;
+  void commit_cache_line (cache_line_t &cache_line,
+                          amd_dbgapi_global_address_t address) const;
+  void allocate_0_cache_line (cache_line_t &cache_line) const;
+
+  size_t xfer_global_memory (amd_dbgapi_global_address_t address, void *read,
+                             const void *write, size_t size);
 
 public:
-  memory_cache_t (process_t &process, policy_t policy = policy_t::write_back)
-    : m_policy (policy), m_process (process)
+  memory_cache_t (delegate_fn_type xfer_global_memory)
+    : m_xfer_global_memory (std::move (xfer_global_memory))
   {
   }
+  ~memory_cache_t () { dbgapi_assert (m_cache_line_map.empty ()); }
 
-  uint64_t id () const { return m_id; }
-  size_t size () const { return m_cached_bytes.size (); }
-  policy_t policy () const { return m_policy; }
+  bool contains_all (amd_dbgapi_global_address_t address,
+                     amd_dbgapi_size_t size) const;
 
-  bool is_dirty () const { return m_dirty; }
+  /* Create cache lines if not already valid, and immediately fill them in.  */
+  void prefetch (amd_dbgapi_global_address_t address, amd_dbgapi_size_t size);
 
-  /* Returns true if the given memory region is cached in this instance.  The
-     region must either be completely contained by the cache, or completely not
-     contained by the cache.  */
-  bool contains (amd_dbgapi_global_address_t address,
-                 amd_dbgapi_size_t value_size) const;
+  /* Discard all cache lines in the specified range.  The discarded cache lines
+     must not be dirty.  */
+  void discard (amd_dbgapi_global_address_t address = 0,
+                amd_dbgapi_size_t size = -1);
 
-  /* Changes the address of this cached region without affecting the data
-     present in the cache.  The cached region may be dirty.  */
-  void relocate (std::optional<amd_dbgapi_global_address_t> address);
+  /* Write dirty lines back to memory.  */
+  void write_back (amd_dbgapi_global_address_t address = 0,
+                   amd_dbgapi_size_t size = -1);
 
-  /* Invalidate the cache.  The cached region must not be dirty.  */
-  void reset (amd_dbgapi_global_address_t address,
-              amd_dbgapi_size_t cache_size);
+  [[nodiscard]] size_t read_global_memory (amd_dbgapi_global_address_t address,
+                                           void *buffer, size_t size)
+  {
+    return xfer_global_memory (address, buffer, nullptr, size);
+  }
 
-  /* Make changes to the cached data visible in global memory.  */
-  void flush ();
-
-  /* The region must be completely contained by the cache.  */
-  void read (amd_dbgapi_global_address_t from, void *value,
-             size_t value_size) const;
-  void write (amd_dbgapi_global_address_t to, const void *value,
-              size_t value_size);
+  [[nodiscard]] size_t
+  write_global_memory (amd_dbgapi_global_address_t address, const void *buffer,
+                       size_t size)
+  {
+    return xfer_global_memory (address, nullptr, buffer, size);
+  }
 };
 
 /* An instruction_buffer holds the address and capacity of a global memory

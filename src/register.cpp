@@ -575,21 +575,6 @@ amd_dbgapi_read_register (amd_dbgapi_wave_id_t wave_id,
         || !wave->is_register_available (*regnum))
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
-    std::optional<scoped_queue_suspend_t> suspend;
-
-    /* Pseudo registers require the queue to be suspended as they may be
-       accessing uncached registers.  */
-    if (is_pseudo_register (*regnum)
-        || wave->register_cache_policy (*regnum)
-             == memory_cache_t::policy_t::uncached)
-      {
-        suspend.emplace (wave->queue (), "read register");
-
-        /* Look for the wave_id again, the wave may have exited.  */
-        if (!(wave = find (wave_id)))
-          THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
-      }
-
     wave->read_register (*regnum, offset, value_size, value);
 
     return AMD_DBGAPI_STATUS_SUCCESS;
@@ -644,23 +629,6 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
         || (offset + value_size) > architecture->register_size (*regnum)
         || !wave->is_register_available (*regnum))
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
-
-    std::optional<scoped_queue_suspend_t> suspend;
-
-    /* Pseudo registers require the queue to be suspended as they may be
-       accessing uncached registers.  */
-    if (is_pseudo_register (*regnum)
-        /* Register that are uncached or have a write-through policy also
-           require the queue to be suspended.  */
-        || wave->register_cache_policy (*regnum)
-             != memory_cache_t::policy_t::write_back)
-      {
-        suspend.emplace (wave->queue (), "write register");
-
-        /* Look for the wave_id again, the wave may have exited.  */
-        if (!(wave = find (wave_id)))
-          THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
-      }
 
     wave->write_register (*regnum, offset, value_size, value);
 

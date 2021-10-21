@@ -95,113 +95,259 @@ address_space_t::get_info (amd_dbgapi_address_space_info_t query,
   throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 }
 
-decltype (memory_cache_t::m_next_id) memory_cache_t::m_next_id;
+void
+memory_cache_t::fetch_cache_line (cache_line_t &cache_line,
+                                  amd_dbgapi_global_address_t address) const
+{
+  dbgapi_assert (!cache_line.m_dirty);
+
+  size_t xfer_size = m_xfer_global_memory (address, &cache_line.m_data[0],
+                                           nullptr, cache_line.m_data.size ());
+
+  if (xfer_size != cache_line.m_data.size ())
+    throw memory_access_error_t (address + cache_line_size);
+
+  cache_line.m_dirty = false;
+}
 
 void
-memory_cache_t::relocate (std::optional<amd_dbgapi_global_address_t> address)
+memory_cache_t::commit_cache_line (cache_line_t &cache_line,
+                                   amd_dbgapi_global_address_t address) const
 {
-  if (address == m_address)
+  if (!cache_line.m_dirty)
     return;
 
-  dbgapi_log (
-    AMD_DBGAPI_LOG_LEVEL_VERBOSE, "relocated cache_%ld %s -> %s", id (),
-    m_address
-      ? string_printf ("[%#lx..%#lx[", *m_address, *m_address + size ())
-          .c_str ()
-      : "inaccessible",
-    address
-      ? string_printf ("[%#lx..%#lx[", *address, *address + size ()).c_str ()
-      : "inaccessible");
+  size_t xfer_size = m_xfer_global_memory (
+    address, nullptr, &cache_line.m_data[0], cache_line.m_data.size ());
 
-  m_address = address;
+  if (xfer_size != cache_line.m_data.size ())
+    throw memory_access_error_t (address + xfer_size);
+
+  cache_line.m_dirty = false;
 }
-
 void
-memory_cache_t::reset (amd_dbgapi_global_address_t address,
-                       amd_dbgapi_size_t cache_size)
+memory_cache_t::allocate_0_cache_line (cache_line_t &cache_line) const
 {
-  dbgapi_assert (!is_dirty () && "cannot reset a dirty cache");
+  dbgapi_assert (!cache_line.m_dirty);
 
-  size_t prev_size = size ();
-  m_address = address;
-  m_cached_bytes.resize (cache_size);
+  memset (&cache_line.m_data[0], '\0', cache_line.m_data.size ());
 
-  /* Reload the cache from memory.  */
-  m_process.read_global_memory (*m_address, &m_cached_bytes[0],
-                                m_cached_bytes.size ());
-
-  if (cache_size != 0)
-    dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "%s cache_%ld [%#lx..%#lx[",
-                prev_size == 0 ? "loaded" : "reloaded", id (), *m_address,
-                *m_address + size ());
-  else if (prev_size != 0)
-    dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "cleared cache_%ld", id ());
-}
-
-void
-memory_cache_t::flush ()
-{
-  dbgapi_assert (m_address && "cache is not accessible");
-
-  if (is_dirty () && policy () == policy_t::write_back)
-    {
-      /* Write back the cache in memory.  */
-      m_process.write_global_memory (*m_address, &m_cached_bytes[0],
-                                     m_cached_bytes.size ());
-
-      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE,
-                  "flushed cache_%ld [%#lx..%#lx[", id (), *m_address,
-                  *m_address + size ());
-    }
-
-  m_dirty = false;
+  cache_line.m_dirty = false;
 }
 
 bool
-memory_cache_t::contains (amd_dbgapi_global_address_t address,
-                          amd_dbgapi_size_t value_size) const
+memory_cache_t::contains_all (amd_dbgapi_global_address_t address,
+                              amd_dbgapi_size_t size) const
 {
-  dbgapi_assert (m_address && "cache is not accessible");
+  dbgapi_assert (address < (address + size) && "invalid size");
+  auto cache_line_begin = utils::align_down (address, cache_line_size);
+  auto cache_line_end = utils::align_up (address + size, cache_line_size);
 
-  bool start_in_range
-    = address >= m_address && address < (*m_address + size ());
-  bool end_in_range = (address + value_size) > *m_address
-                      && (address + value_size) <= (*m_address + size ());
+  for (auto cache_line_address = cache_line_begin;
+       cache_line_address < cache_line_end;
+       cache_line_address += cache_line_size)
+    if (m_cache_line_map.find (cache_line_address) == m_cache_line_map.end ())
+      return false;
 
-  dbgapi_assert (start_in_range == end_in_range
-                 && ((address >= *m_address)
-                     || (address + value_size) <= (*m_address + size ()))
-                 && "cannot be partially contained");
-
-  return start_in_range && end_in_range;
+  return true;
 }
 
 void
-memory_cache_t::read (amd_dbgapi_global_address_t from, void *value,
-                      size_t value_size) const
+memory_cache_t::prefetch (amd_dbgapi_global_address_t address,
+                          amd_dbgapi_size_t size)
 {
-  dbgapi_assert (contains (from, value_size) && "invalid access");
+  if (policy == policy_t::uncached || size == 0)
+    return;
 
-  if (policy () == policy_t::uncached)
-    return m_process.read_global_memory (from, value, value_size);
+  dbgapi_assert (address < (address + size) && "invalid size");
+  auto cache_line_begin = utils::align_down (address, cache_line_size);
+  auto cache_line_end = utils::align_up (address + size, cache_line_size);
 
-  memcpy (value, &m_cached_bytes[0] + from - *m_address, value_size);
-}
+  auto staging_buffer
+    = std::make_unique<std::byte[]> (cache_line_end - cache_line_begin);
 
-void
-memory_cache_t::write (amd_dbgapi_global_address_t to, const void *value,
-                       size_t value_size)
-{
-  dbgapi_assert (contains (to, value_size) && "invalid access");
-
-  if (policy () != policy_t::write_back)
-    m_process.write_global_memory (to, value, value_size);
-
-  if (policy () != policy_t::uncached)
+  try
     {
-      memcpy (&m_cached_bytes[0] + to - *m_address, value, value_size);
-      m_dirty = true;
+      m_xfer_global_memory (cache_line_begin, &staging_buffer[0], nullptr,
+                            cache_line_end - cache_line_begin);
     }
+  catch (const memory_access_error_t &)
+    {
+      /* If a memory access error exception is raised while prefetching, simply
+         drop the prefetch.  */
+      return;
+    }
+
+  for (auto cache_line_address = cache_line_begin;
+       cache_line_address < cache_line_end;
+       cache_line_address += cache_line_size)
+    {
+      if (contains_all (cache_line_address, cache_line_size))
+        /* There's already a cache line for that address that will have already
+           been read, and possibly updated.  So leave cache line with its
+           current contents.  */
+        continue;
+
+      auto [it, success] = m_cache_line_map.try_emplace (cache_line_address);
+      dbgapi_assert (success && "failed to create memory cache");
+
+      memcpy (&it->second.m_data[0],
+              &staging_buffer[cache_line_address - cache_line_begin],
+              cache_line_size);
+    }
+}
+
+void
+memory_cache_t::write_back (amd_dbgapi_global_address_t address,
+                            amd_dbgapi_size_t size)
+{
+  if (policy != policy_t::write_back || size == 0)
+    return;
+
+  dbgapi_assert (address < (address + size) && "invalid size");
+  auto first_line = utils::align_down (address, cache_line_size);
+  auto last_line = utils::align_down (address + size - 1, cache_line_size);
+
+  auto it = m_cache_line_map.lower_bound (first_line);
+  auto limit = m_cache_line_map.upper_bound (last_line);
+
+  std::unique_ptr<std::byte[]> staging_buffer;
+  size_t staging_buffer_size = 0;
+
+  while (it != limit)
+    {
+      auto &[cache_line_address, cache_line] = *it;
+      size_t request_size = cache_line_size;
+
+      /* Skip this line if it isn't dirty as we do not need to commit it to
+         memory.  */
+      if (!cache_line.m_dirty)
+        {
+          std::advance (it, 1);
+          continue;
+        }
+
+      /* It is more efficient to do a single large memory access, so try to
+         group as many contiguous cache lines as possible.  */
+      auto next = std::next (it);
+      while (next->second.m_dirty
+             && next->first == (cache_line_address + request_size))
+        {
+          request_size += cache_line_size;
+          std::advance (next, 1);
+        }
+
+      if (request_size > staging_buffer_size)
+        {
+          staging_buffer = std::make_unique<std::byte[]> (request_size);
+          staging_buffer_size = request_size;
+        }
+
+      while (it != next)
+        {
+          memcpy (&staging_buffer[0] + it->first - cache_line_address,
+                  &it->second.m_data[0], cache_line_size);
+          it->second.m_dirty = false;
+          std::advance (it, 1);
+        }
+
+      try
+        {
+          size_t xfer_size = m_xfer_global_memory (
+            cache_line_address, nullptr, &staging_buffer[0], request_size);
+
+          if (xfer_size != request_size)
+            throw memory_access_error_t (cache_line_address + xfer_size);
+        }
+      catch (const process_exited_exception_t &)
+        {
+          /* The process has exited, simply discard the dirty cached bytes.  */
+        }
+    }
+}
+
+void
+memory_cache_t::discard (amd_dbgapi_global_address_t address,
+                         amd_dbgapi_size_t size)
+{
+  if (size == 0)
+    return;
+
+  dbgapi_assert (address < (address + size) && "invalid size");
+  auto first_line = utils::align_down (address, cache_line_size);
+  auto last_line = utils::align_down (address + size - 1, cache_line_size);
+
+  auto it = m_cache_line_map.lower_bound (first_line);
+  auto limit = m_cache_line_map.upper_bound (last_line);
+
+  while (it != limit)
+    {
+      dbgapi_assert (!it->second.m_dirty && "discarding a dirty cache line");
+      it = m_cache_line_map.erase (it);
+    }
+}
+
+size_t
+memory_cache_t::xfer_global_memory (amd_dbgapi_global_address_t address,
+                                    void *read, const void *write, size_t size)
+{
+  if (size == 0)
+    return 0;
+
+  /* Clamp to the end of the global address space.  */
+  if (address > (address + size))
+    size = -address;
+
+  auto first_line = utils::align_down (address, cache_line_size);
+  auto last_line = utils::align_down (address + size - 1, cache_line_size);
+
+  /* Iterators to the first cache line, and one past the last cache line.  */
+  auto begin = m_cache_line_map.lower_bound (first_line);
+  auto end = m_cache_line_map.upper_bound (last_line);
+
+  /* If uncached or there are no cache lines affected by this access.  */
+  if (policy == policy_t::uncached || begin == end)
+    return m_xfer_global_memory (address, read, write, size);
+
+  /* For cached accesses, handle one cache line at a time.  */
+  if (first_line != last_line)
+    {
+      auto ptr = address;
+      while (size > 0)
+        {
+          auto limit = utils::align_up (ptr + 1, cache_line_size);
+          auto request_size = std::min (limit, ptr + size) - ptr;
+
+          auto xfer_size = xfer_global_memory (ptr, read, write, request_size);
+
+          ptr += xfer_size;
+          size -= xfer_size;
+
+          if (xfer_size != request_size)
+            break;
+        }
+      return ptr - address;
+    }
+
+  dbgapi_assert (begin != m_cache_line_map.end ());
+  auto &cache_line = begin->second;
+  auto offset = address - first_line;
+
+  if (read)
+    {
+      memcpy (read, &cache_line.m_data[0] + offset, size);
+    }
+  else
+    {
+      memcpy (&cache_line.m_data[0] + offset, write, size);
+
+      if (policy != policy_t::write_back)
+        return m_xfer_global_memory (address, nullptr, write, size);
+
+      cache_line.m_dirty = true;
+    }
+
+  return size;
 }
 
 } /* namespace amd::dbgapi */
@@ -643,16 +789,6 @@ amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
           *wave, &lane_id, *address_space, &address_space, segment_address,
           &segment_address);
 
-        std::optional<scoped_queue_suspend_t> suspend;
-        if (address_space->kind () == address_space_t::local)
-          {
-            suspend.emplace (wave->queue (), "read local memory");
-
-            /* Look for the wave_id again, the wave may have exited.  */
-            if (!(wave = process->find (wave_id)))
-              THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
-          }
-
         *value_size = wave->xfer_segment_memory (*address_space, lane_id,
                                                  segment_address, value,
                                                  nullptr, *value_size);
@@ -730,17 +866,6 @@ amd_dbgapi_write_memory (amd_dbgapi_process_id_t process_id,
         wave->architecture ().lower_address_space (
           *wave, &lane_id, *address_space, &address_space, segment_address,
           &segment_address);
-
-        std::optional<scoped_queue_suspend_t> suspend;
-        if (address_space->kind () == address_space_t::local)
-          {
-            /* FIXME: How can we optimize this?  */
-            suspend.emplace (wave->queue (), "write local memory");
-
-            /* Look for the wave_id again, the wave may have exited.  */
-            if (!(wave = process->find (wave_id)))
-              THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
-          }
 
         *value_size = wave->xfer_segment_memory (*address_space, lane_id,
                                                  segment_address, nullptr,

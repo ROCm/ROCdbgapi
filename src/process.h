@@ -100,6 +100,7 @@ private:
     AMD_DBGAPI_RUNTIME_STATE_UNLOADED
   };
 
+  memory_cache_t m_memory_cache;
   std::unique_ptr<os_driver_t> m_os_driver{};
   flag_t m_flags{};
 
@@ -161,6 +162,7 @@ public:
      processes left in the s_process_map. */
   static void reset_all_ids ();
 
+  memory_cache_t &memory_cache () { return m_memory_cache; }
   os_driver_t &os_driver () const { return *m_os_driver; }
 
   inline void set_flag (flag_t flags);
@@ -169,10 +171,17 @@ public:
 
   [[nodiscard]] size_t
   read_global_memory_partial (amd_dbgapi_global_address_t address,
-                              void *buffer, size_t size);
+                              void *buffer, size_t size)
+  {
+    return m_memory_cache.read_global_memory (address, buffer, size);
+  }
+
   [[nodiscard]] size_t
   write_global_memory_partial (amd_dbgapi_global_address_t address,
-                               const void *buffer, size_t size);
+                               const void *buffer, size_t size)
+  {
+    return m_memory_cache.write_global_memory (address, buffer, size);
+  }
 
   template <typename T>
   void read_global_memory (amd_dbgapi_global_address_t address, T *ptr,

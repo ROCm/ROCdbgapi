@@ -68,6 +68,10 @@ private:
   amd_dbgapi_global_address_t m_scratch_backing_memory_address{ 0 };
   uint32_t m_compute_tmpring_size{ 0 };
 
+  /* The content of the context save area header the last time the queue was
+     suspended.  */
+  context_save_area_header_s m_last_context_save_header{};
+
   /* The memory reserved by the thunk library for the debugger is used to store
      instruction buffers.  Instruction buffers are lazily allocated from the
      reserved memory, and when freed, their index is returned to a free list.
@@ -81,7 +85,10 @@ private:
   instruction_buffer_t m_park_instruction_buffer{};
   instruction_buffer_t m_terminating_instruction_buffer{};
 
-  utils::doubly_linked_list_t<memory_cache_t> m_dirty_caches{};
+  /* Value used to mark waves that are found in the context save area. When
+     sweeping, any wave found with a mark less than the current mark will be
+     deleted, as these waves are no longer active.  */
+  monotonic_counter_t<epoch_t, 1> m_next_wave_mark{};
 
   dispatch_t const m_dummy_dispatch;
   hsa_queue_t m_hsa_queue{};
@@ -123,13 +130,6 @@ public:
   void active_packets_bytes (amd_dbgapi_os_queue_packet_id_t read_packet_id,
                              amd_dbgapi_os_queue_packet_id_t write_packet_id,
                              void *memory, size_t memory_size) const override;
-
-  /* Insert the given cache into the queue's dirty cache list.  */
-  void register_dirty_cache (memory_cache_t &cache) override
-  {
-    if (!cache.is_inserted ())
-      m_dirty_caches.insert (cache);
-  }
 };
 
 aql_queue_t::aql_queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
@@ -217,6 +217,23 @@ aql_queue_t::~aql_queue_t ()
   auto &&dispatch_range = process.range<dispatch_t> ();
   for (auto it = dispatch_range.begin (); it != dispatch_range.end ();)
     it = (it->queue () == *this) ? process.destroy (it) : ++it;
+
+  /* Discard any cached data associated with the queue since the queue may have
+     been deleted.  In that case, the memory being used for the context save
+     area could be re-allocated for other purposes.  If that happens, we do not
+     want to see stale data, or for stale dirty data to corrupt the future use.
+     If the process is being detached, then there's really no need to discard
+     since the process will be destructed and the cache destructed.  */
+
+  auto wave_save_address = m_os_queue_info.ctx_save_restore_address
+                           + m_last_context_save_header.wave_state_offset
+                           - m_last_context_save_header.wave_state_size;
+  auto wave_save_size = m_last_context_save_header.wave_state_size;
+
+  /* Need to write back only because discard requires no dirty data exists.  */
+  process.memory_cache ().write_back (wave_save_address, wave_save_size);
+
+  process.memory_cache ().discard (wave_save_address, wave_save_size);
 }
 
 instruction_buffer_t
@@ -270,12 +287,29 @@ aql_queue_t::state_changed ()
   switch (state ())
     {
     case state_t::running:
-      for (auto it = m_dirty_caches.begin (); it != m_dirty_caches.end ();
-           it = m_dirty_caches.remove (*it))
-        it->flush ();
+      /* The queue just changed state and is about to be placed back onto the
+         hardware.  Write back dirty cache lines in the wave saved state
+         region, but leave the cache lines valid so that accessing stopped
+         waves' cached registers does not require a queue suspend/resume.  The
+         saved state cache lines will be discarded when this queue is next
+         suspended again (see the 'case state_t::suspended:' below).  */
+      process ().memory_cache ().write_back (
+        m_os_queue_info.ctx_save_restore_address
+          + m_last_context_save_header.wave_state_offset
+          - m_last_context_save_header.wave_state_size,
+        m_last_context_save_header.wave_state_size);
       break;
 
     case state_t::suspended:
+      /* Discard the previously cached wave saved state lines.  The saved state
+         areas may be mapped to a different address in this new context wave
+         save.  */
+      process ().memory_cache ().discard (
+        m_os_queue_info.ctx_save_restore_address
+          + m_last_context_save_header.wave_state_offset
+          - m_last_context_save_header.wave_state_size,
+        m_last_context_save_header.wave_state_size);
+
       /* Refresh the scratch_backing_memory_location and
          scratch_backing_memory_size everytime the queue is suspended.
 
@@ -331,10 +365,20 @@ aql_queue_t::update_waves ()
   const epoch_t wave_mark = wave_t::next_mark ();
   wave_t *group_leader = nullptr;
 
-  auto callback = [=, &process, &group_leader] (auto cwsr_record)
+  auto decode_one_wave = [=, &process, &group_leader] (auto cwsr_record)
   {
     dbgapi_assert (*this == cwsr_record->queue ());
     wave_t::visibility_t visibility{ wave_t::visibility_t::visible };
+
+    auto prefetch_begin
+      = cwsr_record->register_address (amdgpu_regnum_t::first_hwreg).value ();
+    auto prefetch_end
+      = cwsr_record->register_address (amdgpu_regnum_t::last_ttmp).value ()
+        + architecture ().register_size (amdgpu_regnum_t::last_ttmp);
+
+    dbgapi_assert (prefetch_end > prefetch_begin);
+    process.memory_cache ().prefetch (prefetch_begin,
+                                      prefetch_end - prefetch_begin);
 
     std::optional<amd_dbgapi_wave_id_t> wave_id;
     if (process.is_flag_set (process_t::flag_t::runtime_enable_during_attach))
@@ -508,10 +552,12 @@ aql_queue_t::update_waves ()
          the provided function is called with a wave descriptor and a pointer
          to its context save area.  */
 
+      m_last_context_save_header = header;
+
       architecture ().control_stack_iterate (
         *this, &ctrl_stack[0], header.ctrl_stack_size / sizeof (uint32_t),
         ctx_save_base + header.wave_state_offset, header.wave_state_size,
-        callback);
+        decode_one_wave);
     }
 
   /* Iterate all waves belonging to this queue, and prune those with a mark

@@ -63,6 +63,22 @@ handle_object_set_t<process_t> process_t::s_process_map;
 process_t::process_t (amd_dbgapi_process_id_t process_id,
                       amd_dbgapi_client_process_id_t client_process_id)
   : handle_object (process_id), m_client_process_id (client_process_id),
+    m_memory_cache (
+      [this] (amd_dbgapi_global_address_t address, void *read,
+              const void *write, size_t size)
+      {
+        amd_dbgapi_status_t status = os_driver ().xfer_global_memory_partial (
+          address, read, write, &size);
+
+        if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+          throw process_exited_exception_t (*this);
+        else if (status == AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS)
+          throw memory_access_error_t (address);
+        else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+          fatal_error ("xfer_global_memory_partial failed (rc=%d)", status);
+
+        return size;
+      }),
     m_dummy_agent (AMD_DBGAPI_AGENT_NONE, *this, nullptr, {})
 {
   amd_dbgapi_os_process_id_t os_process_id;
@@ -84,6 +100,10 @@ process_t::process_t (amd_dbgapi_process_id_t process_id,
 
 process_t::~process_t ()
 {
+  /* Drop all active cache lines.  */
+  m_memory_cache.write_back ();
+  m_memory_cache.discard ();
+
   /* Destruct the os_driver before closing the notifier pipe.  */
   m_os_driver.reset ();
   m_client_notifier_pipe.close ();
@@ -222,29 +242,11 @@ process_t::detach ()
     std::rethrow_exception (exception);
 }
 
-size_t
-process_t::read_global_memory_partial (amd_dbgapi_global_address_t address,
-                                       void *buffer, size_t size)
-{
-  amd_dbgapi_status_t status = os_driver ().xfer_global_memory_partial (
-    address, buffer, nullptr, &size);
-
-  if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-    throw process_exited_exception_t (*this);
-  else if (status == AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS)
-    throw memory_access_error_t (address);
-  else if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    fatal_error ("process_t::read_global_memory_partial failed (rc=%d)",
-                 status);
-
-  return size;
-}
-
 void
 process_t::read_string (amd_dbgapi_global_address_t address,
                         std::string *string, size_t size)
 {
-  constexpr size_t chunk_size = 16;
+  constexpr size_t chunk_size = memory_cache_t::cache_line_size;
   static_assert (!(chunk_size & (chunk_size - 1)), "must be a power of 2");
 
   dbgapi_assert (string && "invalid argument");
@@ -285,24 +287,6 @@ process_t::read_string (amd_dbgapi_global_address_t address,
       address += length;
       size -= length;
     }
-}
-
-size_t
-process_t::write_global_memory_partial (amd_dbgapi_global_address_t address,
-                                        const void *buffer, size_t size)
-{
-  amd_dbgapi_status_t status = os_driver ().xfer_global_memory_partial (
-    address, nullptr, buffer, &size);
-
-  if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-    throw process_exited_exception_t (*this);
-  else if (status == AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS)
-    throw memory_access_error_t (address);
-  else if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    fatal_error ("process_t::write_global_memory_partial failed (rc=%d)",
-                 status);
-
-  return size;
 }
 
 void

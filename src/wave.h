@@ -101,7 +101,6 @@ private:
   uint32_t m_wave_in_group{ 0 };
 
   std::unique_ptr<architecture_t::cwsr_record_t> m_cwsr_record{};
-  memory_cache_t m_register_cache;
 
   displaced_stepping_t *m_displaced_stepping{ nullptr };
   const wave_t *m_group_leader{ nullptr };
@@ -197,9 +196,6 @@ public:
     dbgapi_assert (state () == AMD_DBGAPI_WAVE_STATE_STOP);
     return m_stop_reason;
   }
-
-  memory_cache_t::policy_t
-  register_cache_policy (amdgpu_regnum_t regnum) const;
 
   bool is_register_available (amdgpu_regnum_t regnum) const;
 

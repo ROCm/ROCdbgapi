@@ -153,9 +153,6 @@ public:
 
   /* Return a new wave buffer instance in this queue.  */
   virtual instruction_buffer_t allocate_instruction_buffer () = 0;
-
-  /* Insert the given cache into the queue's dirty cache list.  */
-  virtual void register_dirty_cache (memory_cache_t &cache) = 0;
 };
 
 /* Wraps a queue and provides a RAII mechanism to suspend it if it wasn't
