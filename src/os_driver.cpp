@@ -232,6 +232,11 @@ class linux_driver_t : public null_driver_t
 private:
   std::optional<file_desc_t> m_proc_mem_fd{};
 
+  mutable size_t m_read_request_count{};
+  mutable size_t m_write_request_count{};
+  mutable size_t m_bytes_read{};
+  mutable size_t m_bytes_written{};
+
 public:
   linux_driver_t (amd_dbgapi_os_process_id_t os_pid);
   ~linux_driver_t () override;
@@ -275,6 +280,14 @@ linux_driver_t::linux_driver_t (amd_dbgapi_os_process_id_t os_pid)
 
 linux_driver_t::~linux_driver_t ()
 {
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+              "linux_driver_t statistics (pid %d): "
+              "%ld reads (%s), %ld writes (%s)",
+              m_os_pid.value (), m_read_request_count,
+              utils::human_readable_size (m_bytes_read).c_str (),
+              m_write_request_count,
+              utils::human_readable_size (m_bytes_written).c_str ());
+
   if (m_proc_mem_fd)
     ::close (*m_proc_mem_fd);
 }
@@ -287,6 +300,8 @@ linux_driver_t::xfer_global_memory_partial (
   dbgapi_assert (!read != !write && "either read or write buffer");
   dbgapi_assert (is_valid ());
 
+  ++(read ? m_read_request_count : m_write_request_count);
+
   ssize_t ret = read ? pread (*m_proc_mem_fd, read, *size, address)
                      : pwrite (*m_proc_mem_fd, write, *size, address);
 
@@ -297,6 +312,8 @@ linux_driver_t::xfer_global_memory_partial (
     return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
   else if (ret < 0)
     return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
+
+  (read ? m_bytes_read : m_bytes_written) += ret;
 
   *size = ret;
   return AMD_DBGAPI_STATUS_SUCCESS;

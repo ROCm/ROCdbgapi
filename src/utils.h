@@ -704,6 +704,12 @@ string_literal_at_or (const char (&str)[N], size_t n, char value)
   utils::detail::make_string_literal<sizeof (s) - 1,                          \
                                      TOKENIZE_STRING_LITERAL (s)>::value
 
+constexpr size_t KiB = 1024;
+constexpr size_t MiB = KiB * KiB;
+constexpr size_t GiB = KiB * KiB * KiB;
+
+extern std::string human_readable_size (size_t size);
+
 } /* namespace utils */
 
 template <typename T> struct is_flag : std::false_type

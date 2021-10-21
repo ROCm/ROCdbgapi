@@ -209,6 +209,19 @@ template std::pair<amd_dbgapi_wave_id_t * /* objects */, size_t /* count */>
 get_handle_list<wave_t> (const std::vector<process_t *> &processes,
                          amd_dbgapi_changed_t *changed);
 
+std::string
+human_readable_size (size_t size)
+{
+  if (size < KiB)
+    return string_printf ("%ld", size);
+  if (size < MiB)
+    return string_printf ("%.1fK", (double)size / KiB);
+  if (size < GiB)
+    return string_printf ("%.1fM", (double)size / MiB);
+
+  return string_printf ("%.1fG", (double)size / GiB);
+}
+
 } /* namespace utils */
 
 std::string
