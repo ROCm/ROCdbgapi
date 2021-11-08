@@ -62,7 +62,8 @@ handle_object_set_t<process_t> process_t::s_process_map;
 
 process_t::process_t (amd_dbgapi_process_id_t process_id,
                       amd_dbgapi_client_process_id_t client_process_id)
-  : handle_object (process_id), m_client_process_id (client_process_id)
+  : handle_object (process_id), m_client_process_id (client_process_id),
+    m_dummy_agent (AMD_DBGAPI_AGENT_NONE, *this, nullptr, {})
 {
   amd_dbgapi_os_process_id_t os_process_id;
   amd_dbgapi_status_t status = get_os_pid (&os_process_id);
@@ -1152,10 +1153,10 @@ process_t::update_queues ()
                   "queue before",
                   queue_info.queue_id);
 
-              /* If the queue mark is null, the queue was created outside of
+              /* If the queue does not have an agent, it was created outside of
                  update_queues, and it does not have all the information yet
                  filled in.  */
-              if (!queue->mark ())
+              if (queue->agent () == m_dummy_agent)
                 {
                   /* This is a partially initialized queue, re-create a fully
                      initialized instance with the same os_queue_id.  */
@@ -1747,10 +1748,8 @@ process_t::query_debug_event (os_exception_mask_t cleared_exceptions)
              the original queue_id in the process. The event will be
              dropped.  */
 
-          /* FIXME: need a dummy agent, for now, use the 1st agent in the
-             process, there must be at least 1 agent if we have exceptions.  */
           amd_dbgapi_queue_id_t queue_id
-            = create<queue_t> (*range<agent_t> ().begin (), os_queue_id).id ();
+            = create<queue_t> (m_dummy_agent, os_queue_id).id ();
 
           update_queues ();
 

@@ -125,6 +125,8 @@ private:
              handle_object_set_t<watchpoint_t>, handle_object_set_t<wave_t>>
     m_handle_object_sets{};
 
+  const agent_t m_dummy_agent;
+
   std::pair<std::variant<process_t *, agent_t *, queue_t *>,
             os_exception_mask_t>
   query_debug_event (os_exception_mask_t exceptions_cleared);

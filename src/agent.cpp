@@ -41,7 +41,7 @@ agent_t::agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
   : handle_object (agent_id), m_os_agent_info (os_agent_info),
     m_architecture (architecture), m_process (process)
 {
-  if (!m_os_agent_info.firmware_supported)
+  if (agent_id != AMD_DBGAPI_AGENT_NONE && !m_os_agent_info.firmware_supported)
     warning ("AMD GPU gpu_id %d's firmware version %d not supported",
              m_os_agent_info.os_agent_id, m_os_agent_info.fw_version);
 }
