@@ -515,8 +515,9 @@ process_t::update_agents ()
 
           const architecture_t *architecture
             = architecture_t::find (string_printf (
-              "gfx%d%c%c", major, (minor < 10) ? (minor + '0') : (minor + 'a'),
-              (stepping < 10) ? (stepping + '0') : (stepping + 'a')));
+              "gfx%d%c%c", major,
+              (minor < 10) ? (minor + '0') : (minor - 10 + 'a'),
+              (stepping < 10) ? (stepping + '0') : (stepping - 10 + 'a')));
 
           if (!architecture)
             warning ("os_agent_id %d: `%s' architecture not supported.",
