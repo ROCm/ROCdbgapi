@@ -590,27 +590,6 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
 
       process ().send_exceptions (os_exceptions, &queue ());
     }
-
-  /* There are no more waves on this agent with a memory violation.  Clear the
-     device memory violation exception so that it isn't attributed to CP or a
-     DMA engine.  */
-  if ((agent ().exceptions () & os_exception_mask_t::device_memory_violation)
-        != os_exception_mask_t::none
-      && state != AMD_DBGAPI_WAVE_STATE_STOP)
-    {
-      [this] ()
-      {
-        for (auto &&wave : process ().range<wave_t> ())
-          if (wave.agent () == agent ()
-              && wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
-              && (wave.stop_reason ()
-                  & AMD_DBGAPI_WAVE_STOP_REASON_MEMORY_VIOLATION))
-            return;
-
-        agent ().clear_exceptions (
-          os_exception_mask_t::device_memory_violation);
-      }();
-    }
 }
 
 memory_cache_t::policy_t

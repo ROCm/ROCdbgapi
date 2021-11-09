@@ -1790,6 +1790,10 @@ process_t::next_pending_event ()
       return event;
     }
 
+  /* Value used to mark agents that have reported a new device memory
+     violation exception.  */
+  epoch_t new_device_memory_violation_mark = agent_t::next_mark ();
+
   /* If we don't have any events left, we have to suspend the queues with
      pending events and process their context save area to add events for the
      waves that have reported events.  */
@@ -1801,6 +1805,7 @@ process_t::next_pending_event ()
      the agents for pending queue events and the time we actually suspend the
      queues.  To make sure all events associated with the suspended queues are
      consumed, we loop until no new queue events are reported.
+
      This is guaranteed to terminate as once a queue is suspended it cannot
      create any new events. A queue will require at most 2 iterations; and if
      any new events occur on additional queues those queues will be suspended
@@ -1837,8 +1842,14 @@ process_t::next_pending_event ()
               != os_exception_mask_t::none)
             {
               agent_t *agent = std::get<agent_t *> (source);
+
               agent->set_exceptions (
                 os_exception_mask_t::device_memory_violation);
+
+              /* Mark this agent so that we can later tell if the agent's
+                 device memory violation exception is a new exception or a
+                 deferred exception.  */
+              agent->set_mark (new_device_memory_violation_mark);
 
               update_queues ();
 
@@ -1943,7 +1954,7 @@ process_t::next_pending_event ()
     if ((agent.exceptions () & os_exception_mask_t::device_memory_violation)
         != os_exception_mask_t::none)
       {
-        bool send_device_memory_violation = true;
+        bool waves_with_memory_violation = false;
 
         for (auto &&wave : range<wave_t> ())
           if (wave.agent () == agent
@@ -1954,26 +1965,61 @@ process_t::next_pending_event ()
               /* Found a wave with a memory violation which has or will be
                  reported to the debugger.  Defer reporting the device memory
                  violation to the runtime until the wave is resumed.  */
-              send_device_memory_violation = false;
+              waves_with_memory_violation = true;
               break;
             }
 
-        /* There are no waves on this agent with a memory violation.  This
-           exception must have been raised either by CP or by a DMA engine.
-           Let the runtime handle the exception.
-
-           There is a possible race with the device memory violations being
-           delayed and delivered after waves are resumed from an exception,
-           which clears their memory violation exception.  To work around this,
-           a grace period could be used, if memory violation exceptions are
-           seen, to try to attribute all memory violation exceptions to their
-           originating event.  */
-        if (send_device_memory_violation)
+        if (!waves_with_memory_violation
+            && agent.mark () == new_device_memory_violation_mark)
           {
+            /* This agent has a NEW device memory violation exception, and
+               there are no waves with pending memory violations.  The hardware
+               guarantees that all waves exceptions are reported before making
+               their state visible.  Based on this guarantee, we can determine
+               that this exception must have been raised either by CP or by a
+               DMA engine. Let the runtime handle the exception.
+
+               There is a possible race with the device memory violations being
+               delayed and delivered after waves are resumed from an exception,
+               which clears their memory violation exception.  To work around
+               this, a grace period could be used, if memory violation
+               exceptions are seen, to try to attribute all memory violation
+               exceptions to their originating event.  */
+
             send_exceptions (os_exception_mask_t::device_memory_violation,
                              &agent);
 
-            /* Clear the exception since the runtime is now handling it.  */
+            agent.clear_exceptions (
+              os_exception_mask_t::device_memory_violation);
+          }
+        else if (waves_with_memory_violation)
+          {
+            /* There are waves with pending memory violation exceptions. Assume
+               that the device exception was raised by a wavefront.
+
+               The agent's device memory violation exception is recorded and
+               its reporting deferred.  It will be sent to runtime along with
+               the queue memory violation exception if/when the wave is resumed
+               (see wave_t::set_state ()).
+
+               NOTE: If a CP or DMA memory violation exception is raised while
+               there are waves with pending memory violations, these exceptions
+               will be lost as they will be attributed to a wave memory
+               violation.
+
+               FIXME: To avoid this, it is necessary for the hardware to report
+               the origin of a device memory violation exception, and for KFD
+               to separately record and report wave and CP/DMA exceptions.
+               Currently KFD only remembers the first device exception received
+               from any source.  */
+          }
+        else
+          {
+            /* The device memory violation exception reporting was deferred in
+               an earlier call to this function by the immediately preceding
+               ELSE IF.  At this point, all the wave exceptions have been
+               processed, so clear the deferred device exception.  */
+
             agent.clear_exceptions (
               os_exception_mask_t::device_memory_violation);
           }
