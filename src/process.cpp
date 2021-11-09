@@ -2074,17 +2074,30 @@ amd_dbgapi_process_set_progress (amd_dbgapi_process_id_t process_id,
         THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
       }
 
+    std::vector<process_t *> processes;
     if (process_id == AMD_DBGAPI_PROCESS_NONE)
       {
         for (auto &&process : process_t::all ())
-          process.set_forward_progress_needed (forward_progress_needed);
+          processes.emplace_back (&process);
       }
     else
       {
         if (process_t *process = process_t::find (process_id); process)
-          process->set_forward_progress_needed (forward_progress_needed);
+          processes.emplace_back (process);
         else
           THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
+      }
+
+    for (auto &&process : processes)
+      {
+        try
+          {
+            process->set_forward_progress_needed (forward_progress_needed);
+          }
+        catch (const process_exited_exception_t &)
+          {
+            /* The process has exited, forward progress is irrelevant.  */
+          }
       }
 
     return AMD_DBGAPI_STATUS_SUCCESS;
@@ -2110,16 +2123,23 @@ amd_dbgapi_process_set_wave_creation (amd_dbgapi_process_id_t process_id,
     if (!process)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
-    switch (creation)
+    try
       {
-      case AMD_DBGAPI_WAVE_CREATION_NORMAL:
-        process->set_wave_launch_mode (os_wave_launch_mode_t::normal);
-        break;
-      case AMD_DBGAPI_WAVE_CREATION_STOP:
-        process->set_wave_launch_mode (os_wave_launch_mode_t::halt);
-        break;
-      default:
-        THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
+        switch (creation)
+          {
+          case AMD_DBGAPI_WAVE_CREATION_NORMAL:
+            process->set_wave_launch_mode (os_wave_launch_mode_t::normal);
+            break;
+          case AMD_DBGAPI_WAVE_CREATION_STOP:
+            process->set_wave_launch_mode (os_wave_launch_mode_t::halt);
+            break;
+          default:
+            THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
+          }
+      }
+    catch (const process_exited_exception_t &)
+      {
+        /* The process has exited, the wave launch mode is irrelevant.  */
       }
 
     return AMD_DBGAPI_STATUS_SUCCESS;
@@ -2235,7 +2255,15 @@ amd_dbgapi_process_get_info (amd_dbgapi_process_id_t process_id,
     if (!process)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
-    process->get_info (query, value_size, value);
+    try
+      {
+        process->get_info (query, value_size, value);
+      }
+    catch (const process_exited_exception_t &)
+      {
+        fatal_error (
+          "process_t::get_info should not throw process_exited exceptions");
+      }
 
     return AMD_DBGAPI_STATUS_SUCCESS;
   }
