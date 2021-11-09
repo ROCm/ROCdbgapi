@@ -741,14 +741,14 @@ queue_t::queue_impl_t::create (queue_t &queue,
     }
 }
 
-queue_t::queue_t (amd_dbgapi_queue_id_t queue_id, agent_t &agent,
+queue_t::queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
                   const os_queue_snapshot_entry_t &os_queue_info)
   : handle_object (queue_id), m_agent (agent),
     m_impl (queue_impl_t::create (*this, os_queue_info))
 {
 }
 
-queue_t::queue_t (amd_dbgapi_queue_id_t queue_id, agent_t &agent,
+queue_t::queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
                   os_queue_id_t os_queue_id)
   : queue_t (queue_id, agent,
              [os_queue_id] ()

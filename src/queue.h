@@ -61,18 +61,18 @@ private:
   state_t m_state{ state_t::running };
   epoch_t m_mark{ 0 };
 
-  agent_t &m_agent;
+  const agent_t &m_agent;
 
   /* Must be initialized last.  */
   std::unique_ptr<queue_impl_t> m_impl;
 
 public:
-  queue_t (amd_dbgapi_queue_id_t queue_id, agent_t &agent,
+  queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
            const os_queue_snapshot_entry_t &os_queue_info);
 
   /* Construct a temporary queue instance that must be updated by the next
      process_t::update_queues ().  */
-  queue_t (amd_dbgapi_queue_id_t queue_id, agent_t &agent,
+  queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
            os_queue_id_t os_queue_id);
 
   ~queue_t ();
@@ -97,20 +97,18 @@ public:
   amd_dbgapi_global_address_t address () const;
   amd_dbgapi_size_t size () const;
 
-  void
-  active_packets_info (amd_dbgapi_os_queue_packet_id_t *read_packet_id_p,
-                       amd_dbgapi_os_queue_packet_id_t *write_packet_id_p,
-                       size_t *packets_byte_size_p) const;
+  void active_packets_info (amd_dbgapi_os_queue_packet_id_t *read_packet_id_p,
+                            amd_dbgapi_os_queue_packet_id_t *write_packet_id_p,
+                            size_t *packets_byte_size_p) const;
 
-  void
-  active_packets_bytes (amd_dbgapi_os_queue_packet_id_t read_packet_id,
-                        amd_dbgapi_os_queue_packet_id_t write_packet_id,
-                        void *memory, size_t memory_size) const;
+  void active_packets_bytes (amd_dbgapi_os_queue_packet_id_t read_packet_id,
+                             amd_dbgapi_os_queue_packet_id_t write_packet_id,
+                             void *memory, size_t memory_size) const;
 
   void get_info (amd_dbgapi_queue_info_t query, size_t value_size,
                  void *value) const;
 
-  agent_t &agent () const { return m_agent; }
+  const agent_t &agent () const { return m_agent; }
   process_t &process () const { return agent ().process (); }
   const architecture_t &architecture () const
   {

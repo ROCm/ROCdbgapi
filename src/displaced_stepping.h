@@ -86,7 +86,7 @@ public:
                  void *value) const;
 
   queue_t &queue () const { return m_queue; }
-  agent_t &agent () const { return queue ().agent (); }
+  const agent_t &agent () const { return queue ().agent (); }
   process_t &process () const { return agent ().process (); }
   const architecture_t &architecture () const
   {
