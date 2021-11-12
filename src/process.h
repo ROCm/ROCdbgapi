@@ -117,21 +117,6 @@ private:
 
   std::queue<event_t *> m_pending_events{};
 
-  /* Value used to mark agents that are reported by KFD. When sweeping, any
-     agent found with a mark less than the current mark will be deleted, as
-     these agents are no longer active.  */
-  monotonic_counter_t<epoch_t, 1> m_next_agent_mark{};
-
-  /* Value used to mark queues that are reported by KFD. When sweeping, any
-     queue found with a mark less than the current mark will be deleted, as
-     these queues are no longer active.  */
-  monotonic_counter_t<epoch_t, 1> m_next_queue_mark{};
-
-  /* Value used to mark code objects that are reported by the ROCR. When
-     sweeping, any code object found with a mark less than the current mark
-     will be deleted, as these code objects are not longer loaded.  */
-  monotonic_counter_t<epoch_t, 1> m_next_code_object_mark{};
-
   std::tuple<handle_object_set_t<agent_t>, handle_object_set_t<breakpoint_t>,
              handle_object_set_t<code_object_t>,
              handle_object_set_t<dispatch_t>,

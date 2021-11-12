@@ -481,9 +481,14 @@ process_t::find (amd_dbgapi_client_process_id_t client_process_id)
 void
 process_t::update_agents ()
 {
-  const epoch_t agent_mark = m_next_agent_mark ();
+  /* Value used to mark agents that are reported by KFD. When sweeping, any
+     agent found with a mark less than the current mark will be deleted, as
+     these agents are no longer active.  */
+  const epoch_t agent_mark = agent_t::next_mark ();
+
   std::vector<os_agent_info_t> agent_infos;
-  size_t agent_count = count<agent_t> () + 16;
+  size_t prev_agent_count = count<agent_t> ();
+  size_t agent_count = prev_agent_count + 16;
 
   do
     {
@@ -523,7 +528,7 @@ process_t::update_agents ()
             warning ("os_agent_id %d: `%s' architecture not supported.",
                      agent_info.os_agent_id, agent_info.name.c_str ());
 
-          if (agent_mark != 1)
+          if (prev_agent_count != 0)
             fatal_error ("gpu hot pluging is not supported");
 
           agent = &create<agent_t> (*this,        /* process  */
@@ -1047,9 +1052,13 @@ process_t::update_queues ()
 
   do
     {
-      /* Until we see all the snapshots, increase the epoch so that we can
-         sweep queues that may have been destroyed between iterations.  */
-      queue_mark = m_next_queue_mark ();
+      /* Value used to mark queues that are reported by KFD. When sweeping, any
+         queue found with a mark less than the current mark will be deleted, as
+         these queues are no longer active.
+
+         Update the epoch until we see all snapshots so that we can sweep
+         queues that may have been destroyed between iterations.  */
+      queue_mark = queue_t::next_mark ();
 
       /* We should allocate enough memory for the snapshots. Let's start with
          the current number of queues + 16.  */
@@ -1220,7 +1229,10 @@ process_t::update_code_objects ()
   if (m_runtime_state != AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS)
     return;
 
-  epoch_t code_object_mark = m_next_code_object_mark ();
+  /* Value used to mark code objects that are reported by the ROCR. When
+     sweeping, any code object found with a mark less than the current mark
+     will be deleted, as these code objects are not longer loaded.  */
+  epoch_t code_object_mark = code_object_t::next_mark ();
 
   try
     {
@@ -1277,7 +1289,7 @@ process_t::update_code_objects ()
   catch (const process_exited_exception_t &)
     {
       /* Prune all code objects */
-      code_object_mark = m_next_code_object_mark ();
+      code_object_mark = code_object_t::next_mark ();
     }
 
   /* Iterate all the code objects in this process, and prune those with a mark

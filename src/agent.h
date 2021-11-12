@@ -63,6 +63,11 @@ public:
 
   amd_dbgapi_watchpoint_share_kind_t watchpoint_share_kind () const;
 
+  static epoch_t next_mark ()
+  {
+    static monotonic_counter_t<epoch_t, 1> next_agent_mark{};
+    return next_agent_mark ();
+  }
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }
 

@@ -135,11 +135,6 @@ private:
 
   utils::doubly_linked_list_t<memory_cache_t> m_dirty_caches{};
 
-  /* Value used to mark waves that are found in the context save area. When
-     sweeping, any wave found with a mark less than the current mark will be
-     deleted, as these waves are no longer active.  */
-  monotonic_counter_t<epoch_t, 1> m_next_wave_mark{};
-
   dispatch_t const m_dummy_dispatch;
   wave_t::callbacks_t m_callbacks{};
   hsa_queue_t m_hsa_queue{};
@@ -326,7 +321,11 @@ amd_dbgapi_status_t
 aql_queue_impl_t::update_waves ()
 {
   process_t &process = m_queue.process ();
-  const epoch_t wave_mark = m_next_wave_mark ();
+
+  /* Value used to mark waves that are found in the context save area. When
+     sweeping, any wave found with a mark less than the current mark will be
+     deleted, as these waves are no longer active.  */
+  const epoch_t wave_mark = wave_t::next_mark ();
 
   /* Read the queue's write_dispatch_id and read_dispatch_id.  */
 

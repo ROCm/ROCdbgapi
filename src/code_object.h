@@ -58,6 +58,11 @@ public:
   amd_dbgapi_global_address_t load_address () const { return m_load_address; }
   const std::string &uri () const { return m_uri; }
 
+  static epoch_t next_mark ()
+  {
+    static monotonic_counter_t<epoch_t, 1> next_code_object_mark{};
+    return next_code_object_mark ();
+  }
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }
 

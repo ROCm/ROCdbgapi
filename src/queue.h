@@ -86,6 +86,11 @@ public:
 
   os_queue_id_t os_queue_id () const;
 
+  static epoch_t next_mark ()
+  {
+    static monotonic_counter_t<epoch_t, 1> next_queue_mark{};
+    return next_queue_mark ();
+  }
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }
 

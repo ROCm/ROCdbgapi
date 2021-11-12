@@ -196,6 +196,11 @@ public:
   void update (const wave_t &group_leader,
                std::unique_ptr<architecture_t::cwsr_record_t> cwsr_record);
 
+  static epoch_t next_mark ()
+  {
+    static monotonic_counter_t<epoch_t, 1> next_wave_mark{};
+    return next_wave_mark ();
+  }
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }
 
