@@ -1163,7 +1163,7 @@ amd_dbgapi_process_wave_list (amd_dbgapi_process_id_t process_id,
       processes, changed ? &wave_list_changed : nullptr);
 
     auto deallocate_wave_list = utils::make_scope_fail (
-      [&] () { amd::dbgapi::deallocate_memory (waves); });
+      [&] () { amd::dbgapi::deallocate_memory (wave_list.first); });
 
     for (auto &&[process, queues] : queues_needing_resume)
       process->resume_queues (queues, "refresh wave list");
