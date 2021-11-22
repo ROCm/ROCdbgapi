@@ -190,6 +190,8 @@ memory_cache_t::prefetch (amd_dbgapi_global_address_t address,
 
       auto [it, success] = m_cache_line_map.try_emplace (cache_line_address);
       dbgapi_assert (success && "failed to create memory cache");
+      [] (auto&& ...){} (success); /* Silence an unused variable warning when
+                                      building without assertions enabled.  */
 
       memcpy (&it->second.m_data[0],
               &staging_buffer[cache_line_address - cache_line_begin],
