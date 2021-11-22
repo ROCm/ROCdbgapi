@@ -234,8 +234,12 @@ to_string (amd_dbgapi_address_space_id_t address_space_id)
 
   if (const address_space_t *address_space = find (address_space_id);
       address_space)
-    str += " <" + address_space->architecture ().name ()
-           + "::" + address_space->name () + ">";
+    {
+      str += " <";
+      if (address_space->architecture ())
+        str += address_space->architecture ()->name ();
+      str += "::" + address_space->name () + ">";
+    }
 
   return str;
 }

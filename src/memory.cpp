@@ -68,7 +68,9 @@ address_space_t::get_info (amd_dbgapi_address_space_info_t query,
   switch (query)
     {
     case AMD_DBGAPI_ADDRESS_SPACE_INFO_ARCHITECTURE:
-      utils::get_info (value_size, value, architecture ().id ());
+      if (architecture () == nullptr)
+        throw api_error_t (AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE);
+      utils::get_info (value_size, value, architecture ()->id ());
       return;
 
     case AMD_DBGAPI_ADDRESS_SPACE_INFO_NAME:
@@ -190,7 +192,7 @@ memory_cache_t::prefetch (amd_dbgapi_global_address_t address,
 
       auto [it, success] = m_cache_line_map.try_emplace (cache_line_address);
       dbgapi_assert (success && "failed to create memory cache");
-      [] (auto&& ...){} (success); /* Silence an unused variable warning when
+      [] (auto &&...) {}(success); /* Silence an unused variable warning when
                                       building without assertions enabled.  */
 
       memcpy (&it->second.m_data[0],
@@ -603,17 +605,36 @@ amd_dbgapi_address_spaces_may_alias (
     if (!address_space1 || !address_space2)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID);
 
-    if (address_space1->architecture () != address_space2->architecture ())
-      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
-
     if (!address_space_alias)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-    *address_space_alias
-      = address_space1->architecture ().address_spaces_may_alias (
-          *address_space1, *address_space2)
-          ? AMD_DBGAPI_ADDRESS_SPACE_ALIAS_MAY
-          : AMD_DBGAPI_ADDRESS_SPACE_ALIAS_NONE;
+    /* The global address space aliases with itself.  */
+    if (address_space1->id () == AMD_DBGAPI_ADDRESS_SPACE_GLOBAL
+        && address_space2->id () == AMD_DBGAPI_ADDRESS_SPACE_GLOBAL)
+      {
+        *address_space_alias = AMD_DBGAPI_ADDRESS_SPACE_ALIAS_MAY;
+        return AMD_DBGAPI_STATUS_SUCCESS;
+      }
+
+    if (address_space1->architecture () != nullptr
+        && address_space2->architecture () != nullptr
+        && address_space1->architecture () != address_space2->architecture ())
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+
+    const architecture_t *architecture
+      = address_space1->architecture () != nullptr
+          ? address_space1->architecture ()
+          : address_space2->architecture ();
+    dbgapi_assert (architecture != nullptr);
+
+    if (!architecture->is_address_space_supported (*address_space1)
+        || !architecture->is_address_space_supported (*address_space2))
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+
+    *address_space_alias = architecture->address_spaces_may_alias (
+                             *address_space1, *address_space2)
+                             ? AMD_DBGAPI_ADDRESS_SPACE_ALIAS_MAY
+                             : AMD_DBGAPI_ADDRESS_SPACE_ALIAS_NONE;
 
     return AMD_DBGAPI_STATUS_SUCCESS;
   }
@@ -655,8 +676,8 @@ amd_dbgapi_convert_address_space (
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID);
 
     const architecture_t &architecture = wave->architecture ();
-    if (source_address_space->architecture () != architecture
-        || destination_address_space->architecture () != architecture)
+    if (!architecture.is_address_space_supported (*destination_address_space)
+        || !architecture.is_address_space_supported (*source_address_space))
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
     if (!destination_segment_address)
@@ -710,7 +731,7 @@ amd_dbgapi_address_is_in_address_class (
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_CLASS_ID);
 
     const architecture_t &architecture = wave->architecture ();
-    if (address_space->architecture () != architecture
+    if (!architecture.is_address_space_supported (*address_space)
         || address_class->architecture () != architecture)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
@@ -783,8 +804,8 @@ amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
         if (!address_space)
           THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID);
 
-        if (wave->process () != *process
-            || address_space->architecture () != wave->architecture ())
+        if (!wave->architecture ().is_address_space_supported (*address_space)
+            || wave->process () != *process)
           THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
         wave->architecture ().lower_address_space (
@@ -861,8 +882,8 @@ amd_dbgapi_write_memory (amd_dbgapi_process_id_t process_id,
         if (!address_space)
           THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID);
 
-        if (wave->process () != *process
-            || address_space->architecture () != wave->architecture ())
+        if (!wave->architecture ().is_address_space_supported (*address_space)
+            || wave->process () != *process)
           THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
         wave->architecture ().lower_address_space (

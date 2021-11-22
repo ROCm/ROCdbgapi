@@ -2417,29 +2417,29 @@ gfx9_architecture_t::gfx9_architecture_t (elf_amdgpu_machine_t e_machine,
   /* Create address spaces.  */
 
   auto &as_global = create<address_space_t> (
-    std::make_optional (AMD_DBGAPI_ADDRESS_SPACE_GLOBAL), *this, "global",
+    std::make_optional (AMD_DBGAPI_ADDRESS_SPACE_GLOBAL), this, "global",
     address_space_t::kind_t::global, DW_ASPACE_none, 64, 0x0000000000000000,
     AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   auto &as_generic = create<address_space_t> (
-    *this, "generic", address_space_t::kind_t::generic,
+    this, "generic", address_space_t::kind_t::generic,
     DW_ASPACE_AMDGPU_generic, 64, 0x0000000000000000,
     AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   auto &as_region = create<address_space_t> (
-    *this, "region", address_space_t::kind_t::region, DW_ASPACE_AMDGPU_region,
+    this, "region", address_space_t::kind_t::region, DW_ASPACE_AMDGPU_region,
     32, 0xFFFFFFFF, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   auto &as_local = create<address_space_t> (
-    *this, "local", address_space_t::kind_t::local, DW_ASPACE_AMDGPU_local, 32,
+    this, "local", address_space_t::kind_t::local, DW_ASPACE_AMDGPU_local, 32,
     0xFFFFFFFF, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   auto &as_private_lane = create<address_space_t> (
-    *this, "private_lane", address_space_t::kind_t::private_swizzled,
+    this, "private_lane", address_space_t::kind_t::private_swizzled,
     DW_ASPACE_AMDGPU_private_lane, 32, 0x00000000,
     AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
-  create<address_space_t> (*this, "private_wave",
+  create<address_space_t> (this, "private_wave",
                            address_space_t::kind_t::private_unswizzled,
                            DW_ASPACE_AMDGPU_private_wave, 32, 0x00000000,
                            AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);

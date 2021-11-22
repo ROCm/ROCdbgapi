@@ -83,11 +83,11 @@ private:
   amd_dbgapi_size_t const m_address_size;
   amd_dbgapi_segment_address_t const m_null_address;
   amd_dbgapi_address_space_access_t const m_access;
-  const architecture_t &m_architecture;
+  const architecture_t *const m_architecture;
 
 public:
   address_space_t (amd_dbgapi_address_space_id_t address_space_id,
-                   const architecture_t &architecture, std::string name,
+                   const architecture_t *architecture, std::string name,
                    kind_t kind, uint64_t dwarf_value,
                    amd_dbgapi_size_t address_size,
                    amd_dbgapi_segment_address_t null_address,
@@ -108,7 +108,7 @@ public:
   void get_info (amd_dbgapi_address_space_info_t query, size_t value_size,
                  void *value) const;
 
-  const architecture_t &architecture () const { return m_architecture; }
+  const architecture_t *architecture () const { return m_architecture; }
 };
 
 /* The amd_dbgapi_address_space_id_t{1} is reserved for the distinguished
