@@ -209,6 +209,9 @@ public:
     const address_space_t &address_space1,
     const address_space_t &address_space2) const override;
 
+  bool is_address_space_supported (
+    const address_space_t &address_space) const override;
+
   std::vector<os_watch_id_t>
   triggered_watchpoints (const wave_t &wave) const override;
 
@@ -677,6 +680,13 @@ amdgcn_architecture_t::address_spaces_may_alias (
     return true;
 
   return false;
+}
+
+bool
+amdgcn_architecture_t::is_address_space_supported (
+  const address_space_t &address_space) const
+{
+  return this->find (address_space.id ()) != nullptr;
 }
 
 std::vector<os_watch_id_t>

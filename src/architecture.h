@@ -282,6 +282,9 @@ public:
   address_spaces_may_alias (const address_space_t &address_space1,
                             const address_space_t &address_space2) const = 0;
 
+  virtual bool
+  is_address_space_supported (const address_space_t &address_space) const = 0;
+
   /* Return the watchpoints for which an exception was generated in the given
      stopped wave.  */
   virtual std::vector<os_watch_id_t>
