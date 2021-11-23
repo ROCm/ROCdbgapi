@@ -61,6 +61,17 @@ address_class_t::get_info (amd_dbgapi_address_class_info_t query,
   throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 }
 
+address_space_t address_space_t::s_global{
+  AMD_DBGAPI_ADDRESS_SPACE_GLOBAL,
+  nullptr,
+  "global",
+  address_space_t::kind_t::global,
+  DW_ASPACE_none,
+  64,
+  0x0000000000000000,
+  AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL
+};
+
 void
 address_space_t::get_info (amd_dbgapi_address_space_info_t query,
                            size_t value_size, void *value) const
@@ -500,6 +511,7 @@ amd_dbgapi_address_space_get_info (
          AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY,
+         AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE,
          AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
   TRACE_END (make_query_ref (query, param_out (value)));
 }
@@ -525,14 +537,16 @@ amd_dbgapi_architecture_address_space_list (
     if (!architecture)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID);
 
-    size_t count = architecture->count<address_space_t> ();
+    size_t count = 1 + architecture->count<address_space_t> ();
     auto space_ids = allocate_memory<amd_dbgapi_address_space_id_t[]> (
       count * sizeof (amd_dbgapi_address_space_id_t));
 
     size_t pos = 0;
+    space_ids[pos++] = AMD_DBGAPI_ADDRESS_SPACE_GLOBAL;
     for (auto &&address_space : architecture->range<address_space_t> ())
       space_ids[pos++] = address_space.id ();
 
+    dbgapi_assert (pos == count);
     *address_space_count = count;
     *address_spaces = space_ids.release ();
 

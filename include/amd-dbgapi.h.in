@@ -506,6 +506,12 @@ extern "C" {
  */
 #define AMD_DBGAPI_VERSION_0_58
 
+/**
+ * The function was introduced in version 0.59 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.59"``.
+ */
+#define AMD_DBGAPI_VERSION_0_59
+
 /** @} */
 
 /** \ingroup callbacks_group
@@ -5421,6 +5427,10 @@ typedef enum
   /**
    * Return the architecture to which this address space belongs.  The type of
    * this attribute is ::amd_dbgapi_architecture_id_t.
+   *
+   * If the address space does not belong to just one architecture, for example
+   * the global address space), ::amd_dbgapi_agent_get_info returns the
+   * ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE error.
    */
   AMD_DBGAPI_ADDRESS_SPACE_INFO_ARCHITECTURE = 1,
   /**
@@ -5486,6 +5496,9 @@ typedef enum
  * value_size does not match the size of the \p query result.  \p value is
  * unaltered.
  *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE \p The requested information
+ * is not available.  \p value is unaltered.
+ *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be reported if
  * the amd_dbgapi_callbacks_s::allocate_memory callback used to allocate \p
  * value returns NULL.  \p value is unaltered.
@@ -5493,7 +5506,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_space_get_info (
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_address_space_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_54;
+    void *value) AMD_DBGAPI_VERSION_0_59;
 
 /**
  * Report the list of address spaces supported by the architecture.

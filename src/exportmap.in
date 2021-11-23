@@ -1,7 +1,6 @@
 @AMD_DBGAPI_NAME@_0.54 {
 global: amd_dbgapi_address_class_get_info;
         amd_dbgapi_address_is_in_address_class;
-        amd_dbgapi_address_space_get_info;
         amd_dbgapi_address_spaces_may_alias;
         amd_dbgapi_architecture_address_class_list;
         amd_dbgapi_architecture_address_space_list;
@@ -70,3 +69,6 @@ global: amd_dbgapi_classify_instruction;
         amd_dbgapi_write_register;
 } @AMD_DBGAPI_NAME@_0.56;
 
+@AMD_DBGAPI_NAME@_0.59 {
+global: amd_dbgapi_address_space_get_info;
+} @AMD_DBGAPI_NAME@_0.58;

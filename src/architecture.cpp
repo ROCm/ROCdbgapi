@@ -686,7 +686,8 @@ bool
 amdgcn_architecture_t::is_address_space_supported (
   const address_space_t &address_space) const
 {
-  return this->find (address_space.id ()) != nullptr;
+  return address_space == address_space_t::s_global
+         || this->find (address_space.id ()) != nullptr;
 }
 
 std::vector<os_watch_id_t>
@@ -2416,11 +2417,6 @@ gfx9_architecture_t::gfx9_architecture_t (elf_amdgpu_machine_t e_machine,
 {
   /* Create address spaces.  */
 
-  auto &as_global = create<address_space_t> (
-    std::make_optional (AMD_DBGAPI_ADDRESS_SPACE_GLOBAL), this, "global",
-    address_space_t::kind_t::global, DW_ASPACE_none, 64, 0x0000000000000000,
-    AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
-
   auto &as_generic = create<address_space_t> (
     this, "generic", address_space_t::kind_t::generic,
     DW_ASPACE_AMDGPU_generic, 64, 0x0000000000000000,
@@ -2447,9 +2443,10 @@ gfx9_architecture_t::gfx9_architecture_t (elf_amdgpu_machine_t e_machine,
   /* Create address classes.  */
 
   create<address_class_t> (*this, "none", DW_ADDR_none, as_generic);
-  create<address_class_t> (*this, "global", DW_ADDR_LLVM_global, as_global);
+  create<address_class_t> (*this, "global", DW_ADDR_LLVM_global,
+                           address_space_t::s_global);
   create<address_class_t> (*this, "constant", DW_ADDR_LLVM_constant,
-                           as_global);
+                           address_space_t::s_global);
   create<address_class_t> (*this, "group", DW_ADDR_LLVM_group, as_local);
   create<address_class_t> (*this, "private", DW_ADDR_LLVM_private,
                            as_private_lane);

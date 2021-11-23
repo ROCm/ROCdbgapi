@@ -436,6 +436,10 @@ public:
     using object_type
       = object_type_from_handle_t<Handle, decltype (m_handle_object_sets)>;
 
+    if constexpr (std::is_same_v<Handle, amd_dbgapi_address_space_id_t>)
+      if (id == AMD_DBGAPI_ADDRESS_SPACE_GLOBAL)
+        return &address_space_t::s_global;
+
     return std::get<handle_object_set_t<object_type>> (m_handle_object_sets)
       .find (id);
   }
@@ -448,6 +452,10 @@ public:
     using object_type
       = object_type_from_handle_t<Handle, decltype (m_handle_object_sets)>;
 
+    if constexpr (std::is_same_v<Handle, amd_dbgapi_address_space_id_t>)
+      if (id == AMD_DBGAPI_ADDRESS_SPACE_GLOBAL)
+        return &address_space_t::s_global;
+
     return std::get<handle_object_set_t<object_type>> (m_handle_object_sets)
       .find (id);
   }
@@ -457,6 +465,10 @@ public:
   {
     using object_type = std::decay_t<utils::first_argument_of_t<Functor>>;
 
+    if constexpr (std::is_same_v<object_type, address_space_t>)
+      if (predicate (address_space_t::s_global))
+        return &address_space_t::s_global;
+
     return std::get<handle_object_set_t<object_type>> (m_handle_object_sets)
       .find_if (predicate);
   }
@@ -464,6 +476,10 @@ public:
   template <typename Functor> auto *find_if (Functor predicate)
   {
     using object_type = std::decay_t<utils::first_argument_of_t<Functor>>;
+
+    if constexpr (std::is_same_v<object_type, address_space_t>)
+      if (predicate (address_space_t::s_global))
+        return &address_space_t::s_global;
 
     return std::get<handle_object_set_t<object_type>> (m_handle_object_sets)
       .find_if (predicate);
@@ -485,6 +501,10 @@ template <
 const auto *
 find (Handle id)
 {
+  if constexpr (std::is_same_v<Handle, amd_dbgapi_address_space_id_t>)
+    if (id == AMD_DBGAPI_ADDRESS_SPACE_GLOBAL)
+      return &address_space_t::s_global;
+
   if (detail::last_found_architecture)
     if (auto value = detail::last_found_architecture->find (id); value)
       return value;
