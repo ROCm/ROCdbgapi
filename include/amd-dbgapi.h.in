@@ -507,10 +507,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_58
 
 /**
- * The function was introduced in version 0.59 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.59"``.
+ * The function was introduced in version 0.60 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.60"``.
  */
-#define AMD_DBGAPI_VERSION_0_59
+#define AMD_DBGAPI_VERSION_0_60
 
 /** @} */
 
@@ -5204,17 +5204,12 @@ typedef struct
 typedef enum
 {
   /**
-   * Return the architecture to which this address class belongs.  The type of
-   * this attribute is ::amd_dbgapi_architecture_id_t.
-   */
-  AMD_DBGAPI_ADDRESS_CLASS_INFO_ARCHITECTURE = 1,
-  /**
    * Return the source language address class name.  The type of this attribute
    * is a pointer to a NUL terminated \p char.  It is allocated by the
    * amd_dbgapi_callbacks_s::allocate_memory callback and is owned by the
    * client.
    */
-  AMD_DBGAPI_ADDRESS_CLASS_INFO_NAME = 2,
+  AMD_DBGAPI_ADDRESS_CLASS_INFO_NAME = 1,
   /**
    * Return the architecture specific address space that is used to implement a
    * pointer or reference to the source language address class.  The type of
@@ -5223,12 +5218,12 @@ typedef enum
    * See [User Guide for AMDGPU Backend - Code Object - DWARF - Address Class
    * Mapping] (https://llvm.org/docs/AMDGPUUsage.html#address-class-mapping).
    */
-  AMD_DBGAPI_ADDRESS_CLASS_INFO_ADDRESS_SPACE = 3,
+  AMD_DBGAPI_ADDRESS_CLASS_INFO_ADDRESS_SPACE = 2,
   /**
    * Return the AMD GPU DWARF address class number for the address class'
    * architecture.  The type of this attribute is \p uint64_t.
    */
-  AMD_DBGAPI_ADDRESS_CLASS_INFO_DWARF = 4
+  AMD_DBGAPI_ADDRESS_CLASS_INFO_DWARF = 3
 } amd_dbgapi_address_class_info_t;
 
 /**
@@ -5273,7 +5268,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_class_get_info (
     amd_dbgapi_address_class_id_t address_class_id,
     amd_dbgapi_address_class_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_54;
+    void *value) AMD_DBGAPI_VERSION_0_60;
 
 /**
  * Report the list of source language address classes supported by the
@@ -5425,41 +5420,32 @@ typedef enum
 typedef enum
 {
   /**
-   * Return the architecture to which this address space belongs.  The type of
-   * this attribute is ::amd_dbgapi_architecture_id_t.
-   *
-   * If the address space does not belong to just one architecture, for example
-   * the global address space), ::amd_dbgapi_agent_get_info returns the
-   * ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE error.
-   */
-  AMD_DBGAPI_ADDRESS_SPACE_INFO_ARCHITECTURE = 1,
-  /**
    * Return the address space name.  The type of this attribute is a pointer to
    * a NUL terminated \p char*.  It is allocated by the
    * amd_dbgapi_callbacks_s::allocate_memory callback and is owned by the
    * client.
    */
-  AMD_DBGAPI_ADDRESS_SPACE_INFO_NAME = 2,
+  AMD_DBGAPI_ADDRESS_SPACE_INFO_NAME = 1,
   /**
    * Return the byte size of an address in the address space.  The type of this
    * attribute is ::amd_dbgapi_size_t.
    */
-  AMD_DBGAPI_ADDRESS_SPACE_INFO_ADDRESS_SIZE = 3,
+  AMD_DBGAPI_ADDRESS_SPACE_INFO_ADDRESS_SIZE = 2,
   /**
    * Return the NULL segment address value in the address space.  The type of
    * this attribute is \p amd_dbgapi_segment_address_t.
    */
-  AMD_DBGAPI_ADDRESS_SPACE_INFO_NULL_ADDRESS = 4,
+  AMD_DBGAPI_ADDRESS_SPACE_INFO_NULL_ADDRESS = 3,
   /**
    * Return the address space access.  The type of this attribute is \p
    * uint32_t with values defined by ::amd_dbgapi_address_space_access_t.
    */
-  AMD_DBGAPI_ADDRESS_SPACE_INFO_ACCESS = 5,
+  AMD_DBGAPI_ADDRESS_SPACE_INFO_ACCESS = 4,
   /**
    * Return the AMD GPU DWARF address space number for the address space's
    * architecture. The type of this attribute is \p uint64_t.
    */
-  AMD_DBGAPI_ADDRESS_SPACE_INFO_DWARF = 6
+  AMD_DBGAPI_ADDRESS_SPACE_INFO_DWARF = 5
 } amd_dbgapi_address_space_info_t;
 
 /**
@@ -5496,9 +5482,6 @@ typedef enum
  * value_size does not match the size of the \p query result.  \p value is
  * unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE \p The requested information
- * is not available.  \p value is unaltered.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be reported if
  * the amd_dbgapi_callbacks_s::allocate_memory callback used to allocate \p
  * value returns NULL.  \p value is unaltered.
@@ -5506,7 +5489,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_space_get_info (
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_address_space_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_59;
+    void *value) AMD_DBGAPI_VERSION_0_60;
 
 /**
  * Report the list of address spaces supported by the architecture.
@@ -5594,66 +5577,6 @@ amd_dbgapi_dwarf_address_space_to_address_space (
     amd_dbgapi_address_space_id_t *address_space_id) AMD_DBGAPI_VERSION_0_54;
 
 /**
- * Indication of whether addresses in two address spaces may alias.
- */
-typedef enum
-{
-  /**
-   * No addresses in the address spaces can alias.
-   */
-  AMD_DBGAPI_ADDRESS_SPACE_ALIAS_NONE = 0,
-  /**
-   * Addresses in the address spaces may alias.
-   */
-  AMD_DBGAPI_ADDRESS_SPACE_ALIAS_MAY = 1
-} amd_dbgapi_address_space_alias_t;
-
-/**
- * Determine if an address in one address space may alias an address in another
- * address space.
- *
- * If addresses in one address space may alias the addresses in another, and if
- * memory locations are updated using an address in one, then any cached
- * information about values in the other needs to be invalidated.
- *
- * The address spaces must belong to the same the architecture.
- *
- * \param[in] address_space_id1 An address space.
- *
- * \param[in] address_space_id2 An address space.
- *
- * \param[out] address_space_alias ::AMD_DBGAPI_ADDRESS_SPACE_ALIAS_NONE if the
- * address spaces do not alias.  ::AMD_DBGAPI_ADDRESS_SPACE_ALIAS_MAY if the
- * address spaces may alias.
- *
- * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
- * successfully and the result is stored in \p address_space_alias.
- *
- * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
- * left uninitialized and \p address_space_alias is unaltered.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
- * initialized.  The library is left uninitialized and \p address_space_alias
- * is unaltered.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID \p
- * address_space_id1 or \p address_space_id2 are invalid.  \p
- * address_space_alias is unaltered.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p address_space_alias is
- * NULL.  \p address_space_alias is unaltered.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY The
- * architectures of \p address_space_id1 and \p address_space_id2 are not the
- * same.  \p address_space_alias is unaltered.
- */
-amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_spaces_may_alias (
-    amd_dbgapi_address_space_id_t address_space_id1,
-    amd_dbgapi_address_space_id_t address_space_id2,
-    amd_dbgapi_address_space_alias_t *address_space_alias)
-    AMD_DBGAPI_VERSION_0_54;
-
-/**
  * Each address space has its own linear address to access it termed a segment
  * address.
  *
@@ -5675,20 +5598,33 @@ typedef uint64_t amd_dbgapi_segment_address_t;
  * Convert a source segment address in the source address space into a
  * destination segment address in the destination address space.
  *
- * The address spaces must belong to the same the architecture.
- *
  * If the source segment address is the NULL value in the source address space
  * then it is converted to the NULL value in the destination address space.
  * The NULL address is provided by the
  * ::AMD_DBGAPI_ADDRESS_SPACE_INFO_NULL_ADDRESS query.
  *
  * An error is returned if the source segment address has no corresponding
- * segment address in the destination address space.  The source and
- * destination address spaces must have the same linear ordering.  For example,
- * a swizzled address space is not the same linear ordering as an unswizzled
- * address space.  The source and destination address spaces must either both
- * depend on the active lane, both depend on the same lane, or both not depend
- * on the lane.
+ * segment address in the destination address space.
+ *
+ * The source and destination address spaces do not have to have the same
+ * linear ordering.  For example, for AMD GPU the \p private_swizzled address
+ * space is implemented as \p global address space memory that interleaves the
+ * dwords of the wave's lanes.  So converting a \p private_swizzled address to
+ * a \p global address will result in the corresponding scratch backing memory
+ * address.  The \p destination_contiguous_bytes will indicate how many bytes,
+ * starting at the \p destination_segment_address, before the scratch backing
+ * memory corresponds to a dword of the adjacent lane.  To get the scratch
+ * backing memory address of the byte after \p destination_contiguous_bytes
+ * bytes requires ::amd_dbgapi_convert_address_space to be called again with
+ * the address \p source_segment_address plus \p destination_contiguous_bytes.
+ *
+ * A client can use this operation to help manage caching the bytes of
+ * different address spaces.  An address in an address space that is being
+ * accessed can attempt to be converted to the various address spaces being
+ * cached to see if it aliases with bytes being cached under a different
+ * address space.  For example, an address in the AMD GPU \p generic address
+ * space may alias with an address in the \p global, \p private_swizzled, or
+ * \p local address spaces.
  *
  * \param[in] wave_id The wave that is using the address.
  *
@@ -5712,48 +5648,64 @@ typedef uint64_t amd_dbgapi_segment_address_t;
  * are updated, and any remaining bits are set to zero.  The address size is
  * provided by the ::AMD_DBGAPI_ADDRESS_SPACE_INFO_ADDRESS_SIZE query.
  *
+ * \param[out] destination_contiguous_bytes The number of contiguous bytes for
+ * which the converted \p destination_segment_address continues to correspond
+ * to the \p source_segment_address.
+ *
  * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
- * successfully and the result is stored in \p destination_segment_address.
+ * successfully and the result is stored in \p destination_segment_address and
+ * \p destination_contiguous_bytes.
  *
  * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
- * left uninitialized and \p destination_segment_address is unaltered.
+ * left uninitialized and \p destination_segment_address and \p
+ * destination_contiguous_bytes are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
  * initialized.  The library is left uninitialized and \p
- * destination_segment_address is unaltered.
+ * destination_segment_address and \p destination_contiguous_bytes are
+ * unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID \p wave_id is invalid.  \p
- * destination_segment_address is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID \p wave_id is invalid, or
+ * \p wave_id is ::AMD_DBGAPI_WAVE_NONE and \p source_address_space_id or \p
+ * destination_address_space_id depends on the active wave.
+ * \p destination_segment_address and \p destination_contiguous_bytes are
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID \p lane_id is invalid, or
  * \p lane_id is ::AMD_DBGAPI_LANE_NONE and \p source_address_space_id depends
- * on the active lane.  \p destination_segment_address is unaltered.
+ * on the active lane.  \p destination_segment_address and \p
+ * destination_contiguous_bytes are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID \p
  * source_address_space_id or \p destination_address_space_id are invalid.  \p
- * value is unaltered.
+ * destination_segment_address and \p destination_contiguous_bytes are
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION The \p
  * source_segment_address in the \p source_address_space_id is not an address
- * that can be represented in the \p destination_address_space_id.  \p
- * destination_segment_address is unaltered.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p
- * destination_segment_address is NULL.  \p destination_segment_address is
+ * that can be represented in the \p destination_address_space_id.
+ * \p destination_segment_address and \p destination_contiguous_bytes are
  * unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY The
- * architectures of \p wave_id, \p source_address_space_id, and \p
- * destination_address_space_id are not the same.  \p
- * destination_segment_address is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p
+ * destination_segment_address or \p destination_contiguous_bytes are NULL.
+ * \p destination_segment_address and \p destination_contiguous_bytes are
+ * unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
+ * source_address_space_id or \p destination_address_space_id address spaces
+ * are not supported by the architecture of \p wave_id (if not
+ * ::AMD_DBGAPI_WAVE_NONE).  \p destination_segment_address and \p
+ * destination_contiguous_bytes are unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_convert_address_space (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_lane_id_t lane_id,
     amd_dbgapi_address_space_id_t source_address_space_id,
     amd_dbgapi_segment_address_t source_segment_address,
     amd_dbgapi_address_space_id_t destination_address_space_id,
-    amd_dbgapi_segment_address_t *destination_segment_address)
-    AMD_DBGAPI_VERSION_0_54;
+    amd_dbgapi_segment_address_t *destination_segment_address,
+    amd_dbgapi_size_t *destination_contiguous_bytes)
+    AMD_DBGAPI_VERSION_0_60;
 
 /**
  * Indication of whether a segment address in an address space is a member of

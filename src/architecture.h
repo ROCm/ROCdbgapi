@@ -257,12 +257,12 @@ public:
                          uint32_t bank_count, uint32_t bank_id,
                          uint32_t slot_id) const = 0;
 
-  virtual void
+  virtual std::pair<amd_dbgapi_segment_address_t /* to_address  */,
+                    amd_dbgapi_size_t /* to_contiguous_bytes  */>
   convert_address_space (const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
                          const address_space_t &from_address_space,
                          const address_space_t &to_address_space,
-                         amd_dbgapi_segment_address_t from_address,
-                         amd_dbgapi_segment_address_t *to_address) const = 0;
+                         amd_dbgapi_segment_address_t from_address) const = 0;
 
   virtual void lower_address_space (
     const wave_t &wave, amd_dbgapi_lane_id_t *lane_id,
@@ -279,11 +279,10 @@ public:
                                const address_class_t &address_class) const = 0;
 
   virtual bool
-  address_spaces_may_alias (const address_space_t &address_space1,
-                            const address_space_t &address_space2) const = 0;
-
-  virtual bool
   is_address_space_supported (const address_space_t &address_space) const = 0;
+  virtual bool
+
+  is_address_class_supported (const address_class_t &address_class) const = 0;
 
   /* Return the watchpoints for which an exception was generated in the given
      stopped wave.  */

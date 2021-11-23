@@ -432,7 +432,6 @@ to_string (detail::parameter_t<detail::query_ref<T>, name, kind> param)
   F (amd_dbgapi_address_class_info_t)                                         \
   F (amd_dbgapi_address_class_state_t)                                        \
   F (amd_dbgapi_address_space_access_t)                                       \
-  F (amd_dbgapi_address_space_alias_t)                                        \
   F (amd_dbgapi_address_space_id_t)                                           \
   F (amd_dbgapi_address_space_info_t)                                         \
   F (amd_dbgapi_agent_id_t)                                                   \

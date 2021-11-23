@@ -216,8 +216,7 @@ to_string (amd_dbgapi_address_class_id_t address_class_id)
 
   if (const address_class_t *address_class = find (address_class_id);
       address_class)
-    str += " <" + address_class->architecture ().name ()
-           + "::" + address_class->name () + ">";
+    str += " <" + address_class->name () + ">";
 
   return str;
 }
@@ -234,12 +233,7 @@ to_string (amd_dbgapi_address_space_id_t address_space_id)
 
   if (const address_space_t *address_space = find (address_space_id);
       address_space)
-    {
-      str += " <";
-      if (address_space->architecture ())
-        str += address_space->architecture ()->name ();
-      str += "::" + address_space->name () + ">";
-    }
+    str += " <" + address_space->name () + ">";
 
   return str;
 }
@@ -1326,7 +1320,6 @@ to_string (amd_dbgapi_address_class_info_t address_class_info)
 {
   switch (address_class_info)
     {
-      CASE (ADDRESS_CLASS_INFO_ARCHITECTURE);
       CASE (ADDRESS_CLASS_INFO_NAME);
       CASE (ADDRESS_CLASS_INFO_ADDRESS_SPACE);
       CASE (ADDRESS_CLASS_INFO_DWARF);
@@ -1341,9 +1334,6 @@ to_string (detail::query_ref<amd_dbgapi_address_class_info_t> ref)
   auto [query, value] = ref;
   switch (query)
     {
-    case AMD_DBGAPI_ADDRESS_CLASS_INFO_ARCHITECTURE:
-      return to_string (
-        make_ref (static_cast<const amd_dbgapi_architecture_id_t *> (value)));
     case AMD_DBGAPI_ADDRESS_CLASS_INFO_NAME:
       return to_string (make_ref (static_cast<char *const *> (value)));
     case AMD_DBGAPI_ADDRESS_CLASS_INFO_ADDRESS_SPACE:
@@ -1375,7 +1365,6 @@ to_string (amd_dbgapi_address_space_info_t address_space_info)
 {
   switch (address_space_info)
     {
-      CASE (ADDRESS_SPACE_INFO_ARCHITECTURE);
       CASE (ADDRESS_SPACE_INFO_NAME);
       CASE (ADDRESS_SPACE_INFO_ADDRESS_SIZE);
       CASE (ADDRESS_SPACE_INFO_NULL_ADDRESS);
@@ -1392,9 +1381,6 @@ to_string (detail::query_ref<amd_dbgapi_address_space_info_t> ref)
   auto [query, value] = ref;
   switch (query)
     {
-    case AMD_DBGAPI_ADDRESS_SPACE_INFO_ARCHITECTURE:
-      return to_string (
-        make_ref (static_cast<const amd_dbgapi_architecture_id_t *> (value)));
     case AMD_DBGAPI_ADDRESS_SPACE_INFO_NAME:
       return to_string (make_ref (static_cast<char *const *> (value)));
     case AMD_DBGAPI_ADDRESS_SPACE_INFO_ADDRESS_SIZE:
@@ -1411,18 +1397,6 @@ to_string (detail::query_ref<amd_dbgapi_address_space_info_t> ref)
     }
   fatal_error ("unhandled amd_dbgapi_address_space_info_t query (%s)",
                to_string (query).c_str ());
-}
-
-template <>
-std::string
-to_string (amd_dbgapi_address_space_alias_t address_space_alias)
-{
-  switch (address_space_alias)
-    {
-      CASE (ADDRESS_SPACE_ALIAS_NONE);
-      CASE (ADDRESS_SPACE_ALIAS_MAY);
-    }
-  return to_string (make_hex (address_space_alias));
 }
 
 template <>
