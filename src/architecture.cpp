@@ -477,16 +477,16 @@ const address_space_t &
 address_space_for_generic_address (
   const wave_t &wave, amd_dbgapi_segment_address_t generic_address)
 {
-  address_space_t::address_space_kind_t address_space_kind;
+  address_space_t::kind_t address_space_kind;
   amd_dbgapi_global_address_t aperture
     = generic_address & utils::bit_mask (32, 63);
 
   if (aperture == wave.agent ().os_info ().private_address_space_aperture)
-    address_space_kind = address_space_t::private_swizzled;
+    address_space_kind = address_space_t::kind_t::private_swizzled;
   else if (aperture == wave.agent ().os_info ().local_address_space_aperture)
-    address_space_kind = address_space_t::local;
+    address_space_kind = address_space_t::kind_t::local;
   else /* all other addresses are treated as global addresses  */
-    address_space_kind = address_space_t::global;
+    address_space_kind = address_space_t::kind_t::global;
 
   const address_space_t *segment_address_space = wave.architecture ().find_if (
     [=] (const address_space_t &as)
@@ -509,11 +509,12 @@ generic_address_for_address_space (
 {
   amd_dbgapi_segment_address_t aperture{ 0 };
 
-  if (segment_address_space.kind () == address_space_t::local)
+  if (segment_address_space.kind () == address_space_t::kind_t::local)
     aperture = wave.agent ().os_info ().local_address_space_aperture;
-  if (segment_address_space.kind () == address_space_t::private_swizzled)
+  if (segment_address_space.kind ()
+      == address_space_t::kind_t::private_swizzled)
     aperture = wave.agent ().os_info ().private_address_space_aperture;
-  else if (segment_address_space.kind () != address_space_t::global)
+  else if (segment_address_space.kind () != address_space_t::kind_t::global)
     /* not a valid address space conversion.  */
     return std::nullopt;
 
@@ -545,7 +546,7 @@ amdgcn_architecture_t::convert_address_space (
       return;
     }
 
-  if (from_address_space.kind () == address_space_t::generic)
+  if (from_address_space.kind () == address_space_t::kind_t::generic)
     {
       if (from_address == from_address_space.null_address ())
         {
@@ -570,7 +571,7 @@ amdgcn_architecture_t::convert_address_space (
   /* Other conversions from local, private or global can only be to the generic
      address space.  */
 
-  if (to_address_space.kind () != address_space_t::generic)
+  if (to_address_space.kind () != address_space_t::kind_t::generic)
     throw api_error_t (
       AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
 
@@ -592,7 +593,7 @@ amdgcn_architecture_t::lower_address_space (
   amd_dbgapi_segment_address_t original_address,
   amd_dbgapi_segment_address_t *lowered_address) const
 {
-  if (original_address_space.kind () == address_space_t::generic)
+  if (original_address_space.kind () == address_space_t::kind_t::generic)
     {
       const address_space_t &segment_address_space
         = address_space_for_generic_address (wave, original_address);
@@ -627,15 +628,16 @@ amdgcn_architecture_t::address_is_in_address_class (
    */
 
   /* private_unswizzled addresses are not in any address classes.  */
-  if (address_space.kind () == address_space_t::private_unswizzled)
+  if (address_space.kind () == address_space_t::kind_t::private_unswizzled)
     return false;
 
   /* private_swizzled, local, global, and generic are in the generic address
      class.  */
-  if (address_class.address_space ().kind () == address_space_t::generic)
+  if (address_class.address_space ().kind ()
+      == address_space_t::kind_t::generic)
     return true;
 
-  if (address_space.kind () == address_space_t::generic)
+  if (address_space.kind () == address_space_t::kind_t::generic)
     {
       const address_space_t *lowered_address_space;
       lower_address_space (wave, &lane_id, address_space,
@@ -659,14 +661,15 @@ amdgcn_architecture_t::address_spaces_may_alias (
   const address_space_t &address_space2) const
 {
   /* generic aliases with private, local and global.  */
-  if (address_space1.kind () == address_space_t::generic
-      || address_space2.kind () == address_space_t::generic)
+  if (address_space1.kind () == address_space_t::kind_t::generic
+      || address_space2.kind () == address_space_t::kind_t::generic)
     return true;
 
   auto is_private = [] (const address_space_t &address_space)
   {
-    return address_space.kind () == address_space_t::private_swizzled
-           || address_space.kind () == address_space_t::private_unswizzled;
+    return address_space.kind () == address_space_t::kind_t::private_swizzled
+           || address_space.kind ()
+                == address_space_t::kind_t::private_unswizzled;
   };
 
   /* private* aliases with private*.  */
@@ -2405,28 +2408,29 @@ gfx9_architecture_t::gfx9_architecture_t (elf_amdgpu_machine_t e_machine,
 
   auto &as_global = create<address_space_t> (
     std::make_optional (AMD_DBGAPI_ADDRESS_SPACE_GLOBAL), *this, "global",
-    address_space_t::global, DW_ASPACE_none, 64, 0x0000000000000000,
+    address_space_t::kind_t::global, DW_ASPACE_none, 64, 0x0000000000000000,
     AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   auto &as_generic = create<address_space_t> (
-    *this, "generic", address_space_t::generic, DW_ASPACE_AMDGPU_generic, 64,
-    0x0000000000000000, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
+    *this, "generic", address_space_t::kind_t::generic,
+    DW_ASPACE_AMDGPU_generic, 64, 0x0000000000000000,
+    AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   auto &as_region = create<address_space_t> (
-    *this, "region", address_space_t::region, DW_ASPACE_AMDGPU_region, 32,
-    0xFFFFFFFF, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
+    *this, "region", address_space_t::kind_t::region, DW_ASPACE_AMDGPU_region,
+    32, 0xFFFFFFFF, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   auto &as_local = create<address_space_t> (
-    *this, "local", address_space_t::local, DW_ASPACE_AMDGPU_local, 32,
+    *this, "local", address_space_t::kind_t::local, DW_ASPACE_AMDGPU_local, 32,
     0xFFFFFFFF, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   auto &as_private_lane = create<address_space_t> (
-    *this, "private_lane", address_space_t::private_swizzled,
+    *this, "private_lane", address_space_t::kind_t::private_swizzled,
     DW_ASPACE_AMDGPU_private_lane, 32, 0x00000000,
     AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   create<address_space_t> (*this, "private_wave",
-                           address_space_t::private_unswizzled,
+                           address_space_t::kind_t::private_unswizzled,
                            DW_ASPACE_AMDGPU_private_wave, 32, 0x00000000,
                            AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 

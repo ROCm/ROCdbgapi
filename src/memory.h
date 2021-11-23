@@ -64,7 +64,7 @@ class address_space_t
   : public detail::handle_object<amd_dbgapi_address_space_id_t>
 {
 public:
-  enum address_space_kind_t
+  enum class kind_t
   {
     generic = 1,
     local,
@@ -74,9 +74,11 @@ public:
     region
   };
 
+  static address_space_t s_global;
+
 private:
   std::string const m_name;
-  address_space_kind_t const m_kind;
+  kind_t const m_kind;
   uint64_t const m_dwarf_value;
   amd_dbgapi_size_t const m_address_size;
   amd_dbgapi_segment_address_t const m_null_address;
@@ -86,7 +88,7 @@ private:
 public:
   address_space_t (amd_dbgapi_address_space_id_t address_space_id,
                    const architecture_t &architecture, std::string name,
-                   address_space_kind_t kind, uint64_t dwarf_value,
+                   kind_t kind, uint64_t dwarf_value,
                    amd_dbgapi_size_t address_size,
                    amd_dbgapi_segment_address_t null_address,
                    amd_dbgapi_address_space_access_t access)
@@ -99,7 +101,7 @@ public:
 
   uint64_t dwarf_value () const { return m_dwarf_value; }
   const std::string &name () const { return m_name; }
-  address_space_kind_t kind () const { return m_kind; }
+  kind_t kind () const { return m_kind; }
   amd_dbgapi_size_t address_size () const { return m_address_size; }
   amd_dbgapi_segment_address_t null_address () const { return m_null_address; }
 

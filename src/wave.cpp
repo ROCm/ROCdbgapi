@@ -820,18 +820,18 @@ wave_t::xfer_segment_memory (const address_space_t &address_space,
 
   switch (address_space.kind ())
     {
-    case address_space_t::private_swizzled:
+    case address_space_t::kind_t::private_swizzled:
       return xfer_private_memory_swizzled (segment_address, lane_id, read,
                                            write, size);
 
-    case address_space_t::private_unswizzled:
+    case address_space_t::kind_t::private_unswizzled:
       return xfer_private_memory_unswizzled (segment_address, read, write,
                                              size);
 
-    case address_space_t::local:
+    case address_space_t::kind_t::local:
       return xfer_local_memory (segment_address, read, write, size);
 
-    case address_space_t::global:
+    case address_space_t::kind_t::global:
       return read ? process ().read_global_memory_partial (segment_address,
                                                            read, size)
                   : process ().write_global_memory_partial (segment_address,
