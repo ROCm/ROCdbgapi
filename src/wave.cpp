@@ -622,7 +622,7 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
       dbgapi_assert (wave == this);
 
       /* The wave's saved state may have changed location in memory.  */
-      reg_addr == register_address (regnum);
+      reg_addr = register_address (regnum);
     }
 
   process ().read_global_memory (
@@ -674,7 +674,7 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
       dbgapi_assert (wave == this);
 
       /* The wave's saved state may have changed location in memory.  */
-      reg_addr == register_address (regnum);
+      reg_addr = register_address (regnum);
     }
 
   process ().write_global_memory (*reg_addr + offset,
