@@ -264,12 +264,11 @@ public:
                          const address_space_t &to_address_space,
                          amd_dbgapi_segment_address_t from_address) const = 0;
 
-  virtual void lower_address_space (
-    const wave_t &wave, amd_dbgapi_lane_id_t *lane_id,
-    const address_space_t &original_address_space,
-    const address_space_t **lowered_address_space,
-    amd_dbgapi_segment_address_t original_address,
-    amd_dbgapi_segment_address_t *lowered_address) const = 0;
+  virtual std::pair<const address_space_t & /* lowered_address_space  */,
+                    amd_dbgapi_segment_address_t /* lowered_address  */>
+  lower_address_space (
+    const wave_t &wave, const address_space_t &original_address_space,
+    amd_dbgapi_segment_address_t original_address) const = 0;
 
   virtual bool
   address_is_in_address_class (const wave_t &wave,
@@ -280,9 +279,11 @@ public:
 
   virtual bool
   is_address_space_supported (const address_space_t &address_space) const = 0;
-  virtual bool
 
+  virtual bool
   is_address_class_supported (const address_class_t &address_class) const = 0;
+
+  virtual amd_dbgapi_global_address_t address_aperture_mask () const = 0;
 
   /* Return the watchpoints for which an exception was generated in the given
      stopped wave.  */

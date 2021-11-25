@@ -776,13 +776,13 @@ amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
             || wave->process () != *process)
           THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
-        wave->architecture ().lower_address_space (
-          *wave, &lane_id, *address_space, &address_space, segment_address,
-          &segment_address);
+        auto [lowered_address_space, lowered_address]
+          = wave->architecture ().lower_address_space (*wave, *address_space,
+                                                       segment_address);
 
-        *value_size = wave->xfer_segment_memory (*address_space, lane_id,
-                                                 segment_address, value,
-                                                 nullptr, *value_size);
+        *value_size = wave->xfer_segment_memory (lowered_address_space,
+                                                 lane_id, lowered_address,
+                                                 value, nullptr, *value_size);
       }
 
     return AMD_DBGAPI_STATUS_SUCCESS;
@@ -854,13 +854,13 @@ amd_dbgapi_write_memory (amd_dbgapi_process_id_t process_id,
             || wave->process () != *process)
           THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
-        wave->architecture ().lower_address_space (
-          *wave, &lane_id, *address_space, &address_space, segment_address,
-          &segment_address);
+        auto [lowered_address_space, lowered_address]
+          = wave->architecture ().lower_address_space (*wave, *address_space,
+                                                       segment_address);
 
-        *value_size = wave->xfer_segment_memory (*address_space, lane_id,
-                                                 segment_address, nullptr,
-                                                 value, *value_size);
+        *value_size = wave->xfer_segment_memory (lowered_address_space,
+                                                 lane_id, lowered_address,
+                                                 nullptr, value, *value_size);
       }
 
     return AMD_DBGAPI_STATUS_SUCCESS;

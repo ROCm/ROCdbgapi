@@ -193,12 +193,11 @@ public:
     const address_space_t &to_address_space,
     amd_dbgapi_segment_address_t from_address) const override;
 
-  void lower_address_space (
-    const wave_t &wave, amd_dbgapi_lane_id_t *lane_id,
-    const address_space_t &original_address_space,
-    const address_space_t **lowered_address_space,
-    amd_dbgapi_segment_address_t original_address,
-    amd_dbgapi_segment_address_t *lowered_address) const override;
+  std::pair<const address_space_t & /* lowered_address_space  */,
+            amd_dbgapi_segment_address_t /* lowered_address  */>
+  lower_address_space (
+    const wave_t &wave, const address_space_t &original_address_space,
+    amd_dbgapi_segment_address_t original_address) const override;
 
   bool address_is_in_address_class (
     const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
@@ -211,6 +210,11 @@ public:
 
   bool is_address_class_supported (
     const address_class_t &address_class) const override;
+
+  amd_dbgapi_global_address_t address_aperture_mask () const override
+  {
+    return utils::bit_mask (48, 63);
+  }
 
   std::vector<os_watch_id_t>
   triggered_watchpoints (const wave_t &wave) const override;
@@ -472,7 +476,7 @@ amdgcn_architecture_t::disassemble_instruction (
 namespace
 {
 
-/* Helper routine to return the address space for a given generic address. The
+/* Helper routine to return the address space for a given generic address.  The
    returned address space can only be one of LOCAL, PRIVATE_SWIZZLED or GLOBAL
    address space. The queue_t is used to retrieve the apertures.
  */
@@ -480,57 +484,97 @@ const address_space_t &
 address_space_for_generic_address (
   const wave_t &wave, amd_dbgapi_segment_address_t generic_address)
 {
-  address_space_t::kind_t address_space_kind;
   amd_dbgapi_global_address_t aperture
-    = generic_address & utils::bit_mask (32, 63);
+    = generic_address & wave.architecture ().address_aperture_mask ();
 
+  address_space_t::kind_t kind;
   if (aperture == wave.agent ().os_info ().private_address_space_aperture)
-    address_space_kind = address_space_t::kind_t::private_swizzled;
+    kind = address_space_t::kind_t::private_swizzled;
   else if (aperture == wave.agent ().os_info ().local_address_space_aperture)
-    address_space_kind = address_space_t::kind_t::local;
-  else /* all other addresses are treated as global addresses  */
-    address_space_kind = address_space_t::kind_t::global;
+    kind = address_space_t::kind_t::local;
+  else /* all other addresses (including the NULL address) are treated as
+          global addresses.  */
+    kind = address_space_t::kind_t::global;
 
   const address_space_t *segment_address_space = wave.architecture ().find_if (
-    [=] (const address_space_t &as)
-    { return as.kind () == address_space_kind; });
-  if (!segment_address_space)
-    fatal_error ("address space not found in architecture");
+    [=] (const address_space_t &as) { return as.kind () == kind; });
 
+  dbgapi_assert (segment_address_space != nullptr
+                 && "address space not found in architecture");
   return *segment_address_space;
 }
 
 /* Helper routine to return the generic address for a given segment address
    space, segment address pair.  Converting an address from an address space
    other than LOCAL, PRIVATE_SWIZZLED or GLOBAL is invalid, and an error is
-   returned.  The queue_t is used to retrieve the apertures.
+   returned.  The agent_t::os_info is used to retrieve the apertures.
  */
 std::optional<amd_dbgapi_segment_address_t>
 generic_address_for_address_space (
   const wave_t &wave, const address_space_t &segment_address_space,
   amd_dbgapi_segment_address_t segment_address)
 {
-  amd_dbgapi_segment_address_t aperture{ 0 };
+  amd_dbgapi_segment_address_t aperture;
 
-  if (segment_address_space.kind () == address_space_t::kind_t::local)
-    aperture = wave.agent ().os_info ().local_address_space_aperture;
-  if (segment_address_space.kind ()
-      == address_space_t::kind_t::private_swizzled)
-    aperture = wave.agent ().os_info ().private_address_space_aperture;
-  else if (segment_address_space.kind () != address_space_t::kind_t::global)
-    /* not a valid address space conversion.  */
-    return std::nullopt;
+  switch (segment_address_space.kind ())
+    {
+    case address_space_t::kind_t::local:
+      aperture = wave.agent ().os_info ().local_address_space_aperture;
+      break;
+    case address_space_t::kind_t::private_swizzled:
+      aperture = wave.agent ().os_info ().private_address_space_aperture;
+      break;
+    case address_space_t::kind_t::global:
+      aperture = 0;
+      break;
+    default:
+      /* not a valid address space conversion.  */
+      return std::nullopt;
+    }
 
+  /* A segment NULL should be converted to a generic NULL.  */
   if (segment_address == segment_address_space.null_address ())
-    return segment_address_space.null_address ();
+    {
+      /* generic NULL is the same as global NULL.  */
+      return address_space_t::s_global.null_address ();
+    }
 
-  segment_address
-    &= utils::bit_mask (0, segment_address_space.address_size () - 1);
+  amd_dbgapi_segment_address_t segment_mask
+    = utils::bit_mask (0, segment_address_space.address_size () - 1);
 
-  return aperture | segment_address;
+  dbgapi_assert ((aperture & segment_mask) == 0
+                 && "the segment address bits overlap with the aperture");
+  return aperture | (segment_address & segment_mask);
 }
 
 } /* namespace */
+
+std::pair<const address_space_t & /* lowered_address_space  */,
+          amd_dbgapi_segment_address_t /* lowered_address  */>
+amdgcn_architecture_t::lower_address_space (
+  const wave_t &wave, const address_space_t &original_address_space,
+  amd_dbgapi_segment_address_t original_address) const
+{
+  /* Remove the unused bits from the address.  */
+  original_address
+    &= utils::bit_mask (0, original_address_space.address_size () - 1);
+
+  if (original_address_space.kind () != address_space_t::kind_t::generic)
+    return { original_address_space, original_address };
+
+  /* Convert a generic address into a local/private/global address.  */
+
+  const address_space_t &segment_address_space
+    = address_space_for_generic_address (wave, original_address);
+
+  if (original_address == original_address_space.null_address ())
+    return { segment_address_space, segment_address_space.null_address () };
+
+  amd_dbgapi_size_t segment_mask
+    = utils::bit_mask (0, segment_address_space.address_size () - 1);
+
+  return { segment_address_space, original_address & segment_mask };
+}
 
 std::pair<amd_dbgapi_segment_address_t /* to_address  */,
           amd_dbgapi_size_t /* to_contiguous_bytes  */>
@@ -540,90 +584,46 @@ amdgcn_architecture_t::convert_address_space (
   const address_space_t &to_address_space,
   amd_dbgapi_segment_address_t from_address) const
 {
-  const amd_dbgapi_segment_address_t from_mask
-    = utils::bit_mask (0, from_address_space.address_size () - 1);
+  const bool is_null = (from_address == from_address_space.null_address ());
 
-  /* Remove the unused bits from the address.  */
-  from_address &= from_mask;
+  /* A generic NULL converts to any other address spaces NULL.  */
+  if (from_address_space.kind () == address_space_t::kind_t::generic
+      && is_null)
+    return { to_address_space.null_address (), 0 };
 
-  amd_dbgapi_size_t from_bytes
-    = from_address != from_address_space.null_address ()
-        ? from_mask - from_address + 1
-        : 0;
+  auto [lowered_address_space, lowered_address]
+    = wave.architecture ().lower_address_space (wave, from_address_space,
+                                                from_address);
 
-  if (from_address_space.kind () == to_address_space.kind ())
-    return { from_address, from_bytes };
+  amd_dbgapi_size_t contiguous_bytes
+    = utils::bit_mask (0, lowered_address_space.address_size () - 1)
+      - lowered_address + 1;
 
-  if (from_address_space.kind () == address_space_t::kind_t::generic)
+  if (lowered_address_space.kind () == to_address_space.kind ())
+    return { lowered_address, is_null ? 0 : contiguous_bytes };
+
+  /* Conversions to the generic address space from local, private or global
+     address spaces.  */
+  if (to_address_space.kind () == address_space_t::kind_t::generic)
     {
-      if (from_address == from_address_space.null_address ())
-        return { to_address_space.null_address (), 0 };
+      auto generic_address = generic_address_for_address_space (
+        wave, lowered_address_space, lowered_address);
 
-      /* Check that the generic from_address is compatible with the
-         to_address_space.  */
-      if (address_space_for_generic_address (wave, from_address).kind ()
-          != to_address_space.kind ())
+      if (!generic_address)
         throw api_error_t (
           AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
 
-      const amd_dbgapi_segment_address_t to_mask
-        = utils::bit_mask (0, to_address_space.address_size () - 1);
-
-      amd_dbgapi_segment_address_t to_address = from_address & to_mask;
-      amd_dbgapi_size_t to_bytes = to_mask - to_address + 1;
-
-      return { to_address, to_bytes };
+      return { *generic_address, is_null ? 0 : contiguous_bytes };
     }
 
-  /* Other conversions from local, private or global can only be to the generic
-     address space. (FIXME: we could convert from private to global for a
-     limited number of contiguous bytes)  */
-
-  if (to_address_space.kind () != address_space_t::kind_t::generic)
-    throw api_error_t (
-      AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
-
-  auto generic_address = generic_address_for_address_space (
-    wave, from_address_space, from_address);
-
-  if (!generic_address)
-    throw api_error_t (
-      AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
-
-  return { *generic_address, from_bytes };
-}
-
-void
-amdgcn_architecture_t::lower_address_space (
-  const wave_t &wave, amd_dbgapi_lane_id_t * /* lane_id */,
-  const address_space_t &original_address_space,
-  const address_space_t **lowered_address_space,
-  amd_dbgapi_segment_address_t original_address,
-  amd_dbgapi_segment_address_t *lowered_address) const
-{
-  if (original_address_space.kind () == address_space_t::kind_t::generic)
-    {
-      const address_space_t &segment_address_space
-        = address_space_for_generic_address (wave, original_address);
-
-      *lowered_address
-        = wave.architecture ()
-            .convert_address_space (wave, AMD_DBGAPI_LANE_NONE,
-                                    original_address_space,
-                                    segment_address_space, original_address)
-            .first;
-
-      *lowered_address_space = &segment_address_space;
-      return;
-    };
-
-  *lowered_address_space = &original_address_space;
-  *lowered_address = original_address;
+  /* FIXME: we could convert from private to global for a limited number of
+     contiguous bytes  */
+  throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
 }
 
 bool
 amdgcn_architecture_t::address_is_in_address_class (
-  const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
+  const wave_t &wave, amd_dbgapi_lane_id_t /* lane_id  */,
   const address_space_t &address_space,
   amd_dbgapi_segment_address_t segment_address,
   const address_class_t &address_class) const
@@ -650,14 +650,12 @@ amdgcn_architecture_t::address_is_in_address_class (
 
   if (address_space.kind () == address_space_t::kind_t::generic)
     {
-      const address_space_t *lowered_address_space;
-      lower_address_space (wave, &lane_id, address_space,
-                           &lowered_address_space, segment_address,
-                           &segment_address);
+      auto &lowered_address_space
+        = lower_address_space (wave, address_space, segment_address).first;
 
       /* A generic private address is in the private address class, a generic
          local address is in the local address class, etc...  */
-      return lowered_address_space->kind ()
+      return lowered_address_space.kind ()
              == address_class.address_space ().kind ();
     }
 
@@ -2410,7 +2408,9 @@ gfx9_architecture_t::gfx9_architecture_t (elf_amdgpu_machine_t e_machine,
 
   auto &as_generic = create<address_space_t> (
     "generic", address_space_t::kind_t::generic, DW_ASPACE_AMDGPU_generic, 64,
-    0x0000000000000000, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
+    /* generic NULL is the same as global NULL  */
+    address_space_t::s_global.null_address (),
+    AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL);
 
   auto &as_region = create<address_space_t> (
     "region", address_space_t::kind_t::region, DW_ASPACE_AMDGPU_region, 32,
