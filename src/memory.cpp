@@ -635,6 +635,9 @@ amd_dbgapi_convert_address_space (
     if (!wave)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
+    if (lane_id >= wave->lane_count () && lane_id != AMD_DBGAPI_LANE_NONE)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID);
+
     const address_space_t *source_address_space
       = find (source_address_space_id);
     const address_space_t *destination_address_space
@@ -682,28 +685,43 @@ amd_dbgapi_address_is_in_address_class (
     if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
+    const address_class_t *address_class = find (address_class_id);
+
+    if (!address_class)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_CLASS_ID);
+
+    if (!address_class_state)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
+
+    if (wave_id == AMD_DBGAPI_WAVE_NONE
+        && address_space_id == AMD_DBGAPI_ADDRESS_SPACE_GLOBAL)
+      {
+        address_space_t::kind_t kind = address_class->address_space ().kind ();
+        *address_class_state = (kind == address_space_t::kind_t::global
+                                || kind == address_space_t::kind_t::generic)
+                                 ? AMD_DBGAPI_ADDRESS_CLASS_STATE_MEMBER
+                                 : AMD_DBGAPI_ADDRESS_CLASS_STATE_NOT_MEMBER;
+
+        return AMD_DBGAPI_STATUS_SUCCESS;
+      }
+
     wave_t *wave = find (wave_id);
 
     if (!wave)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
+
+    if (lane_id >= wave->lane_count () && lane_id != AMD_DBGAPI_LANE_NONE)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID);
 
     const address_space_t *address_space = find (address_space_id);
 
     if (!address_space)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID);
 
-    const address_class_t *address_class = find (address_class_id);
-
-    if (!address_class)
-      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_CLASS_ID);
-
     const architecture_t &architecture = wave->architecture ();
     if (!architecture.is_address_space_supported (*address_space)
         || !architecture.is_address_class_supported (*address_class))
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
-
-    if (!address_class_state)
-      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     *address_class_state
       = architecture.address_is_in_address_class (

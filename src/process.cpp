@@ -603,7 +603,7 @@ process_t::watchpoint_shared_kind () const
 void
 process_t::insert_watchpoint (const watchpoint_t &watchpoint,
                               amd_dbgapi_global_address_t *adjusted_address,
-                              amd_dbgapi_global_address_t *adjusted_size)
+                              amd_dbgapi_size_t *adjusted_size)
 {
   dbgapi_assert (adjusted_address && adjusted_size && "must not be null");
 
