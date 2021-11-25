@@ -284,6 +284,7 @@ public:
   is_address_class_supported (const address_class_t &address_class) const = 0;
 
   virtual amd_dbgapi_global_address_t address_aperture_mask () const = 0;
+  virtual amd_dbgapi_size_t private_swizzled_interleave_size () const = 0;
 
   /* Return the watchpoints for which an exception was generated in the given
      stopped wave.  */

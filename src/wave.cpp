@@ -689,9 +689,9 @@ wave_t::xfer_private_memory_swizzled (
 {
   dbgapi_assert (lane_id != AMD_DBGAPI_LANE_NONE && lane_id < lane_count ());
 
-  auto [scratch_base, scratch_size]
-    = queue ().scratch_memory_region (m_cwsr_record->shader_engine_id (),
-                                      m_cwsr_record->scratch_scoreboard_id ());
+  const amd_dbgapi_size_t interleave
+    = architecture ().private_swizzled_interleave_size ();
+  auto [scratch_base, scratch_size] = scratch_memory_region ();
 
   size_t bytes = size;
   while (bytes > 0)
@@ -700,11 +700,13 @@ wave_t::xfer_private_memory_swizzled (
          read which could read less than a dword if the start (or end) address
          is not aligned.  */
 
-      size_t request_size = std::min (4 - (segment_address % 4), bytes);
+      size_t request_size
+        = std::min (interleave - (segment_address % interleave), bytes);
       size_t xfer_size = request_size;
 
-      amd_dbgapi_size_t offset = ((segment_address / 4) * lane_count () * 4)
-                                 + (lane_id * 4) + (segment_address % 4);
+      amd_dbgapi_size_t offset
+        = ((segment_address / interleave) * lane_count () * interleave)
+          + (lane_id * interleave) + (segment_address % interleave);
 
       if ((offset + xfer_size) > scratch_size)
         {
@@ -740,9 +742,7 @@ wave_t::xfer_private_memory_unswizzled (
   amd_dbgapi_segment_address_t segment_address, void *read, const void *write,
   size_t size)
 {
-  auto [scratch_base, scratch_size]
-    = queue ().scratch_memory_region (m_cwsr_record->shader_engine_id (),
-                                      m_cwsr_record->scratch_scoreboard_id ());
+  auto [scratch_base, scratch_size] = scratch_memory_region ();
 
   if ((segment_address + size) > scratch_size)
     {

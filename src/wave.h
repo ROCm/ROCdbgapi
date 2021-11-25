@@ -240,6 +240,16 @@ public:
       }
   }
 
+  /* Return the wave's scratch memory region (address and size).  */
+  std::pair<amd_dbgapi_global_address_t /* address */,
+            amd_dbgapi_size_t /* size */>
+  scratch_memory_region () const
+  {
+    return queue ().scratch_memory_region (
+      m_cwsr_record->shader_engine_id (),
+      m_cwsr_record->scratch_scoreboard_id ());
+  }
+
   [[nodiscard]] size_t
   xfer_segment_memory (const address_space_t &address_space,
                        amd_dbgapi_lane_id_t lane_id,

@@ -216,6 +216,11 @@ public:
     return utils::bit_mask (48, 63);
   }
 
+  amd_dbgapi_size_t private_swizzled_interleave_size () const override
+  {
+    return sizeof (uint32_t);
+  };
+
   std::vector<os_watch_id_t>
   triggered_watchpoints (const wave_t &wave) const override;
 
@@ -579,7 +584,7 @@ amdgcn_architecture_t::lower_address_space (
 std::pair<amd_dbgapi_segment_address_t /* to_address  */,
           amd_dbgapi_size_t /* to_contiguous_bytes  */>
 amdgcn_architecture_t::convert_address_space (
-  const wave_t &wave, amd_dbgapi_lane_id_t /* lane_id  */,
+  const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
   const address_space_t &from_address_space,
   const address_space_t &to_address_space,
   amd_dbgapi_segment_address_t from_address) const
@@ -602,8 +607,7 @@ amdgcn_architecture_t::convert_address_space (
   if (lowered_address_space.kind () == to_address_space.kind ())
     return { lowered_address, is_null ? 0 : contiguous_bytes };
 
-  /* Conversions to the generic address space from local, private or global
-     address spaces.  */
+  /* Convert local, private_swizzled, global -> generic.  */
   if (to_address_space.kind () == address_space_t::kind_t::generic)
     {
       auto generic_address = generic_address_for_address_space (
@@ -616,8 +620,81 @@ amdgcn_architecture_t::convert_address_space (
       return { *generic_address, is_null ? 0 : contiguous_bytes };
     }
 
-  /* FIXME: we could convert from private to global for a limited number of
-     contiguous bytes  */
+  /* Convert private_unswizzled -> global.  */
+  if (lowered_address_space.kind ()
+        == address_space_t::kind_t::private_unswizzled
+      && to_address_space.kind () == address_space_t::kind_t::global)
+    {
+      auto [scratch_base, scratch_size] = wave.scratch_memory_region ();
+
+      if (lowered_address >= scratch_size)
+        throw api_error_t (
+          AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
+
+      return { scratch_base + lowered_address,
+               scratch_size - lowered_address };
+    }
+
+  /* Convert global -> private_unswizzled.  */
+  if (lowered_address_space.kind () == address_space_t::kind_t::global
+      && to_address_space.kind ()
+           == address_space_t::kind_t::private_unswizzled)
+    {
+      auto [scratch_base, scratch_size] = wave.scratch_memory_region ();
+
+      if (lowered_address < scratch_base
+          || lowered_address >= (scratch_base + scratch_size))
+        throw api_error_t (
+          AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
+
+      return { lowered_address - scratch_base,
+               scratch_base + scratch_size - lowered_address };
+    }
+
+  /* Convert private_swizzled -> global.  */
+  if (lowered_address_space.kind ()
+        == address_space_t::kind_t::private_swizzled
+      && to_address_space.kind () == address_space_t::kind_t::global)
+    {
+      const amd_dbgapi_size_t interleave = private_swizzled_interleave_size ();
+      auto [scratch_base, scratch_size] = wave.scratch_memory_region ();
+
+      dbgapi_assert (lane_id < wave.lane_count ());
+      amd_dbgapi_size_t offset
+        = ((lowered_address / interleave) * wave.lane_count () * interleave)
+          + (lane_id * interleave) + (lowered_address % interleave);
+
+      if (offset > scratch_size)
+        throw api_error_t (
+          AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
+
+      return { scratch_base + offset, interleave - (offset % interleave) };
+    }
+
+  /* Convert global -> private_swizzled.  */
+  if (lowered_address_space.kind () == address_space_t::kind_t::global
+      && to_address_space.kind () == address_space_t::kind_t::private_swizzled)
+    {
+      const amd_dbgapi_size_t interleave = private_swizzled_interleave_size ();
+      auto [scratch_base, scratch_size] = wave.scratch_memory_region ();
+
+      if (lowered_address < scratch_base
+          || lowered_address >= (scratch_base + scratch_size))
+        throw api_error_t (
+          AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
+
+      amd_dbgapi_size_t offset = lowered_address - scratch_base;
+
+      dbgapi_assert (lane_id < wave.lane_count ());
+      if (lane_id != (offset / interleave) % wave.lane_count ())
+        throw api_error_t (
+          AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
+
+      return { (offset / (wave.lane_count () * interleave)) * interleave
+                 + offset % interleave,
+               interleave - offset % interleave };
+    }
+
   throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
 }
 
