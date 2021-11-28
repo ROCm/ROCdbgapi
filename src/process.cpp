@@ -316,45 +316,46 @@ process_t::set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode)
   if (m_wave_launch_mode == wave_launch_mode)
     return;
 
-  if (os_driver ().is_debug_enabled ())
+  auto set_wave_launch_mode = utils::make_scope_success (
+    [=] () { m_wave_launch_mode = wave_launch_mode; });
+
+  if (!os_driver ().is_debug_enabled ())
+    return;
+
+  amd_dbgapi_status_t status
+    = os_driver ().set_wave_launch_mode (wave_launch_mode);
+  if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    throw process_exited_exception_t (*this);
+  else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    fatal_error ("os_driver_t::set_wave_launch_mode (%s) failed (rc=%d)",
+                 to_string (wave_launch_mode).c_str (), status);
+
+  /* When changing the wave launch mode from WAVE_LAUNCH_MODE_HALT, all
+     waves halted at launch need to be resumed and reported to the client.
+   */
+  if (m_wave_launch_mode == os_wave_launch_mode_t::halt)
     {
-      amd_dbgapi_status_t status
-        = os_driver ().set_wave_launch_mode (wave_launch_mode);
-      if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-        throw process_exited_exception_t (*this);
-      else if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        fatal_error ("os_driver_t::set_wave_launch_mode (%s) failed (rc=%d)",
-                     to_string (wave_launch_mode).c_str (), status);
+      update_queues ();
 
-      /* When changing the wave launch mode from WAVE_LAUNCH_MODE_HALT, all
-         waves halted at launch need to be resumed and reported to the client.
-       */
-      if (m_wave_launch_mode == os_wave_launch_mode_t::halt)
-        {
-          update_queues ();
+      std::vector<queue_t *> queues;
+      queues.reserve (count<queue_t> ());
 
-          std::vector<queue_t *> queues;
-          queues.reserve (count<queue_t> ());
+      for (auto &&queue : range<queue_t> ())
+        if (!queue.is_suspended ())
+          queues.emplace_back (&queue);
 
-          for (auto &&queue : range<queue_t> ())
-            if (!queue.is_suspended ())
-              queues.emplace_back (&queue);
+      suspend_queues (queues, "halt waves at launch");
 
-          suspend_queues (queues, "halt waves at launch");
+      /* For all waves in this process, resume the wave if it is halted at
+         launch.  */
+      for (auto &&wave : range<wave_t> ())
+        if (wave.visibility ()
+            == wave_t::visibility_t::hidden_halted_at_launch)
+          wave.set_visibility (wave_t::visibility_t::visible);
 
-          /* For all waves in this process, resume the wave if it is halted at
-             launch.  */
-          for (auto &&wave : range<wave_t> ())
-            if (wave.visibility ()
-                == wave_t::visibility_t::hidden_halted_at_launch)
-              wave.set_visibility (wave_t::visibility_t::visible);
-
-          if (forward_progress_needed ())
-            resume_queues (queues, "halt waves at launch");
-        }
+      if (forward_progress_needed ())
+        resume_queues (queues, "halt waves at launch");
     }
-
-  m_wave_launch_mode = wave_launch_mode;
 }
 
 void
@@ -369,19 +370,20 @@ process_t::set_wave_launch_trap_override (os_wave_launch_trap_mask_t value,
   if (wave_trap_mask == m_wave_trap_mask)
     return;
 
-  if (os_driver ().is_debug_enabled ())
-    {
-      amd_dbgapi_status_t status = os_driver ().set_wave_launch_trap_override (
-        os_wave_launch_trap_override_t::apply, value, mask);
+  auto set_wave_trap_mask = utils::make_scope_success (
+    [=] () { m_wave_trap_mask = wave_trap_mask; });
 
-      if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-        throw process_exited_exception_t (*this);
-      else if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        fatal_error ("os_driver::set_wave_launch_trap_override failed (rc=%d)",
-                     status);
-    }
+  if (!os_driver ().is_debug_enabled ())
+    return;
 
-  m_wave_trap_mask = wave_trap_mask;
+  amd_dbgapi_status_t status = os_driver ().set_wave_launch_trap_override (
+    os_wave_launch_trap_override_t::apply, value, mask);
+
+  if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    throw process_exited_exception_t (*this);
+  else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    fatal_error ("os_driver::set_wave_launch_trap_override failed (rc=%d)",
+                 status);
 }
 
 void
@@ -393,17 +395,18 @@ process_t::set_precise_memory (bool enabled)
   if (!m_supports_precise_memory)
     throw api_error_t (AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED);
 
-  if (os_driver ().is_debug_enabled ())
-    {
-      amd_dbgapi_status_t status = os_driver ().set_precise_memory (enabled);
+  auto set_precise_memory
+    = utils::make_scope_success ([=] () { m_precise_memory = enabled; });
 
-      if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-        throw process_exited_exception_t (*this);
-      else if (status != AMD_DBGAPI_STATUS_SUCCESS)
-        fatal_error ("os_driver::set_precise_memory failed (rc=%d)", status);
-    }
+  if (!os_driver ().is_debug_enabled ())
+    return;
 
-  m_precise_memory = enabled;
+  amd_dbgapi_status_t status = os_driver ().set_precise_memory (enabled);
+
+  if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    throw process_exited_exception_t (*this);
+  else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+    fatal_error ("os_driver::set_precise_memory failed (rc=%d)", status);
 }
 
 std::vector<process_t *>
