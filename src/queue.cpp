@@ -368,7 +368,6 @@ aql_queue_t::update_waves ()
   auto decode_one_wave = [=, &process, &group_leader] (auto cwsr_record)
   {
     dbgapi_assert (*this == cwsr_record->queue ());
-    wave_t::visibility_t visibility{ wave_t::visibility_t::visible };
 
     auto prefetch_begin
       = cwsr_record->register_address (amdgpu_regnum_t::first_hwreg).value ();
@@ -396,15 +395,6 @@ aql_queue_t::update_waves ()
     else
       wave_id = cwsr_record->id ();
 
-    /* If this is a new wave, check its visibility.  Waves halted at launch
-       should remain hidden until the wave creation mode is changed to
-       NORMAL.  A wave is halted at launch if it is halted without having
-       entered the trap handler.
-     */
-    if (!wave_id && process.wave_launch_mode () == os_wave_launch_mode_t::halt
-        && cwsr_record->is_halted () && !cwsr_record->is_stopped ())
-      visibility = wave_t::visibility_t::hidden_halted_at_launch;
-
     wave_t *wave = nullptr;
 
     if (wave_id)
@@ -418,76 +408,77 @@ aql_queue_t::update_waves ()
                    to_string (*wave_id).c_str ());
       }
 
-    const dispatch_t *dispatch = &m_dummy_dispatch;
-
-    bool ttmps_initialized
-      = process.is_flag_set (process_t::flag_t::ttmps_setup_enabled)
-        || agent ().os_info ().ttmps_always_initialized;
-
-    if (!wave && ttmps_initialized)
+    bool is_new_wave = !wave;
+    if (is_new_wave)
       {
-        amd_dbgapi_global_address_t dispatch_ptr
-          = architecture ().dispatch_packet_address (*cwsr_record);
+        const dispatch_t *dispatch = &m_dummy_dispatch;
 
-        if ((dispatch_ptr % aql_packet_size) != 0)
-          fatal_error ("dispatch_ptr is not aligned on the packet size");
+        bool ttmps_initialized
+          = process.is_flag_set (process_t::flag_t::ttmps_setup_enabled)
+            || agent ().os_info ().ttmps_always_initialized;
 
-        /* Calculate the monotonic dispatch id for this packet.  It is between
-           read_dispatch_id and write_dispatch_id.  */
-
-        amd_dbgapi_os_queue_packet_id_t os_queue_packet_id
-          = (dispatch_ptr - address ()) / aql_packet_size;
-
-        /* Check that 0 <= os_queue_packet_id < queue_size.  */
-        if (os_queue_packet_id >= size () / aql_packet_size)
-          /* TODO: See comment above for corrupted wavefronts. This could be
-             attached to a CORRUPT_DISPATCH instance.  */
-          fatal_error ("invalid os_queue_packet_id (%#lx)",
-                       os_queue_packet_id);
-
-        /* size must be a power of 2.  */
-        if (!utils::is_power_of_two (size ()))
-          fatal_error ("size is not a power of 2");
-
-        /* Need to mask by the number of packets in the ring (which is a power
-           of 2 so -1 makes the correct mask).  */
-        const uint64_t id_mask = size () / aql_packet_size - 1;
-
-        os_queue_packet_id
-          |= os_queue_packet_id >= (read_dispatch_id & id_mask)
-               ? (read_dispatch_id & ~id_mask)
-               : (write_dispatch_id & ~id_mask);
-
-        /* Check that read_dispatch_id <= dispatch_id < write_dispatch_id.  */
-        if (read_dispatch_id > os_queue_packet_id
-            || os_queue_packet_id >= write_dispatch_id)
-          /* TODO: See comment above for corrupted wavefronts. This could be
-             attached to a CORRUPT_DISPATCH instance.  */
-          fatal_error (
-            "invalid dispatch id (%#lx), with read_dispatch_id=%#lx, "
-            "and write_dispatch_id=%#lx",
-            os_queue_packet_id, read_dispatch_id, write_dispatch_id);
-
-        /* Check if the dispatch already exists.  */
-        dispatch = process.find_if (
-          [&] (const dispatch_t &x)
+        if (ttmps_initialized)
           {
-            return x.queue () == *this
-                   && x.os_queue_packet_id () == os_queue_packet_id;
-          });
+            amd_dbgapi_global_address_t dispatch_ptr
+              = architecture ().dispatch_packet_address (*cwsr_record);
 
-        /* If we did not find the current dispatch, create a new one.  */
-        if (!dispatch)
-          dispatch = &process.create<dispatch_t> (
-            cwsr_record->queue (), /* queue  */
-            os_queue_packet_id,    /* os_queue_packet_id  */
-            dispatch_ptr);         /* packet_address  */
-      }
+            if ((dispatch_ptr % aql_packet_size) != 0)
+              fatal_error ("dispatch_ptr is not aligned on the packet size");
 
-    if (!wave)
-      {
+            /* Calculate the monotonic dispatch id for this packet.  It is
+               between read_dispatch_id and write_dispatch_id.  */
+
+            amd_dbgapi_os_queue_packet_id_t os_queue_packet_id
+              = (dispatch_ptr - address ()) / aql_packet_size;
+
+            /* Check that 0 <= os_queue_packet_id < queue_size.  */
+            if (os_queue_packet_id >= size () / aql_packet_size)
+              /* TODO: See comment above for corrupted wavefronts. This could
+                 be attached to a CORRUPT_DISPATCH instance.  */
+              fatal_error ("invalid os_queue_packet_id (%#lx)",
+                           os_queue_packet_id);
+
+            /* size must be a power of 2.  */
+            if (!utils::is_power_of_two (size ()))
+              fatal_error ("size is not a power of 2");
+
+            /* Need to mask by the number of packets in the ring (which is a
+               power of 2 so -1 makes the correct mask).  */
+            const uint64_t id_mask = size () / aql_packet_size - 1;
+
+            os_queue_packet_id
+              |= os_queue_packet_id >= (read_dispatch_id & id_mask)
+                   ? (read_dispatch_id & ~id_mask)
+                   : (write_dispatch_id & ~id_mask);
+
+            /* Check that the dispatch_id is between the command processor's
+               read_id and write_id.  */
+            if (read_dispatch_id > os_queue_packet_id
+                || os_queue_packet_id >= write_dispatch_id)
+              /* TODO: See comment above for corrupted wavefronts. This could
+                 be attached to a CORRUPT_DISPATCH instance.  */
+              fatal_error (
+                "invalid dispatch id (%#lx), with read_dispatch_id=%#lx, "
+                "and write_dispatch_id=%#lx",
+                os_queue_packet_id, read_dispatch_id, write_dispatch_id);
+
+            /* Check if the dispatch already exists.  */
+            dispatch = process.find_if (
+              [&] (const dispatch_t &x)
+              {
+                return x.queue () == *this
+                       && x.os_queue_packet_id () == os_queue_packet_id;
+              });
+
+            /* If we did not find the current dispatch, create a new one.  */
+            if (!dispatch)
+              dispatch = &process.create<dispatch_t> (
+                cwsr_record->queue (), /* queue  */
+                os_queue_packet_id,    /* os_queue_packet_id  */
+                dispatch_ptr);         /* packet_address  */
+          }
+
         wave = &process.create<wave_t> (wave_id, *dispatch);
-        wave->set_visibility (visibility);
       }
 
     bool first_wave = cwsr_record->is_first_wave ();
@@ -502,6 +493,15 @@ aql_queue_t::update_waves ()
       fatal_error ("No group_leader, the control stack may be corrupted");
 
     wave->update (*group_leader, std::move (cwsr_record));
+
+    /* Hide new waves halted at launch until the process' wave creation mode is
+       changed to not halted.  A wave is halted at launch if it is halted
+       without having entered the trap handler, and its pc points to the kernel
+       entry point.  */
+    if (is_new_wave && wave->state () == AMD_DBGAPI_WAVE_STATE_RUN
+        && wave->pc () == wave->dispatch ().kernel_code_entry_address ()
+        && wave->is_halted ())
+      wave->set_visibility (wave_t::visibility_t::hidden_halted_at_launch);
 
     /* This was the last wave in the group. Make sure we have a new group
        leader for the remaining waves.  */
@@ -568,7 +568,11 @@ aql_queue_t::update_waves ()
   auto &&wave_range = process.range<wave_t> ();
   for (auto it = wave_range.begin (); it != wave_range.end ();)
     if (it->queue () == *this && it->mark () < wave_mark)
-      it = process.destroy (it);
+      {
+        dbgapi_assert (it->state () != AMD_DBGAPI_WAVE_STATE_STOP
+                       && "a stopped wave cannot terminate");
+        it = process.destroy (it);
+      }
     else
       ++it;
 

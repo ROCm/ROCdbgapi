@@ -136,6 +136,11 @@ public:
   void set_visibility (visibility_t visibility);
 
   bool is_valid () const { return visibility () == visibility_t::visible; }
+  bool is_halted () const
+  {
+    dbgapi_assert (m_cwsr_record);
+    return m_cwsr_record->is_halted ();
+  }
 
   /* Return the last wave stop event, or nullptr if the event is already
      processed and destroyed.  */

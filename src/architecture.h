@@ -216,6 +216,10 @@ public:
     compute_queue_t &queue () const { return m_queue; }
     const agent_t &agent () const { return queue ().agent (); }
     process_t &process () const { return agent ().process (); }
+    const architecture_t &architecture () const
+    {
+      return queue ().architecture ();
+    }
   };
 
   virtual ~architecture_t ();

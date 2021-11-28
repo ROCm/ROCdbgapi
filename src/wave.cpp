@@ -154,7 +154,7 @@ wave_t::park ()
      m_parked_pc.  The real pc in the context save area will be untouched.  */
 
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "parked %s (pc=%#lx)",
-              to_string (id ()).c_str (), pc ());
+              to_string (id ()).c_str (), m_parked_pc);
 }
 
 void
@@ -321,7 +321,7 @@ wave_t::update (const wave_t &group_leader,
                 std::unique_ptr<architecture_t::cwsr_record_t> cwsr_record)
 {
   dbgapi_assert (queue ().is_suspended ());
-  const bool first_update = !m_cwsr_record;
+  const bool first_update = !m_mark;
 
   dbgapi_assert (cwsr_record != nullptr);
   m_cwsr_record = std::move (cwsr_record);
@@ -506,13 +506,8 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
       }())
     {
       /* The instruction was simulated, get the new wave state and raise a stop
-         event. */
-      std::tie (m_state, m_stop_reason) = architecture.wave_get_state (*this);
-
-      if (architecture.park_stopped_waves ())
-        park ();
-
-      raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
+         event.  */
+      update (*m_group_leader, std::move (m_cwsr_record));
     }
 
   if (exceptions != AMD_DBGAPI_EXCEPTION_NONE)

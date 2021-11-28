@@ -1409,7 +1409,6 @@ amdgcn_architecture_t::wave_get_state (wave_t &wave) const
      fill the stop_reason with the exceptions that have caused the wave to
      enter the trap handler.  */
 
-  amd_dbgapi_global_address_t pc;
   if (park_stopped_waves ())
     {
       /* The trap handler "parked" the wave and saved the PC in ttmp11[22:7]
@@ -1419,14 +1418,13 @@ amdgcn_architecture_t::wave_get_state (wave_t &wave) const
       wave.read_register (amdgpu_regnum_t::ttmp7, &ttmp7);
       wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
 
-      pc = static_cast<amd_dbgapi_global_address_t> (ttmp7)
-           | static_cast<amd_dbgapi_global_address_t> (
-               utils::bit_extract (ttmp11, 7, 22))
-               << 32;
+      amd_dbgapi_global_address_t pc
+        = static_cast<amd_dbgapi_global_address_t> (ttmp7)
+          | static_cast<amd_dbgapi_global_address_t> (
+              utils::bit_extract (ttmp11, 7, 22))
+              << 32;
       wave.write_register (amdgpu_regnum_t::pc, &pc);
     }
-  else
-    pc = wave.pc ();
 
   amd_dbgapi_wave_stop_reasons_t stop_reason
     = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
