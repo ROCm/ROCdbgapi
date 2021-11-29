@@ -183,7 +183,7 @@ get_handle_list (const std::vector<process_t *> &processes,
   if (changed)
     *changed = AMD_DBGAPI_CHANGED_YES;
 
-  return { retval.release (), count };
+  return { retval.release (), pos };
 }
 
 template std::pair<amd_dbgapi_code_object_id_t * /* objects */,
