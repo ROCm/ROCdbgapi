@@ -449,6 +449,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
 
   architecture.wave_set_state (*this, state, exceptions);
   m_state = state;
+  queue ().wave_state_changed (*this);
 
   if (architecture.park_stopped_waves ())
     {
@@ -508,6 +509,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
       /* The instruction was simulated, get the new wave state and raise a stop
          event.  */
       update (*m_group_leader, std::move (m_cwsr_record));
+      queue ().wave_state_changed (*this);
     }
 
   if (exceptions != AMD_DBGAPI_EXCEPTION_NONE)

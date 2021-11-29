@@ -39,6 +39,7 @@ namespace amd::dbgapi
 
 class architecture_t;
 class process_t;
+class wave_t;
 
 /* AMD Debugger API Queue.  */
 
@@ -134,6 +135,10 @@ public:
 class compute_queue_t : public queue_t
 {
 protected:
+  /* Number of waves in the running state.  Only holds a value when the queue
+     is suspended.  */
+  std::optional<size_t> m_waves_running{};
+
   compute_queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
                    const os_queue_snapshot_entry_t &os_queue_info)
     : queue_t (queue_id, agent, os_queue_info)
@@ -141,6 +146,8 @@ protected:
   }
 
 public:
+  void wave_state_changed (const wave_t &wave);
+
   /* Return the address of a park instruction.  */
   virtual amd_dbgapi_global_address_t park_instruction_address () = 0;
   /* Return the address of a terminating instruction.  */

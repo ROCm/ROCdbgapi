@@ -245,7 +245,7 @@ public:
 
   /* FIXME: add SQ prefetch instruction bytes size.  */
 
-  virtual void control_stack_iterate (
+  virtual size_t control_stack_iterate (
     compute_queue_t &queue, const uint32_t *control_stack,
     size_t control_stack_words, amd_dbgapi_global_address_t wave_area_address,
     amd_dbgapi_size_t wave_area_size,

@@ -2459,7 +2459,7 @@ public:
   bool can_halt_at_endpgm () const override { return false; }
   size_t largest_instruction_size () const override { return 8; }
 
-  void control_stack_iterate (
+  size_t control_stack_iterate (
     compute_queue_t &queue, const uint32_t *control_stack,
     size_t control_stack_words, amd_dbgapi_global_address_t wave_area_address,
     amd_dbgapi_size_t wave_area_size,
@@ -3201,7 +3201,7 @@ gfx9_architecture_t::cwsr_record_t::register_address (
   return std::nullopt;
 }
 
-void
+size_t
 gfx9_architecture_t::control_stack_iterate (
   compute_queue_t &queue, const uint32_t *control_stack,
   size_t control_stack_words, amd_dbgapi_global_address_t wave_area_address,
@@ -3209,7 +3209,8 @@ gfx9_architecture_t::control_stack_iterate (
   const std::function<void (std::unique_ptr<architecture_t::cwsr_record_t>)>
     &wave_callback) const
 {
-  uint32_t state{ 0 };
+  size_t wave_count = 0;
+  uint32_t state = 0;
 
   amd_dbgapi_global_address_t last_wave_area = wave_area_address;
 
@@ -3236,6 +3237,7 @@ gfx9_architecture_t::control_stack_iterate (
                 .value ();
 
           wave_callback (std::move (cwsr_record));
+          ++wave_count;
         }
     }
 
@@ -3244,6 +3246,8 @@ gfx9_architecture_t::control_stack_iterate (
      wave save area.  */
   if (last_wave_area != (wave_area_address - wave_area_size))
     fatal_error ("Corrupted control stack or wave save area");
+
+  return wave_count;
 }
 
 amd_dbgapi_global_address_t
@@ -3729,7 +3733,7 @@ public:
   classify_instruction (amd_dbgapi_global_address_t address,
                         const instruction_t &instruction) const override;
 
-  void control_stack_iterate (
+  size_t control_stack_iterate (
     compute_queue_t &queue, const uint32_t *control_stack,
     size_t control_stack_words, amd_dbgapi_global_address_t wave_area_address,
     amd_dbgapi_size_t wave_area_size,
@@ -4519,7 +4523,7 @@ gfx10_architecture_t::classify_instruction (
   return gfx9_architecture_t::classify_instruction (address, instruction);
 }
 
-void
+size_t
 gfx10_architecture_t::control_stack_iterate (
   compute_queue_t &queue, const uint32_t *control_stack,
   size_t control_stack_words, amd_dbgapi_global_address_t wave_area_address,
@@ -4527,7 +4531,8 @@ gfx10_architecture_t::control_stack_iterate (
   const std::function<void (std::unique_ptr<architecture_t::cwsr_record_t>)>
     &wave_callback) const
 {
-  uint32_t state0{ 0 }, state1{ 0 };
+  size_t wave_count = 0;
+  uint32_t state0 = 0, state1 = 0;
 
   amd_dbgapi_global_address_t last_wave_area = wave_area_address;
 
@@ -4553,6 +4558,7 @@ gfx10_architecture_t::control_stack_iterate (
 
           last_wave_area = cwsr_record->begin ();
           wave_callback (std::move (cwsr_record));
+          ++wave_count;
         }
     }
 
@@ -4561,6 +4567,8 @@ gfx10_architecture_t::control_stack_iterate (
      wave save area.  */
   if (last_wave_area != (wave_area_address - wave_area_size))
     fatal_error ("Corrupted control stack or wave save area");
+
+  return wave_count;
 }
 
 class gfx10_1_t : public gfx10_architecture_t

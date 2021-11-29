@@ -287,6 +287,8 @@ aql_queue_t::state_changed ()
   switch (state ())
     {
     case state_t::running:
+      m_waves_running.reset ();
+
       /* The queue just changed state and is about to be placed back onto the
          hardware.  Write back dirty cache lines in the wave saved state
          region, but leave the cache lines valid so that accessing stopped
@@ -494,6 +496,9 @@ aql_queue_t::update_waves ()
 
     wave->update (*group_leader, std::move (cwsr_record));
 
+    if (wave->state () == AMD_DBGAPI_WAVE_STATE_RUN)
+      ++*m_waves_running;
+
     /* Hide new waves halted at launch until the process' wave creation mode is
        changed to not halted.  A wave is halted at launch if it is halted
        without having entered the trap handler, and its pc points to the kernel
@@ -530,6 +535,10 @@ aql_queue_t::update_waves ()
       != (header.wave_state_offset - header.wave_state_size))
     fatal_error ("Corrupted control stack or wave save area");
 
+  /* Start with 0 running waves.  When iterating the control stack (below) each
+     discovered wave in the running state will increment this count.  */
+  m_waves_running.emplace (0);
+
   if (header.ctrl_stack_size)
     {
       dbgapi_log (
@@ -554,10 +563,15 @@ aql_queue_t::update_waves ()
 
       m_last_context_save_header = header;
 
-      architecture ().control_stack_iterate (
+      size_t wave_count = architecture ().control_stack_iterate (
         *this, &ctrl_stack[0], header.ctrl_stack_size / sizeof (uint32_t),
         ctx_save_base + header.wave_state_offset, header.wave_state_size,
         decode_one_wave);
+
+      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+                  "%zu out of %zu wave%s running on %s", *m_waves_running,
+                  wave_count, wave_count > 1 ? "s" : "",
+                  to_string (id ()).c_str ());
     }
 
   /* Iterate all waves belonging to this queue, and prune those with a mark
@@ -743,6 +757,20 @@ unsupported_queue_t::active_packets_bytes (
 }
 
 } /* namespace detail */
+
+void
+compute_queue_t::wave_state_changed (const wave_t &wave)
+{
+  dbgapi_assert (m_waves_running);
+
+  if (wave.state () == AMD_DBGAPI_WAVE_STATE_STOP)
+    {
+      dbgapi_assert (*m_waves_running > 0);
+      --*m_waves_running;
+    }
+  else
+    ++*m_waves_running;
+}
 
 queue_t &
 queue_t::create (std::optional<amd_dbgapi_queue_id_t> queue_id,
