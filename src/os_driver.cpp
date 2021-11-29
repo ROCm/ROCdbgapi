@@ -958,8 +958,8 @@ kfd_driver_t::suspend_queues (os_queue_id_t *queues, size_t queue_count,
                               os_exception_mask_t exceptions_cleared,
                               size_t *suspended_count) const
 {
-  TRACE_DRIVER_BEGIN (param_in (queues), param_in (queue_count),
-                      param_in (exceptions_cleared),
+  TRACE_DRIVER_BEGIN (make_ref (param_in (queues), queue_count),
+                      param_in (queue_count), param_in (exceptions_cleared),
                       param_in (suspended_count));
 
   dbgapi_assert (suspended_count != nullptr);
@@ -994,8 +994,8 @@ amd_dbgapi_status_t
 kfd_driver_t::resume_queues (os_queue_id_t *queues, size_t queue_count,
                              size_t *resumed_count) const
 {
-  TRACE_DRIVER_BEGIN (param_in (queues), param_in (queue_count),
-                      param_in (resumed_count));
+  TRACE_DRIVER_BEGIN (make_ref (param_in (queues), queue_count),
+                      param_in (queue_count), param_in (resumed_count));
 
   dbgapi_assert (resumed_count != nullptr);
   dbgapi_assert (queue_count <= std::numeric_limits<uint32_t>::max ());
