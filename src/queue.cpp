@@ -506,7 +506,11 @@ aql_queue_t::update_waves ()
     if (is_new_wave && wave->state () == AMD_DBGAPI_WAVE_STATE_RUN
         && wave->pc () == wave->dispatch ().kernel_code_entry_address ()
         && wave->is_halted ())
-      wave->set_visibility (wave_t::visibility_t::hidden_halted_at_launch);
+      {
+        wave->set_visibility (wave_t::visibility_t::hidden_halted_at_launch);
+        wave->set_halted (false);
+        wave->set_state (AMD_DBGAPI_WAVE_STATE_STOP);
+      }
 
     /* This was the last wave in the group. Make sure we have a new group
        leader for the remaining waves.  */

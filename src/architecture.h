@@ -190,13 +190,6 @@ public:
     /* Size of the local data share.  */
     virtual size_t lds_size () const = 0;
 
-    /* The wave is halted (status.halt=1).  */
-    virtual bool is_halted () const = 0;
-    /* The wave is stopped at the request of the trap handler. */
-    virtual bool is_stopped () const = 0;
-    /* The wave is in privilege mode (status.priv=1).  */
-    virtual bool is_priv () const = 0;
-
     virtual std::optional<amd_dbgapi_global_address_t>
     register_address (amdgpu_regnum_t regnum) const = 0;
 
@@ -355,7 +348,7 @@ public:
                                amd_dbgapi_exceptions_t exceptions
                                = AMD_DBGAPI_EXCEPTION_NONE) const = 0;
 
-  virtual bool wave_get_halt (wave_t &wave) const = 0;
+  virtual bool wave_get_halt (const wave_t &wave) const = 0;
   virtual void wave_set_halt (wave_t &wave, bool halt) const = 0;
 
   virtual void wave_enable_traps (wave_t &wave,

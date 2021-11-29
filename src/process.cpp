@@ -351,7 +351,10 @@ process_t::set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode)
       for (auto &&wave : range<wave_t> ())
         if (wave.visibility ()
             == wave_t::visibility_t::hidden_halted_at_launch)
-          wave.set_visibility (wave_t::visibility_t::visible);
+          {
+            wave.set_state (AMD_DBGAPI_WAVE_STATE_RUN);
+            wave.set_visibility (wave_t::visibility_t::visible);
+          }
 
       if (forward_progress_needed ())
         resume_queues (queues, "halt waves at launch");

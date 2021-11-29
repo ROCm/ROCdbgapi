@@ -66,15 +66,9 @@ wave_t::set_visibility (visibility_t visibility)
   if (m_visibility == visibility)
     return;
 
-  /* If the wave was previously halted at launch, unhalt it so that it can
-     resume executing instructions.  */
-  if (m_visibility == wave_t::visibility_t::hidden_halted_at_launch)
-    {
-      dbgapi_assert (state () == AMD_DBGAPI_WAVE_STATE_RUN
-                     && architecture ().wave_get_halt (*this));
-
-      architecture ().wave_set_halt (*this, false);
-    }
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "changing %s's visibility to %s",
+              to_string (id ()).c_str (),
+              visibility == visibility_t::visible ? "visible" : "hidden");
 
   m_visibility = visibility;
 
@@ -437,15 +431,15 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
       return;
     }
 
-  if (visibility () == visibility_t::visible)
-    dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                "changing %s's state from %s to %s %s(pc=%#lx)",
-                to_string (id ()).c_str (), to_string (prev_state).c_str (),
-                to_string (state).c_str (),
-                exceptions != AMD_DBGAPI_EXCEPTION_NONE
-                  ? ("with " + to_string (exceptions) + " ").c_str ()
-                  : "",
-                pc ());
+  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
+              "changing %s%s's state from %s to %s %s(pc=%#lx)",
+              visibility () != visibility_t::visible ? "invisible " : "",
+              to_string (id ()).c_str (), to_string (prev_state).c_str (),
+              to_string (state).c_str (),
+              exceptions != AMD_DBGAPI_EXCEPTION_NONE
+                ? ("with " + to_string (exceptions) + " ").c_str ()
+                : "",
+              pc ());
 
   architecture.wave_set_state (*this, state, exceptions);
   m_state = state;
@@ -480,12 +474,10 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
 
       m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
 
-      dbgapi_assert (visibility () == visibility_t::visible
-                     && "cannot request a hidden wave to stop");
-
-      raise_event (prev_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
-                     ? AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED
-                     : AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
+      if (visibility () == visibility_t::visible)
+        raise_event (prev_state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
+                       ? AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED
+                       : AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
     }
 
   if (state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP

@@ -247,7 +247,7 @@ public:
                        amd_dbgapi_exceptions_t exceptions
                        = AMD_DBGAPI_EXCEPTION_NONE) const override;
 
-  bool wave_get_halt (wave_t &wave) const override;
+  bool wave_get_halt (const wave_t &wave) const override;
   void wave_set_halt (wave_t &wave, bool halt) const override;
 
   virtual uint32_t os_wave_launch_trap_mask_to_wave_mode (
@@ -1618,7 +1618,7 @@ amdgcn_architecture_t::wave_set_state (
 }
 
 bool
-amdgcn_architecture_t::wave_get_halt (wave_t &wave) const
+amdgcn_architecture_t::wave_get_halt (const wave_t &wave) const
 {
   uint32_t ttmp6;
   wave.read_register (amdgpu_regnum_t::ttmp6, &ttmp6);
@@ -2392,10 +2392,6 @@ protected:
 
     size_t lds_size () const override;
 
-    bool is_halted () const override;
-    bool is_stopped () const override;
-    bool is_priv () const override;
-
     amd_dbgapi_global_address_t begin () const override
     {
       return register_address (lane_count () == 32 ? amdgpu_regnum_t::v0_32
@@ -2706,42 +2702,6 @@ bool
 gfx9_architecture_t::cwsr_record_t::is_first_wave () const
 {
   return compute_relaunch_wave_payload_first_wave (m_compute_relaunch_wave);
-}
-
-bool
-gfx9_architecture_t::cwsr_record_t::is_halted () const
-{
-  const amd_dbgapi_global_address_t status_reg_address
-    = register_address (amdgpu_regnum_t::status).value ();
-
-  uint32_t status_reg;
-  process ().read_global_memory (status_reg_address, &status_reg);
-
-  return (status_reg & sq_wave_status_halt_mask) != 0;
-}
-
-bool
-gfx9_architecture_t::cwsr_record_t::is_stopped () const
-{
-  const amd_dbgapi_global_address_t ttmp6_address
-    = register_address (amdgpu_regnum_t::ttmp6).value ();
-
-  uint32_t ttmp6;
-  process ().read_global_memory (ttmp6_address, &ttmp6);
-
-  return (ttmp6 & ttmp6_wave_stopped_mask) != 0;
-}
-
-bool
-gfx9_architecture_t::cwsr_record_t::is_priv () const
-{
-  const amd_dbgapi_global_address_t status_reg_address
-    = register_address (amdgpu_regnum_t::status).value ();
-
-  uint32_t status_reg;
-  process ().read_global_memory (status_reg_address, &status_reg);
-
-  return (status_reg & sq_wave_status_priv_mask) != 0;
 }
 
 std::optional<amdgpu_regnum_t>
