@@ -356,6 +356,11 @@ process_t::set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode)
             wave.set_visibility (wave_t::visibility_t::visible);
           }
 
+      /* Changing the launch mode before resuming the queues ensures that none
+         of them are all-stopped when resuming.  */
+      m_wave_launch_mode = wave_launch_mode;
+      set_wave_launch_mode.release ();
+
       if (forward_progress_needed ())
         resume_queues (queues, "halt waves at launch");
     }
@@ -835,22 +840,7 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
   if (queues.empty ())
     return 0;
 
-  dbgapi_log (
-    AMD_DBGAPI_LOG_LEVEL_INFO, "suspending %s (%s)",
-    [&] ()
-    {
-      std::string str;
-      for (auto *queue : queues)
-        {
-          if (!str.empty ())
-            str += ", ";
-          str += to_string (queue->id ());
-        }
-      return str;
-    }()
-      .c_str (),
-    reason);
-
+  size_t num_all_stopped_queues = 0;
   std::vector<os_queue_id_t> queue_ids;
   queue_ids.reserve (queues.size ());
 
@@ -859,12 +849,30 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
       dbgapi_assert (queue && !queue->is_suspended ()
                      && "queue is null or already suspended");
 
-      /* Invalid queues are allowed, but they are simply ignored.  */
       if (!queue->is_valid ())
+        /* Invalid queues are allowed, but they are simply ignored.  */
         continue;
 
-      queue_ids.emplace_back (queue->os_queue_id ());
+      if (queue->is_all_stopped ())
+        {
+          queue->set_state (queue_t::state_t::suspended);
+          ++num_all_stopped_queues;
+        }
+      else
+        queue_ids.emplace_back (queue->os_queue_id ());
     }
+
+  auto os_queue_id_to_id = [this] (os_queue_id_t os_queue_id)
+  {
+    const queue_t *queue = find_if (
+      [=] (const queue_t &x) { return x.os_queue_id () == os_queue_id; });
+    dbgapi_assert (queue != nullptr);
+    return queue->id ();
+  };
+
+  if (!queue_ids.empty ())
+    dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "suspending %s (%s)",
+                to_string (queue_ids, os_queue_id_to_id).c_str (), reason);
 
   size_t num_suspended_queues;
   amd_dbgapi_status_t status = os_driver ().suspend_queues (
@@ -916,7 +924,7 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
     && "number of suspended queues does not match number requested queue "
        "less number of invalid queues");
 
-  return num_suspended_queues;
+  return num_suspended_queues + num_all_stopped_queues;
 }
 
 size_t
@@ -926,6 +934,7 @@ process_t::resume_queues (const std::vector<queue_t *> &queues,
   if (queues.empty ())
     return 0;
 
+  size_t num_all_stopped_queues = 0;
   std::vector<os_queue_id_t> queue_ids;
   queue_ids.reserve (queues.size ());
 
@@ -942,25 +951,25 @@ process_t::resume_queues (const std::vector<queue_t *> &queues,
       if (!queue->is_valid ())
         continue;
 
-      queue_ids.emplace_back (queue->os_queue_id ());
+      if (queue->is_all_stopped ())
+        ++num_all_stopped_queues;
+      else
+        queue_ids.emplace_back (queue->os_queue_id ());
+
       queue->set_state (queue_t::state_t::running);
     }
 
-  dbgapi_log (
-    AMD_DBGAPI_LOG_LEVEL_INFO, "resuming %s (%s)",
-    [&] ()
-    {
-      std::string str;
-      for (auto *queue : queues)
-        {
-          if (!str.empty ())
-            str += ", ";
-          str += to_string (queue->id ());
-        }
-      return str;
-    }()
-      .c_str (),
-    reason);
+  auto os_queue_id_to_id = [this] (os_queue_id_t os_queue_id)
+  {
+    const queue_t *queue = find_if (
+      [=] (const queue_t &x) { return x.os_queue_id () == os_queue_id; });
+    dbgapi_assert (queue != nullptr);
+    return queue->id ();
+  };
+
+  if (!queue_ids.empty ())
+    dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "resuming %s (%s)",
+                to_string (queue_ids, os_queue_id_to_id).c_str (), reason);
 
   size_t num_resumed_queues;
   amd_dbgapi_status_t status = os_driver ().resume_queues (
@@ -996,10 +1005,10 @@ process_t::resume_queues (const std::vector<queue_t *> &queues,
 
   dbgapi_assert (
     (num_resumed_queues + num_invalid_queues) == queue_ids.size ()
-    && "number of resumed queues does not match number requested queue less "
+    && "number of resumed queues does not match number requested queues less "
        "number of invalid queues");
 
-  return num_resumed_queues;
+  return num_resumed_queues + num_all_stopped_queues;
 }
 
 void

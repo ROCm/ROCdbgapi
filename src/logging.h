@@ -97,6 +97,21 @@ to_string (const std::unique_ptr<T, D> &v)
   return to_string (static_cast<void *> (v.get ()));
 }
 
+template <typename T, typename F>
+inline std::string
+to_string (
+  const std::vector<T> &vector, F transform = [] (const T &x) { return x; })
+{
+  std::string str;
+  for (auto &&x : vector)
+    {
+      if (!str.empty ())
+        str += ", ";
+      str += to_string (transform (x));
+    }
+  return str;
+}
+
 namespace detail
 {
 
@@ -510,29 +525,35 @@ AMD_DBGAPI_TYPES_DO (EXPLICIT_SPECIALIZATION)
 #undef EXPLICIT_SPECIALIZATION
 #undef AMD_DBGAPI_TYPES_DO
 
+namespace detail
+{
+
 inline std::string
-to_string ()
+to_string_helper ()
 {
   return {};
 }
 
 template <typename T, typename... Args>
 inline std::string
-to_string (T &&first, Args &&...args)
+to_string_helper (T &&first, Args &&...args)
 {
   std::string str = to_string (std::forward<T> (first));
-  std::string last = to_string (std::forward<Args> (args)...);
-  if (!last.empty ())
-    str += ", " + last;
+  if constexpr (sizeof...(Args))
+    str += ", " + to_string_helper (std::forward<Args> (args)...);
   return str;
 }
+
+} /* namespace detail */
 
 template <typename... Args>
 inline std::string
 to_string (std::tuple<Args...> &&t)
 {
   return std::apply (
-    [] (auto &&...ts) { return to_string (std::forward<Args> (ts)...); }, t);
+    [] (auto &&...ts)
+    { return detail::to_string_helper (std::forward<Args> (ts)...); },
+    t);
 }
 
 namespace detail

@@ -54,7 +54,6 @@ public:
                   becomes invalid, its state can no longer be changed.  */
     suspended, /* The queue is suspended, its state can be inspected.  */
     running    /* The queue is running.  */
-
   };
 
 protected:
@@ -67,7 +66,7 @@ private:
   const agent_t &m_agent;
 
   /* Called whenever the queue changes state.  */
-  virtual void state_changed () {}
+  virtual void queue_state_changed () {}
 
 public:
   static queue_t &create (std::optional<amd_dbgapi_queue_id_t> queue_id,
@@ -108,6 +107,9 @@ public:
   /* Return the size of the memory holding the queue packets.  */
   amd_dbgapi_size_t size () const;
 
+  /* Return true if the queue does not have any visible activity.  */
+  virtual bool is_all_stopped () const { return false; }
+
   virtual void
   active_packets_info (amd_dbgapi_os_queue_packet_id_t *read_packet_id_p,
                        amd_dbgapi_os_queue_packet_id_t *write_packet_id_p,
@@ -147,6 +149,8 @@ protected:
 
 public:
   void wave_state_changed (const wave_t &wave);
+
+  bool is_all_stopped () const override;
 
   /* Return the address of a park instruction.  */
   virtual amd_dbgapi_global_address_t park_instruction_address () = 0;

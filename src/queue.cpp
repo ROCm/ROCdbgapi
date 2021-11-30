@@ -95,7 +95,7 @@ private:
 
   instruction_buffer_t allocate_instruction_buffer () override;
 
-  void state_changed () override;
+  void queue_state_changed () override;
 
   void update_waves ();
 
@@ -282,7 +282,7 @@ aql_queue_t::allocate_instruction_buffer ()
 }
 
 void
-aql_queue_t::state_changed ()
+aql_queue_t::queue_state_changed ()
 {
   switch (state ())
     {
@@ -762,6 +762,13 @@ unsupported_queue_t::active_packets_bytes (
 
 } /* namespace detail */
 
+bool
+compute_queue_t::is_all_stopped () const
+{
+  return process ().wave_launch_mode () == os_wave_launch_mode_t::halt
+         && m_waves_running && *m_waves_running == 0;
+}
+
 void
 compute_queue_t::wave_state_changed (const wave_t &wave)
 {
@@ -808,10 +815,12 @@ queue_t::set_state (state_t state)
   dbgapi_assert (m_state != state_t::invalid
                  && "an invalid queue cannot change state");
 
-  m_state = state;
-  state_changed ();
+  std::swap (m_state, state);
 
-  if (state == state_t::invalid)
+  if (!is_all_stopped ())
+    queue_state_changed ();
+
+  if (m_state == state_t::invalid)
     dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "invalidated %s",
                 to_string (id ()).c_str ());
 }
