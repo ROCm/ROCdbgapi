@@ -287,7 +287,22 @@ public:
   virtual bool
   is_address_class_supported (const address_class_t &address_class) const = 0;
 
+  /* Return the bitmask used to identify the apertures for local, private and
+     gpuvm addresses.  */
   virtual amd_dbgapi_global_address_t address_aperture_mask () const = 0;
+
+  /* Return the number of bytes (N) used to interleave private swizzled memory
+     accesses.  Private swizzled memory has the following layout in global
+     memory (X is the number of lanes in a wavefront):
+
+     global     lane0 private      lane1 private           laneX private
+     addresses  addresses          addresses               addresses
+     0*X*N:     [0*N, ..., 1*N-1], [0*N, ..., 1*N-1], ..., [0*N, ..., 1*N-1]
+     1*X*N:     [1*N, ..., 2*N-1], [1*N, ..., 2*N-1], ..., [1*N, ..., 2*N-1]
+     2*X*N:     [2*N, ..., 3*N-1], [2*N, ..., 3*N-1], ..., [2*N, ..., 3*N-1]
+     ...
+
+     On most amdgcn architectures, the interleave is sizeof (uint32_t).  */
   virtual amd_dbgapi_size_t private_swizzled_interleave_size () const = 0;
 
   /* Return the watchpoints for which an exception was generated in the given
