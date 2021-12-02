@@ -508,9 +508,9 @@ extern "C" {
 
 /**
  * The function was introduced in version 0.60 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.60"``.
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.61"``.
  */
-#define AMD_DBGAPI_VERSION_0_60
+#define AMD_DBGAPI_VERSION_0_61
 
 /** @} */
 
@@ -931,7 +931,12 @@ typedef enum
   /**
    * The symbol was not found.
    */
-  AMD_DBGAPI_STATUS_ERROR_SYMBOL_NOT_FOUND = -43
+  AMD_DBGAPI_STATUS_ERROR_SYMBOL_NOT_FOUND = -43,
+  /**
+   * The register handle is valid, but specifies a register that is not
+   * allocated in the associated wave.
+   */
+  AMD_DBGAPI_STATUS_ERROR_REGISTER_NOT_AVAILABLE = -44
 } amd_dbgapi_status_t;
 
 /**
@@ -4984,14 +4989,17 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_is_in_register_class (
  * value_size is 0.  \p value is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
- * value_size is greater than the size of the \p register_id minus \p offset,
- * the architectures of \p wave_id and \p register_id are not the same, or \p
- * register_id is not allocated for \p wave_id.  \p value is unaltered.
+ * value_size is greater than the size of the \p register_id minus \p offset
+ * or the architectures of \p wave_id and \p register_id are not the same.  \p
+ * value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_REGISTER_NOT_AVAILABLE \p register_id is
+ * not allocated for \p wave_id.  \p value is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
     amd_dbgapi_size_t offset, amd_dbgapi_size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_58;
+    void *value) AMD_DBGAPI_VERSION_0_61;
 
 /**
  * Write a register.
@@ -5047,14 +5055,17 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
  * value_size is 0.  \p value is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
- * value_size is greater than the size of the \p register_id minus \p offset,
- * the architectures of \p wave_id and \p register_id are not the same, or \p
- * register_id is not allocated for \p wave_id.  \p value is unaltered.
+ * value_size is greater than the size of the \p register_id minus \p offset
+ * or the architectures of \p wave_id and \p register_id are not the same.  \p
+ * value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_REGISTER_NOT_AVAILABLE \p register_id is
+ * not allocated for \p wave_id.  \p value is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
     amd_dbgapi_size_t offset, amd_dbgapi_size_t value_size,
-    const void *value) AMD_DBGAPI_VERSION_0_58;
+    const void *value) AMD_DBGAPI_VERSION_0_61;
 
 /**
  * Prefetch register values.
@@ -5103,13 +5114,15 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_register (
  * stopped.  No registers are prefetched.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY The
- * architectures of \p wave_id and \p register_id are not the same, or \p
- * register_id is not allocated for \p wave_id.  No registers are
- * prefetched.
+ * architectures of \p wave_id and \p register_id are not the same.  No
+ * registers are prefetched.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_REGISTER_NOT_AVAILABLE \p register_id is
+ * not allocated for \p wave_id.  No registers are prefetched.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_prefetch_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
-    amd_dbgapi_size_t register_count) AMD_DBGAPI_VERSION_0_54;
+    amd_dbgapi_size_t register_count) AMD_DBGAPI_VERSION_0_61;
 
 /**
  * Instruction information for direct call instructions.
@@ -5268,7 +5281,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_class_get_info (
     amd_dbgapi_address_class_id_t address_class_id,
     amd_dbgapi_address_class_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_60;
+    void *value) AMD_DBGAPI_VERSION_0_61;
 
 /**
  * Report the list of source language address classes supported by the
@@ -5489,7 +5502,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_space_get_info (
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_address_space_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_60;
+    void *value) AMD_DBGAPI_VERSION_0_61;
 
 /**
  * Report the list of address spaces supported by the architecture.
@@ -5705,7 +5718,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_convert_address_space (
     amd_dbgapi_address_space_id_t destination_address_space_id,
     amd_dbgapi_segment_address_t *destination_segment_address,
     amd_dbgapi_size_t *destination_contiguous_bytes)
-    AMD_DBGAPI_VERSION_0_60;
+    AMD_DBGAPI_VERSION_0_61;
 
 /**
  * Indication of whether a segment address in an address space is a member of

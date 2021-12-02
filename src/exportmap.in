@@ -24,7 +24,6 @@ global: amd_dbgapi_address_is_in_address_class;
         amd_dbgapi_get_status_string;
         amd_dbgapi_get_version;
         amd_dbgapi_initialize;
-        amd_dbgapi_prefetch_register;
         amd_dbgapi_process_agent_list;
         amd_dbgapi_process_code_object_list;
         amd_dbgapi_process_detach;
@@ -58,16 +57,17 @@ global: amd_dbgapi_agent_get_info;
 
 @AMD_DBGAPI_NAME@_0.58 {
 global: amd_dbgapi_classify_instruction;
-        amd_dbgapi_read_register;
         amd_dbgapi_queue_get_info;
         amd_dbgapi_register_get_info;
         amd_dbgapi_wave_get_info;
         amd_dbgapi_wave_resume;
-        amd_dbgapi_write_register;
 } @AMD_DBGAPI_NAME@_0.56;
 
-@AMD_DBGAPI_NAME@_0.60 {
+@AMD_DBGAPI_NAME@_0.61 {
 global: amd_dbgapi_address_class_get_info;
         amd_dbgapi_address_space_get_info;
         amd_dbgapi_convert_address_space;
+        amd_dbgapi_prefetch_register;
+        amd_dbgapi_read_register;
+        amd_dbgapi_write_register;
 } @AMD_DBGAPI_NAME@_0.58;

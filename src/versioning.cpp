@@ -203,6 +203,10 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
       case AMD_DBGAPI_STATUS_ERROR_SYMBOL_NOT_FOUND:
         string = "The symbol was not found";
         break;
+      case AMD_DBGAPI_STATUS_ERROR_REGISTER_NOT_AVAILABLE:
+        string = "The register handle is valid, but specifies a register that "
+                 "is not allocated in the associated wave";
+        break;
         /* Don't add a default here, so that we can catch at compile time when
            an enum value is missing.  */
       }

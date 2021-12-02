@@ -571,9 +571,11 @@ amd_dbgapi_read_register (amd_dbgapi_wave_id_t wave_id,
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     if (*architecture != wave->architecture ()
-        || (offset + value_size) > architecture->register_size (*regnum)
-        || !wave->is_register_available (*regnum))
+        || (offset + value_size) > architecture->register_size (*regnum))
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+
+    if (!wave->is_register_available (*regnum))
+      THROW (AMD_DBGAPI_STATUS_ERROR_REGISTER_NOT_AVAILABLE);
 
     wave->read_register (*regnum, offset, value_size, value);
 
@@ -584,7 +586,8 @@ amd_dbgapi_read_register (amd_dbgapi_wave_id_t wave_id,
          AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID,
          AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
-         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY,
+         AMD_DBGAPI_STATUS_ERROR_REGISTER_NOT_AVAILABLE);
   TRACE_END (make_hex (make_ref (param_out (value), offset + value_size)));
 }
 
@@ -626,9 +629,11 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     if (*architecture != wave->architecture ()
-        || (offset + value_size) > architecture->register_size (*regnum)
-        || !wave->is_register_available (*regnum))
+        || (offset + value_size) > architecture->register_size (*regnum))
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+
+    if (!wave->is_register_available (*regnum))
+      THROW (AMD_DBGAPI_STATUS_ERROR_REGISTER_NOT_AVAILABLE);
 
     wave->write_register (*regnum, offset, value_size, value);
 
@@ -640,7 +645,8 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
          AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED,
          AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_ACTIVE,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
-         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY,
+         AMD_DBGAPI_STATUS_ERROR_REGISTER_NOT_AVAILABLE);
   TRACE_END ();
 }
 
@@ -753,7 +759,7 @@ amd_dbgapi_prefetch_register (
     const architecture_t *architecture
       = architecture_t::register_id_to_architecture (register_id);
 
-    if (!regnum || !architecture || !wave->is_register_available (*regnum))
+    if (!regnum || !architecture)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID);
 
     if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
@@ -762,12 +768,16 @@ amd_dbgapi_prefetch_register (
     if (*architecture != wave->architecture ())
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
+    if (!wave->is_register_available (*regnum))
+      THROW (AMD_DBGAPI_STATUS_ERROR_REGISTER_NOT_AVAILABLE);
+
     return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID,
          AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID,
          AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED,
-         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY,
+         AMD_DBGAPI_STATUS_ERROR_REGISTER_NOT_AVAILABLE);
   TRACE_END ();
 }
