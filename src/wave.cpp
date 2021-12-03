@@ -140,8 +140,7 @@ wave_t::park ()
      wave will never be halted at such instructions.  */
   m_parked_pc = pc ();
 
-  amd_dbgapi_global_address_t parked_pc = queue ().park_instruction_address ();
-  write_register (amdgpu_regnum_t::pc, &parked_pc);
+  write_register (amdgpu_regnum_t::pc, queue ().park_instruction_address ());
 
   m_is_parked = true;
   /* From now on, every read/write to the pc register will be from/to
@@ -165,7 +164,7 @@ wave_t::unpark ()
   /* From now on, every read/write to the pc register will be from/to the
      context save area.  */
 
-  write_register (amdgpu_regnum_t::pc, &saved_pc);
+  write_register (amdgpu_regnum_t::pc, saved_pc);
 
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "unparked %s (pc=%#lx)",
               to_string (id ()).c_str (), pc ());
@@ -184,11 +183,9 @@ wave_t::terminate ()
      allows the hardware to terminate the wave, while ensuring that the wave is
      never reported to the client as existing.  */
 
-  amd_dbgapi_global_address_t terminate_pc
-    = queue ().terminating_instruction_address ();
-
   /* Make the PC point to an immutable terminating instruction.  */
-  write_register (amdgpu_regnum_t::pc, &terminate_pc);
+  write_register (amdgpu_regnum_t::pc,
+                  queue ().terminating_instruction_address ());
 
   /* Hide this wave so that it isn't reported to the client.  */
   set_visibility (wave_t::visibility_t::hidden_at_terminating_instruction);
@@ -272,7 +269,7 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
       amd_dbgapi_global_address_t displaced_pc = displaced_stepping->to ();
       dbgapi_assert (displaced_pc != amd_dbgapi_global_address_t{});
 
-      write_register (amdgpu_regnum_t::pc, &displaced_pc);
+      write_register (amdgpu_regnum_t::pc, displaced_pc);
 
       dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
                   "changing %s's pc from %#lx to %#lx (started %s)",
@@ -296,7 +293,7 @@ wave_t::displaced_stepping_complete ()
       amd_dbgapi_global_address_t restored_pc = displaced_pc
                                                 + m_displaced_stepping->from ()
                                                 - m_displaced_stepping->to ();
-      write_register (amdgpu_regnum_t::pc, &restored_pc);
+      write_register (amdgpu_regnum_t::pc, restored_pc);
 
       dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
                   "changing %s's pc from %#lx to %#lx (%s %s)",
@@ -335,10 +332,9 @@ wave_t::update (const wave_t &group_leader,
 
       if (first_update && !ttmps_initialized)
         {
-          const uint32_t zero = 0;
           for (auto regnum = amdgpu_regnum_t::first_ttmp;
                regnum <= amdgpu_regnum_t::last_ttmp; ++regnum)
-            write_register (regnum, &zero);
+            write_register (regnum, uint32_t{ 0 });
         }
 
       std::tie (m_state, m_stop_reason)
@@ -373,8 +369,7 @@ wave_t::update (const wave_t &group_leader,
   if (first_update)
     {
       /* Write the wave_id register.  */
-      amd_dbgapi_wave_id_t wave_id = id ();
-      write_register (amdgpu_regnum_t::wave_id, &wave_id);
+      write_register (amdgpu_regnum_t::wave_id, id ());
 
       /* Read group_ids[0:3].  */
       read_register (amdgpu_regnum_t::dispatch_grid, 0, sizeof (m_group_ids),

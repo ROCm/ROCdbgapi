@@ -187,8 +187,7 @@ process_t::detach ()
             }
 
           /* Invalidate the wave_id.  */
-          amd_dbgapi_wave_id_t wave_id = wave_t::undefined;
-          wave.write_register (amdgpu_regnum_t::wave_id, &wave_id);
+          wave.write_register (amdgpu_regnum_t::wave_id, wave_t::undefined);
 
           /* Resume the wave if it is single-stepping, or if it is stopped
              because of a debug event (completed single-step, breakpoint,

@@ -1277,14 +1277,14 @@ amdgcn_architecture_t::simulate_instruction (
           wave.read_register (amdgpu_regnum_t::csp, &csp);
 
           amdgpu_regnum_t regnum = amdgpu_regnum_t::s0 + csp++ * 4;
-          wave.write_register (regnum + 0, &saved_exec_lo);
-          wave.write_register (regnum + 1, &saved_exec_hi);
-          wave.write_register (regnum + 2, &saved_pc_lo);
-          wave.write_register (regnum + 3, &saved_pc_hi);
+          wave.write_register (regnum + 0, saved_exec_lo);
+          wave.write_register (regnum + 1, saved_exec_hi);
+          wave.write_register (regnum + 2, saved_pc_lo);
+          wave.write_register (regnum + 3, saved_pc_hi);
 
-          wave.write_register (amdgpu_regnum_t::csp, &csp);
+          wave.write_register (amdgpu_regnum_t::csp, csp);
           wave.write_register (amdgpu_regnum_t::exec_64,
-                               taken ? &mask_pass : &mask_fail);
+                               taken ? mask_pass : mask_fail);
         }
     }
   else if (is_cbranch_join (instruction))
@@ -1303,8 +1303,8 @@ amdgcn_architecture_t::simulate_instruction (
           wave.read_register (regnum + 1, &exec_hi);
           uint64_t exec = (static_cast<uint64_t> (exec_hi) << 32) | exec_lo;
 
-          wave.write_register (amdgpu_regnum_t::csp, &csp);
-          wave.write_register (amdgpu_regnum_t::exec_64, &exec);
+          wave.write_register (amdgpu_regnum_t::csp, csp);
+          wave.write_register (amdgpu_regnum_t::exec_64, exec);
         }
     }
   else if (is_call (instruction) || is_getpc (instruction)
@@ -1320,8 +1320,8 @@ amdgcn_architecture_t::simulate_instruction (
       uint32_t sdst_lo = static_cast<uint32_t> (sdst_value);
       uint32_t sdst_hi = static_cast<uint32_t> (sdst_value >> 32);
 
-      wave.write_register (*sdst_regnum + 0, &sdst_lo);
-      wave.write_register (*sdst_regnum + 1, &sdst_hi);
+      wave.write_register (*sdst_regnum + 0, sdst_lo);
+      wave.write_register (*sdst_regnum + 1, sdst_hi);
     }
   else
     {
@@ -1358,7 +1358,7 @@ amdgcn_architecture_t::simulate_trap_handler (
   if (status_reg & sq_wave_status_halt_mask)
     ttmp6 |= ttmp6_saved_status_halt_mask;
 
-  wave.write_register (amdgpu_regnum_t::ttmp6, &ttmp6);
+  wave.write_register (amdgpu_regnum_t::ttmp6, ttmp6);
 
   /* Park the wave.  */
   if (park_stopped_waves ())
@@ -1367,26 +1367,26 @@ amdgcn_architecture_t::simulate_trap_handler (
 
       /* The trap handler saves PC[31:0] in ttmp7[31:0] ...  */
       ttmp7 = utils::bit_extract (pc, 0, 31);
-      wave.write_register (amdgpu_regnum_t::ttmp7, &ttmp7);
+      wave.write_register (amdgpu_regnum_t::ttmp7, ttmp7);
 
       /* ... and PC[47:32] in ttmp11[22:7].  */
       wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
       ttmp11 &= ~utils::bit_mask (7, 22);
       ttmp11 |= (utils::bit_extract (pc, 32, 47) << 7);
-      wave.write_register (amdgpu_regnum_t::ttmp11, &ttmp11);
+      wave.write_register (amdgpu_regnum_t::ttmp11, ttmp11);
 
       amd_dbgapi_global_address_t parked_pc
         = wave.queue ().park_instruction_address ();
-      wave.write_register (amdgpu_regnum_t::pc, &parked_pc);
+      wave.write_register (amdgpu_regnum_t::pc, parked_pc);
     }
   else
     {
-      wave.write_register (amdgpu_regnum_t::pc, &pc);
+      wave.write_register (amdgpu_regnum_t::pc, pc);
     }
 
   /* Then halt the wave.  */
   status_reg |= sq_wave_status_halt_mask;
-  wave.write_register (amdgpu_regnum_t::status, &status_reg);
+  wave.write_register (amdgpu_regnum_t::status, status_reg);
 };
 
 std::pair<amd_dbgapi_wave_state_t, amd_dbgapi_wave_stop_reasons_t>
@@ -1423,7 +1423,7 @@ amdgcn_architecture_t::wave_get_state (wave_t &wave) const
           | static_cast<amd_dbgapi_global_address_t> (
               utils::bit_extract (ttmp11, 7, 22))
               << 32;
-      wave.write_register (amdgpu_regnum_t::pc, &pc);
+      wave.write_register (amdgpu_regnum_t::pc, pc);
     }
 
   amd_dbgapi_wave_stop_reasons_t stop_reason
@@ -1567,9 +1567,9 @@ amdgcn_architecture_t::wave_set_state (
       dbgapi_assert_not_reached ("Invalid wave state");
     }
 
-  wave.write_register (amdgpu_regnum_t::status, &status_reg);
-  wave.write_register (amdgpu_regnum_t::mode, &mode_reg);
-  wave.write_register (amdgpu_regnum_t::ttmp6, &ttmp6);
+  wave.write_register (amdgpu_regnum_t::status, status_reg);
+  wave.write_register (amdgpu_regnum_t::mode, mode_reg);
+  wave.write_register (amdgpu_regnum_t::ttmp6, ttmp6);
 
   /* When resuming a wave, clear the exceptions in the trapsts register that
      have already been reported by a stop event (stop_reason != 0).  */
@@ -1612,7 +1612,7 @@ amdgcn_architecture_t::wave_set_state (
           uint32_t trapsts;
           wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
           trapsts &= ~clear_exceptions;
-          wave.write_register (amdgpu_regnum_t::trapsts, &trapsts);
+          wave.write_register (amdgpu_regnum_t::trapsts, trapsts);
         }
     }
 }
@@ -1645,7 +1645,7 @@ amdgcn_architecture_t::wave_set_halt (wave_t &wave, bool halt) const
       ttmp6 = halt ? ttmp6 | ttmp6_saved_status_halt_mask
                    : ttmp6 & ~ttmp6_saved_status_halt_mask;
 
-      wave.write_register (amdgpu_regnum_t::ttmp6, &ttmp6);
+      wave.write_register (amdgpu_regnum_t::ttmp6, ttmp6);
       return;
     }
 
@@ -1655,7 +1655,7 @@ amdgcn_architecture_t::wave_set_halt (wave_t &wave, bool halt) const
   status_reg = halt ? status_reg | sq_wave_status_halt_mask
                     : status_reg & ~sq_wave_status_halt_mask;
 
-  wave.write_register (amdgpu_regnum_t::status, &status_reg);
+  wave.write_register (amdgpu_regnum_t::status, status_reg);
 }
 
 /* Convert an os_wave_launch_trap_mask to a bit mask that can be or'ed in the
@@ -1696,7 +1696,7 @@ amdgcn_architecture_t::wave_enable_traps (
   /* OR SQ_WAVE_MODE.EXCP_EN with mask.  */
   mode |= os_wave_launch_trap_mask_to_wave_mode (mask);
 
-  wave.write_register (amdgpu_regnum_t::mode, &mode);
+  wave.write_register (amdgpu_regnum_t::mode, mode);
 }
 
 void
@@ -1710,7 +1710,7 @@ amdgcn_architecture_t::wave_disable_traps (
   /* AND SQ_WAVE_MODE.EXCP_EN with ~mask.  */
   mode &= ~os_wave_launch_trap_mask_to_wave_mode (mask);
 
-  wave.write_register (amdgpu_regnum_t::mode, &mode);
+  wave.write_register (amdgpu_regnum_t::mode, mode);
 }
 
 uint8_t
@@ -2064,7 +2064,7 @@ amdgcn_architecture_t::register_properties (amdgpu_regnum_t regnum) const
     case amdgpu_regnum_t::pseudo_vcc_32:
     case amdgpu_regnum_t::pseudo_vcc_64:
       /* Writing to the exec or vcc register may change the status.execz
-      status.vccz bits respectively.  */
+         status.vccz bits respectively.  */
       return AMD_DBGAPI_REGISTER_PROPERTY_INVALIDATE_VOLATILE;
 
     default:
@@ -2221,8 +2221,8 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
       status_reg
         = (status_reg & ~status_mask) | (base_reg == 0 ? status_mask : 0);
 
-      wave.write_register (amdgpu_regnum_t::status, &status_reg);
-      wave.write_register (base_regnum, &base_reg);
+      wave.write_register (amdgpu_regnum_t::status, status_reg);
+      wave.write_register (base_regnum, base_reg);
       return;
     }
 
@@ -2257,8 +2257,8 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
       if (status_reg & sq_wave_status_halt_mask)
         ttmp6 |= ttmp6_saved_status_halt_mask;
 
-      wave.write_register (amdgpu_regnum_t::status, &status_reg);
-      wave.write_register (amdgpu_regnum_t::ttmp6, &ttmp6);
+      wave.write_register (amdgpu_regnum_t::status, status_reg);
+      wave.write_register (amdgpu_regnum_t::ttmp6, ttmp6);
       return;
     }
 
@@ -2275,8 +2275,8 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
       memcpy (reinterpret_cast<char *> (wave_id.data ()) + offset, value,
               value_size);
 
-      wave.write_register (amdgpu_regnum_t::ttmp4, &wave_id[0]);
-      wave.write_register (amdgpu_regnum_t::ttmp5, &wave_id[1]);
+      wave.write_register (amdgpu_regnum_t::ttmp4, wave_id[0]);
+      wave.write_register (amdgpu_regnum_t::ttmp5, wave_id[1]);
       return;
     }
 
@@ -2291,7 +2291,7 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
 
       mode = (mode & ~utils::bit_mask (29, 31)) | (csp << 29);
 
-      wave.write_register (amdgpu_regnum_t::mode, &mode);
+      wave.write_register (amdgpu_regnum_t::mode, mode);
       return;
     }
 
@@ -4019,8 +4019,8 @@ gfx10_architecture_t::write_pseudo_register (wave_t &wave,
       status_reg
         = (status_reg & ~status_mask) | (base_reg == 0 ? status_mask : 0);
 
-      wave.write_register (amdgpu_regnum_t::status, &status_reg);
-      wave.write_register (base_regnum, &base_reg);
+      wave.write_register (amdgpu_regnum_t::status, status_reg);
+      wave.write_register (base_regnum, base_reg);
       return;
     }
 
@@ -4405,14 +4405,13 @@ gfx10_architecture_t::simulate_instruction (
       if (exec_lo == 0)
         {
           /* Single pass, execute the high half now.  */
-          wave.write_register (*s0_regnum, &exec_lo);
+          wave.write_register (*s0_regnum, exec_lo);
         }
       else
         {
           /* Save the high half for the 2nd pass, and execute the low half.  */
-          uint32_t zero = 0;
-          wave.write_register (*s0_regnum, &exec_hi);
-          wave.write_register (amdgpu_regnum_t::exec_hi, &zero);
+          wave.write_register (*s0_regnum, exec_hi);
+          wave.write_register (amdgpu_regnum_t::exec_hi, uint32_t{ 0 });
         }
 
       return pc + instruction.size ();
@@ -4432,15 +4431,14 @@ gfx10_architecture_t::simulate_instruction (
       if (exec_hi != 0)
         {
           /* Done executing the 2nd half.  */
-          wave.write_register (amdgpu_regnum_t::exec_lo, &s0);
+          wave.write_register (amdgpu_regnum_t::exec_lo, s0);
         }
       else if (s0 != 0)
         {
           /* Jump to start and execute the 2nd half.  */
-          uint32_t zero = 0;
-          wave.write_register (amdgpu_regnum_t::exec_hi, &s0);
-          wave.write_register (amdgpu_regnum_t::exec_lo, &zero);
-          wave.write_register (*s0_regnum, &exec_lo);
+          wave.write_register (amdgpu_regnum_t::exec_hi, s0);
+          wave.write_register (amdgpu_regnum_t::exec_lo, uint32_t{ 0 });
+          wave.write_register (*s0_regnum, exec_lo);
           return branch_target (wave, pc, instruction);
         }
 

@@ -217,12 +217,13 @@ public:
   void write_register (amdgpu_regnum_t regnum, size_t offset,
                        size_t value_size, const void *value);
 
-  template <typename T>
-  void read_register (amdgpu_regnum_t regnum, T *value) const
+  template <typename T, /* T is a pointer or an array.  */
+            std::enable_if_t<std::is_pointer_v<std::decay_t<T>>, int> = 0>
+  void read_register (amdgpu_regnum_t regnum, T &&value) const
   {
     try
       {
-        read_register (regnum, 0, sizeof (T), value);
+        read_register (regnum, 0, sizeof (std::remove_pointer_t<T>), value);
       }
     catch (const api_error_t &e)
       {
@@ -232,11 +233,11 @@ public:
       }
   }
 
-  template <typename T> void write_register (amdgpu_regnum_t regnum, T *value)
+  template <typename T> void write_register (amdgpu_regnum_t regnum, T &&value)
   {
     try
       {
-        write_register (regnum, 0, sizeof (T), value);
+        write_register (regnum, 0, sizeof (T), &value);
       }
     catch (const api_error_t &e)
       {
