@@ -508,9 +508,9 @@ extern "C" {
 
 /**
  * The function was introduced in version 0.60 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.61"``.
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.62"``.
  */
-#define AMD_DBGAPI_VERSION_0_61
+#define AMD_DBGAPI_VERSION_0_62
 
 /** @} */
 
@@ -4136,7 +4136,17 @@ typedef enum
    * Return the process to which this watchpoint belongs.  The type of this
    * attribute is ::amd_dbgapi_process_id_t.
    */
-  AMD_DBGAPI_WATCHPOINT_INFO_PROCESS = 1
+  AMD_DBGAPI_WATCHPOINT_INFO_PROCESS = 1,
+  /**
+   * The base address of the created watchpoint.  The type of this attribute is
+   * ::amd_dbgapi_global_address_t.
+   */
+   AMD_DBGAPI_WATCHPOINT_INFO_ADDRESS = 2,
+  /**
+   * The byte size of the created watchpoint.  The type of this attribute is
+   * ::amd_dbgapi_size_t.
+   */
+   AMD_DBGAPI_WATCHPOINT_INFO_SIZE = 3
 } amd_dbgapi_watchpoint_info_t;
 
 /**
@@ -4262,11 +4272,12 @@ typedef struct
  * range that includes \p address and covers as much of the requested range as
  * possible.
  *
- * The range of the created watchpoint is returned in \p watchpoint_address and
- * \p watchpoint_size.  The client is responsible for determining if the
- * created watchpoint completely covers the requested range.  If it does not,
- * the client can attempt to create additional watchpoints for the uncovered
- * portion of the requested range.
+ * The range of the created watchpoint can be queried using
+ * ::AMD_DBGAPI_WATCHPOINT_INFO_PROCESS and ::AMD_DBGAPI_WATCHPOINT_INFO_SIZE.
+ * The client is responsible for determining if the created watchpoint
+ * completely covers the requested range.  If it does not, the client can
+ * attempt to create additional watchpoints for the uncovered portion of the
+ * requested range.
  *
  * When a watchpoint is triggered, the client is responsible for determining if
  * the access was to the requested range.  For example, for writes the client
@@ -4288,47 +4299,36 @@ typedef struct
  *
  * \param[out] watchpoint_id The watchpoint created.
  *
- * \param[out] watchpoint_address The base address of the created watchpoint.
- *
- * \param[out] watchpoint_size The byte size of the created watchpoint.
- *
  * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
  * successfully and the watchpoint has been created with handle \p
- * watchpoint_id that covers the range specified by \p watchpoint_address and
- * \p watchpoint_size.
+ * watchpoint_id.
  *
  * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
- * left uninitialized; and \p watchpoint_id, \p watchpoint_address, and \p
- * watchpoint_size are unaltered.
+ * left uninitialized; and \p watchpoint_id is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
- * initialized.  The library is left uninitialized; and \p watchpoint_id, \p
- * watchpoint_address, and \p watchpoint_size are unaltered.
+ * initialized.  The library is left uninitialized; and \p watchpoint_id is
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
- * invalid.  No watchpoint is set and \p watchpoint_id, \p watchpoint_address,
- * and \p watchpoint_size are unaltered.
+ * invalid.  No watchpoint is set and \p watchpoint_id is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NO_WATCHPOINT_AVAILABLE No more
- * watchpoints are available.  No watchpoint is set and \p watchpoint_id, \p
- * watchpoint_address, and \p watchpoint_size are unaltered.
+ * watchpoints are available.  No watchpoint is set and \p watchpoint_id is
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED Watchpoints are not
  * supported for the architectures of all the agents.  No watchpoint is set and
- * \p watchpoint_id, \p watchpoint_address, and \p watchpoint_size are
- * unaltered.
+ * \p watchpoint_id is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p kind is invalid; \p
- * size is 0; or \p watchpoint_id, \p watchpoint_address, or \p watchpoint_size
- * are NULL.  No watchpoint is set and \p watchpoint_id, \p watchpoint_address,
- * and \p watchpoint_size are unaltered.
+ * size is 0 or \p watchpoint_id is NULL.  No watchpoint is set and \p
+ * watchpoint_id is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_watchpoint (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_global_address_t address,
     amd_dbgapi_size_t size, amd_dbgapi_watchpoint_kind_t kind,
-    amd_dbgapi_watchpoint_id_t *watchpoint_id,
-    amd_dbgapi_global_address_t *watchpoint_address,
-    amd_dbgapi_size_t *watchpoint_size) AMD_DBGAPI_VERSION_0_54;
+    amd_dbgapi_watchpoint_id_t *watchpoint_id) AMD_DBGAPI_VERSION_0_62;
 
 /**
  * Remove a hardware data watchpoint previously set by
@@ -4999,7 +4999,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_is_in_register_class (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
     amd_dbgapi_size_t offset, amd_dbgapi_size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_61;
+    void *value) AMD_DBGAPI_VERSION_0_62;
 
 /**
  * Write a register.
@@ -5065,7 +5065,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
     amd_dbgapi_size_t offset, amd_dbgapi_size_t value_size,
-    const void *value) AMD_DBGAPI_VERSION_0_61;
+    const void *value) AMD_DBGAPI_VERSION_0_62;
 
 /**
  * Prefetch register values.
@@ -5122,7 +5122,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_register (
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_prefetch_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
-    amd_dbgapi_size_t register_count) AMD_DBGAPI_VERSION_0_61;
+    amd_dbgapi_size_t register_count) AMD_DBGAPI_VERSION_0_62;
 
 /**
  * Instruction information for direct call instructions.
@@ -5281,7 +5281,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_class_get_info (
     amd_dbgapi_address_class_id_t address_class_id,
     amd_dbgapi_address_class_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_61;
+    void *value) AMD_DBGAPI_VERSION_0_62;
 
 /**
  * Report the list of source language address classes supported by the
@@ -5502,7 +5502,7 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_space_get_info (
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_address_space_info_t query, size_t value_size,
-    void *value) AMD_DBGAPI_VERSION_0_61;
+    void *value) AMD_DBGAPI_VERSION_0_62;
 
 /**
  * Report the list of address spaces supported by the architecture.
@@ -5718,7 +5718,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_convert_address_space (
     amd_dbgapi_address_space_id_t destination_address_space_id,
     amd_dbgapi_segment_address_t *destination_segment_address,
     amd_dbgapi_size_t *destination_contiguous_bytes)
-    AMD_DBGAPI_VERSION_0_61;
+    AMD_DBGAPI_VERSION_0_62;
 
 /**
  * Indication of whether a segment address in an address space is a member of

@@ -40,24 +40,27 @@ private:
   const amd_dbgapi_size_t m_requested_size;
   const amd_dbgapi_watchpoint_kind_t m_kind;
 
+  amd_dbgapi_global_address_t m_address;
+  amd_dbgapi_size_t m_size;
+
   process_t &m_process;
 
 public:
   watchpoint_t (amd_dbgapi_watchpoint_id_t watchpoint_id, process_t &process,
                 amd_dbgapi_global_address_t requested_address,
                 amd_dbgapi_size_t requested_size,
-                amd_dbgapi_watchpoint_kind_t kind)
-    : handle_object (watchpoint_id), m_requested_address (requested_address),
-      m_requested_size (requested_size), m_kind (kind), m_process (process)
-  {
-  }
+                amd_dbgapi_watchpoint_kind_t kind);
   ~watchpoint_t () {}
+
+  amd_dbgapi_global_address_t address () const { return m_address; }
+  amd_dbgapi_global_address_t size () const { return m_size; }
 
   amd_dbgapi_global_address_t requested_address () const
   {
     return m_requested_address;
   }
   amd_dbgapi_size_t requested_size () const { return m_requested_size; }
+
   amd_dbgapi_watchpoint_kind_t kind () const { return m_kind; }
 
   void get_info (amd_dbgapi_watchpoint_info_t query, size_t value_size,

@@ -620,6 +620,8 @@ to_string (amd_dbgapi_watchpoint_info_t watchpoint_info)
   switch (watchpoint_info)
     {
       CASE (WATCHPOINT_INFO_PROCESS);
+      CASE (WATCHPOINT_INFO_ADDRESS);
+      CASE (WATCHPOINT_INFO_SIZE);
     }
   return to_string (make_hex (watchpoint_info));
 }
@@ -634,6 +636,12 @@ to_string (detail::query_ref<amd_dbgapi_watchpoint_info_t> ref)
     case AMD_DBGAPI_WATCHPOINT_INFO_PROCESS:
       return to_string (
         make_ref (static_cast<const amd_dbgapi_process_id_t *> (value)));
+    case AMD_DBGAPI_WATCHPOINT_INFO_ADDRESS:
+      return to_string (make_hex (
+        make_ref (static_cast<const amd_dbgapi_global_address_t *> (value))));
+    case AMD_DBGAPI_WATCHPOINT_INFO_SIZE:
+      return to_string (
+        make_ref (static_cast<const amd_dbgapi_size_t *> (value)));
     }
   fatal_error ("unhandled amd_dbgapi_watchpoint_info_t query (%s)",
                to_string (query).c_str ());

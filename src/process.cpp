@@ -612,12 +612,8 @@ process_t::watchpoint_shared_kind () const
 }
 
 void
-process_t::insert_watchpoint (const watchpoint_t &watchpoint,
-                              amd_dbgapi_global_address_t *adjusted_address,
-                              amd_dbgapi_size_t *adjusted_size)
+process_t::insert_watchpoint (const watchpoint_t &watchpoint)
 {
-  dbgapi_assert (adjusted_address && adjusted_size && "must not be null");
-
   /* If this is the first watchpoint we are setting on this device, we need
    to enable the address watch exception trap for all new waves as well as
    update the existing waves.  */
@@ -647,94 +643,6 @@ process_t::insert_watchpoint (const watchpoint_t &watchpoint,
         resume_queues (queues, "insert watchpoint");
     }
 
-  dbgapi_assert (watchpoint.requested_size () && "requested size cannot be 0");
-
-  /* The mask used to match an address range is in the form:
-
-             47       39        Y       23       15        X     0
-     Mask:   11111111 11111111 11xxxxxx xxxxxxxx xxxxxxxx xx000000
-
-     Only the bits in mask[Y-1:X] (x`s) are user programmable. The x`s are what
-     this routine is computing before passing the mask to
-     agent_t::insert_watchpoint ().
-
-     architecture_t::watchpoint_mask_bits () returns a mask (XBits) with 1`s
-     where the x`s are located:
-
-             47       39        Y       23       15        X     0
-     XBits:  00000000 00000000 00111111 11111111 11111111 11000000
-             [        A         ][             B           ][  C ]
-
-     With the x`s determined for a given range, an address watch match is
-     checked with:
-
-     Match := (AccessAddress & Mask) == MatchedAddress
-
-     The mask required to match a given address range is obtained by replacing
-     the "Stable" bits between the first and last addresses of the range with
-     ones, e.g.:
-
-             47       39        Y       23       15        X     0
-     First:  01111111 11111110 11100111 00000100 00000000 01000100
-     Last:   01111111 11111110 11100111 00000100 00000000 01001000
-
-     Stable := ~(next_power_of_2 (Start ^ End) - 1)
-
-             47       39        Y       23       15        X     0
-     Stable: 11111111 11111111 11111111 11111111 11111111 11110000
-
-     If (Stable[47:Y] contains any 0 bits, a match cannot happen, and the
-     watchpoint is rejected.
-
-     The smallest adjusted_size is (1 << X).
-
-     The adjusted mask (aMask) and adjusted address (aAddr) sent to
-     agent_t::insert_watchpoint () are:
-
-             47       39        Y       23       15        X     0
-     aMask:  11111111 11111111 11111111 11111111 11111111 11000000
-     aAddr:  01111111 11111110 11100111 00000100 00000000 01000000
-   */
-
-  amd_dbgapi_global_address_t first_address = watchpoint.requested_address ();
-  amd_dbgapi_global_address_t last_address
-    = first_address + watchpoint.requested_size () - 1;
-
-  amd_dbgapi_global_address_t stable_bits
-    = -utils::next_power_of_two ((first_address ^ last_address) + 1);
-
-  /* programmable_mask_bits is the intersection of all the process' agents
-     capabilities.  architecture_t::watchpoint_mask_bits returns a mask
-     with 1 bits in the positions that can be programmed (x`s).  */
-  amd_dbgapi_global_address_t programmable_mask_bits{
-    std::numeric_limits<decltype (programmable_mask_bits)>::max ()
-  };
-  for (auto &&agent : range<agent_t> ())
-    programmable_mask_bits &= agent.os_info ().address_watch_mask_bits;
-
-  amd_dbgapi_global_address_t field_B = programmable_mask_bits;
-  amd_dbgapi_global_address_t field_A = ~(field_B | (field_B - 1));
-  amd_dbgapi_global_address_t field_C = ~(field_A | field_B);
-
-  /* Check that the required mask is within the agents capabilities.  */
-  if (stable_bits < field_A)
-    {
-      /* Set the mask to the smallest range that includes first_address and
-         covers as much of first_address..last_address as possible.  The
-         smallest range that includes the first_address extends up to the end
-         of the largest range that covers it.  So set last_address to that
-         boundary and compute the stable_bits again.  This time the stable_bits
-         mask must be in the agent capabilities.  */
-      last_address = ((first_address + ~field_A) & field_A) - 1;
-      stable_bits
-        = -utils::next_power_of_two ((first_address ^ last_address) + 1);
-      dbgapi_assert (stable_bits >= field_A);
-    }
-
-  amd_dbgapi_global_address_t watch_mask = stable_bits & ~field_C;
-  amd_dbgapi_global_address_t watch_address
-    = watchpoint.requested_address () & watch_mask;
-
   os_watch_mode_t watch_mode;
   switch (watchpoint.kind ())
     {
@@ -756,7 +664,7 @@ process_t::insert_watchpoint (const watchpoint_t &watchpoint,
 
   os_watch_id_t os_watch_id;
   amd_dbgapi_status_t status = os_driver ().set_address_watch (
-    watch_address, watch_mask, watch_mode, &os_watch_id);
+    watchpoint.address (), -watchpoint.size (), watch_mode, &os_watch_id);
 
   if (status != AMD_DBGAPI_STATUS_SUCCESS
       && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
@@ -764,15 +672,12 @@ process_t::insert_watchpoint (const watchpoint_t &watchpoint,
 
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
               "%s: set address_watch%d [%#lx-%#lx] (%s)",
-              to_string (id ()).c_str (), os_watch_id, watch_address,
-              watch_address + (1 << utils::trailing_zeroes_count (watch_mask)),
+              to_string (id ()).c_str (), os_watch_id, watchpoint.address (),
+              watchpoint.address () + watchpoint.size (),
               to_string (watchpoint.kind ()).c_str ());
 
   if (!m_watchpoint_map.emplace (os_watch_id, &watchpoint).second)
     fatal_error ("os_watch_id %d is already in use", os_watch_id);
-
-  *adjusted_address = watch_address;
-  *adjusted_size = -watch_mask;
 }
 
 void
