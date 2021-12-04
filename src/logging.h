@@ -539,7 +539,7 @@ inline std::string
 to_string_helper (T &&first, Args &&...args)
 {
   std::string str = to_string (std::forward<T> (first));
-  if constexpr (sizeof...(Args))
+  if constexpr (sizeof...(Args) != 0)
     str += ", " + to_string_helper (std::forward<Args> (args)...);
   return str;
 }
