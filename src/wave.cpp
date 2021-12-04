@@ -590,8 +590,7 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
 
   if (m_is_parked && regnum == amdgpu_regnum_t::pc)
     {
-      memcpy (static_cast<char *> (value) + offset,
-              reinterpret_cast<const char *> (&m_parked_pc) + offset,
+      memcpy (value, reinterpret_cast<const char *> (&m_parked_pc) + offset,
               value_size);
       return;
     }
@@ -614,8 +613,7 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
       reg_addr = register_address (regnum);
     }
 
-  process ().read_global_memory (
-    *reg_addr + offset, static_cast<char *> (value) + offset, value_size);
+  process ().read_global_memory (*reg_addr + offset, value, value_size);
 }
 
 void
@@ -645,8 +643,8 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
 
   if (m_is_parked && regnum == amdgpu_regnum_t::pc)
     {
-      memcpy (reinterpret_cast<char *> (&m_parked_pc) + offset,
-              static_cast<const char *> (value) + offset, value_size);
+      memcpy (reinterpret_cast<char *> (&m_parked_pc) + offset, value,
+              value_size);
       return;
     }
 
@@ -666,9 +664,7 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
       reg_addr = register_address (regnum);
     }
 
-  process ().write_global_memory (*reg_addr + offset,
-                                  static_cast<const char *> (value) + offset,
-                                  value_size);
+  process ().write_global_memory (*reg_addr + offset, value, value_size);
 }
 
 size_t

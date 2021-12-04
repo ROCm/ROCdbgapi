@@ -588,7 +588,7 @@ amd_dbgapi_read_register (amd_dbgapi_wave_id_t wave_id,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY,
          AMD_DBGAPI_STATUS_ERROR_REGISTER_NOT_AVAILABLE);
-  TRACE_END (make_hex (make_ref (param_out (value), offset + value_size)));
+  TRACE_END (make_hex (make_ref (param_out (value), value_size)));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
@@ -599,7 +599,7 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
 {
   TRACE_BEGIN (param_in (wave_id), param_in (register_id), param_in (offset),
                param_in (value_size),
-               make_hex (make_ref (param_in (value), offset + value_size)));
+               make_hex (make_ref (param_in (value), value_size)));
   TRY
   {
     if (!detail::is_initialized)
