@@ -280,9 +280,8 @@
  *
  * \section known_limitations Known Limitations and Restrictions
  *
- * The AMD Debugger API library implementation is currently a prototype and has
- * the following restrictions.  Future releases aim to address these
- * restrictions.
+ * The AMD Debugger API library implementation currently has the following
+ * restrictions.  Future releases aim to address these restrictions.
  *
  * 1. The following *_get_info queries are not yet implemented:
  *
@@ -331,6 +330,10 @@
  *    ::amd_dbgapi_wave_stop_reasons_t) are not reported for enabled arithmetic
  *    exceptions if the \p DX10_CLAMP bit in the \p MODE register is set.  This
  *    happens if the \p DX10_CLAMP kernel descriptor field is set.
+ *
+ * 9. The library does not support single root I/O virtualization (SR-IOV) on
+ *    any AMD GPU architecture that supports it.  That includes gfx1030 and
+ *    gfx1031.
  *
  * \section references References
  *
