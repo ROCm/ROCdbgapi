@@ -4706,7 +4706,7 @@ architecture_t::get_info (amd_dbgapi_architecture_info_t query,
   switch (query)
     {
     case AMD_DBGAPI_ARCHITECTURE_INFO_NAME:
-      utils::get_info (value_size, value, m_target_triple);
+      utils::get_info (value_size, value, name ());
       return;
 
     case AMD_DBGAPI_ARCHITECTURE_INFO_ELF_AMDGPU_MACHINE:
