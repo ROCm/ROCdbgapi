@@ -395,6 +395,11 @@ public:
       utils::bit_extract (register_id.handle, 32, 63) });
   }
 
+  /* Return the pointer to a statically allocated mask of read-only bits for
+     the given register, or nullptr if all bits are writable.  */
+  virtual const void *
+  register_read_only_mask (amdgpu_regnum_t regnum) const = 0;
+
   virtual std::string register_name (amdgpu_regnum_t regnum) const = 0;
   virtual std::string register_type (amdgpu_regnum_t regnum) const = 0;
   virtual amd_dbgapi_size_t register_size (amdgpu_regnum_t regnum) const = 0;
