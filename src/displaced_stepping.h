@@ -40,40 +40,36 @@ class displaced_stepping_t
   : public detail::handle_object<amd_dbgapi_displaced_stepping_id_t>
 {
 private:
-  bool const m_is_simulated;
-  size_t m_reference_count{ 1 };
+  size_t m_reference_count{ 0 };
 
-  amd_dbgapi_global_address_t const m_from;
-  instruction_buffer_t m_instruction_buffer;
   instruction_t const m_original_instruction;
+  amd_dbgapi_global_address_t const m_from;
+  std::optional<compute_queue_t::displaced_instruction_ptr_t> m_to;
+
   queue_t &m_queue;
 
 public:
   displaced_stepping_t (
     amd_dbgapi_displaced_stepping_id_t displaced_stepping_id, queue_t &queue,
-    amd_dbgapi_global_address_t original_pc,
-    instruction_t original_instruction, bool simulate,
-    instruction_buffer_t instruction_buffer);
+    instruction_t original_instruction, amd_dbgapi_global_address_t from,
+    std::optional<compute_queue_t::displaced_instruction_ptr_t> to);
 
   ~displaced_stepping_t ();
-
-  bool is_simulated () const { return m_is_simulated; }
-
-  amd_dbgapi_global_address_t from () const { return m_from; }
-  /* The address of the displaced stepping buffer is this object's id.  */
-  amd_dbgapi_global_address_t to () const
-  {
-    return m_instruction_buffer.get ();
-  }
 
   const instruction_t &original_instruction () const
   {
     return m_original_instruction;
   }
 
-  const instruction_buffer_t &instruction_buffer () const
+  /* The original pc where this displaced instruction was copied from.  */
+  amd_dbgapi_global_address_t from () const { return m_from; }
+
+  /* The address where this instruction is to be single-stepped.  If the
+     original instruction cannot be executed displaced, and instead must be
+     simulated, return std::nullopt.  */
+  std::optional<amd_dbgapi_global_address_t> to () const
   {
-    return m_instruction_buffer;
+    return m_to ? std::make_optional (m_to->get ()) : std::nullopt;
   }
 
   /* Used by waves to indicate if using the displaced stepping buffer.  Uses

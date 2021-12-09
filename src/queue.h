@@ -136,6 +136,14 @@ public:
 
 class compute_queue_t : public queue_t
 {
+public:
+  /* A displaced instruction ptr holds the address of an instruction in
+     device accessible memory.  The address is returned to the queue when the
+     displaced instruction ptr is destructed.  */
+  using displaced_instruction_ptr_t = utils::unique_resource_t<
+    amd_dbgapi_global_address_t,
+    std::function<void (amd_dbgapi_global_address_t)>>;
+
 protected:
   /* Number of waves in the running state.  Only holds a value when the queue
      is suspended.  */
@@ -162,9 +170,10 @@ public:
                     amd_dbgapi_size_t /* size */>
   scratch_memory_region (uint32_t engine_id, uint32_t slot_id) const = 0;
 
-  /* Return a new wave buffer instance in this queue.  */
-  virtual instruction_buffer_t
-  allocate_instruction_buffer (const instruction_t &instruction)
+  /* Return a pointer to device accessible memory containing the given
+     instruction bytes.  */
+  virtual displaced_instruction_ptr_t
+  allocate_displaced_instruction (const instruction_t &instruction)
     = 0;
 };
 

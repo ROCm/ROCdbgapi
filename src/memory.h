@@ -220,15 +220,6 @@ public:
   }
 };
 
-/* An instruction_buffer holds the address and capacity of a global memory
-   region used to store instructions. It behaves like a std::unique_ptr but is
-   optimized to contain the instruction buffer instance data to avoid the cost
-   associated with allocate/free.  An instruction buffer can hold one or more
-   instructions, and is always terminated by a 'guard' instruction (s_trap). */
-using instruction_buffer_t = utils::unique_resource_t<
-  amd_dbgapi_global_address_t,
-  std::function<void (amd_dbgapi_global_address_t)>>;
-
 } /* namespace amd::dbgapi */
 
 #endif /* AMD_DBGAPI_MEMORY_H */

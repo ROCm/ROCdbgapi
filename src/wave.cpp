@@ -206,15 +206,10 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
     [&] (const displaced_stepping_t &other)
     { return other.queue () == queue () && other.from () == pc (); });
 
-  if (displaced_stepping)
+  /* If we can't share a displaced stepping operation with another wave, create
+     a new one.  */
+  if (!displaced_stepping)
     {
-      displaced_stepping_t::retain (displaced_stepping);
-    }
-  else
-    {
-      /* If we can't share a displaced stepping operation with another
-         wave, create a new one.  */
-
       /* Reconstitute the original instruction bytes.  */
       std::vector<std::byte> original_instruction_bytes (
         architecture ().largest_instruction_size ());
@@ -234,64 +229,66 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
       instruction_t original_instruction (
         architecture (), std::move (original_instruction_bytes));
 
-      bool simulate
-        = architecture ().can_simulate (*this, original_instruction);
+      std::optional<compute_queue_t::displaced_instruction_ptr_t>
+        displaced_instruction_ptr;
 
-      if (!architecture ().can_execute_displaced (*this, original_instruction)
-          && !simulate)
+      if (architecture ().can_simulate (*this, original_instruction))
         {
-          /* If this instruction cannot be displaced-stepped nor simulated,
+          /* Since this instruction will be simulated when the wave is resumed,
+             there is no need to allocate a displaced stepping buffer.  */
+        }
+      else if (architecture ().can_execute_displaced (*this,
+                                                      original_instruction))
+        {
+          displaced_instruction_ptr.emplace (
+            queue ().allocate_displaced_instruction (original_instruction));
+        }
+      else
+        {
+          /* If this instruction cannot be simulated nor displaced-stepped,
              then it must be inline-stepped.  */
           throw api_error_t (AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION);
         }
 
-      instruction_buffer_t instruction_buffer{};
-
-      if (!simulate)
-        instruction_buffer
-          = queue ().allocate_instruction_buffer (original_instruction);
-
       displaced_stepping = &process ().create<displaced_stepping_t> (
-        queue (), pc (), std::move (original_instruction), simulate,
-        std::move (instruction_buffer));
+        queue (), std::move (original_instruction), pc (),
+        std::move (displaced_instruction_ptr));
     }
 
-  if (!displaced_stepping->is_simulated ())
+  if (displaced_stepping->to ())
     {
-      amd_dbgapi_global_address_t displaced_pc = displaced_stepping->to ();
-      dbgapi_assert (displaced_pc != amd_dbgapi_global_address_t{});
-
-      write_register (amdgpu_regnum_t::pc, displaced_pc);
+      write_register (amdgpu_regnum_t::pc, *displaced_stepping->to ());
 
       dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
                   "changing %s's pc from %#lx to %#lx (started %s)",
                   to_string (id ()).c_str (), displaced_stepping->from (),
-                  displaced_stepping->to (),
+                  *displaced_stepping->to (),
                   to_string (displaced_stepping->id ()).c_str ());
     }
 
+  displaced_stepping_t::retain (displaced_stepping);
   m_displaced_stepping = displaced_stepping;
 }
 
 void
 wave_t::displaced_stepping_complete ()
 {
-  dbgapi_assert (!!m_displaced_stepping && "not displaced stepping");
+  dbgapi_assert (m_displaced_stepping && "not displaced stepping");
   dbgapi_assert (state () == AMD_DBGAPI_WAVE_STATE_STOP && "not stopped");
 
-  if (!m_displaced_stepping->is_simulated ())
+  if (m_displaced_stepping->to ())
     {
       amd_dbgapi_global_address_t displaced_pc = pc ();
       amd_dbgapi_global_address_t restored_pc = displaced_pc
                                                 + m_displaced_stepping->from ()
-                                                - m_displaced_stepping->to ();
+                                                - *m_displaced_stepping->to ();
       write_register (amdgpu_regnum_t::pc, restored_pc);
 
       dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
                   "changing %s's pc from %#lx to %#lx (%s %s)",
                   to_string (id ()).c_str (), displaced_pc, pc (),
-                  displaced_pc == m_displaced_stepping->to () ? "aborted"
-                                                              : "completed",
+                  displaced_pc == *m_displaced_stepping->to () ? "aborted"
+                                                               : "completed",
                   to_string (m_displaced_stepping->id ()).c_str ());
     }
 
@@ -468,25 +465,29 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
     }
 
   if (state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
-      && exceptions == AMD_DBGAPI_EXCEPTION_NONE &&
-      [&] ()
+        && exceptions == AMD_DBGAPI_EXCEPTION_NONE &&
+        [&] () -> bool /* Return true if the instruction was simulated.  */
       {
-        /* Simulate the instruction if the wave is displaced-stepping and the
-           instruction requires simulation (for example, instruction that
-           manipulate the program counter). */
         if (m_displaced_stepping)
-          return m_displaced_stepping->is_simulated ()
-                 && architecture.simulate (
-                   *this, m_displaced_stepping->from (),
-                   m_displaced_stepping->original_instruction ());
+          {
+            /* Simulate displaced instructions that are position sensitive (for
+               example, instructions that manipulate the program counter).
+               Displaced stepping buffers for such instructions do not have a
+               to () address.  */
+
+            return !m_displaced_stepping->to ()
+                   && architecture.simulate (
+                     *this, m_displaced_stepping->from (),
+                     m_displaced_stepping->original_instruction ());
+          }
 
         /* Simulate all instructions that can be simulated.  */
         return instruction && architecture.can_simulate (*this, *instruction)
                && architecture.simulate (*this, pc (), *instruction);
       }())
     {
-      /* The instruction was simulated, get the new wave state and raise a stop
-         event.  */
+      /* The instruction was successfully executed, update wave state and
+         raise a stop event.  */
       update (*m_group_leader, std::move (m_cwsr_record));
       queue ().wave_state_changed (*this);
     }

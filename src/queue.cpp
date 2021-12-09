@@ -82,8 +82,8 @@ private:
   uint16_t m_debugger_memory_next_chunk{ 0 };
   std::vector<uint16_t> m_debugger_memory_free_chunks{};
 
-  instruction_buffer_t m_park_instruction_buffer{};
-  instruction_buffer_t m_terminating_instruction_buffer{};
+  displaced_instruction_ptr_t m_park_instruction_ptr{};
+  displaced_instruction_ptr_t m_terminating_instruction_ptr{};
 
   /* Value used to mark waves that are found in the context save area. When
      sweeping, any wave found with a mark less than the current mark will be
@@ -93,8 +93,8 @@ private:
   dispatch_t const m_dummy_dispatch;
   hsa_queue_t m_hsa_queue{};
 
-  instruction_buffer_t
-  allocate_instruction_buffer (const instruction_t &instruction) override;
+  displaced_instruction_ptr_t
+  allocate_displaced_instruction (const instruction_t &instruction) override;
 
   void queue_state_changed () override;
 
@@ -111,13 +111,13 @@ public:
   /* Return the address of a park instruction.  */
   amd_dbgapi_global_address_t park_instruction_address () override
   {
-    return m_park_instruction_buffer.get ();
+    return m_park_instruction_ptr.get ();
   }
 
   /* Return the address of a terminating instruction.  */
   amd_dbgapi_global_address_t terminating_instruction_address () override
   {
-    return m_terminating_instruction_buffer.get ();
+    return m_terminating_instruction_ptr.get ();
   }
 
   std::pair<amd_dbgapi_global_address_t /* address */,
@@ -138,7 +138,6 @@ aql_queue_t::aql_queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
   : compute_queue_t (queue_id, agent, os_queue_info),
     m_dummy_dispatch (AMD_DBGAPI_DISPATCH_NONE, *this, 0, 0)
 {
-  const architecture_t &architecture = this->architecture ();
   process_t &process = this->process ();
 
   amd_dbgapi_global_address_t ctx_save_base
@@ -167,10 +166,10 @@ aql_queue_t::aql_queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
   m_debugger_memory_free_chunks.reserve (m_debugger_memory_chunk_count);
 
   /* Reserve 2 instruction buffers for parking, and terminating waves.  */
-  m_park_instruction_buffer
-    = allocate_instruction_buffer (architecture.assert_instruction ());
-  m_terminating_instruction_buffer
-    = allocate_instruction_buffer (architecture.terminating_instruction ());
+  m_park_instruction_ptr
+    = allocate_displaced_instruction (architecture ().assert_instruction ());
+  m_terminating_instruction_ptr = allocate_displaced_instruction (
+    architecture ().terminating_instruction ());
 
   /* Read the hsa_queue_t at the top of the amd_queue_t. Since the amd_queue_t
     structure could change, it can only be accessed by calculating its address
@@ -233,8 +232,8 @@ aql_queue_t::~aql_queue_t ()
   process.memory_cache ().discard (wave_save_address, wave_save_size);
 }
 
-instruction_buffer_t
-aql_queue_t::allocate_instruction_buffer (const instruction_t &instruction)
+compute_queue_t::displaced_instruction_ptr_t
+aql_queue_t::allocate_displaced_instruction (const instruction_t &instruction)
 {
   auto assert_instruction = architecture ().assert_instruction ();
   amd_dbgapi_global_address_t instruction_buffer_address;
@@ -243,6 +242,7 @@ aql_queue_t::allocate_instruction_buffer (const instruction_t &instruction)
     {
       auto index = m_debugger_memory_free_chunks.back ();
       m_debugger_memory_free_chunks.pop_back ();
+
       instruction_buffer_address
         = m_debugger_memory_base + index * debugger_memory_chunk_size;
     }
@@ -252,11 +252,12 @@ aql_queue_t::allocate_instruction_buffer (const instruction_t &instruction)
         = m_debugger_memory_base
           + m_debugger_memory_next_chunk++ * debugger_memory_chunk_size;
 
-      /* An instruction buffer is always terminated by a valid instruction
-         so that it can be used to "park" a wave by setting its pc at the
-         end of the buffer.  We use a trap instruction to prevent runaway
-         waves from executing from unmapped memory. Copy the instruction
-         now before handing the buffer to the instruction_buffer_t. */
+      /* An instruction buffer is always terminated by a 'guard' instruction
+         (assert_trap) so that the pc never points to an invalid instruction or
+         unmapped memory if the instruction is single-stepped.  We use a trap
+         instruction to prevent runaway waves from executing from unmapped
+         memory.  */
+
       process ().write_global_memory (
         instruction_buffer_address + debugger_memory_chunk_size
           - assert_instruction.size (),
@@ -273,15 +274,17 @@ aql_queue_t::allocate_instruction_buffer (const instruction_t &instruction)
     m_debugger_memory_free_chunks.emplace_back (index);
   };
 
-  instruction_buffer_t buffer (
-    instruction_buffer_address + debugger_memory_chunk_size
-      - assert_instruction.size () - instruction.size (),
-    deleter);
+  dbgapi_assert (instruction.size () + assert_instruction.size ()
+                 <= debugger_memory_chunk_size);
 
-  process ().write_global_memory (buffer.get (), instruction.data (),
-                                  instruction.size ());
+  amd_dbgapi_global_address_t displaced_instruction_address
+    = instruction_buffer_address + debugger_memory_chunk_size
+      - assert_instruction.size () - instruction.size ();
 
-  return buffer;
+  process ().write_global_memory (displaced_instruction_address,
+                                  instruction.data (), instruction.size ());
+
+  return { displaced_instruction_address, deleter };
 }
 
 void
