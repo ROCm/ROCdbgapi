@@ -372,6 +372,106 @@ make_scope_fail (Functor &&func)
   return scope_fail_t<std::decay_t<Functor>> (std::forward<Functor> (func));
 }
 
+/* A RAII wrapper for resources that are managed through a handle and disposed
+   of with the provided deleter.  */
+template <typename R /* Resource  */, typename D /* Deleter  */>
+class unique_resource_t
+{
+private:
+  /* The type of the resource stored in the wrapper.  */
+  using RS
+    = std::conditional_t<std::is_reference_v<R>,
+                         std::reference_wrapper<std::remove_reference_t<R>>,
+                         R>;
+
+  RS m_resource;
+  D m_deleter;
+  bool m_execute_on_reset;
+
+public:
+  /* Constructors  */
+  template <typename RRS = RS, typename DD = D,
+            std::enable_if_t<std::is_default_constructible_v<
+                               RRS> && std::is_default_constructible_v<DD>,
+                             int> = 0>
+  unique_resource_t ()
+    : m_resource (), m_deleter (), m_execute_on_reset (false)
+  {
+  }
+
+  template <typename RR, typename DD,
+            std::enable_if_t<std::is_constructible_v<
+                               RS, RR> && std::is_constructible_v<D, DD>,
+                             int> = 0>
+  unique_resource_t (RR &&resource, DD &&deleter) noexcept
+    : m_resource (std::forward<RR> (resource)),
+      m_deleter (std::forward<DD> (deleter)), m_execute_on_reset (true)
+  {
+  }
+
+  unique_resource_t (unique_resource_t &&other)
+    : m_resource (std::move (other.m_resource)),
+      m_deleter (std::move (other.m_deleter)),
+      m_execute_on_reset (other.m_execute_on_reset)
+  {
+    other.release ();
+  }
+
+  /* Destructor  */
+  ~unique_resource_t () { reset (); }
+
+  /* Assignment  */
+  unique_resource_t &operator= (unique_resource_t &&other)
+  {
+    reset ();
+    m_resource = std::move (other.m_resource);
+    m_deleter = std::move (other.m_deleter);
+    m_execute_on_reset = other.m_execute_on_reset;
+    other.release ();
+    return *this;
+  }
+
+  /* Modifiers:  */
+  void reset ()
+  {
+    if (m_execute_on_reset)
+      {
+        m_execute_on_reset = false;
+        get_deleter () (m_resource);
+      }
+  }
+
+  template <class RR> void reset (RR &&resource)
+  {
+    reset ();
+    m_resource = std::forward<RR> (resource);
+    m_execute_on_reset = true;
+  }
+
+  void release () { m_execute_on_reset = false; }
+
+  /* Accessors:  */
+  const R &get () const { return m_resource; }
+
+  template <
+    typename RR = R,
+    std::enable_if_t<
+      std::is_pointer_v<RR> && !std::is_void_v<std::remove_pointer_t<RR>>,
+      int> = 0>
+  std::add_lvalue_reference_t<std::remove_pointer_t<R>> operator* () const
+  {
+    return *get ();
+  }
+
+  template <typename RR = R, std::enable_if_t<std::is_pointer_v<RR>, int> = 0>
+  R operator-> () const
+  {
+    return get ();
+  }
+
+  const D &get_deleter () const { return m_deleter; }
+};
+
 namespace detail
 {
 
