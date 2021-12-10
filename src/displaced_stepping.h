@@ -63,8 +63,7 @@ public:
   /* The address of the displaced stepping buffer is this object's id.  */
   amd_dbgapi_global_address_t to () const
   {
-    return m_instruction_buffer ? m_instruction_buffer->begin ()
-                                : amd_dbgapi_global_address_t{};
+    return m_instruction_buffer.get ();
   }
 
   const instruction_t &original_instruction () const

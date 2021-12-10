@@ -163,7 +163,9 @@ public:
   scratch_memory_region (uint32_t engine_id, uint32_t slot_id) const = 0;
 
   /* Return a new wave buffer instance in this queue.  */
-  virtual instruction_buffer_t allocate_instruction_buffer () = 0;
+  virtual instruction_buffer_t
+  allocate_instruction_buffer (const instruction_t &instruction)
+    = 0;
 };
 
 /* Wraps a queue and provides a RAII mechanism to suspend it if it wasn't

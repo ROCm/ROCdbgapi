@@ -248,16 +248,8 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
       instruction_buffer_t instruction_buffer{};
 
       if (!simulate)
-        {
-          instruction_buffer = queue ().allocate_instruction_buffer ();
-          instruction_buffer->resize (original_instruction.size ());
-          amd_dbgapi_global_address_t instruction_addr
-            = instruction_buffer->begin ();
-
-          process ().write_global_memory (instruction_addr,
-                                          original_instruction.data (),
-                                          original_instruction.size ());
-        }
+        instruction_buffer
+          = queue ().allocate_instruction_buffer (original_instruction);
 
       displaced_stepping = &process ().create<displaced_stepping_t> (
         queue (), pc (), std::move (original_instruction), simulate,

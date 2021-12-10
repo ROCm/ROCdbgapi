@@ -93,7 +93,8 @@ private:
   dispatch_t const m_dummy_dispatch;
   hsa_queue_t m_hsa_queue{};
 
-  instruction_buffer_t allocate_instruction_buffer () override;
+  instruction_buffer_t
+  allocate_instruction_buffer (const instruction_t &instruction) override;
 
   void queue_state_changed () override;
 
@@ -110,13 +111,13 @@ public:
   /* Return the address of a park instruction.  */
   amd_dbgapi_global_address_t park_instruction_address () override
   {
-    return m_park_instruction_buffer->begin ();
+    return m_park_instruction_buffer.get ();
   }
 
   /* Return the address of a terminating instruction.  */
   amd_dbgapi_global_address_t terminating_instruction_address () override
   {
-    return m_terminating_instruction_buffer->begin ();
+    return m_terminating_instruction_buffer.get ();
   }
 
   std::pair<amd_dbgapi_global_address_t /* address */,
@@ -166,14 +167,10 @@ aql_queue_t::aql_queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
   m_debugger_memory_free_chunks.reserve (m_debugger_memory_chunk_count);
 
   /* Reserve 2 instruction buffers for parking, and terminating waves.  */
-  m_park_instruction_buffer = allocate_instruction_buffer ();
-  m_terminating_instruction_buffer = allocate_instruction_buffer ();
-
-  auto terminating_instruction = architecture.terminating_instruction ();
-  m_terminating_instruction_buffer->resize (terminating_instruction.size ());
-  process.write_global_memory (m_terminating_instruction_buffer->begin (),
-                               terminating_instruction.data (),
-                               terminating_instruction.size ());
+  m_park_instruction_buffer
+    = allocate_instruction_buffer (architecture.assert_instruction ());
+  m_terminating_instruction_buffer
+    = allocate_instruction_buffer (architecture.terminating_instruction ());
 
   /* Read the hsa_queue_t at the top of the amd_queue_t. Since the amd_queue_t
     structure could change, it can only be accessed by calculating its address
@@ -237,7 +234,7 @@ aql_queue_t::~aql_queue_t ()
 }
 
 instruction_buffer_t
-aql_queue_t::allocate_instruction_buffer ()
+aql_queue_t::allocate_instruction_buffer (const instruction_t &instruction)
 {
   auto assert_instruction = architecture ().assert_instruction ();
   amd_dbgapi_global_address_t instruction_buffer_address;
@@ -276,9 +273,15 @@ aql_queue_t::allocate_instruction_buffer ()
     m_debugger_memory_free_chunks.emplace_back (index);
   };
 
-  return instruction_buffer_t (
-    instruction_buffer_address,
-    debugger_memory_chunk_size - assert_instruction.size (), deleter);
+  instruction_buffer_t buffer (
+    instruction_buffer_address + debugger_memory_chunk_size
+      - assert_instruction.size () - instruction.size (),
+    deleter);
+
+  process ().write_global_memory (buffer.get (), instruction.data (),
+                                  instruction.size ());
+
+  return buffer;
 }
 
 void
@@ -906,51 +909,6 @@ scoped_queue_suspend_t::~scoped_queue_suspend_t ()
   if (m_queue->process ().resume_queues ({ m_queue }, m_reason) != 1
       && m_queue->is_valid ())
     fatal_error ("process::resume_queues failed");
-}
-
-instruction_buffer_t::instruction_buffer_t (
-  amd_dbgapi_global_address_t buffer_address, uint32_t capacity,
-  deleter_type deleter)
-  : m_data{ buffer_address, 0, capacity }, m_deleter (deleter)
-{
-}
-
-instruction_buffer_t::instruction_buffer_t (instruction_buffer_t &&other)
-  : m_data (other.m_data), m_deleter (other.m_deleter)
-{
-  other.release ();
-}
-
-instruction_buffer_t &
-instruction_buffer_t::operator= (instruction_buffer_t &&other)
-{
-  reset ();
-  m_data = other.m_data;
-  m_deleter = other.m_deleter;
-
-  other.release ();
-  return *this;
-}
-
-void
-instruction_buffer_t::reset ()
-{
-  if (m_data.m_buffer_address)
-    {
-      dbgapi_assert (m_deleter);
-      m_deleter (*m_data.m_buffer_address);
-    }
-  m_data = {};
-  m_deleter = {};
-}
-
-std::optional<amd_dbgapi_global_address_t>
-instruction_buffer_t::release ()
-{
-  auto buffer_address = m_data.m_buffer_address;
-  m_data = {};
-  m_deleter = {};
-  return buffer_address;
 }
 
 } /* namespace amd::dbgapi */

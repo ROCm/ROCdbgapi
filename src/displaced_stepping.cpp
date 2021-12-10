@@ -47,9 +47,7 @@ displaced_stepping_t::displaced_stepping_t (
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "created new %s (from=%#lx, %s)",
               to_string (id ()).c_str (), from (),
               m_is_simulated ? "simulated"
-                             : string_printf ("to=[%#lx..%#lx[", to (),
-                                              m_instruction_buffer->end ())
-                                 .c_str ());
+                             : string_printf ("to=%#lx", to ()).c_str ());
 }
 
 displaced_stepping_t::~displaced_stepping_t ()
