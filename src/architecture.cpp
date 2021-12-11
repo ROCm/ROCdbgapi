@@ -2071,7 +2071,7 @@ amdgcn_architecture_t::register_read_only_mask (amdgpu_regnum_t regnum) const
       return &status_read_only_bits;
 
     case amdgpu_regnum_t::pc:
-      static uint32_t pc_read_only_bits = utils::bit_mask (0, 1); /* 0  */
+      static uint64_t pc_read_only_bits = utils::bit_mask (0, 1); /* 0  */
       return &pc_read_only_bits;
 
     default:
