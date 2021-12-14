@@ -58,6 +58,11 @@ wave_t::~wave_t ()
       dbgapi_assert (!queue ().is_valid ());
       displaced_stepping_t::release (m_displaced_stepping);
     }
+
+  /* If the wave was single-stepping, the client is expecting either a stop
+     event, or a command terminated event.  */
+  if (state () == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
+    raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED);
 }
 
 void

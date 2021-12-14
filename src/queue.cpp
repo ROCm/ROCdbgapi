@@ -197,15 +197,13 @@ aql_queue_t::aql_queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
 
 aql_queue_t::~aql_queue_t ()
 {
-  /* TODO: we need to iterate the waves belonging to this queue and enqueue
-     events for aborted requests.  i.e. single-step or stop requests that were
-     submitted, but the queue was invalidated/destroyed before reporting the
-     event, we still need to notify the application, so that it does not wait
-     forever.  */
-
   process_t &process = this->process ();
 
-  /* FIXME: need to submit events for aborted requests.  */
+  /* Destruct all waves and dispatches associated with this queue.  Waves that
+     are executing a displaced stepped instruction will release the displaced
+     stepping buffer when destructed, and raise a command terminated event if
+     single-stepping (see wave_t::~wave_t).  */
+
   auto &&wave_range = process.range<wave_t> ();
   for (auto it = wave_range.begin (); it != wave_range.end ();)
     it = (it->queue () == *this) ? process.destroy (it) : ++it;
