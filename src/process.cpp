@@ -1654,8 +1654,6 @@ process_t::query_debug_event (os_exception_mask_t cleared_exceptions)
           os_queue_snapshot_entry_t queue_info{};
           queue_info.queue_id = os_queue_id;
 
-          /* FIXME: need a dummy agent, for now, use the 1st agent in the
-             process, there must be at least 1 agent if we have exceptions.  */
           amd_dbgapi_queue_id_t queue_id
             = queue_t::create (std::nullopt, m_dummy_agent, queue_info).id ();
 

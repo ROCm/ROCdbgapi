@@ -3752,8 +3752,6 @@ gfx10_architecture_t::gfx10_architecture_t (elf_amdgpu_machine_t e_machine,
   system_registers->remove_registers (amdgpu_regnum_t::xnack_mask_64,
                                       amdgpu_regnum_t::xnack_mask_64);
 
-  /* FIXME: Remove xnack_mask_64 since gfx10 does not support it?  */
-
   /* General registers: [s103-s105, {vector}_32, exec_32, vcc_32]  */
   register_class_t *general_registers
     = find_if ([] (const register_class_t &register_class)
