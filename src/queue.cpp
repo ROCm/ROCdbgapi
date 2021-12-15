@@ -508,7 +508,8 @@ aql_queue_t::update_waves ()
        without having entered the trap handler, and its pc points to the kernel
        entry point.  */
     if (is_new_wave && wave->state () == AMD_DBGAPI_WAVE_STATE_RUN
-        && wave->pc () == wave->dispatch ().kernel_code_entry_address ()
+        && wave->pc ()
+             == wave->dispatch ().kernel_descriptor ().entry_address ()
         && wave->is_halted ())
       {
         wave->set_visibility (wave_t::visibility_t::hidden_halted_at_launch);

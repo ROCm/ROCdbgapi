@@ -156,6 +156,37 @@ protected:
     return utils::bit_extract (relaunch, 31, 31);
   }
 
+  class kernel_descriptor_t : public architecture_t::kernel_descriptor_t
+  {
+  private:
+    struct
+    {
+      uint32_t group_segment_fixed_size;
+      uint32_t private_segment_fixed_size;
+      uint8_t reserved0[8];
+      int64_t kernel_code_entry_byte_offset;
+      uint8_t reserved1[20];
+      uint32_t compute_pgm_rsrc3;
+      uint32_t compute_pgm_rsrc1;
+      uint32_t compute_pgm_rsrc2;
+      uint16_t kernel_code_properties;
+      uint8_t reserved2[6];
+    } m_descriptor;
+
+  public:
+    kernel_descriptor_t (process_t &process,
+                         amd_dbgapi_global_address_t address)
+      : architecture_t::kernel_descriptor_t (process, address)
+    {
+      process.read_global_memory (address, &m_descriptor);
+    }
+
+    amd_dbgapi_global_address_t entry_address () const override
+    {
+      return address () + m_descriptor.kernel_code_entry_byte_offset;
+    }
+  };
+
   class cwsr_record_t : public architecture_t::cwsr_record_t
   {
   protected:
@@ -185,6 +216,15 @@ protected:
   amd_comgr_disassembly_info_t disassembly_info () const;
 
 public:
+  std::unique_ptr<const architecture_t::kernel_descriptor_t>
+  make_kernel_descriptor (
+    process_t &process,
+    amd_dbgapi_global_address_t kernel_descriptor_address) const override
+  {
+    return std::make_unique<amdgcn_architecture_t::kernel_descriptor_t> (
+      process, kernel_descriptor_address);
+  }
+
   std::pair<amd_dbgapi_segment_address_t /* to_address  */,
             amd_dbgapi_size_t /* to_contiguous_bytes  */>
   convert_address_space (

@@ -50,20 +50,16 @@ dispatch_t::dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id,
 
   /* Read the dispatch packet and kernel descriptor.  */
   process ().read_global_memory (packet_address, &m_packet);
-  process ().read_global_memory (m_packet.kernel_object, &m_kernel_descriptor);
+
+  m_kernel_descriptor = architecture ().make_kernel_descriptor (
+    process (), m_packet.kernel_object);
 }
 
-amd_dbgapi_global_address_t
-dispatch_t::kernel_descriptor_address () const
+const architecture_t::kernel_descriptor_t &
+dispatch_t::kernel_descriptor () const
 {
-  return m_packet.kernel_object;
-}
-
-amd_dbgapi_global_address_t
-dispatch_t::kernel_code_entry_address () const
-{
-  return m_packet.kernel_object
-         + m_kernel_descriptor.kernel_code_entry_byte_offset;
+  dbgapi_assert (m_kernel_descriptor);
+  return *m_kernel_descriptor;
 }
 
 void
@@ -170,11 +166,12 @@ dispatch_t::get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
       return;
 
     case AMD_DBGAPI_DISPATCH_INFO_KERNEL_DESCRIPTOR_ADDRESS:
-      utils::get_info (value_size, value, kernel_descriptor_address ());
+      utils::get_info (value_size, value, kernel_descriptor ().address ());
       return;
 
     case AMD_DBGAPI_DISPATCH_INFO_KERNEL_CODE_ENTRY_ADDRESS:
-      utils::get_info (value_size, value, kernel_code_entry_address ());
+      utils::get_info (value_size, value,
+                       kernel_descriptor ().entry_address ());
       return;
 
     case AMD_DBGAPI_DISPATCH_INFO_KERNEL_COMPLETION_ADDRESS:

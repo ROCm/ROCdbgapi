@@ -23,6 +23,7 @@
 
 #include "agent.h"
 #include "amd-dbgapi.h"
+#include "architecture.h"
 #include "handle_object.h"
 #include "queue.h"
 
@@ -41,27 +42,13 @@ class process_t;
 
 class dispatch_t : public detail::handle_object<amd_dbgapi_dispatch_id_t>
 {
-  /* TODO: Move to Architecture as the descriptor is target architecture
-     specific.  */
-  struct kernel_descriptor_t
-  {
-    uint32_t group_segment_fixed_size;
-    uint32_t private_segment_fixed_size;
-    uint8_t reserved0[8];
-    int64_t kernel_code_entry_byte_offset;
-    uint8_t reserved1[20];
-    uint32_t compute_pgm_rsrc3;
-    uint32_t compute_pgm_rsrc1;
-    uint32_t compute_pgm_rsrc2;
-    uint16_t kernel_code_properties;
-    uint8_t reserved2[6];
-  };
-
 private:
   amd_dbgapi_os_queue_packet_id_t const m_os_queue_packet_id;
-  hsa_kernel_dispatch_packet_t m_packet{};
 
-  kernel_descriptor_t m_kernel_descriptor{};
+  hsa_kernel_dispatch_packet_t m_packet{};
+  std::unique_ptr<const architecture_t::kernel_descriptor_t>
+    m_kernel_descriptor{};
+
   compute_queue_t &m_queue;
 
 public:
@@ -72,8 +59,7 @@ public:
   ~dispatch_t () {}
 
   uint64_t os_queue_packet_id () const { return m_os_queue_packet_id; }
-  amd_dbgapi_global_address_t kernel_descriptor_address () const;
-  amd_dbgapi_global_address_t kernel_code_entry_address () const;
+  const architecture_t::kernel_descriptor_t &kernel_descriptor () const;
 
   void get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
                  void *value) const;
