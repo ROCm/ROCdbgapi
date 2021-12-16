@@ -2043,8 +2043,6 @@ amd_dbgapi_process_set_progress (amd_dbgapi_process_id_t process_id,
             /* The process has exited, forward progress is irrelevant.  */
           }
       }
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
@@ -2085,8 +2083,6 @@ amd_dbgapi_process_set_wave_creation (amd_dbgapi_process_id_t process_id,
       {
         /* The process has exited, the wave launch mode is irrelevant.  */
       }
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
@@ -2142,8 +2138,6 @@ amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
       }
 
     *process_id = amd_dbgapi_process_id_t{ process->id () };
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_ALREADY_ATTACHED,
@@ -2174,8 +2168,6 @@ amd_dbgapi_process_detach (amd_dbgapi_process_id_t process_id)
       {
       }
     process_t::destroy_process (process);
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
@@ -2208,8 +2200,6 @@ amd_dbgapi_process_get_info (amd_dbgapi_process_id_t process_id,
         fatal_error (
           "process_t::get_info should not throw process_exited exceptions");
       }
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,

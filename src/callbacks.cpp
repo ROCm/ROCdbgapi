@@ -97,8 +97,6 @@ amd_dbgapi_report_breakpoint_hit (
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_BREAKPOINT_ID);
 
     breakpoint->action () (*breakpoint, client_thread_id, breakpoint_action);
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_BREAKPOINT_ID,
@@ -124,8 +122,6 @@ amd_dbgapi_breakpoint_get_info (amd_dbgapi_breakpoint_id_t breakpoint_id,
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_BREAKPOINT_ID);
 
     breakpoint->get_info (query, value_size, value);
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_BREAKPOINT_ID,

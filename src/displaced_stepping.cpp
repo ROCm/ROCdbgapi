@@ -123,8 +123,6 @@ amd_dbgapi_displaced_stepping_start (
     wave->displaced_stepping_start (saved_instruction_bytes);
 
     *displaced_stepping_id = wave->displaced_stepping ()->id ();
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID,
@@ -167,8 +165,6 @@ amd_dbgapi_displaced_stepping_complete (
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
     wave->displaced_stepping_complete ();
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID,
@@ -196,8 +192,6 @@ amd_dbgapi_displaced_stepping_get_info (
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_DISPLACED_STEPPING_ID);
 
     displaced_stepping->get_info (query, value_size, value);
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_DISPLACED_STEPPING_ID,

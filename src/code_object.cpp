@@ -75,8 +75,6 @@ amd_dbgapi_code_object_get_info (amd_dbgapi_code_object_id_t code_object_id,
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_CODE_OBJECT_ID);
 
     code_object->get_info (query, value_size, value);
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_CODE_OBJECT_ID,
@@ -105,8 +103,6 @@ amd_dbgapi_process_code_object_list (
 
     std::tie (*code_objects, *code_object_count)
       = utils::get_handle_list<code_object_t> (processes, changed);
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,

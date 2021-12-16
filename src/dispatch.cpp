@@ -77,8 +77,6 @@ amd_dbgapi_dispatch_get_info (amd_dbgapi_dispatch_id_t dispatch_id,
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_DISPATCH_ID);
 
     dispatch->get_info (query, value_size, value);
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_DISPATCH_ID,
@@ -137,8 +135,6 @@ amd_dbgapi_process_dispatch_list (amd_dbgapi_process_id_t process_id,
     std::tie (*dispatches, *dispatch_count) = dispatch_list;
     if (changed)
       *changed = dispatch_list_changed;
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,

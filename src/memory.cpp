@@ -379,8 +379,6 @@ amd_dbgapi_address_class_get_info (
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     address_class->get_info (query, value_size, value);
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_CLASS_ID,
@@ -421,8 +419,6 @@ amd_dbgapi_architecture_address_class_list (
 
     *address_class_count = count;
     *address_classes = class_ids.release ();
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID,
@@ -462,8 +458,6 @@ amd_dbgapi_dwarf_address_class_to_address_class (
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
     *address_class_id = address_class->id ();
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID,
@@ -493,8 +487,6 @@ amd_dbgapi_address_space_get_info (
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     address_space->get_info (query, value_size, value);
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID,
@@ -537,8 +529,6 @@ amd_dbgapi_architecture_address_space_list (
     dbgapi_assert (pos == count);
     *address_space_count = count;
     *address_spaces = space_ids.release ();
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID,
@@ -578,8 +568,6 @@ amd_dbgapi_dwarf_address_space_to_address_space (
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
     *address_space_id = address_space->id ();
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID,
@@ -626,8 +614,6 @@ amd_dbgapi_convert_address_space (
         *destination_segment_address = source_segment_address;
         *destination_contiguous_bytes
           = global_address_mask - source_segment_address + 1;
-
-        return AMD_DBGAPI_STATUS_SUCCESS;
       }
 
     wave_t *wave = find (wave_id);
@@ -655,8 +641,6 @@ amd_dbgapi_convert_address_space (
       = architecture.convert_address_space (
         *wave, lane_id, *source_address_space, *destination_address_space,
         source_segment_address);
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID,
@@ -701,8 +685,6 @@ amd_dbgapi_address_is_in_address_class (
                                 || kind == address_space_t::kind_t::generic)
                                  ? AMD_DBGAPI_ADDRESS_CLASS_STATE_MEMBER
                                  : AMD_DBGAPI_ADDRESS_CLASS_STATE_NOT_MEMBER;
-
-        return AMD_DBGAPI_STATUS_SUCCESS;
       }
 
     wave_t *wave = find (wave_id);
@@ -728,8 +710,6 @@ amd_dbgapi_address_is_in_address_class (
           *wave, lane_id, *address_space, segment_address, *address_class)
           ? AMD_DBGAPI_ADDRESS_CLASS_STATE_MEMBER
           : AMD_DBGAPI_ADDRESS_CLASS_STATE_NOT_MEMBER;
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID,
@@ -802,8 +782,6 @@ amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
                                                  lane_id, lowered_address,
                                                  value, nullptr, *value_size);
       }
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
@@ -880,8 +858,6 @@ amd_dbgapi_write_memory (amd_dbgapi_process_id_t process_id,
                                                  lane_id, lowered_address,
                                                  nullptr, value, *value_size);
       }
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
@@ -917,8 +893,6 @@ amd_dbgapi_set_memory_precision (
 
     process->set_precise_memory (memory_precision
                                  == AMD_DBGAPI_MEMORY_PRECISION_PRECISE);
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,

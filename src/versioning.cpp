@@ -215,8 +215,6 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     *status_string = string;
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
   TRACE_END (make_ref (status_string));

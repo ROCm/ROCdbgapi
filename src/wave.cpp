@@ -1082,8 +1082,6 @@ amd_dbgapi_wave_stop (amd_dbgapi_wave_id_t wave_id)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
     wave->set_state (AMD_DBGAPI_WAVE_STATE_STOP);
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID,
@@ -1144,8 +1142,6 @@ amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
                        ? AMD_DBGAPI_WAVE_STATE_SINGLE_STEP
                        : AMD_DBGAPI_WAVE_STATE_RUN,
                      exceptions);
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID,
@@ -1186,8 +1182,6 @@ amd_dbgapi_wave_get_info (amd_dbgapi_wave_id_t wave_id,
       };
 
     wave->get_info (query, value_size, value);
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID,
@@ -1247,8 +1241,6 @@ amd_dbgapi_process_wave_list (amd_dbgapi_process_id_t process_id,
     std::tie (*waves, *wave_count) = wave_list;
     if (changed)
       *changed = wave_list_changed;
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,

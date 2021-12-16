@@ -1120,8 +1120,6 @@ amd_dbgapi_queue_get_info (amd_dbgapi_queue_id_t queue_id,
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_QUEUE_ID);
 
     queue->get_info (query, value_size, value);
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_QUEUE_ID,
@@ -1154,8 +1152,6 @@ amd_dbgapi_process_queue_list (amd_dbgapi_process_id_t process_id,
 
     std::tie (*queues, *queue_count)
       = utils::get_handle_list<queue_t> (processes, changed);
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
@@ -1210,8 +1206,6 @@ amd_dbgapi_queue_packet_list (
     *read_packet_id_p = read_packet_id;
     *write_packet_id_p = write_packet_id;
     *packets_byte_size_p = memory_size;
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,

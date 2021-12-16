@@ -4905,8 +4905,6 @@ amd_dbgapi_get_architecture (uint32_t elf_amdgpu_machine,
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ELF_AMDGPU_MACHINE);
 
     *architecture_id = architecture->id ();
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ELF_AMDGPU_MACHINE,
@@ -4933,8 +4931,6 @@ amd_dbgapi_architecture_get_info (amd_dbgapi_architecture_id_t architecture_id,
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID);
 
     architecture->get_info (query, value_size, value);
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID,
@@ -4989,64 +4985,64 @@ amd_dbgapi_disassemble_instruction (
           THROW (AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION);
 
         *size = instruction.size ();
-        return AMD_DBGAPI_STATUS_SUCCESS;
       }
-
-    /* Don't call instruction_t::is_valid () as we would end-up calling the
-       disassembler twice, first to validate the instruction's size, and a
-       second time to disassemble the instruction.  Instead, check that the
-       returned instruction size is not 0.  */
-
-    auto [instruction_size, instruction_str, address_operands]
-      = architecture->disassemble_instruction (address, instruction);
-
-    if (!instruction_size)
-      THROW (AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION);
-
-    std::string address_operands_str;
-    for (auto &&operand : address_operands)
+    else
       {
-        address_operands_str += address_operands_str.empty () ? "  # " : ", ";
+        /* Don't call instruction_t::is_valid () as we would end-up calling the
+           disassembler twice, first to validate the instruction's size, and a
+           second time to disassemble the instruction.  Instead, check that the
+           returned instruction size is not 0.  */
 
-        if (symbolizer)
+        auto [instruction_size, instruction_str, address_operands]
+          = architecture->disassemble_instruction (address, instruction);
+
+        if (!instruction_size)
+          THROW (AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION);
+
+        std::string address_operands_str;
+        for (auto &&operand : address_operands)
           {
-            char *symbol_text{};
+            address_operands_str
+              += address_operands_str.empty () ? "  # " : ", ";
 
-            amd_dbgapi_status_t status
-              = symbolizer (symbolizer_id, operand, &symbol_text);
-
-            if (status == AMD_DBGAPI_STATUS_SUCCESS)
+            if (symbolizer)
               {
-                if (!symbol_text)
-                  THROW (AMD_DBGAPI_STATUS_ERROR);
+                char *symbol_text{};
 
-                auto deallocate_symbol_text = utils::make_scope_exit (
-                  [&] () { deallocate_memory (symbol_text); });
+                amd_dbgapi_status_t status
+                  = symbolizer (symbolizer_id, operand, &symbol_text);
 
-                if (!symbol_text[0])
-                  THROW (AMD_DBGAPI_STATUS_ERROR);
+                if (status == AMD_DBGAPI_STATUS_SUCCESS)
+                  {
+                    if (!symbol_text)
+                      THROW (AMD_DBGAPI_STATUS_ERROR);
 
-                address_operands_str += symbol_text;
-                continue;
+                    auto deallocate_symbol_text = utils::make_scope_exit (
+                      [&] () { deallocate_memory (symbol_text); });
+
+                    if (!symbol_text[0])
+                      THROW (AMD_DBGAPI_STATUS_ERROR);
+
+                    address_operands_str += symbol_text;
+                    continue;
+                  }
+                else if (status != AMD_DBGAPI_STATUS_ERROR_SYMBOL_NOT_FOUND)
+                  THROW (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
               }
-            else if (status != AMD_DBGAPI_STATUS_ERROR_SYMBOL_NOT_FOUND)
-              THROW (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
+
+            address_operands_str += string_printf ("%#lx", operand);
           }
 
-        address_operands_str += string_printf ("%#lx", operand);
+        instruction_str += address_operands_str;
+
+        /* Return the instruction text in client allocated memory.  */
+        size_t mem_size = instruction_str.size () + 1;
+        auto mem = allocate_memory<char[]> (mem_size);
+
+        memcpy (mem.get (), instruction_str.c_str (), mem_size);
+        *instruction_text = mem.release ();
+        *size = instruction_size;
       }
-
-    instruction_str += address_operands_str;
-
-    /* Return the instruction text in client allocated memory.  */
-    size_t mem_size = instruction_str.size () + 1;
-    auto mem = allocate_memory<char[]> (mem_size);
-
-    memcpy (mem.get (), instruction_str.c_str (), mem_size);
-    *instruction_text = mem.release ();
-    *size = instruction_size;
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID,
@@ -5123,8 +5119,6 @@ amd_dbgapi_classify_instruction (
 
     *size_p = size;
     *instruction_kind_p = kind;
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID,

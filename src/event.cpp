@@ -297,8 +297,6 @@ amd_dbgapi_process_next_pending_event (amd_dbgapi_process_id_t process_id,
         *kind = event->kind ();
         event->set_state (event_t::state_t::reported);
       }
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
@@ -324,8 +322,6 @@ amd_dbgapi_event_get_info (amd_dbgapi_event_id_t event_id,
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID);
 
     event->get_info (query, value_size, value);
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID,
@@ -353,8 +349,6 @@ amd_dbgapi_event_processed (amd_dbgapi_event_id_t event_id)
 
     /* We are done with this event, remove it from the map.  */
     event->process ().destroy (event);
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID,

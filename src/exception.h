@@ -111,45 +111,47 @@ void update_process_handles (process_t *process);
 } /* namespace detail */
 
 #define TRY                                                                   \
-  for (process_t *exited_process = {};;)                                      \
+  for (process_t *_exited_process = {};;)                                     \
     {                                                                         \
       try                                                                     \
         {                                                                     \
-          if (exited_process)                                                 \
+          if (_exited_process)                                                \
             {                                                                 \
-              exited_process->update_waves ();                                \
-              exited_process->update_queues ();                               \
-              exited_process->update_code_objects ();                         \
-              exited_process->update_agents ();                               \
+              _exited_process->update_waves ();                               \
+              _exited_process->update_queues ();                              \
+              _exited_process->update_code_objects ();                        \
+              _exited_process->update_agents ();                              \
             }
 
 #define CATCH(/* allowed codes  */...)                                        \
   }                                                                           \
-  catch (const amd::dbgapi::process_exited_exception_t &e)                    \
+  catch (const amd::dbgapi::process_exited_exception_t &_error)               \
   {                                                                           \
     /* Process exited exceptions are never returned to the caller, instead,   \
        the function is re-tried one more time after process tear-down.  If a  \
        process exited exception is thrown again after retrying then return a  \
        fatal error.  */                                                       \
-    if (!exited_process)                                                      \
+    if (!_exited_process)                                                     \
       {                                                                       \
-        exited_process = &e.process ();                                       \
+        _exited_process = &_error.process ();                                 \
         continue;                                                             \
       }                                                                       \
     return AMD_DBGAPI_STATUS_FATAL;                                           \
   }                                                                           \
-  catch (const amd::dbgapi::api_error_t &e)                                   \
+  catch (const amd::dbgapi::api_error_t &_error)                              \
   {                                                                           \
     /* If the error code is one that is allowed, simply return it.  */        \
-    if ([&] (auto &&...code) { return ((e.code () == code) || ...); }(        \
+    if ([&] (auto &&..._code) { return ((_error.code () == _code) || ...); }( \
           AMD_DBGAPI_STATUS_ERROR_NOT_IMPLEMENTED, ##__VA_ARGS__))            \
-      return e.code ();                                                       \
+      return _error.code ();                                                  \
                                                                               \
     /* Everything else is a fatal error.  */                                  \
-    e.print_message ();                                                       \
+    _error.print_message ();                                                  \
     return AMD_DBGAPI_STATUS_FATAL;                                           \
   }                                                                           \
   catch (...) { return AMD_DBGAPI_STATUS_FATAL; }                             \
+                                                                              \
+  return AMD_DBGAPI_STATUS_SUCCESS;                                           \
   }
 
 #define THROW(error_code) throw amd::dbgapi::api_error_t (error_code)

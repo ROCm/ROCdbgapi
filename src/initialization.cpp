@@ -68,8 +68,6 @@ amd_dbgapi_initialize (struct amd_dbgapi_callbacks_s *callbacks)
         return dl_info.dli_fname;
       }(),
       AMD_DBGAPI_BUILD_INFO);
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_ALREADY_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
@@ -102,8 +100,6 @@ amd_dbgapi_finalize ()
         process.detach ();
         process_t::destroy_process (&process);
       }
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);

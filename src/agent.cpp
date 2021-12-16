@@ -150,8 +150,6 @@ amd_dbgapi_agent_get_info (amd_dbgapi_agent_id_t agent_id,
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_AGENT_ID);
 
     agent->get_info (query, value_size, value);
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_AGENT_ID,
@@ -185,8 +183,6 @@ amd_dbgapi_process_agent_list (amd_dbgapi_process_id_t process_id,
 
     std::tie (*agents, *agent_count)
       = utils::get_handle_list<agent_t> (processes, changed);
-
-    return AMD_DBGAPI_STATUS_SUCCESS;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
