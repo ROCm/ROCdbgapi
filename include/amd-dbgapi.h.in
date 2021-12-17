@@ -3396,7 +3396,7 @@ typedef enum
    */
   AMD_DBGAPI_WAVE_STOP_REASON_ASSERT_TRAP = (1ULL << 11),
   /**
-   * The wave stopped due to executing an trap instruction other than the
+   * The wave stopped due to executing a trap instruction other than the
    * ::AMD_DBGAPI_WAVE_STOP_REASON_DEBUG_TRAP or
    * ::AMD_DBGAPI_WAVE_STOP_REASON_ASSERT_TRAP trap instruction.  The program
    * counter is left positioned at the trap instruction.
