@@ -3535,8 +3535,6 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_wave_list (
  * to change the progress mode to ::AMD_DBGAPI_PROGRESS_NORMAL for these events
  * to be reported.
  *
- * It is not necessary for the process  ::AMD_DBGAPI_PROGRESS_NO_FORWARD
- *
  * It is an error to request a wave to stop that has terminated.  The wave
  * handle will be reported as invalid.  It is up to the client to use
  * ::amd_dbgapi_process_wave_list to determine what waves have been created and
