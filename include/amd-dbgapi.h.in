@@ -3836,16 +3836,17 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_resume (
  * later (::amd_dbgapi_displaced_stepping_start).
  *
  * If allocating a displaced stepping buffer indicates no more are available,
- * the client must complete using the previously allocated buffers.  It can do
- * that by ensuring the allocated waves are resumed in single step mode, ensure
- * that the waves will make forward progress, and process any reported pending
- * events.  This allows waves to perform the single step, report the single
- * step has completed by an event, and the client's processing of the event
- * will complete the displaced stepping buffer.  That may free up a displaced
- * stepping buffer for use by the client for other waves.  Since there is
- * always at least one displaced stepping buffer, in general, the worst case is
- * that one wave at a time can be single stepped over a breakpoint using a
- * displaced stepping buffer.
+ * the client must complete ongoing single steppings and release the associated
+ * buffers.  It can do that by ensuring the waves with allocated stepping
+ * buffers are resumed in single step mode, ensure that the waves will make
+ * forward progress, and process any reported pending events.  This allows
+ * waves to perform the single step, report the single step has completed by an
+ * event, and the client's processing of the event will release the displaced
+ * stepping buffer (::amd_dbgapi_displaced_stepping_complete).  That may free
+ * up a displaced stepping buffer for use by the client for other waves.  Since
+ * there is always at least one displaced stepping buffer, in general, the
+ * worst case is that one wave at a time can be single stepped over a
+ * breakpoint using a displaced stepping buffer.
  *
  * However, the weak forward progress of AMD GPU execution can result in no
  * waves that have successfully been allocated a displaced stepping buffer from
@@ -3890,8 +3891,8 @@ typedef struct
 typedef enum
 {
   /**
-   * Return the process to which this displaced stepping belongs.  The type of
-   * this attribute is ::amd_dbgapi_process_id_t.
+   * Return the process to which this displaced stepping buffer belongs.  The
+   * type of this attribute is ::amd_dbgapi_process_id_t.
    */
   AMD_DBGAPI_DISPLACED_STEPPING_INFO_PROCESS = 1
 } amd_dbgapi_displaced_stepping_info_t;
@@ -3971,7 +3972,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_get_info (
  * be resumed or must retry the displaced stepping later.  See
  * ::amd_dbgapi_wave_stop.
  *
- * \param[in] wave_id The wave to create a displaced stepping buffer.
+ * \param[in] wave_id The wave for which to create a displaced stepping buffer.
  *
  * \param[in] saved_instruction_bytes The original instruction bytes that the
  * breakpoint instruction replaced.  The number of bytes must be
@@ -4032,9 +4033,9 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_start (
  * The wave must be stopped and have an associated displaced stepping buffer by
  * using ::amd_dbgapi_displaced_stepping_start.
  *
- * If the wave single step has not completed the wave state is reset to what it
- * was before ::amd_dbgapi_displaced_stepping_start.  The wave is left stopped
- * and the client can retry stepping over the breakpoint again later.
+ * If the wave single step has not completed, the wave state is reset to what
+ * it was before ::amd_dbgapi_displaced_stepping_start.  The wave is left
+ * stopped and the client can retry stepping over the breakpoint again later.
  *
  * If the single step has completed, then the wave state is updated to be after
  * the instruction at which the breakpoint instruction is placed.
