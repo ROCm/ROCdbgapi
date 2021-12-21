@@ -46,7 +46,23 @@ dispatch_t::dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id,
 {
   /* If this is a dummy dispatch, we don't have a packet to read from.  */
   if (dispatch_id == AMD_DBGAPI_DISPATCH_NONE)
-    return;
+    {
+      class dummy_descriptor_t : public architecture_t::kernel_descriptor_t
+      {
+      public:
+        dummy_descriptor_t (process_t &process)
+          : architecture_t::kernel_descriptor_t (process, 0)
+        {
+        }
+        amd_dbgapi_global_address_t entry_address () const override
+        {
+          return 0;
+        }
+      };
+
+      m_kernel_descriptor = std::make_unique<dummy_descriptor_t> (process ());
+      return;
+    }
 
   /* Read the dispatch packet and kernel descriptor.  */
   process ().read_global_memory (packet_address, &m_packet);
