@@ -4850,8 +4850,8 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_register_list (
  *
  * The AMD GPU DWARF register number must be valid for the architecture.
  *
- * See [User Guide for AMDGPU Backend - Code Object - DWARF - Register Mapping]
- * (https://llvm.org/docs/AMDGPUUsage.html#register-mapping).
+ * See [User Guide for AMDGPU Backend - Code Object - DWARF - Register
+ * Identifier] (https://llvm.org/docs/AMDGPUUsage.html#register-identifier).
  *
  * \param[in] architecture_id The architecture of the DWARF register.
  *
