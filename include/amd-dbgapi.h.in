@@ -69,15 +69,22 @@
  * control the inferior.  Therefore, the library must be executed on the same
  * machine as the inferior.
  *
- * The library uses opaque handles to refer to the entities that it manages.
- * These should not be modified directly.  See the handle definitions for
- * information on the lifetime and scope of handles of that type.  If a handle
- * becomes invalidated it is undefined to use it with any library operations.
- * A handle value is globally unique between a call to ::amd_dbgapi_initialize
- * and a matching call to ::amd_dbgapi_finalize.  This is true even if the
- * handle becomes invalidated: handle values are not reused within a library
- * instance.  Every handle with \p handle of 0 is reserved to indicate the
- * handle does not reference an entity.
+ * A library instance is defined as the period between a call to
+ * ::amd_dbgapi_initialize and a matching call to ::amd_dbgapi_finalize.
+ *
+ * The library uses opaque handles to refer to the entities that it manages.  A
+ * handle value should not be modified directly.  See the handle definitions
+ * for information on the lifetime and scope of handles of that type.  Handles
+ * are invalidated outside their lifetime, scope, or single library instance.
+ * If a handle is returned by an operation in one library instance which then
+ * becomes invalidated, then any operation using that handle in the same
+ * library instance will return an invalid handle error code.  However, it is
+ * undefined to use a handle created by an operation in one library instance in
+ * the operations of another library instance.  A handle value is globally
+ * unique within each library instance.  This is true even if the handle
+ * becomes invalidated: handle values are not reused within a library instance.
+ * Every handle with \p handle value of 0 is reserved to indicate the handle
+ * does not reference an entity.
  *
  * When the library is first loaded it is in the uninitialized state with the
  * logging level set to ::AMD_DBGAPI_LOG_LEVEL_NONE.
@@ -1111,9 +1118,10 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_finalize (void)
 /**
  * Opaque architecture handle.
  *
- * An architecture handle is unique for each AMD GPU model supported by the
- * library.  They are only valid while the library is initialized and are
- * invalidated when the library is uninitialized.
+ * There is an architecture handle for each AMD GPU model supported by the
+ * library.
+ *
+ * Globally unique for a single library instance.
  */
 typedef struct
 {
@@ -1607,12 +1615,12 @@ typedef struct amd_dbgapi_client_process_s *amd_dbgapi_client_process_id_t;
 /**
  * Opaque process handle.
  *
- * Unique for a single library initialization.
- *
  * All operations that control an AMD GPU specify the process that is using the
  * AMD GPU with the process handle.  It is undefined to use handles returned by
  * operations performed for one process, with operations performed for a
  * different process.
+ *
+ * Globally unique for a single library instance.
  */
 typedef struct
 {
@@ -2005,7 +2013,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_set_wave_creation (
 /**
  * Opaque code object handle.
  *
- * Only unique within a single process.
+ * Globally unique for a single library instance.
  */
 typedef struct
 {
@@ -2206,7 +2214,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_code_object_list (
 /**
  * Opaque agent handle.
  *
- * Only unique within a single process.
+ * Globally unique for a single library instance.
  */
 typedef struct
 {
@@ -2434,7 +2442,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_agent_list (
 /**
  * Opaque queue handle.
  *
- * Only unique within a single process.
+ * Globally unique for a single library instance.
  */
 typedef struct
 {
@@ -2807,7 +2815,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_queue_packet_list (
 /**
  * Opaque dispatch handle.
  *
- * Only unique within a single process.
+ * Globally unique for a single library instance.
  */
 typedef struct
 {
@@ -3074,7 +3082,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_dispatch_list (
  *
  * Waves are the way the AMD GPU executes code.
  *
- * Only unique within a single process.
+ * Globally unique for a single library instance.
  */
 typedef struct
 {
@@ -3868,7 +3876,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_resume (
 /**
  * Opaque displaced stepping handle.
  *
- * Only unique within a single process.
+ * Globally unique for a single library instance.
  */
 typedef struct
 {
@@ -4113,7 +4121,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_complete (
 /**
  * Opaque hardware data watchpoint handle.
  *
- * Only unique within a single process.
+ * Globally unique for a single library instance.
  */
 typedef struct
 {
@@ -4379,7 +4387,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_remove_watchpoint (
  * presenting register lists to a user.  For example, there could be a register
  * class for \e system, \e general, and \e vector.
  *
- * The handle is only unique within a specific architecture.
+ * Globally unique for a single library instance.
  */
 typedef struct
 {
@@ -4509,7 +4517,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_register_class_list (
  * A handle that denotes the set of hardware registers supported by an
  * architecture.
  *
- * The handle is only unique within a specific architecture.
+ * Globally unique for a single library instance.
  */
 typedef struct
 {
@@ -5193,7 +5201,7 @@ typedef uint32_t amd_dbgapi_lane_id_t;
  * Each architecture has its own mapping of them to the architecture specific
  * address spaces.
  *
- * The handle is only unique within a specific architecture.
+ * Globally unique for a single library instance.
  *
  * See [User Guide for AMDGPU Backend - Code Object - DWARF - Address Class
  * Mapping] (https://llvm.org/docs/AMDGPUUsage.html#address-class-mapping).
@@ -5378,7 +5386,7 @@ amd_dbgapi_dwarf_address_class_to_address_class (
  * A handle that denotes the set of address spaces supported by an
  * architecture.
  *
- * The handle is only unique within a specific architecture.
+ * Globally unique for a single library instance.
  *
  * See [User Guide for AMDGPU Backend - LLVM - Address Spaces]
  * (https://llvm.org/docs/AMDGPUUsage.html#address-spaces).
@@ -6115,7 +6123,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_memory_precision (
 /**
  * Opaque event handle.
  *
- * Only unique within a single process.
+ * Globally unique for a single library instance.
  */
 typedef struct
 {
@@ -6510,14 +6518,13 @@ void AMD_DBGAPI amd_dbgapi_set_log_level (amd_dbgapi_log_level_t level)
 /**
  * Opaque breakpoint handle.
  *
- * Every breakpoint added within a process will have a unique handle.  Only
- * unique within a single process.
- *
  * The implementation of the library requests the client to insert breakpoints
  * in certain functions so that it can be notified when certain actions are
  * being performed, and to stop the thread performing the action.  This allows
  * the data to be retrieved and updated without conflicting with the thread.
  * The library will resume the thread when it has completed the access.
+ *
+ * Globally unique for a single library instance.
  */
 typedef struct
 {
