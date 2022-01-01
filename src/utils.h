@@ -203,6 +203,14 @@ align_up (Integral x, int alignment)
   return (x + alignment - 1) & -alignment;
 }
 
+template <typename Integral>
+constexpr bool
+is_aligned (Integral x, int alignment)
+{
+  dbgapi_assert (is_power_of_two (alignment));
+  return x == align_down (x, alignment);
+}
+
 namespace detail
 {
 

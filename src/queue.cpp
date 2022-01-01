@@ -149,6 +149,13 @@ aql_queue_t::aql_queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
   if (!header.debugger_memory_offset || !header.debugger_memory_size)
     fatal_error ("Per-queue memory reserved for the debugger is missing");
 
+  /* Make sure the debugger memory is aligned so that it can be used to store
+     displaced instructions, and that each chunk out of that memory register is
+     also aligned.  */
+  dbgapi_assert (
+    utils::is_aligned (debugger_memory_chunk_size,
+                       architecture ().minimum_instruction_alignment ()));
+
   m_debugger_memory_base = utils::align_up (
     ctx_save_base + header.debugger_memory_offset, debugger_memory_chunk_size);
 
@@ -278,6 +285,12 @@ aql_queue_t::allocate_displaced_instruction (const instruction_t &instruction)
   amd_dbgapi_global_address_t displaced_instruction_address
     = instruction_buffer_address + debugger_memory_chunk_size
       - assert_instruction.size () - instruction.size ();
+
+  /* Make sure the new displaced instruction is properly aligned for this
+     architecture.  */
+  dbgapi_assert (
+    utils::is_aligned (displaced_instruction_address,
+                       architecture ().minimum_instruction_alignment ()));
 
   process ().write_global_memory (displaced_instruction_address,
                                   instruction.data (), instruction.size ());

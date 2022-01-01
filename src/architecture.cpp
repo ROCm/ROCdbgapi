@@ -301,7 +301,7 @@ public:
   wave_disable_traps (wave_t &wave,
                       os_wave_launch_trap_mask_t mask) const override final;
 
-  size_t minimum_instruction_alignment () const override;
+  size_t minimum_instruction_alignment () const override final;
   virtual instruction_t trap_instruction (std::optional<trap_id_t> trap_id
                                           = std::nullopt) const;
   instruction_t breakpoint_instruction () const override;
@@ -498,6 +498,9 @@ std::tuple<amd_dbgapi_size_t /* instruction_size  */,
 amdgcn_architecture_t::disassemble_instruction (
   amd_dbgapi_global_address_t address, const instruction_t &instruction) const
 {
+  dbgapi_assert (
+    utils::is_aligned (address, minimum_instruction_alignment ()));
+
   std::string instruction_text;
   std::vector<uint64_t> address_operands;
   size_t size;
@@ -828,7 +831,17 @@ amdgcn_architecture_t::triggered_watchpoints (const wave_t &wave) const
 size_t
 amdgcn_architecture_t::minimum_instruction_alignment () const
 {
-  return sizeof (uint32_t);
+  /* Some of the PC register's least significant bits are zero (not wired),
+     enforcing a minimum instruction alignment.  This alignment can be deduced
+     from the PC register's writable bits mask.  */
+
+  auto *mask = register_read_only_mask (amdgpu_regnum_t::pc);
+  dbgapi_assert (mask);
+
+  size_t align = *static_cast<const amd_dbgapi_global_address_t *> (mask) + 1;
+  dbgapi_assert (utils::is_power_of_two (align));
+
+  return align;
 }
 
 instruction_t
@@ -991,16 +1004,16 @@ amdgcn_architecture_t::branch_target (wave_t &wave,
                                       const instruction_t &instruction) const
 {
   dbgapi_assert (instruction.is_valid ());
+  amd_dbgapi_global_address_t target;
 
   if (is_branch (instruction) || is_call (instruction)
       || is_cbranch (instruction) || is_cbranch_i_fork (instruction))
     {
-      return pc + instruction.size ()
-             + (static_cast<std::ptrdiff_t> (simm16_operand (instruction))
-                << 2);
+      target
+        = pc + instruction.size ()
+          + (static_cast<std::ptrdiff_t> (simm16_operand (instruction)) << 2);
     }
-
-  if (is_cbranch_g_fork (instruction))
+  else if (is_cbranch_g_fork (instruction))
     {
       auto regnum = scalar_operand_to_regnum (ssrc1_operand (instruction));
 
@@ -1012,10 +1025,9 @@ amdgcn_architecture_t::branch_target (wave_t &wave,
       wave.read_register (*regnum + 0, &pc_lo);
       wave.read_register (*regnum + 1, &pc_hi);
 
-      return (static_cast<uint64_t> (pc_hi) << 32) | pc_lo;
+      target = (static_cast<uint64_t> (pc_hi) << 32) | pc_lo;
     }
-
-  if (is_setpc (instruction) || is_swappc (instruction))
+  else if (is_setpc (instruction) || is_swappc (instruction))
     {
       auto ssrc_regnum
         = scalar_operand_to_regnum (ssrc0_operand (instruction));
@@ -1028,11 +1040,10 @@ amdgcn_architecture_t::branch_target (wave_t &wave,
       wave.read_register (*ssrc_regnum + 0, &ssrc_lo);
       wave.read_register (*ssrc_regnum + 1, &ssrc_hi);
 
-      return amd_dbgapi_global_address_t{ ssrc_lo }
-             | amd_dbgapi_global_address_t{ ssrc_hi } << 32;
+      target = amd_dbgapi_global_address_t{ ssrc_lo }
+               | amd_dbgapi_global_address_t{ ssrc_hi } << 32;
     }
-
-  if (is_cbranch_join (instruction))
+  else if (is_cbranch_join (instruction))
     {
       uint32_t csp;
       wave.read_register (amdgpu_regnum_t::csp, &csp);
@@ -1043,10 +1054,12 @@ amdgcn_architecture_t::branch_target (wave_t &wave,
       wave.read_register (regnum + 2, &pc_lo);
       wave.read_register (regnum + 3, &pc_hi);
 
-      return (static_cast<uint64_t> (pc_hi) << 32) | pc_lo;
+      target = (static_cast<uint64_t> (pc_hi) << 32) | pc_lo;
     }
+  else
+    dbgapi_assert_not_reached ("not a branch instruction");
 
-  dbgapi_assert_not_reached ("not a branch instruction");
+  return utils::align_down (target, minimum_instruction_alignment ());
 }
 
 std::tuple<amd_dbgapi_instruction_kind_t, amd_dbgapi_instruction_properties_t,
@@ -1255,7 +1268,7 @@ amdgcn_architecture_t::simulate (wave_t &wave, amd_dbgapi_global_address_t pc,
 
   dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "%s simulated \"%s\" (pc=%#lx)",
               to_string (wave.id ()).c_str (),
-              std::get<1> (
+              std::get<std::string> (
                 wave.architecture ().disassemble_instruction (pc, instruction))
                 .c_str (),
               pc);
@@ -1268,6 +1281,8 @@ amdgcn_architecture_t::simulate_instruction (
   wave_t &wave, amd_dbgapi_global_address_t pc,
   const instruction_t &instruction) const
 {
+  dbgapi_assert (utils::is_aligned (pc, minimum_instruction_alignment ()));
+
   if (is_branch (instruction) || is_cbranch (instruction)
       || is_setpc (instruction))
     {
@@ -1383,6 +1398,8 @@ amdgcn_architecture_t::simulate_trap_handler (
   wave_t &wave, amd_dbgapi_global_address_t pc,
   std::optional<trap_id_t> trap_id) const
 {
+  dbgapi_assert (utils::is_aligned (pc, minimum_instruction_alignment ()));
+
   uint32_t status_reg, ttmp6;
   wave.read_register (amdgpu_regnum_t::status, &status_reg);
   wave.read_register (amdgpu_regnum_t::ttmp6, &ttmp6);
@@ -1416,14 +1433,10 @@ amdgcn_architecture_t::simulate_trap_handler (
       ttmp11 |= (utils::bit_extract (pc, 32, 47) << 7);
       wave.write_register (amdgpu_regnum_t::ttmp11, ttmp11);
 
-      amd_dbgapi_global_address_t parked_pc
-        = wave.queue ().park_instruction_address ();
-      wave.write_register (amdgpu_regnum_t::pc, parked_pc);
+      pc = wave.queue ().park_instruction_address ();
     }
-  else
-    {
-      wave.write_register (amdgpu_regnum_t::pc, pc);
-    }
+
+  wave.write_register (amdgpu_regnum_t::pc, pc);
 
   /* Then halt the wave.  */
   status_reg |= sq_wave_status_halt_mask;

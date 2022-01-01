@@ -635,21 +635,6 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
     if (!wave->is_register_available (*regnum))
       THROW (AMD_DBGAPI_STATUS_ERROR_REGISTER_NOT_AVAILABLE);
 
-    const void *read_only = architecture->register_read_only_mask (*regnum);
-    if (read_only)
-      {
-        char *masked_value = static_cast<char *> (alloca (value_size));
-        wave->read_register (*regnum, offset, value_size, masked_value);
-
-        for (size_t i = 0; i < value_size; ++i)
-          {
-            char mask = static_cast<const char *> (read_only)[offset + i];
-            masked_value[i] = (static_cast<const char *> (value)[i] & ~mask)
-                              | (masked_value[i] & mask);
-          }
-        value = masked_value;
-      }
-
     wave->write_register (*regnum, offset, value_size, value);
 
     return AMD_DBGAPI_STATUS_SUCCESS;

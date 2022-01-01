@@ -112,21 +112,25 @@ wave_t::pc () const
 std::optional<instruction_t>
 wave_t::instruction_at_pc (size_t pc_adjust) const
 {
-  size_t size = architecture ().largest_instruction_size ();
-  std::vector<std::byte> instruction_bytes (size);
+  size_t instruction_size = architecture ().largest_instruction_size ();
+  std::vector<std::byte> instruction_bytes (instruction_size);
+
+  amd_dbgapi_global_address_t instruction_pc = pc () + pc_adjust;
+  dbgapi_assert (utils::is_aligned (
+    instruction_pc, architecture ().minimum_instruction_alignment ()));
 
   try
     {
-      size = process ().read_global_memory_partial (
-        pc () + pc_adjust, instruction_bytes.data (), size);
+      instruction_size = process ().read_global_memory_partial (
+        instruction_pc, instruction_bytes.data (), instruction_size);
     }
   catch (...)
     {
       return std::nullopt;
     }
 
-  /* Trim partial and unread words.  */
-  instruction_bytes.resize (size);
+  /* Trim partial and unread bytes.  */
+  instruction_bytes.resize (instruction_size);
 
   return instruction_t (architecture (), std::move (instruction_bytes));
 }
@@ -311,6 +315,12 @@ wave_t::update (const wave_t &group_leader,
   dbgapi_assert (cwsr_record != nullptr);
   m_cwsr_record = std::move (cwsr_record);
   m_group_leader = &group_leader;
+
+  /* Check that the PC in the wave state save area is correctly aligned.  */
+  if (!utils::is_aligned (pc (),
+                          architecture ().minimum_instruction_alignment ()))
+    fatal_error ("corrupted state for %s: misaligned pc: %#lx",
+                 to_string (id ()).c_str (), pc ());
 
   /* Update the wave's state if this is a new wave, or if the wave was running
      the last time the queue it belongs to was resumed.  */
@@ -636,8 +646,24 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
 
   if (m_is_parked && regnum == amdgpu_regnum_t::pc)
     {
-      memcpy (reinterpret_cast<char *> (&m_parked_pc) + offset, value,
-              value_size);
+      if (auto *read_only
+          = architecture ().register_read_only_mask (amdgpu_regnum_t::pc);
+          read_only != nullptr)
+        {
+          amd_dbgapi_global_address_t pc = m_parked_pc;
+          memcpy (reinterpret_cast<char *> (&pc) + offset, value, value_size);
+
+          amd_dbgapi_global_address_t mask
+            = *static_cast<const amd_dbgapi_global_address_t *> (read_only);
+
+          m_parked_pc = (pc & ~mask) | (m_parked_pc & mask);
+        }
+      else
+        {
+          memcpy (reinterpret_cast<char *> (&m_parked_pc) + offset, value,
+                  value_size);
+        }
+
       return;
     }
 
@@ -655,6 +681,40 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
 
       /* The wave's saved state may have changed location in memory.  */
       reg_addr = register_address (regnum);
+    }
+
+  /* This register might not be entirely writable.  Read-only bits in the new
+     value must be replaced by the current content of the register.  */
+  if (auto *read_only = architecture ().register_read_only_mask (regnum);
+      read_only != nullptr)
+    {
+      void *masked_value = alloca (value_size);
+      process ().read_global_memory (*reg_addr + offset, masked_value,
+                                     value_size);
+
+      if (offset == 0 && value_size == 8)
+        {
+          /* Optimize the case when writing an entire 64-bit register.  */
+          uint64_t mask = *static_cast<const uint64_t *> (read_only);
+          uint64_t &x8 = *static_cast<uint64_t *> (masked_value);
+          x8 = (*static_cast<const uint64_t *> (value) & ~mask) | (x8 & mask);
+        }
+      else if (offset == 0 && value_size == 4)
+        {
+          /* Optimize the case when writing an entire 32-bit register.  */
+          uint32_t mask = *static_cast<const uint32_t *> (read_only);
+          uint32_t &x4 = *static_cast<uint32_t *> (masked_value);
+          x4 = (*static_cast<const uint32_t *> (value) & ~mask) | (x4 & mask);
+        }
+      else /* General case, mask one byte at a time.  */
+        for (size_t i = 0; i < value_size; ++i)
+          {
+            char mask = static_cast<const char *> (read_only)[offset + i];
+            char &x1 = static_cast<char *> (masked_value)[i];
+            x1 = (*static_cast<const char *> (value) & ~mask) | (x1 & mask);
+          }
+
+      value = masked_value;
     }
 
   process ().write_global_memory (*reg_addr + offset, value, value_size);
