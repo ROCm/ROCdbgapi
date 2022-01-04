@@ -44,6 +44,7 @@ set_target_properties(amd-dbgapi PROPERTIES
   CXX_STANDARD 17
   CXX_STANDARD_REQUIRED ON
   CXX_EXTENSIONS ON
+  CXX_VISIBILITY_PRESET hidden
   OUTPUT_NAME "rocm-dbgapi"
   LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib
   DEFINE_SYMBOL "AMD_DBGAPI_EXPORTS"
@@ -109,7 +110,7 @@ endif()
 target_link_libraries(amd-dbgapi PRIVATE amd_comgr Threads::Threads ${CMAKE_DL_LIBS})
 
 target_compile_options(amd-dbgapi
-  PRIVATE $<$<CONFIG:RELEASE>:-fno-rtti> -Wall -Wno-attributes -fvisibility=hidden)
+  PRIVATE $<$<CONFIG:RELEASE>:-fno-rtti> -Wall -Wno-attributes)
 
 target_compile_definitions(amd-dbgapi
   PRIVATE _GNU_SOURCE __STDC_LIMIT_MACROS __STDC_CONSTANT_MACROS)
