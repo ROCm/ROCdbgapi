@@ -54,18 +54,18 @@ target_compile_options(amd-dbgapi PRIVATE -Werror -Wall -Wextra -Wshadow) #-peda
 
 check_include_file(backtrace.h BACKTRACE_H)
 if(BACKTRACE_H)
-  add_definitions(-DHAVE_BACKTRACE_H)
+  target_compile_definitions(amd-dbgapi PRIVATE HAVE_BACKTRACE_H)
   find_library(BACKTRACE_LIB "backtrace" ${CMAKE_C_IMPLICIT_LINK_DIRECTORIES})
 endif()
 
 if(BACKTRACE_LIB)
-  add_definitions(-DENABLE_BACKTRACE)
+  target_compile_definitions(amd-dbgapi PRIVATE ENABLE_BACKTRACE)
   target_link_libraries(amd-dbgapi PRIVATE ${BACKTRACE_LIB})
 endif()
 
 option(API_TRACING "Enable API tracing" ON)
 if(API_TRACING)
-  add_definitions(-DWITH_API_TRACING)
+  target_compile_definitions(amd-dbgapi PRIVATE WITH_API_TRACING)
 endif()
 
 find_package(amd_comgr REQUIRED CONFIG
