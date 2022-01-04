@@ -21,9 +21,10 @@
 #ifndef AMD_DBGAPI_QUEUE_H
 #define AMD_DBGAPI_QUEUE_H 1
 
-#include "agent.h"
 #include "amd-dbgapi.h"
+#include "architecture.h"
 #include "debug.h"
+#include "dispatch.h"
 #include "handle_object.h"
 #include "memory.h"
 #include "os_driver.h"
@@ -37,7 +38,7 @@
 namespace amd::dbgapi
 {
 
-class architecture_t;
+class agent_t;
 class process_t;
 class wave_t;
 
@@ -124,12 +125,8 @@ public:
                  void *value) const;
 
   const agent_t &agent () const { return m_agent; }
-  process_t &process () const { return agent ().process (); }
-  const architecture_t &architecture () const
-  {
-    dbgapi_assert (agent ().architecture ());
-    return *agent ().architecture ();
-  }
+  process_t &process () const;
+  const architecture_t &architecture () const;
 };
 
 /* Interface implemented by all compute queues.  */

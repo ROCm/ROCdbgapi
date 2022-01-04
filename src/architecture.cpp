@@ -56,6 +56,24 @@ const architecture_t *last_found_architecture = nullptr;
 decltype (architecture_t::s_next_architecture_id)
   architecture_t::s_next_architecture_id;
 
+const agent_t &
+architecture_t::cwsr_record_t::agent () const
+{
+  return queue ().agent ();
+}
+
+process_t &
+architecture_t::cwsr_record_t::process () const
+{
+  return agent ().process ();
+}
+
+const architecture_t &
+architecture_t::cwsr_record_t::architecture () const
+{
+  return queue ().architecture ();
+}
+
 /* Base class for all AMDGCN architectures.  */
 
 class amdgcn_architecture_t : public architecture_t

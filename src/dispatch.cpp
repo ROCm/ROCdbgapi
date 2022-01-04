@@ -37,6 +37,24 @@
 namespace amd::dbgapi
 {
 
+const agent_t &
+dispatch_t::agent () const
+{
+  return queue ().agent ();
+}
+
+process_t &
+dispatch_t::process () const
+{
+  return agent ().process ();
+}
+
+const architecture_t &
+dispatch_t::architecture () const
+{
+  return queue ().architecture ();
+}
+
 dispatch_t::dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id,
                         compute_queue_t &queue,
                         amd_dbgapi_os_queue_packet_id_t os_queue_packet_id,

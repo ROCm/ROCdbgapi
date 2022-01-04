@@ -21,11 +21,9 @@
 #ifndef AMD_DBGAPI_DISPATCH_H
 #define AMD_DBGAPI_DISPATCH_H 1
 
-#include "agent.h"
 #include "amd-dbgapi.h"
 #include "architecture.h"
 #include "handle_object.h"
-#include "queue.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -35,8 +33,9 @@
 namespace amd::dbgapi
 {
 
-class architecture_t;
+class agent_t;
 class process_t;
+class compute_queue_t;
 
 /* AMD Debugger API Dispatch.  */
 
@@ -65,12 +64,9 @@ public:
                  void *value) const;
 
   compute_queue_t &queue () const { return m_queue; }
-  const agent_t &agent () const { return queue ().agent (); }
-  process_t &process () const { return agent ().process (); }
-  const architecture_t &architecture () const
-  {
-    return queue ().architecture ();
-  }
+  const agent_t &agent () const;
+  process_t &process () const;
+  const architecture_t &architecture () const;
 };
 
 } /* namespace amd::dbgapi */

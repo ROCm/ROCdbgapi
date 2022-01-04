@@ -27,7 +27,6 @@
 #include "handle_object.h"
 #include "memory.h"
 #include "os_driver.h"
-#include "queue.h"
 #include "register.h"
 #include "utils.h"
 
@@ -51,6 +50,7 @@ namespace amd::dbgapi
 
 class architecture_t;
 class process_t;
+class compute_queue_t;
 class wave_t;
 
 namespace detail
@@ -227,12 +227,9 @@ public:
     virtual amd_dbgapi_global_address_t end () const = 0;
 
     compute_queue_t &queue () const { return m_queue; }
-    const agent_t &agent () const { return queue ().agent (); }
-    process_t &process () const { return agent ().process (); }
-    const architecture_t &architecture () const
-    {
-      return queue ().architecture ();
-    }
+    const agent_t &agent () const;
+    process_t &process () const;
+    const architecture_t &architecture () const;
   };
 
   virtual ~architecture_t ();

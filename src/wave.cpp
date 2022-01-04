@@ -65,6 +65,42 @@ wave_t::~wave_t ()
     raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED);
 }
 
+compute_queue_t &
+wave_t::queue () const
+{
+  return dispatch ().queue ();
+}
+
+const agent_t &
+wave_t::agent () const
+{
+  return queue ().agent ();
+}
+
+process_t &
+wave_t::process () const
+{
+  return agent ().process ();
+}
+
+const architecture_t &
+wave_t::architecture () const
+{
+  return queue ().architecture ();
+}
+
+bool
+wave_t::is_halted () const
+{
+  return architecture ().wave_get_halt (*this);
+}
+
+void
+wave_t::set_halted (bool halted)
+{
+  architecture ().wave_set_halt (*this, halted);
+}
+
 void
 wave_t::set_visibility (visibility_t visibility)
 {
@@ -841,6 +877,16 @@ wave_t::xfer_local_memory (amd_dbgapi_segment_address_t segment_address,
            ? process ().read_global_memory_partial (global_address, read, size)
            : process ().write_global_memory_partial (global_address, write,
                                                      size);
+}
+
+/* Return the wave's scratch memory region (address and size).  */
+std::pair<amd_dbgapi_global_address_t /* address */,
+          amd_dbgapi_size_t /* size */>
+wave_t::scratch_memory_region () const
+{
+  return queue ().scratch_memory_region (
+    m_cwsr_record->shader_engine_id (),
+    m_cwsr_record->scratch_scoreboard_id ());
 }
 
 size_t

@@ -46,6 +46,19 @@
 namespace amd::dbgapi
 {
 
+process_t &
+queue_t::process () const
+{
+  return agent ().process ();
+}
+
+const architecture_t &
+queue_t::architecture () const
+{
+  dbgapi_assert (agent ().architecture ());
+  return *agent ().architecture ();
+}
+
 namespace detail
 {
 

@@ -21,15 +21,12 @@
 #ifndef AMD_DBGAPI_WAVE_H
 #define AMD_DBGAPI_WAVE_H 1
 
-#include "agent.h"
 #include "amd-dbgapi.h"
 #include "architecture.h"
 #include "debug.h"
-#include "dispatch.h"
 #include "exception.h"
 #include "handle_object.h"
 #include "memory.h"
-#include "queue.h"
 #include "register.h"
 #include "utils.h"
 
@@ -44,6 +41,9 @@
 namespace amd::dbgapi
 {
 
+class agent_t;
+class compute_queue_t;
+class dispatch_t;
 class event_t;
 class displaced_stepping_t;
 class process_t;
@@ -137,11 +137,8 @@ public:
 
   bool is_valid () const { return visibility () == visibility_t::visible; }
 
-  bool is_halted () const { return architecture ().wave_get_halt (*this); }
-  void set_halted (bool halted)
-  {
-    architecture ().wave_set_halt (*this, halted);
-  }
+  bool is_halted () const;
+  void set_halted (bool halted);
 
   /* Return the last wave stop event, or nullptr if the event is already
      processed and destroyed.  */
@@ -250,12 +247,7 @@ public:
   /* Return the wave's scratch memory region (address and size).  */
   std::pair<amd_dbgapi_global_address_t /* address */,
             amd_dbgapi_size_t /* size */>
-  scratch_memory_region () const
-  {
-    return queue ().scratch_memory_region (
-      m_cwsr_record->shader_engine_id (),
-      m_cwsr_record->scratch_scoreboard_id ());
-  }
+  scratch_memory_region () const;
 
   [[nodiscard]] size_t
   xfer_segment_memory (const address_space_t &address_space,
@@ -267,13 +259,10 @@ public:
                  void *value) const;
 
   const dispatch_t &dispatch () const { return m_dispatch; }
-  compute_queue_t &queue () const { return dispatch ().queue (); }
-  const agent_t &agent () const { return queue ().agent (); }
-  process_t &process () const { return agent ().process (); }
-  const architecture_t &architecture () const
-  {
-    return queue ().architecture ();
-  }
+  compute_queue_t &queue () const;
+  const agent_t &agent () const;
+  process_t &process () const;
+  const architecture_t &architecture () const;
 };
 
 } /* namespace amd::dbgapi */
