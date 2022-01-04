@@ -100,6 +100,8 @@ private:
                    void *value) const override;
   };
 
+  std::optional<amd_dbgapi_os_queue_packet_id_t> m_read_packet_id{};
+  std::optional<amd_dbgapi_os_queue_packet_id_t> m_write_packet_id{};
   amd_dbgapi_global_address_t m_scratch_backing_memory_address{ 0 };
   uint32_t m_compute_tmpring_size{ 0 };
 
@@ -126,6 +128,9 @@ private:
   monotonic_counter_t<epoch_t, 1> m_next_wave_mark{};
 
   hsa_queue_t m_hsa_queue{};
+
+  std::optional<amd_dbgapi_os_queue_packet_id_t>
+  get_os_queue_packet_id (architecture_t::cwsr_record_t &cwsr_record) const;
 
   displaced_instruction_ptr_t
   allocate_displaced_instruction (const instruction_t &instruction) override;
@@ -475,6 +480,10 @@ aql_queue_t::queue_state_changed ()
   switch (state ())
     {
     case state_t::running:
+      /* Reset member variables that are undefined while the queue is in the
+         running state.  */
+      m_read_packet_id.reset ();
+      m_write_packet_id.reset ();
       m_waves_running.reset ();
 
       /* The queue just changed state and is about to be placed back onto the
@@ -523,6 +532,14 @@ aql_queue_t::queue_state_changed ()
           - offsetof (amd_queue_t, read_dispatch_id),
         &m_compute_tmpring_size);
 
+      /* Read the queue's write_packet_id and read_packet_id.  */
+
+      process ().read_global_memory (m_os_queue_info.write_pointer_address,
+                                     &m_write_packet_id.emplace ());
+
+      process ().read_global_memory (m_os_queue_info.read_pointer_address,
+                                     &m_read_packet_id.emplace ());
+
       /* Iterate the control stack and update/create waves that were saved in
          the last context wave save.  Waves that are no longer present will be
          destroyed.  */
@@ -534,20 +551,53 @@ aql_queue_t::queue_state_changed ()
     }
 }
 
+std::optional<amd_dbgapi_os_queue_packet_id_t>
+aql_queue_t::get_os_queue_packet_id (
+  architecture_t::cwsr_record_t &cwsr_record) const
+{
+  if (!process ().is_flag_set (process_t::flag_t::ttmps_setup_enabled)
+      && !agent ().os_info ().ttmps_always_initialized)
+    return std::nullopt;
+
+  auto packet_address = architecture ().dispatch_packet_address (cwsr_record);
+  if (!packet_address)
+    return std::nullopt;
+
+  /* Calculate the monotonic dispatch id for this packet.  It is
+     between read_packet_id and write_packet_id.  */
+
+  const size_t ring_size = size () / aql_packet_size;
+
+  /* The read_packet_id and write_packet_id should have been read when the
+     queue was suspended and hold a value.  */
+  dbgapi_assert (m_read_packet_id && m_write_packet_id);
+
+  amd_dbgapi_os_queue_packet_id_t os_queue_packet_id
+    = (*packet_address - address ()) / aql_packet_size
+      + (*m_read_packet_id / ring_size) * ring_size;
+
+  if (os_queue_packet_id < *m_read_packet_id
+      && (*m_read_packet_id % ring_size) > (*m_write_packet_id % ring_size))
+    os_queue_packet_id += ring_size;
+
+  /* Check that the dispatch_id is between the command
+     processor's read_id and write_id.  */
+  if (os_queue_packet_id < *m_read_packet_id
+      || os_queue_packet_id >= *m_write_packet_id)
+    {
+      warning ("os_queue_packet_id %#lx is not within [%#lx..%#lx[ in %s",
+               os_queue_packet_id, *m_read_packet_id, *m_write_packet_id,
+               to_string (id ()).c_str ());
+      return std::nullopt;
+    }
+
+  return os_queue_packet_id;
+}
+
 void
 aql_queue_t::update_waves ()
 {
   process_t &process = this->process ();
-
-  /* Read the queue's write_dispatch_id and read_dispatch_id.  */
-
-  uint64_t write_dispatch_id;
-  process.read_global_memory (m_os_queue_info.write_pointer_address,
-                              &write_dispatch_id);
-
-  uint64_t read_dispatch_id;
-  process.read_global_memory (m_os_queue_info.read_pointer_address,
-                              &read_dispatch_id);
 
   /* Value used to mark waves that are found in the context save area. When
      sweeping, any wave found with a mark less than the current mark will be
@@ -603,68 +653,21 @@ aql_queue_t::update_waves ()
       {
         const dispatch_t *dispatch = &m_dummy_dispatch;
 
-        bool ttmps_initialized
-          = process.is_flag_set (process_t::flag_t::ttmps_setup_enabled)
-            || agent ().os_info ().ttmps_always_initialized;
-
-        if (ttmps_initialized)
+        if (auto os_queue_packet_id = get_os_queue_packet_id (*cwsr_record);
+            os_queue_packet_id)
           {
-            amd_dbgapi_global_address_t dispatch_ptr
-              = architecture ().dispatch_packet_address (*cwsr_record);
-
-            if ((dispatch_ptr % aql_packet_size) != 0)
-              fatal_error ("dispatch_ptr is not aligned on the packet size");
-
-            /* Calculate the monotonic dispatch id for this packet.  It is
-               between read_dispatch_id and write_dispatch_id.  */
-
-            amd_dbgapi_os_queue_packet_id_t os_queue_packet_id
-              = (dispatch_ptr - address ()) / aql_packet_size;
-
-            /* Check that 0 <= os_queue_packet_id < queue_size.  */
-            if (os_queue_packet_id >= size () / aql_packet_size)
-              /* TODO: See comment above for corrupted wavefronts. This could
-                 be attached to a CORRUPT_DISPATCH instance.  */
-              fatal_error ("invalid os_queue_packet_id (%#lx)",
-                           os_queue_packet_id);
-
-            /* size must be a power of 2.  */
-            if (!utils::is_power_of_two (size ()))
-              fatal_error ("size is not a power of 2");
-
-            /* Need to mask by the number of packets in the ring (which is a
-               power of 2 so -1 makes the correct mask).  */
-            const uint64_t id_mask = size () / aql_packet_size - 1;
-
-            os_queue_packet_id
-              |= os_queue_packet_id >= (read_dispatch_id & id_mask)
-                   ? (read_dispatch_id & ~id_mask)
-                   : (write_dispatch_id & ~id_mask);
-
-            /* Check that the dispatch_id is between the command processor's
-               read_id and write_id.  */
-            if (read_dispatch_id > os_queue_packet_id
-                || os_queue_packet_id >= write_dispatch_id)
-              /* TODO: See comment above for corrupted wavefronts. This could
-                 be attached to a CORRUPT_DISPATCH instance.  */
-              fatal_error (
-                "invalid dispatch id (%#lx), with read_dispatch_id=%#lx, "
-                "and write_dispatch_id=%#lx",
-                os_queue_packet_id, read_dispatch_id, write_dispatch_id);
-
             /* Check if the dispatch already exists.  */
             dispatch = process.find_if (
               [&] (const dispatch_t &x)
               {
                 return x.queue () == *this
-                       && x.os_queue_packet_id () == os_queue_packet_id;
+                       && x.os_queue_packet_id () == *os_queue_packet_id;
               });
 
-            /* If we did not find the current dispatch, create a new one.  */
+            /* If we did not find the current dispatch, create one.  */
             if (!dispatch)
               dispatch = &process.create<aql_dispatch_t> (
-                cwsr_record->queue (), /* queue  */
-                os_queue_packet_id);   /* os_queue_packet_id  */
+                cwsr_record->queue (), *os_queue_packet_id);
           }
 
         wave = &process.create<wave_t> (wave_id, *dispatch);
@@ -788,7 +791,7 @@ aql_queue_t::update_waves ()
 
   auto &&dispatch_range = process.range<dispatch_t> ();
   for (auto it = dispatch_range.begin (); it != dispatch_range.end ();)
-    if (it->queue () == *this && it->os_queue_packet_id () < read_dispatch_id)
+    if (it->queue () == *this && it->os_queue_packet_id () < m_read_packet_id)
       it = process.destroy (it);
     else
       ++it;

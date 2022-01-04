@@ -262,7 +262,7 @@ public:
     const std::function<void (std::unique_ptr<cwsr_record_t>)> &wave_callback)
     const = 0;
 
-  virtual amd_dbgapi_global_address_t dispatch_packet_address (
+  virtual std::optional<amd_dbgapi_global_address_t> dispatch_packet_address (
     const architecture_t::cwsr_record_t &cwsr_record) const = 0;
 
   virtual std::unique_ptr<const kernel_descriptor_t> make_kernel_descriptor (
