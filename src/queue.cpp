@@ -70,8 +70,8 @@ private:
 
   struct context_save_area_header_s
   {
-    uint32_t ctrl_stack_offset;
-    uint32_t ctrl_stack_size;
+    uint32_t control_stack_offset;
+    uint32_t control_stack_size;
     uint32_t wave_state_offset;
     uint32_t wave_state_size;
     uint32_t debugger_memory_offset;
@@ -597,17 +597,17 @@ aql_queue_t::get_os_queue_packet_id (
 void
 aql_queue_t::update_waves ()
 {
-  process_t &process = this->process ();
-
   /* Value used to mark waves that are found in the context save area. When
      sweeping, any wave found with a mark less than the current mark will be
      deleted, as these waves are no longer active.  */
   const epoch_t wave_mark = wave_t::next_mark ();
   wave_t *group_leader = nullptr;
 
-  auto decode_one_wave = [=, &process, &group_leader] (auto cwsr_record)
+  auto process_cwsr_record
+    = [this, wave_mark, &group_leader] (auto cwsr_record)
   {
     dbgapi_assert (*this == cwsr_record->queue ());
+    process_t &process = cwsr_record->process ();
 
     auto prefetch_begin
       = cwsr_record->register_address (amdgpu_regnum_t::first_hwreg).value ();
@@ -620,70 +620,75 @@ aql_queue_t::update_waves ()
                                       prefetch_end - prefetch_begin);
 
     std::optional<amd_dbgapi_wave_id_t> wave_id;
+    wave_t *wave = nullptr;
+
     if (process.is_flag_set (process_t::flag_t::runtime_enable_during_attach))
       {
         /* Assign new ids to all waves regardless of the content of their
            wave_id register.  This is needed during attach as waves created
-           before the debugger attached to the process may have corrupted
-           wave_ids.
-
-           We will never have hidden waves when assigning new ids. All waves
-           seen in the control stack get a new wave_t instance with a new wave
-           id.
-         */
+           before the debugger attached to the process may have stale
+           wave_ids.  */
       }
-    else
-      wave_id = cwsr_record->id ();
-
-    wave_t *wave = nullptr;
-
-    if (wave_id)
+    else if (wave_id = cwsr_record->id (); wave_id)
       {
-        static constexpr bool including_invisible_waves = true;
-        /* The wave already exists, so we should find it and update its context
-           save area address.  Search all waves, visible and invisible.  */
-        wave = process.find (*wave_id, including_invisible_waves);
+        /* The wave already has a wave_id, so we should find it in this queue.
+           Search all visible and invisible waves.  */
+        wave = process.find (*wave_id, true /* include invisible waves  */);
+
         if (!wave)
-          warning ("%s not found in the process map",
-                   to_string (*wave_id).c_str ());
+          {
+            warning ("%s not found in %s", to_string (*wave_id).c_str (),
+                     to_string (id ()).c_str ());
+
+            /* The wave_id may be corrupted, create a new wave and assign it a
+               new wave_id that is part of this queue's monotonic wave_id
+               sequence.  */
+            wave_id.reset ();
+          }
       }
 
-    bool is_new_wave = !wave;
-    if (is_new_wave)
+    if (!wave)
       {
-        const dispatch_t *dispatch = &m_dummy_dispatch;
+        const dispatch_t *kernel_dispatch;
 
-        if (auto os_queue_packet_id = get_os_queue_packet_id (*cwsr_record);
-            os_queue_packet_id)
+        if (auto packet_id = get_os_queue_packet_id (*cwsr_record); !packet_id)
           {
-            /* Check if the dispatch already exists.  */
-            dispatch = process.find_if (
-              [&] (const dispatch_t &x)
+            /* If this wave does not have a packet_id (ttmps are not setup
+               or may be corrupted), then use a dummy dispatch instance.  */
+            kernel_dispatch = &m_dummy_dispatch;
+          }
+        else
+          {
+            /* Find the dispatch this wave is associated with using the
+               packet_id.  The packet_id is only unique for a given queue.  */
+            kernel_dispatch = process.find_if (
+              [this, packet_id] (const dispatch_t &dispatch)
               {
-                return x.queue () == *this
-                       && x.os_queue_packet_id () == *os_queue_packet_id;
+                return dispatch.queue () == *this
+                       && dispatch.os_queue_packet_id () == *packet_id;
               });
 
-            /* If we did not find the current dispatch, create one.  */
-            if (!dispatch)
-              dispatch = &process.create<aql_dispatch_t> (
-                cwsr_record->queue (), *os_queue_packet_id);
+            if (!kernel_dispatch)
+              kernel_dispatch = &process.create<aql_dispatch_t> (
+                cwsr_record->queue (), *packet_id);
           }
 
-        wave = &process.create<wave_t> (wave_id, *dispatch);
+        wave = &process.create<wave_t> (wave_id, *kernel_dispatch);
       }
 
-    bool first_wave = cwsr_record->is_first_wave ();
-    bool last_wave = cwsr_record->is_last_wave ();
+    bool is_first_wave = cwsr_record->is_first_wave ();
+    bool is_last_wave = cwsr_record->is_last_wave ();
 
     /* The first wave in the group is the group leader.  The group leader owns
        the backing store for the group memory (LDS).  */
-    if (first_wave)
+    if (is_first_wave)
       group_leader = wave;
 
     if (!group_leader)
       fatal_error ("No group_leader, the control stack may be corrupted");
 
+    /* Update this wave's state using the context save area as it may have
+       changed since the queue was last suspended (or the wave is new).  */
     wave->update (*group_leader, std::move (cwsr_record));
 
     if (wave->state () == AMD_DBGAPI_WAVE_STATE_RUN)
@@ -693,7 +698,7 @@ aql_queue_t::update_waves ()
        changed to not halted.  A wave is halted at launch if it is halted
        without having entered the trap handler, and its pc points to the kernel
        entry point.  */
-    if (is_new_wave && wave->state () == AMD_DBGAPI_WAVE_STATE_RUN
+    if (!wave->mark () && wave->state () == AMD_DBGAPI_WAVE_STATE_RUN
         && wave->pc ()
              == wave->dispatch ().kernel_descriptor ().entry_address ()
         && wave->is_halted ())
@@ -705,7 +710,7 @@ aql_queue_t::update_waves ()
 
     /* This was the last wave in the group. Make sure we have a new group
        leader for the remaining waves.  */
-    if (last_wave)
+    if (is_last_wave)
       group_leader = nullptr;
 
     /* Check that the wave is in the same group as its group leader.  */
@@ -715,52 +720,47 @@ aql_queue_t::update_waves ()
     wave->set_mark (wave_mark);
   };
 
-  amd_dbgapi_global_address_t ctx_save_base
-    = m_os_queue_info.ctx_save_restore_address;
+  process_t &process = this->process ();
 
-  /* Retrieve the used control stack size and used wave area from the context
-     save area header.  */
+  auto ctx_save_address = m_os_queue_info.ctx_save_restore_address;
 
-  struct context_save_area_header_s header;
-  process.read_global_memory (ctx_save_base, &header);
+  /* Retrieve the control stack and wave save area memory locations.  */
+  process.read_global_memory (ctx_save_address, &m_last_context_save_header);
 
-  /* Make sure the bottom of the ctrl stack == the start of the wave save
-     area.  */
-  if ((header.ctrl_stack_offset + header.ctrl_stack_size)
-      != (header.wave_state_offset - header.wave_state_size))
-    fatal_error ("Corrupted control stack or wave save area");
+  const auto &header = m_last_context_save_header;
+  auto control_stack_begin = ctx_save_address + header.control_stack_offset;
+  auto control_stack_end = control_stack_begin + header.control_stack_size;
+  auto wave_area_end = ctx_save_address + header.wave_state_offset;
+  auto wave_area_begin = wave_area_end - header.wave_state_size;
+
+  /* The control stack and the wave save area should be contiguous.  */
+  if (control_stack_end != wave_area_begin)
+    fatal_error ("corrupted context save area header");
 
   /* Start with 0 running waves.  When iterating the control stack (below) each
      discovered wave in the running state will increment this count.  */
   m_waves_running.emplace (0);
 
-  if (header.ctrl_stack_size)
+  if (control_stack_begin != control_stack_end)
     {
-      log_info (
-        "decoding %s's context save area: "
-        "ctrl_stk:[0x%lx..0x%lx[, wave_area:[0x%lx..0x%lx[",
-        to_string (id ()).c_str (), ctx_save_base + header.ctrl_stack_offset,
-        ctx_save_base + header.ctrl_stack_offset + header.ctrl_stack_size,
-        ctx_save_base + header.wave_state_offset - header.wave_state_size,
-        ctx_save_base + header.wave_state_offset);
+      log_info ("decoding %s's context save area: "
+                "ctrl_stk:[0x%llx..0x%llx[, wave_area:[0x%llx..0x%llx[",
+                to_string (id ()).c_str (), control_stack_begin,
+                control_stack_end, wave_area_begin, wave_area_end);
 
-      auto ctrl_stack = std::make_unique<uint32_t[]> (header.ctrl_stack_size
-                                                      / sizeof (uint32_t));
+      /* Read the entire control stack from the inferior in one go.  */
+      amd_dbgapi_size_t size = control_stack_end - control_stack_begin;
+      if (!utils::is_aligned (size, sizeof (uint32_t)))
+        fatal_error ("corrupted control stack");
 
-      /* Read the entire ctrl stack from the inferior.  */
-      process.read_global_memory (ctx_save_base + header.ctrl_stack_offset,
-                                  &ctrl_stack[0], header.ctrl_stack_size);
+      auto memory = std::make_unique<uint32_t[]> (size / sizeof (uint32_t));
+      process.read_global_memory (control_stack_begin, &memory[0], size);
 
-      /* Decode the control stack.  For each wave entry in the control stack,
-         the provided function is called with a wave descriptor and a pointer
-         to its context save area.  */
-
-      m_last_context_save_header = header;
-
+      /* Decode the control stack.  For each entry in the control stack,
+         the provided callback function is called with a CWSR record.  */
       size_t wave_count = architecture ().control_stack_iterate (
-        *this, &ctrl_stack[0], header.ctrl_stack_size / sizeof (uint32_t),
-        ctx_save_base + header.wave_state_offset, header.wave_state_size,
-        decode_one_wave);
+        *this, &memory[0], size / sizeof (uint32_t), wave_area_end,
+        wave_area_end - wave_area_begin, process_cwsr_record);
 
       log_info ("%zu out of %zu wave%s running on %s", *m_waves_running,
                 wave_count, wave_count > 1 ? "s" : "",
