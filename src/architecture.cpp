@@ -3295,7 +3295,7 @@ amd_dbgapi_global_address_t
 gfx9_architecture_t::dispatch_packet_address (
   const architecture_t::cwsr_record_t &cwsr_record) const
 {
-  static constexpr uint64_t aql_packet_size = 64;
+  compute_queue_t &queue = cwsr_record.queue ();
 
   const amd_dbgapi_global_address_t ttmp6_address
     = cwsr_record.register_address (amdgpu_regnum_t::ttmp6).value ();
@@ -3303,10 +3303,10 @@ gfx9_architecture_t::dispatch_packet_address (
   uint32_t ttmp6;
   cwsr_record.process ().read_global_memory (ttmp6_address, &ttmp6);
 
-  amd_dbgapi_os_queue_packet_id_t os_queue_packet_id
+  uint64_t dispatch_packet_index
     = (ttmp6 & ttmp6_queue_packet_id_mask) >> ttmp6_queue_packet_id_shift;
-  return cwsr_record.queue ().address ()
-         + (os_queue_packet_id * aql_packet_size);
+
+  return queue.address () + (dispatch_packet_index * queue.packet_size ());
 }
 
 std::pair<amd_dbgapi_size_t /* offset  */, amd_dbgapi_size_t /* size  */>

@@ -105,8 +105,12 @@ public:
 
   /* Return the address of the memory holding the queue packets.  */
   amd_dbgapi_global_address_t address () const;
+
   /* Return the size of the memory holding the queue packets.  */
   amd_dbgapi_size_t size () const;
+
+  /* Return the byte size of a packet in this queue.  */
+  virtual size_t packet_size () const = 0;
 
   /* Return true if the queue does not have any visible activity.  */
   virtual bool is_all_stopped () const { return false; }

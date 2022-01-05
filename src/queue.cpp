@@ -158,6 +158,8 @@ public:
             amd_dbgapi_size_t /* size */>
   scratch_memory_region (uint32_t engine_id, uint32_t slot_id) const override;
 
+  size_t packet_size () const override { return aql_packet_size; };
+
   void active_packets_info (amd_dbgapi_os_queue_packet_id_t *read_packet_id_p,
                             amd_dbgapi_os_queue_packet_id_t *write_packet_id_p,
                             size_t *packets_byte_size_p) const override;
@@ -896,6 +898,8 @@ public:
   }
 
   amd_dbgapi_os_queue_type_t type () const override;
+
+  size_t packet_size () const override { return 1; };
 
   void active_packets_info (amd_dbgapi_os_queue_packet_id_t *read_packet_id_p,
                             amd_dbgapi_os_queue_packet_id_t *write_packet_id_p,
