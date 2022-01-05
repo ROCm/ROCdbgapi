@@ -736,8 +736,7 @@ aql_queue_t::update_waves ()
 
   if (header.ctrl_stack_size)
     {
-      dbgapi_log (
-        AMD_DBGAPI_LOG_LEVEL_INFO,
+      log_info (
         "decoding %s's context save area: "
         "ctrl_stk:[0x%lx..0x%lx[, wave_area:[0x%lx..0x%lx[",
         to_string (id ()).c_str (), ctx_save_base + header.ctrl_stack_offset,
@@ -763,10 +762,9 @@ aql_queue_t::update_waves ()
         ctx_save_base + header.wave_state_offset, header.wave_state_size,
         decode_one_wave);
 
-      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                  "%zu out of %zu wave%s running on %s", *m_waves_running,
-                  wave_count, wave_count > 1 ? "s" : "",
-                  to_string (id ()).c_str ());
+      log_info ("%zu out of %zu wave%s running on %s", *m_waves_running,
+                wave_count, wave_count > 1 ? "s" : "",
+                to_string (id ()).c_str ());
     }
 
   /* Iterate all waves belonging to this queue, and prune those with a mark
@@ -1014,8 +1012,7 @@ queue_t::set_state (state_t state)
     queue_state_changed ();
 
   if (m_state == state_t::invalid)
-    dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "invalidated %s",
-                to_string (id ()).c_str ());
+    log_info ("invalidated %s", to_string (id ()).c_str ());
 }
 
 amd_dbgapi_global_address_t

@@ -1284,12 +1284,11 @@ amdgcn_architecture_t::simulate (wave_t &wave, amd_dbgapi_global_address_t pc,
        handler with no trap_id.  */
     simulate_trap_handler (wave, *new_pc);
 
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "%s simulated \"%s\" (pc=%#lx)",
-              to_string (wave.id ()).c_str (),
-              std::get<std::string> (
-                wave.architecture ().disassemble_instruction (pc, instruction))
-                .c_str (),
-              pc);
+  log_info ("%s simulated \"%s\" (pc=%#lx)", to_string (wave.id ()).c_str (),
+            std::get<std::string> (
+              wave.architecture ().disassemble_instruction (pc, instruction))
+              .c_str (),
+            pc);
 
   return true;
 }
@@ -2691,9 +2690,8 @@ gfx9_architecture_t::wave_get_state (wave_t &wave) const
           /* Resume the wave in single-step mode.  */
           wave_set_state (wave, AMD_DBGAPI_WAVE_STATE_SINGLE_STEP);
 
-          dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                      "%s (pc=%#lx) ignore spurious single-step",
-                      to_string (wave.id ()).c_str (), wave.pc ());
+          log_info ("%s (pc=%#lx) ignore spurious single-step",
+                    to_string (wave.id ()).c_str (), wave.pc ());
 
           return { AMD_DBGAPI_WAVE_STATE_SINGLE_STEP,
                    AMD_DBGAPI_WAVE_STOP_REASON_NONE };

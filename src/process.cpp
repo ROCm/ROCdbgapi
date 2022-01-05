@@ -217,8 +217,7 @@ process_t::detach ()
           && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
         fatal_error ("Could not disable debug (rc=%d)", status);
 
-      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "debugging is disabled for %s",
-                  to_string (id ()).c_str ());
+      log_info ("debugging is disabled for %s", to_string (id ()).c_str ());
     }
 
   /* Destruct the waves, dispatches, queues, and agents, in this order.  */
@@ -234,8 +233,7 @@ process_t::detach ()
   std::get<handle_object_set_t<breakpoint_t>> (m_handle_object_sets).clear ();
   std::get<handle_object_set_t<code_object_t>> (m_handle_object_sets).clear ();
 
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "detached %s",
-              to_string (id ()).c_str ());
+  log_info ("detached %s", to_string (id ()).c_str ());
 
   if (exception)
     std::rethrow_exception (exception);
@@ -548,9 +546,8 @@ process_t::update_agents ()
 
         it = destroy (it);
 
-        dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                    "destroyed deleted %s (os_agent_id=%d)",
-                    to_string (agent_id).c_str (), os_agent_id);
+        log_info ("destroyed deleted %s (os_agent_id=%d)",
+                  to_string (agent_id).c_str (), os_agent_id);
       }
     else
       ++it;
@@ -669,11 +666,10 @@ process_t::insert_watchpoint (const watchpoint_t &watchpoint)
       && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
     fatal_error ("os_driver_t::set_address_watch () failed (rc=%d)", status);
 
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-              "%s: set address_watch%d [%#lx-%#lx] (%s)",
-              to_string (id ()).c_str (), os_watch_id, watchpoint.address (),
-              watchpoint.address () + watchpoint.size (),
-              to_string (watchpoint.kind ()).c_str ());
+  log_info ("%s: set address_watch%d [%#lx-%#lx] (%s)",
+            to_string (id ()).c_str (), os_watch_id, watchpoint.address (),
+            watchpoint.address () + watchpoint.size (),
+            to_string (watchpoint.kind ()).c_str ());
 
   if (!m_watchpoint_map.emplace (os_watch_id, &watchpoint).second)
     fatal_error ("os_watch_id %d is already in use", os_watch_id);
@@ -700,8 +696,8 @@ process_t::remove_watchpoint (const watchpoint_t &watchpoint)
 
   m_watchpoint_map.erase (it);
 
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "%s: clear address_watch%d",
-              to_string (id ()).c_str (), os_watch_id);
+  log_info ("%s: clear address_watch%d", to_string (id ()).c_str (),
+            os_watch_id);
 
   const bool last_watchpoint = count<watchpoint_t> () == 1;
   if (last_watchpoint)
@@ -775,8 +771,8 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
   };
 
   if (!queue_ids.empty ())
-    dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "suspending %s (%s)",
-                to_string (queue_ids, os_queue_id_to_id).c_str (), reason);
+    log_info ("suspending %s (%s)",
+              to_string (queue_ids, os_queue_id_to_id).c_str (), reason);
 
   size_t num_suspended_queues;
   amd_dbgapi_status_t status = os_driver ().suspend_queues (
@@ -872,8 +868,8 @@ process_t::resume_queues (const std::vector<queue_t *> &queues,
   };
 
   if (!queue_ids.empty ())
-    dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "resuming %s (%s)",
-                to_string (queue_ids, os_queue_id_to_id).c_str (), reason);
+    log_info ("resuming %s (%s)",
+              to_string (queue_ids, os_queue_id_to_id).c_str (), reason);
 
   size_t num_resumed_queues;
   amd_dbgapi_status_t status = os_driver ().resume_queues (
@@ -1010,12 +1006,10 @@ process_t::update_queues ()
                          queue_info.gpu_id);
           else if (!agent->supports_debugging ())
             {
-              dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                          "ignoring os_queue_id %d due to %s (os_gpu_id=%d) "
-                          "not supporting debugging",
-                          queue_info.queue_id,
-                          to_string (agent->id ()).c_str (),
-                          queue_info.gpu_id);
+              log_info ("ignoring os_queue_id %d due to %s (os_gpu_id=%d) "
+                        "not supporting debugging",
+                        queue_info.queue_id, to_string (agent->id ()).c_str (),
+                        queue_info.gpu_id);
               continue;
             }
           else if ((os_queue_exception_status (queue_info)
@@ -1030,10 +1024,9 @@ process_t::update_queues ()
 
                   destroy (queue);
 
-                  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                              "destroyed stale %s (os_queue_id=%d)",
-                              to_string (destroyed_queue_id).c_str (),
-                              queue_info.queue_id);
+                  log_info ("destroyed stale %s (os_queue_id=%d)",
+                            to_string (destroyed_queue_id).c_str (),
+                            queue_info.queue_id);
                 }
             }
           else if (is_flag_set (flag_t::runtime_enable_during_attach))
@@ -1098,9 +1091,8 @@ process_t::update_queues ()
           queue->set_state (queue_t::state_t::running);
           queue->set_mark (queue_mark);
 
-          dbgapi_log (
-            AMD_DBGAPI_LOG_LEVEL_INFO, "created new %s (os_queue_id=%d)",
-            to_string (queue->id ()).c_str (), queue->os_queue_id ());
+          log_info ("created new %s (os_queue_id=%d)",
+                    to_string (queue->id ()).c_str (), queue->os_queue_id ());
         }
     }
   while (queue_count > snapshot_count);
@@ -1117,9 +1109,8 @@ process_t::update_queues ()
 
         it = destroy (it);
 
-        dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                    "destroyed deleted %s (os_queue_id=%d)",
-                    to_string (queue_id).c_str (), os_queue_id);
+        log_info ("destroyed deleted %s (os_queue_id=%d)",
+                  to_string (queue_id).c_str (), os_queue_id);
       }
     else
       ++it;
@@ -1406,11 +1397,10 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
 void
 process_t::attach ()
 {
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "attaching %s to %s",
-              to_string (id ()).c_str (),
-              !m_os_process_id
-                ? "exited process"
-                : string_printf ("OS process %d", *m_os_process_id).c_str ());
+  log_info ("attaching %s to %s", to_string (id ()).c_str (),
+            m_os_process_id
+              ? string_printf ("OS process %d", *m_os_process_id).c_str ()
+              : "exited process");
 
   if (os_driver ().check_version () != AMD_DBGAPI_STATUS_SUCCESS)
     throw api_error_t (AMD_DBGAPI_STATUS_ERROR_RESTRICTION);
@@ -1454,8 +1444,7 @@ process_t::attach ()
     }
 
   disable_debug.release ();
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "debugging is enabled for %s",
-              to_string (id ()).c_str ());
+  log_info ("debugging is enabled for %s", to_string (id ()).c_str ());
 }
 
 void
@@ -1496,9 +1485,8 @@ process_t::get_info (amd_dbgapi_process_info_t query, size_t value_size,
 void
 process_t::enqueue_event (event_t &event)
 {
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "reporting %s, %s",
-              to_string (event.id ()).c_str (),
-              event.pretty_printer_string ().c_str ());
+  log_info ("reporting %s, %s", to_string (event.id ()).c_str (),
+            event.pretty_printer_string ().c_str ());
 
   m_pending_events.emplace (&event);
   event.set_state (event_t::state_t::queued);
@@ -1564,8 +1552,7 @@ process_t::query_debug_event (os_exception_mask_t cleared_exceptions)
 
           if (!agent->supports_debugging ())
             {
-              dbgapi_log (
-                AMD_DBGAPI_LOG_LEVEL_INFO,
+              log_info (
                 "dropping agent event (%s) on unsupported %s (os_gpu_id=%d)",
                 to_string (exceptions).c_str (),
                 to_string (agent->id ()).c_str (), os_agent_id);
@@ -1602,11 +1589,10 @@ process_t::query_debug_event (os_exception_mask_t cleared_exceptions)
 
           if (!agent->supports_debugging ())
             {
-              dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                          "dropping queue event (%s) for os_queue_id %d on "
-                          "unsupported %s (os_gpu_id=%d)",
-                          to_string (exceptions).c_str (), os_queue_id,
-                          to_string (agent->id ()).c_str (), os_agent_id);
+              log_info ("dropping queue event (%s) for os_queue_id %d on "
+                        "unsupported %s (os_gpu_id=%d)",
+                        to_string (exceptions).c_str (), os_queue_id,
+                        to_string (agent->id ()).c_str (), os_agent_id);
               continue;
             }
         }
@@ -1632,9 +1618,8 @@ process_t::query_debug_event (os_exception_mask_t cleared_exceptions)
               destroy (queue);
               queue = nullptr;
 
-              dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                          "destroyed stale %s (os_queue_id=%d)",
-                          to_string (stale_queue_id).c_str (), os_queue_id);
+              log_info ("destroyed stale %s (os_queue_id=%d)",
+                        to_string (stale_queue_id).c_str (), os_queue_id);
             }
 
           /* ABA handling: create a temporary, partially initialized, queue
@@ -1666,10 +1651,8 @@ process_t::query_debug_event (os_exception_mask_t cleared_exceptions)
           queue = find (queue_id);
           if (!queue)
             {
-              dbgapi_log (
-                AMD_DBGAPI_LOG_LEVEL_INFO,
-                "dropping queue event (%s) for deleted os_queue_id %d",
-                to_string (exceptions).c_str (), os_queue_id);
+              log_info ("dropping queue event (%s) for deleted os_queue_id %d",
+                        to_string (exceptions).c_str (), os_queue_id);
               continue;
             }
 
@@ -1737,8 +1720,8 @@ process_t::next_pending_event ()
           if (exceptions == os_exception_mask_t::none)
             break;
 
-          dbgapi_log (
-            AMD_DBGAPI_LOG_LEVEL_INFO, "%s has pending exceptions (%s)",
+          log_info (
+            "%s has pending exceptions (%s)",
             std::visit ([] (auto &&x) { return to_string (x->id ()); }, source)
               .c_str (),
             to_string (exceptions).c_str ());
@@ -1967,12 +1950,10 @@ process_t::send_exceptions (
       /* Process exceptions do not need a source_id.  */
     }
 
-  dbgapi_log (
-    AMD_DBGAPI_LOG_LEVEL_INFO,
-    "%s sending runtime exceptions [ %s ] (source=%s)",
-    to_string (id ()).c_str (), to_string (exceptions).c_str (),
-    std::visit ([] (auto &&x) { return to_string (x->id ()); }, source)
-      .c_str ());
+  log_info ("%s sending runtime exceptions [ %s ] (source=%s)",
+            to_string (id ()).c_str (), to_string (exceptions).c_str (),
+            std::visit ([] (auto &&x) { return to_string (x->id ()); }, source)
+              .c_str ());
 
   amd_dbgapi_status_t status
     = os_driver ().send_exceptions (exceptions, agent_id, queue_id);

@@ -107,9 +107,8 @@ wave_t::set_visibility (visibility_t visibility)
   if (m_visibility == visibility)
     return;
 
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO, "changing %s's visibility to %s",
-              to_string (id ()).c_str (),
-              visibility == visibility_t::visible ? "visible" : "hidden");
+  log_info ("changing %s's visibility to %s", to_string (id ()).c_str (),
+            visibility == visibility_t::visible ? "visible" : "hidden");
 
   m_visibility = visibility;
 
@@ -191,8 +190,7 @@ wave_t::park ()
   /* From now on, every read/write to the pc register will be from/to
      m_parked_pc.  The real pc in the context save area will be untouched.  */
 
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "parked %s (pc=%#lx)",
-              to_string (id ()).c_str (), m_parked_pc);
+  log_verbose ("parked %s (pc=%#lx)", to_string (id ()).c_str (), m_parked_pc);
 }
 
 void
@@ -211,8 +209,7 @@ wave_t::unpark ()
 
   write_register (amdgpu_regnum_t::pc, saved_pc);
 
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE, "unparked %s (pc=%#lx)",
-              to_string (id ()).c_str (), pc ());
+  log_verbose ("unparked %s (pc=%#lx)", to_string (id ()).c_str (), pc ());
 }
 
 void
@@ -304,11 +301,10 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
     {
       write_register (amdgpu_regnum_t::pc, *displaced_stepping->to ());
 
-      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                  "changing %s's pc from %#lx to %#lx (started %s)",
-                  to_string (id ()).c_str (), displaced_stepping->from (),
-                  *displaced_stepping->to (),
-                  to_string (displaced_stepping->id ()).c_str ());
+      log_info ("changing %s's pc from %#lx to %#lx (started %s)",
+                to_string (id ()).c_str (), displaced_stepping->from (),
+                *displaced_stepping->to (),
+                to_string (displaced_stepping->id ()).c_str ());
     }
 
   displaced_stepping_t::retain (displaced_stepping);
@@ -329,12 +325,11 @@ wave_t::displaced_stepping_complete ()
                                                 - *m_displaced_stepping->to ();
       write_register (amdgpu_regnum_t::pc, restored_pc);
 
-      dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                  "changing %s's pc from %#lx to %#lx (%s %s)",
-                  to_string (id ()).c_str (), displaced_pc, pc (),
-                  displaced_pc == *m_displaced_stepping->to () ? "aborted"
-                                                               : "completed",
-                  to_string (m_displaced_stepping->id ()).c_str ());
+      log_info ("changing %s's pc from %#lx to %#lx (%s %s)",
+                to_string (id ()).c_str (), displaced_pc, pc (),
+                displaced_pc == *m_displaced_stepping->to () ? "aborted"
+                                                             : "completed",
+                to_string (m_displaced_stepping->id ()).c_str ());
     }
 
   displaced_stepping_t::release (m_displaced_stepping);
@@ -381,13 +376,11 @@ wave_t::update (const wave_t &group_leader,
         = architecture ().wave_get_state (*this);
     }
 
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_VERBOSE,
-              "%s %s%s (pc=%#lx, state=%s) "
-              "context_save:[%#lx..%#lx[",
-              first_update ? "created" : "updated",
-              visibility () != visibility_t::visible ? "invisible " : "",
-              to_string (id ()).c_str (), pc (), to_string (m_state).c_str (),
-              m_cwsr_record->begin (), m_cwsr_record->end ());
+  log_verbose ("%s %s%s (pc=%#lx, state=%s) context_save:[%#lx..%#lx[",
+               first_update ? "created" : "updated",
+               visibility () != visibility_t::visible ? "invisible " : "",
+               to_string (id ()).c_str (), pc (), to_string (m_state).c_str (),
+               m_cwsr_record->begin (), m_cwsr_record->end ());
 
   /* The wave was running, and it is now stopped.  */
   if (prev_state != AMD_DBGAPI_WAVE_STATE_STOP
@@ -466,15 +459,14 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
       return;
     }
 
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-              "changing %s%s's state from %s to %s %s(pc=%#lx)",
-              visibility () != visibility_t::visible ? "invisible " : "",
-              to_string (id ()).c_str (), to_string (prev_state).c_str (),
-              to_string (state).c_str (),
-              exceptions != AMD_DBGAPI_EXCEPTION_NONE
-                ? ("with " + to_string (exceptions) + " ").c_str ()
-                : "",
-              pc ());
+  log_info ("changing %s%s's state from %s to %s %s(pc=%#lx)",
+            visibility () != visibility_t::visible ? "invisible " : "",
+            to_string (id ()).c_str (), to_string (prev_state).c_str (),
+            to_string (state).c_str (),
+            exceptions != AMD_DBGAPI_EXCEPTION_NONE
+              ? ("with " + to_string (exceptions) + " ").c_str ()
+              : "",
+            pc ());
 
   architecture.wave_set_state (*this, state, exceptions);
   m_state = state;

@@ -281,13 +281,12 @@ linux_driver_t::linux_driver_t (amd_dbgapi_os_process_id_t os_pid)
 
 linux_driver_t::~linux_driver_t ()
 {
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-              "linux_driver_t statistics (pid %d): "
-              "%ld reads (%s), %ld writes (%s)",
-              m_os_pid.value (), m_read_request_count,
-              utils::human_readable_size (m_bytes_read).c_str (),
-              m_write_request_count,
-              utils::human_readable_size (m_bytes_written).c_str ());
+  log_info ("linux_driver_t statistics (pid %d): "
+            "%ld reads (%s), %ld writes (%s)",
+            m_os_pid.value (), m_read_request_count,
+            utils::human_readable_size (m_bytes_read).c_str (),
+            m_write_request_count,
+            utils::human_readable_size (m_bytes_written).c_str ());
 
   if (m_proc_mem_fd)
     ::close (*m_proc_mem_fd);
@@ -440,8 +439,7 @@ kfd_driver_t::open_kfd ()
       int fd = ::open ("/dev/kfd", O_RDWR | O_CLOEXEC);
       if (fd == -1)
         {
-          dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-                      "Could not open the KFD device: %s", strerror (errno));
+          log_info ("Could not open the KFD device: %s", strerror (errno));
           return;
         }
 
@@ -530,9 +528,8 @@ kfd_driver_t::check_version () const
       return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
     }
 
-  dbgapi_log (AMD_DBGAPI_LOG_LEVEL_INFO,
-              "using AMD GPU driver's debug support version %d.%d", major,
-              minor);
+  log_info ("using AMD GPU driver's debug support version %d.%d", major,
+            minor);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 }

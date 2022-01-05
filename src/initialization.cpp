@@ -58,8 +58,7 @@ amd_dbgapi_initialize (struct amd_dbgapi_callbacks_s *callbacks)
     process_t::reset_all_ids ();
     detail::is_initialized = true;
 
-    dbgapi_log (
-      AMD_DBGAPI_LOG_LEVEL_VERBOSE,
+    log_verbose (
       "library info: file_name=\"%s\", build_info=%s",
       [] ()
       {
