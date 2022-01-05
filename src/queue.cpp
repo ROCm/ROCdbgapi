@@ -78,6 +78,28 @@ private:
     uint32_t debugger_memory_size;
   };
 
+  class aql_dispatch_t : public dispatch_t
+  {
+  private:
+    hsa_kernel_dispatch_packet_t m_packet{};
+    std::unique_ptr<const architecture_t::kernel_descriptor_t>
+      m_kernel_descriptor{};
+
+  public:
+    aql_dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id,
+                    compute_queue_t &queue,
+                    amd_dbgapi_os_queue_packet_id_t os_queue_packet_id);
+
+    const architecture_t::kernel_descriptor_t &
+    kernel_descriptor () const override
+    {
+      dbgapi_assert (m_kernel_descriptor);
+      return *m_kernel_descriptor;
+    }
+    void get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
+                   void *value) const override;
+  };
+
   amd_dbgapi_global_address_t m_scratch_backing_memory_address{ 0 };
   uint32_t m_compute_tmpring_size{ 0 };
 
@@ -103,7 +125,6 @@ private:
      deleted, as these waves are no longer active.  */
   monotonic_counter_t<epoch_t, 1> m_next_wave_mark{};
 
-  dispatch_t const m_dummy_dispatch;
   hsa_queue_t m_hsa_queue{};
 
   displaced_instruction_ptr_t
@@ -146,10 +167,145 @@ public:
                              void *memory, size_t memory_size) const override;
 };
 
+aql_queue_t::aql_dispatch_t::aql_dispatch_t (
+  amd_dbgapi_dispatch_id_t dispatch_id, compute_queue_t &queue,
+  amd_dbgapi_os_queue_packet_id_t os_queue_packet_id)
+  : dispatch_t (dispatch_id, queue, os_queue_packet_id)
+{
+  amd_dbgapi_global_address_t packet_address
+    = queue.address ()
+      + (os_queue_packet_id * aql_packet_size) % queue.size ();
+
+  /* Read the dispatch packet and kernel descriptor.  */
+  process ().read_global_memory (packet_address, &m_packet);
+
+  m_kernel_descriptor = architecture ().make_kernel_descriptor (
+    process (), m_packet.kernel_object);
+}
+
+void
+aql_queue_t::aql_dispatch_t::get_info (amd_dbgapi_dispatch_info_t query,
+                                       size_t value_size, void *value) const
+{
+  switch (query)
+    {
+    case AMD_DBGAPI_DISPATCH_INFO_QUEUE:
+      utils::get_info (value_size, value, queue ().id ());
+      return;
+
+    case AMD_DBGAPI_DISPATCH_INFO_AGENT:
+      utils::get_info (value_size, value, agent ().id ());
+      return;
+
+    case AMD_DBGAPI_DISPATCH_INFO_PROCESS:
+      utils::get_info (value_size, value, process ().id ());
+      return;
+
+    case AMD_DBGAPI_DISPATCH_INFO_ARCHITECTURE:
+      utils::get_info (value_size, value, architecture ().id ());
+      return;
+
+    case AMD_DBGAPI_DISPATCH_INFO_OS_QUEUE_PACKET_ID:
+      utils::get_info (value_size, value, os_queue_packet_id ());
+      return;
+
+    case AMD_DBGAPI_DISPATCH_INFO_BARRIER:
+      utils::get_info (value_size, value,
+                       utils::bit_extract (m_packet.header,
+                                           HSA_PACKET_HEADER_BARRIER,
+                                           HSA_PACKET_HEADER_BARRIER)
+                         ? AMD_DBGAPI_DISPATCH_BARRIER_PRESENT
+                         : AMD_DBGAPI_DISPATCH_BARRIER_NONE);
+      return;
+
+    case AMD_DBGAPI_DISPATCH_INFO_ACQUIRE_FENCE:
+      static_assert ((int)AMD_DBGAPI_DISPATCH_FENCE_SCOPE_NONE
+                       == (int)HSA_FENCE_SCOPE_NONE,
+                     "amd_dbgapi_dispatch_fence_scope_t != hsa_fence_scope_t");
+      static_assert ((int)AMD_DBGAPI_DISPATCH_FENCE_SCOPE_AGENT
+                       == (int)HSA_FENCE_SCOPE_AGENT,
+                     "amd_dbgapi_dispatch_fence_scope_t != hsa_fence_scope_t");
+      static_assert ((int)AMD_DBGAPI_DISPATCH_FENCE_SCOPE_SYSTEM
+                       == (int)HSA_FENCE_SCOPE_SYSTEM,
+                     "amd_dbgapi_dispatch_fence_scope_t != hsa_fence_scope_t");
+
+      utils::get_info (
+        value_size, value,
+        static_cast<amd_dbgapi_dispatch_fence_scope_t> (utils::bit_extract (
+          m_packet.header, HSA_PACKET_HEADER_SCACQUIRE_FENCE_SCOPE,
+          HSA_PACKET_HEADER_SCACQUIRE_FENCE_SCOPE
+            + HSA_PACKET_HEADER_WIDTH_SCACQUIRE_FENCE_SCOPE - 1)));
+      return;
+
+    case AMD_DBGAPI_DISPATCH_INFO_RELEASE_FENCE:
+      utils::get_info (
+        value_size, value,
+        static_cast<amd_dbgapi_dispatch_fence_scope_t> (utils::bit_extract (
+          m_packet.header, HSA_PACKET_HEADER_SCRELEASE_FENCE_SCOPE,
+          HSA_PACKET_HEADER_SCRELEASE_FENCE_SCOPE
+            + HSA_PACKET_HEADER_WIDTH_SCRELEASE_FENCE_SCOPE - 1)));
+      return;
+
+    case AMD_DBGAPI_DISPATCH_INFO_GRID_DIMENSIONS:
+      utils::get_info (
+        value_size, value,
+        static_cast<uint32_t> (utils::bit_extract (
+          m_packet.setup, HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS,
+          HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS
+            + HSA_KERNEL_DISPATCH_PACKET_SETUP_WIDTH_DIMENSIONS - 1)));
+      return;
+
+    case AMD_DBGAPI_DISPATCH_INFO_WORK_GROUP_SIZES:
+      {
+        uint16_t workgroup_sizes[3]
+          = { m_packet.workgroup_size_x, m_packet.workgroup_size_y,
+              m_packet.workgroup_size_z };
+        utils::get_info (value_size, value, workgroup_sizes);
+        return;
+      }
+    case AMD_DBGAPI_DISPATCH_INFO_GRID_SIZES:
+      {
+        uint32_t grid_sizes[3] = { m_packet.grid_size_x, m_packet.grid_size_y,
+                                   m_packet.grid_size_z };
+        utils::get_info (value_size, value, grid_sizes);
+        return;
+      }
+    case AMD_DBGAPI_DISPATCH_INFO_PRIVATE_SEGMENT_SIZE:
+      utils::get_info (
+        value_size, value,
+        static_cast<amd_dbgapi_size_t> (m_packet.private_segment_size));
+      return;
+
+    case AMD_DBGAPI_DISPATCH_INFO_GROUP_SEGMENT_SIZE:
+      utils::get_info (
+        value_size, value,
+        static_cast<amd_dbgapi_size_t> (m_packet.group_segment_size));
+      return;
+
+    case AMD_DBGAPI_DISPATCH_INFO_KERNEL_ARGUMENT_SEGMENT_ADDRESS:
+      utils::get_info (value_size, value, m_packet.kernarg_address);
+      return;
+
+    case AMD_DBGAPI_DISPATCH_INFO_KERNEL_DESCRIPTOR_ADDRESS:
+      utils::get_info (value_size, value, kernel_descriptor ().address ());
+      return;
+
+    case AMD_DBGAPI_DISPATCH_INFO_KERNEL_CODE_ENTRY_ADDRESS:
+      utils::get_info (value_size, value,
+                       kernel_descriptor ().entry_address ());
+      return;
+
+    case AMD_DBGAPI_DISPATCH_INFO_KERNEL_COMPLETION_ADDRESS:
+      utils::get_info (value_size, value, m_packet.completion_signal);
+      return;
+    }
+
+  throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
+}
+
 aql_queue_t::aql_queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
                           const os_queue_snapshot_entry_t &os_queue_info)
-  : compute_queue_t (queue_id, agent, os_queue_info),
-    m_dummy_dispatch (AMD_DBGAPI_DISPATCH_NONE, *this, 0, 0)
+  : compute_queue_t (queue_id, agent, os_queue_info)
 {
   process_t &process = this->process ();
 
@@ -504,10 +660,9 @@ aql_queue_t::update_waves ()
 
             /* If we did not find the current dispatch, create a new one.  */
             if (!dispatch)
-              dispatch = &process.create<dispatch_t> (
+              dispatch = &process.create<aql_dispatch_t> (
                 cwsr_record->queue (), /* queue  */
-                os_queue_packet_id,    /* os_queue_packet_id  */
-                dispatch_ptr);         /* packet_address  */
+                os_queue_packet_id);   /* os_queue_packet_id  */
           }
 
         wave = &process.create<wave_t> (wave_id, *dispatch);

@@ -43,25 +43,28 @@ class dispatch_t : public detail::handle_object<amd_dbgapi_dispatch_id_t>
 {
 private:
   amd_dbgapi_os_queue_packet_id_t const m_os_queue_packet_id;
-
-  hsa_kernel_dispatch_packet_t m_packet{};
-  std::unique_ptr<const architecture_t::kernel_descriptor_t>
-    m_kernel_descriptor{};
-
   compute_queue_t &m_queue;
 
 public:
   dispatch_t (amd_dbgapi_dispatch_id_t dispatch_id, compute_queue_t &queue,
-              amd_dbgapi_os_queue_packet_id_t os_queue_packet_id,
-              amd_dbgapi_global_address_t packet_address);
+              amd_dbgapi_os_queue_packet_id_t os_queue_packet_id)
+    : handle_object (dispatch_id), m_os_queue_packet_id (os_queue_packet_id),
+      m_queue (queue)
+  {
+  }
 
-  ~dispatch_t () {}
+  virtual ~dispatch_t () = default;
 
-  uint64_t os_queue_packet_id () const { return m_os_queue_packet_id; }
-  const architecture_t::kernel_descriptor_t &kernel_descriptor () const;
+  amd_dbgapi_os_queue_packet_id_t os_queue_packet_id () const
+  {
+    return m_os_queue_packet_id;
+  }
 
-  void get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
-                 void *value) const;
+  virtual const architecture_t::kernel_descriptor_t &
+  kernel_descriptor () const = 0;
+
+  virtual void get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
+                         void *value) const = 0;
 
   compute_queue_t &queue () const { return m_queue; }
   const agent_t &agent () const;

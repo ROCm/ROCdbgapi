@@ -142,13 +142,45 @@ public:
     std::function<void (amd_dbgapi_global_address_t)>>;
 
 protected:
+  class dummy_dispatch_t : public dispatch_t
+  {
+  private:
+    class dummy_descriptor_t : public architecture_t::kernel_descriptor_t
+    {
+    public:
+      dummy_descriptor_t (process_t &process)
+        : architecture_t::kernel_descriptor_t (process, 0)
+      {
+      }
+      amd_dbgapi_global_address_t entry_address () const override { return 0; }
+    } m_dummy_descriptor;
+
+  public:
+    dummy_dispatch_t (compute_queue_t &queue)
+      : dispatch_t (AMD_DBGAPI_DISPATCH_NONE, queue, 0),
+        m_dummy_descriptor (queue.process ())
+    {
+    }
+    const architecture_t::kernel_descriptor_t &
+    kernel_descriptor () const override
+    {
+      return m_dummy_descriptor;
+    }
+    void get_info (amd_dbgapi_dispatch_info_t /* query  */,
+                   size_t /* value_size  */,
+                   void * /* value  */) const override
+    {
+      dbgapi_assert_not_reached ("should not call this");
+    }
+  } m_dummy_dispatch;
+
   /* Number of waves in the running state.  Only holds a value when the queue
      is suspended.  */
   std::optional<size_t> m_waves_running{};
 
   compute_queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
                    const os_queue_snapshot_entry_t &os_queue_info)
-    : queue_t (queue_id, agent, os_queue_info)
+    : queue_t (queue_id, agent, os_queue_info), m_dummy_dispatch (*this)
   {
   }
 
