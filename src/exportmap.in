@@ -57,7 +57,6 @@ global: amd_dbgapi_agent_get_info;
 global: amd_dbgapi_classify_instruction;
         amd_dbgapi_queue_get_info;
         amd_dbgapi_register_get_info;
-        amd_dbgapi_wave_get_info;
         amd_dbgapi_wave_resume;
 } @AMD_DBGAPI_NAME@_0.56;
 
@@ -71,3 +70,9 @@ global: amd_dbgapi_address_class_get_info;
         amd_dbgapi_watchpoint_get_info;
         amd_dbgapi_write_register;
 } @AMD_DBGAPI_NAME@_0.58;
+
+@AMD_DBGAPI_NAME@_0.63 {
+global: amd_dbgapi_process_workgroup_list;
+        amd_dbgapi_wave_get_info;
+        amd_dbgapi_workgroup_get_info;
+} @AMD_DBGAPI_NAME@_0.62;
