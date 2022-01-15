@@ -106,6 +106,7 @@ protected:
   static constexpr uint32_t sq_wave_status_cond_dbg_sys_mask = 1 << 21;
 
   static constexpr uint32_t ttmp11_wave_in_group_mask = utils::bit_mask (0, 5);
+  static constexpr int ttmp11_wave_in_group_shift = 0;
   static constexpr uint32_t ttmp6_wave_stopped_mask = 1 << 30;
   static constexpr uint32_t ttmp6_saved_status_halt_mask = 1 << 29;
   static constexpr uint32_t ttmp6_saved_trap_id_mask
@@ -1969,10 +1970,6 @@ amdgcn_architecture_t::register_name (amdgpu_regnum_t regnum) const
       return "flat_scratch";
     case amdgpu_regnum_t::wave_id:
       return "wave_id";
-    case amdgpu_regnum_t::dispatch_grid:
-      return "dispatch_grid";
-    case amdgpu_regnum_t::wave_in_group:
-      return "wave_in_group";
     case amdgpu_regnum_t::csp:
       return "csp";
     case amdgpu_regnum_t::null:
@@ -2032,7 +2029,6 @@ amdgcn_architecture_t::register_type (amdgpu_regnum_t regnum) const
     case amdgpu_regnum_t::xnack_mask_lo:
     case amdgpu_regnum_t::xnack_mask_hi:
     case amdgpu_regnum_t::pseudo_status:
-    case amdgpu_regnum_t::wave_in_group:
     case amdgpu_regnum_t::csp:
     case amdgpu_regnum_t::null:
       return "uint32_t";
@@ -2040,9 +2036,6 @@ amdgcn_architecture_t::register_type (amdgpu_regnum_t regnum) const
     case amdgpu_regnum_t::wave_id:
     case amdgpu_regnum_t::flat_scratch:
       return "uint64_t";
-
-    case amdgpu_regnum_t::dispatch_grid:
-      return "uint32_t[3]";
 
     default:
       dbgapi_assert_not_reached ("invalid register number");
@@ -2098,7 +2091,6 @@ amdgcn_architecture_t::register_size (amdgpu_regnum_t regnum) const
     case amdgpu_regnum_t::xnack_mask_lo:
     case amdgpu_regnum_t::xnack_mask_hi:
     case amdgpu_regnum_t::pseudo_status:
-    case amdgpu_regnum_t::wave_in_group:
     case amdgpu_regnum_t::csp:
     case amdgpu_regnum_t::null:
       return sizeof (uint32_t);
@@ -2106,9 +2098,6 @@ amdgcn_architecture_t::register_size (amdgpu_regnum_t regnum) const
     case amdgpu_regnum_t::wave_id:
     case amdgpu_regnum_t::flat_scratch:
       return sizeof (uint64_t);
-
-    case amdgpu_regnum_t::dispatch_grid:
-      return sizeof (uint32_t[3]);
 
     default:
       dbgapi_assert_not_reached ("invalid register number");
@@ -2182,7 +2171,6 @@ amdgcn_architecture_t::is_pseudo_register_available (
     case amdgpu_regnum_t::pseudo_exec_64:
     case amdgpu_regnum_t::pseudo_vcc_64:
     case amdgpu_regnum_t::wave_id:
-    case amdgpu_regnum_t::wave_in_group:
     case amdgpu_regnum_t::csp:
     case amdgpu_regnum_t::null:
       return true;
@@ -2239,18 +2227,6 @@ amdgcn_architecture_t::read_pseudo_register (const wave_t &wave,
       return;
     }
 
-  if (regnum == amdgpu_regnum_t::wave_in_group)
-    {
-      uint32_t ttmp11;
-
-      wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
-      ttmp11 &= ttmp11_wave_in_group_mask;
-
-      memcpy (value, reinterpret_cast<const char *> (&ttmp11) + offset,
-              value_size);
-      return;
-    }
-
   if (regnum == amdgpu_regnum_t::wave_id)
     {
       std::array<uint32_t, 2> wave_id;
@@ -2291,9 +2267,8 @@ amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
   dbgapi_assert (value_size && (offset + value_size) <= register_size (regnum)
                  && "write_pseudo_register is out of bounds");
 
-  if (regnum == amdgpu_regnum_t::null
-      || regnum == amdgpu_regnum_t::wave_in_group)
-    /* Writing to null or wave_in_group is a no-op.  */
+  if (regnum == amdgpu_regnum_t::null)
+    /* Writing to null is a no-op.  */
     return;
 
   if (regnum == amdgpu_regnum_t::pseudo_exec_64
@@ -2450,7 +2425,9 @@ protected:
     {
     }
 
-    std::optional<amd_dbgapi_wave_id_t> id () const override;
+    amd_dbgapi_wave_id_t id () const override;
+    std::array<uint32_t, 3> group_ids () const override;
+    uint32_t position_in_group () const override;
 
     /* Number for vector registers.  */
     size_t vgpr_count () const override;
@@ -2542,7 +2519,7 @@ public:
     const std::function<void (std::unique_ptr<architecture_t::cwsr_record_t>)>
       &wave_callback) const override;
 
-  std::optional<amd_dbgapi_global_address_t> dispatch_packet_address (
+  amd_dbgapi_global_address_t dispatch_packet_address (
     const architecture_t::cwsr_record_t &cwsr_record) const override;
 
   std::pair<amd_dbgapi_size_t /* offset  */, amd_dbgapi_size_t /* size  */>
@@ -2707,22 +2684,40 @@ gfx9_architecture_t::wave_get_state (wave_t &wave) const
   return { AMD_DBGAPI_WAVE_STATE_STOP, stop_reason };
 }
 
-std::optional<amd_dbgapi_wave_id_t>
+amd_dbgapi_wave_id_t
 gfx9_architecture_t::cwsr_record_t::id () const
 {
-  dbgapi_assert (
-    process ().is_flag_set (process_t::flag_t::ttmps_setup_enabled));
-
   const amd_dbgapi_global_address_t wave_id_address
     = register_address (amdgpu_regnum_t::ttmp4).value ();
 
   amd_dbgapi_wave_id_t wave_id;
   process ().read_global_memory (wave_id_address, &wave_id);
 
-  if (wave_id == wave_t::undefined)
-    return std::nullopt;
-
   return wave_id;
+}
+
+std::array<uint32_t, 3>
+gfx9_architecture_t::cwsr_record_t::group_ids () const
+{
+  const amd_dbgapi_global_address_t group_ids_address
+    = register_address (amdgpu_regnum_t::ttmp8).value ();
+
+  std::array<uint32_t, 3> coordinates;
+  process ().read_global_memory (group_ids_address, &coordinates);
+
+  return coordinates;
+}
+
+uint32_t
+gfx9_architecture_t::cwsr_record_t::position_in_group () const
+{
+  const amd_dbgapi_global_address_t ttmp11_address
+    = register_address (amdgpu_regnum_t::ttmp11).value ();
+
+  uint32_t ttmp11;
+  process ().read_global_memory (ttmp11_address, &ttmp11);
+
+  return (ttmp11 & ttmp11_wave_in_group_mask) >> ttmp11_wave_in_group_shift;
 }
 
 size_t
@@ -3123,15 +3118,6 @@ gfx9_architecture_t::cwsr_record_t::register_address (
   size_t ttmp_count = 16;
   size_t ttmps_addr = save_area_addr - ttmp_count * ttmp_size;
 
-  switch (regnum)
-    {
-    case amdgpu_regnum_t::dispatch_grid:
-      regnum = amdgpu_regnum_t::ttmp8;
-      break;
-    default:
-      break;
-    }
-
   if (regnum >= amdgpu_regnum_t::first_ttmp
       && regnum <= amdgpu_regnum_t::last_ttmp)
     {
@@ -3289,7 +3275,7 @@ gfx9_architecture_t::control_stack_iterate (
   return wave_count;
 }
 
-std::optional<amd_dbgapi_global_address_t>
+amd_dbgapi_global_address_t
 gfx9_architecture_t::dispatch_packet_address (
   const architecture_t::cwsr_record_t &cwsr_record) const
 {
@@ -3305,12 +3291,8 @@ gfx9_architecture_t::dispatch_packet_address (
     = (ttmp6 & ttmp6_queue_packet_id_mask) >> ttmp6_queue_packet_id_shift;
 
   if ((dispatch_packet_index * queue.packet_size ()) >= queue.size ())
-    {
-      /* The dispatch_packet_index is out of bounds.  */
-      warning ("dispatch_packet_index %#lx is out of bounds in %s",
-               dispatch_packet_index, to_string (queue.id ()).c_str ());
-      return std::nullopt;
-    }
+    fatal_error ("dispatch_packet_index %#lx is out of bounds in %s",
+                 dispatch_packet_index, to_string (queue.id ()).c_str ());
 
   return queue.address () + (dispatch_packet_index * queue.packet_size ());
 }

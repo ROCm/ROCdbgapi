@@ -207,6 +207,9 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
         string = "The register handle is valid, but specifies a register that "
                  "is not allocated in the associated wave";
         break;
+      case AMD_DBGAPI_STATUS_ERROR_INVALID_WORKGROUP_ID:
+        string = "The workgroup handle is invalid";
+        break;
         /* Don't add a default here, so that we can catch at compile time when
            an enum value is missing.  */
       }

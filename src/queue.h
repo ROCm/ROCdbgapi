@@ -29,6 +29,8 @@
 #include "memory.h"
 #include "os_driver.h"
 #include "utils.h"
+#include "wave.h"
+#include "workgroup.h"
 
 #include <cstddef>
 #include <functional>
@@ -165,11 +167,13 @@ protected:
         m_dummy_descriptor (queue.process ())
     {
     }
+
     const architecture_t::kernel_descriptor_t &
     kernel_descriptor () const override
     {
       return m_dummy_descriptor;
     }
+
     void get_info (amd_dbgapi_dispatch_info_t /* query  */,
                    size_t /* value_size  */,
                    void * /* value  */) const override

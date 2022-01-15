@@ -33,6 +33,7 @@
 #include "register.h"
 #include "utils.h"
 #include "watchpoint.h"
+#include "workgroup.h"
 
 #include <algorithm>
 #include <cstring>
@@ -43,8 +44,10 @@
 namespace amd::dbgapi
 {
 
-wave_t::wave_t (amd_dbgapi_wave_id_t wave_id, const dispatch_t &dispatch)
-  : handle_object (wave_id), m_dispatch (dispatch)
+wave_t::wave_t (amd_dbgapi_wave_id_t wave_id, workgroup_t &workgroup,
+                std::optional<uint32_t> wave_in_group)
+  : handle_object (wave_id), m_wave_in_group (wave_in_group),
+    m_workgroup (workgroup)
 {
 }
 
@@ -63,6 +66,12 @@ wave_t::~wave_t ()
      event, or a command terminated event.  */
   if (state () == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
     raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED);
+}
+
+const dispatch_t &
+wave_t::dispatch () const
+{
+  return m_workgroup.dispatch ();
 }
 
 compute_queue_t &
@@ -361,11 +370,7 @@ wave_t::update (const wave_t &group_leader,
       /* Zero-initialize the ttmp registers if they weren't set up by the
          hardware.  Some ttmp registers are used to determine if the wave was
          stopped by the trap handler because of an exception or a trap.  */
-      bool ttmps_initialized
-        = process ().is_flag_set (process_t::flag_t::ttmps_setup_enabled)
-          || agent ().os_info ().ttmps_always_initialized;
-
-      if (first_update && !ttmps_initialized)
+      if (first_update && !agent ().ttmps_initialized ())
         {
           for (auto regnum = amdgpu_regnum_t::first_ttmp;
                regnum <= amdgpu_regnum_t::last_ttmp; ++regnum)
@@ -376,11 +381,13 @@ wave_t::update (const wave_t &group_leader,
         = architecture ().wave_get_state (*this);
     }
 
-  log_verbose ("%s %s%s (pc=%#lx, state=%s) context_save:[%#lx..%#lx[",
+  log_verbose ("%s %s%s in %s (pc=%#lx, state=%s) context_save:[%#lx..%#lx[",
                first_update ? "created" : "updated",
                visibility () != visibility_t::visible ? "invisible " : "",
-               to_string (id ()).c_str (), pc (), to_string (m_state).c_str (),
-               m_cwsr_record->begin (), m_cwsr_record->end ());
+               to_string (id ()).c_str (),
+               to_string (workgroup ().id ()).c_str (), pc (),
+               to_string (m_state).c_str (), m_cwsr_record->begin (),
+               m_cwsr_record->end ());
 
   /* The wave was running, and it is now stopped.  */
   if (prev_state != AMD_DBGAPI_WAVE_STATE_STOP
@@ -396,21 +403,9 @@ wave_t::update (const wave_t &group_leader,
         raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
     }
 
-  /* If this is the first time we update this wave, store the wave_id, and load
-     the immutable state from the ttmp registers (group_ids, wave_in_group,
-     scratch_offset).  */
+  /* If this is the first time we update this wave, store the wave_id.  */
   if (first_update)
-    {
-      /* Write the wave_id register.  */
-      write_register (amdgpu_regnum_t::wave_id, id ());
-
-      /* Read group_ids[0:3].  */
-      read_register (amdgpu_regnum_t::dispatch_grid, 0, sizeof (m_group_ids),
-                     &m_group_ids[0]);
-
-      /* Read the wave's position in the thread group.  */
-      read_register (amdgpu_regnum_t::wave_in_group, &m_wave_in_group);
-    }
+    write_register (amdgpu_regnum_t::wave_id, id ());
 }
 
 void
@@ -973,6 +968,12 @@ wave_t::get_info (amd_dbgapi_wave_info_t query, size_t value_size,
       utils::get_info (value_size, value, stop_reason ());
       return;
 
+    case AMD_DBGAPI_WAVE_INFO_WORKGROUP:
+      if (workgroup ().id () == AMD_DBGAPI_WORKGROUP_NONE)
+        throw api_error_t (AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE);
+      utils::get_info (value_size, value, workgroup ().id ());
+      return;
+
     case AMD_DBGAPI_WAVE_INFO_DISPATCH:
       if (dispatch ().id () == AMD_DBGAPI_DISPATCH_NONE)
         throw api_error_t (AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE);
@@ -1003,16 +1004,16 @@ wave_t::get_info (amd_dbgapi_wave_info_t query, size_t value_size,
       utils::get_info (value_size, value, exec_mask ());
       return;
 
-    case AMD_DBGAPI_WAVE_INFO_WORK_GROUP_COORD:
-      if (dispatch ().id () == AMD_DBGAPI_DISPATCH_NONE)
+    case AMD_DBGAPI_WAVE_INFO_WORKGROUP_COORD:
+      if (!workgroup ().group_ids ())
         throw api_error_t (AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE);
-      utils::get_info (value_size, value, m_group_ids);
+      utils::get_info (value_size, value, *workgroup ().group_ids ());
       return;
 
-    case AMD_DBGAPI_WAVE_INFO_WAVE_NUMBER_IN_WORK_GROUP:
-      if (dispatch ().id () == AMD_DBGAPI_DISPATCH_NONE)
+    case AMD_DBGAPI_WAVE_INFO_WAVE_NUMBER_IN_WORKGROUP:
+      if (!m_wave_in_group)
         throw api_error_t (AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE);
-      utils::get_info (value_size, value, m_wave_in_group);
+      utils::get_info (value_size, value, *m_wave_in_group);
       return;
 
     case AMD_DBGAPI_WAVE_INFO_WATCHPOINTS:

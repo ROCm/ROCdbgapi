@@ -134,9 +134,7 @@ enum class amdgpu_regnum_t : uint32_t
   xnack_mask_lo,   /* XNACK mask lower 32 bits.  */
   xnack_mask_hi,   /* XNACK mask higher 32 bits.  */
 
-  dispatch_grid, /* Dispatch grid X, Y, Z  */
-
-  last_aliased = dispatch_grid,
+  last_aliased = xnack_mask_hi,
   first_pseudo = last_aliased + 1,
 
   /* Pseudo registers.  Registers that are computed from other registers. They
@@ -151,9 +149,8 @@ enum class amdgpu_regnum_t : uint32_t
   pseudo_vcc_32,  /* Read from vcc_32, write to vcc_32 and status.vccz.  */
   pseudo_vcc_64,  /* Read from vcc_64, write to vcc_64 and status.vccz.  */
 
-  wave_id,       /* The wave's globally unique identifier.  */
-  wave_in_group, /* The wave position in the thread group.  */
-  csp,           /* Conditional-branch Stack Pointer.  */
+  wave_id, /* The wave's globally unique identifier.  */
+  csp,     /* Conditional-branch Stack Pointer.  */
 
   null, /* Special register: read returns 0, write is ignored.  */
 

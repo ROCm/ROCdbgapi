@@ -1278,7 +1278,7 @@ one_os_exception_to_string (os_exception_mask_t exception_mask)
     case os_exception_mask_t::queue_packet_unsupported:
       return "QUEUE_PACKET_UNSUPPORTED";
     case os_exception_mask_t::queue_packet_dispatch_work_group_size_invalid:
-      return "QUEUE_PACKET_DISPATCH_WORK_GROUP_SIZE_INVALID";
+      return "QUEUE_PACKET_DISPATCH_WORKGROUP_SIZE_INVALID";
     case os_exception_mask_t::queue_packet_dispatch_register_invalid:
       return "QUEUE_PACKET_DISPATCH_REGISTER_INVALID";
     case os_exception_mask_t::queue_packet_dispatch_vendor_unsupported:

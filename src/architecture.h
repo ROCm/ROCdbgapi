@@ -198,7 +198,11 @@ public:
     virtual ~cwsr_record_t () = default;
 
     /* Return the globally unique wave identifier.  */
-    virtual std::optional<amd_dbgapi_wave_id_t> id () const = 0;
+    virtual amd_dbgapi_wave_id_t id () const = 0;
+    /* The 3-dimensional workgroup coordinates.  */
+    virtual std::array<uint32_t, 3> group_ids () const = 0;
+    /* Return the record's postion in the workgroup.  */
+    virtual uint32_t position_in_group () const = 0;
 
     /* Number of work-items in one wave.  */
     virtual size_t lane_count () const = 0;
@@ -262,7 +266,7 @@ public:
     const std::function<void (std::unique_ptr<cwsr_record_t>)> &wave_callback)
     const = 0;
 
-  virtual std::optional<amd_dbgapi_global_address_t> dispatch_packet_address (
+  virtual amd_dbgapi_global_address_t dispatch_packet_address (
     const architecture_t::cwsr_record_t &cwsr_record) const = 0;
 
   virtual std::unique_ptr<const kernel_descriptor_t> make_kernel_descriptor (

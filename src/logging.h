@@ -504,6 +504,8 @@ to_string (detail::parameter_t<detail::query_ref<T>, name, kind> param)
   F (amd_dbgapi_watchpoint_info_t)                                            \
   F (amd_dbgapi_watchpoint_kind_t)                                            \
   F (amd_dbgapi_watchpoint_share_kind_t)                                      \
+  F (amd_dbgapi_workgroup_id_t)                                               \
+  F (amd_dbgapi_workgroup_info_t)                                             \
   F (detail::query_ref<amd_dbgapi_agent_info_t>)                              \
   F (detail::query_ref<amd_dbgapi_address_class_info_t>)                      \
   F (detail::query_ref<amd_dbgapi_address_space_info_t>)                      \
@@ -519,7 +521,8 @@ to_string (detail::parameter_t<detail::query_ref<T>, name, kind> param)
   F (detail::query_ref<amd_dbgapi_register_info_t>)                           \
   F (detail::query_ref<amd_dbgapi_register_class_info_t>)                     \
   F (detail::query_ref<amd_dbgapi_watchpoint_info_t>)                         \
-  F (detail::query_ref<amd_dbgapi_wave_info_t>)
+  F (detail::query_ref<amd_dbgapi_wave_info_t>)                               \
+  F (detail::query_ref<amd_dbgapi_workgroup_info_t>)
 
 #define EXPLICIT_SPECIALIZATION(...)                                          \
   template <> std::string to_string (__VA_ARGS__);

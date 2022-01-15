@@ -47,6 +47,7 @@ class dispatch_t;
 class event_t;
 class displaced_stepping_t;
 class process_t;
+class workgroup_t;
 
 /* AMD Debugger API Wave.  */
 
@@ -97,14 +98,12 @@ private:
   visibility_t m_visibility{ visibility_t::visible };
   bool m_is_parked{ false };
 
-  std::array<uint32_t, 3> m_group_ids{ 0, 0, 0 };
-  uint32_t m_wave_in_group{ 0 };
-
   std::unique_ptr<architecture_t::cwsr_record_t> m_cwsr_record{};
 
   displaced_stepping_t *m_displaced_stepping{ nullptr };
   const wave_t *m_group_leader{ nullptr };
-  const dispatch_t &m_dispatch;
+  std::optional<uint32_t> const m_wave_in_group;
+  workgroup_t &m_workgroup;
 
   [[nodiscard]] size_t
   xfer_private_memory_swizzled (amd_dbgapi_segment_address_t segment_address,
@@ -125,7 +124,8 @@ private:
   void unpark ();
 
 public:
-  wave_t (amd_dbgapi_wave_id_t wave_id, const dispatch_t &dispatch);
+  wave_t (amd_dbgapi_wave_id_t wave_id, workgroup_t &workgroup,
+          std::optional<uint32_t> wave_in_group);
   ~wave_t ();
 
   /* Disable copies.  */
@@ -153,8 +153,6 @@ public:
   }
 
   size_t lane_count () const { return m_cwsr_record->lane_count (); }
-
-  auto group_ids () const { return m_group_ids; }
 
   uint64_t exec_mask () const;
   amd_dbgapi_global_address_t pc () const;
@@ -258,7 +256,8 @@ public:
   void get_info (amd_dbgapi_wave_info_t query, size_t value_size,
                  void *value) const;
 
-  const dispatch_t &dispatch () const { return m_dispatch; }
+  workgroup_t &workgroup () const { return m_workgroup; }
+  const dispatch_t &dispatch () const;
   compute_queue_t &queue () const;
   const agent_t &agent () const;
   process_t &process () const;

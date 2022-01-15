@@ -96,6 +96,11 @@ private:
       dbgapi_assert (m_kernel_descriptor);
       return *m_kernel_descriptor;
     }
+
+    uint32_t grid_dimensions () const;
+    std::array<uint32_t, 3> grid_sizes () const;
+    std::array<uint16_t, 3> workgroup_sizes () const;
+
     void get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
                    void *value) const override;
   };
@@ -129,7 +134,7 @@ private:
 
   hsa_queue_t m_hsa_queue{};
 
-  std::optional<amd_dbgapi_os_queue_packet_id_t>
+  amd_dbgapi_os_queue_packet_id_t
   get_os_queue_packet_id (architecture_t::cwsr_record_t &cwsr_record) const;
 
   displaced_instruction_ptr_t
@@ -188,6 +193,28 @@ aql_queue_t::aql_dispatch_t::aql_dispatch_t (
 
   m_kernel_descriptor = architecture ().make_kernel_descriptor (
     process (), m_packet.kernel_object);
+}
+
+uint32_t
+aql_queue_t::aql_dispatch_t::grid_dimensions () const
+{
+  return static_cast<uint32_t> (utils::bit_extract (
+    m_packet.setup, HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS,
+    HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS
+      + HSA_KERNEL_DISPATCH_PACKET_SETUP_WIDTH_DIMENSIONS - 1));
+}
+
+std::array<uint32_t, 3>
+aql_queue_t::aql_dispatch_t::grid_sizes () const
+{
+  return { m_packet.grid_size_x, m_packet.grid_size_y, m_packet.grid_size_z };
+}
+
+std::array<uint16_t, 3>
+aql_queue_t::aql_dispatch_t::workgroup_sizes () const
+{
+  return { m_packet.workgroup_size_x, m_packet.workgroup_size_y,
+           m_packet.workgroup_size_z };
 }
 
 void
@@ -254,27 +281,17 @@ aql_queue_t::aql_dispatch_t::get_info (amd_dbgapi_dispatch_info_t query,
       return;
 
     case AMD_DBGAPI_DISPATCH_INFO_GRID_DIMENSIONS:
-      utils::get_info (
-        value_size, value,
-        static_cast<uint32_t> (utils::bit_extract (
-          m_packet.setup, HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS,
-          HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS
-            + HSA_KERNEL_DISPATCH_PACKET_SETUP_WIDTH_DIMENSIONS - 1)));
+      utils::get_info (value_size, value, grid_dimensions ());
       return;
 
-    case AMD_DBGAPI_DISPATCH_INFO_WORK_GROUP_SIZES:
+    case AMD_DBGAPI_DISPATCH_INFO_WORKGROUP_SIZES:
       {
-        uint16_t workgroup_sizes[3]
-          = { m_packet.workgroup_size_x, m_packet.workgroup_size_y,
-              m_packet.workgroup_size_z };
-        utils::get_info (value_size, value, workgroup_sizes);
+        utils::get_info (value_size, value, workgroup_sizes ());
         return;
       }
     case AMD_DBGAPI_DISPATCH_INFO_GRID_SIZES:
       {
-        uint32_t grid_sizes[3] = { m_packet.grid_size_x, m_packet.grid_size_y,
-                                   m_packet.grid_size_z };
-        utils::get_info (value_size, value, grid_sizes);
+        utils::get_info (value_size, value, grid_sizes ());
         return;
       }
     case AMD_DBGAPI_DISPATCH_INFO_PRIVATE_SEGMENT_SIZE:
@@ -551,17 +568,12 @@ aql_queue_t::queue_state_changed ()
     }
 }
 
-std::optional<amd_dbgapi_os_queue_packet_id_t>
+amd_dbgapi_os_queue_packet_id_t
 aql_queue_t::get_os_queue_packet_id (
   architecture_t::cwsr_record_t &cwsr_record) const
 {
-  if (!process ().is_flag_set (process_t::flag_t::ttmps_setup_enabled)
-      && !agent ().os_info ().ttmps_always_initialized)
-    return std::nullopt;
-
-  auto packet_address = architecture ().dispatch_packet_address (cwsr_record);
-  if (!packet_address)
-    return std::nullopt;
+  amd_dbgapi_global_address_t packet_address
+    = architecture ().dispatch_packet_address (cwsr_record);
 
   /* Calculate the monotonic dispatch id for this packet.  It is
      between read_packet_id and write_packet_id.  */
@@ -573,7 +585,7 @@ aql_queue_t::get_os_queue_packet_id (
   dbgapi_assert (m_read_packet_id && m_write_packet_id);
 
   amd_dbgapi_os_queue_packet_id_t os_queue_packet_id
-    = (*packet_address - address ()) / aql_packet_size
+    = (packet_address - address ()) / aql_packet_size
       + (*m_read_packet_id / ring_size) * ring_size;
 
   if (os_queue_packet_id < *m_read_packet_id
@@ -584,12 +596,9 @@ aql_queue_t::get_os_queue_packet_id (
      processor's read_id and write_id.  */
   if (os_queue_packet_id < *m_read_packet_id
       || os_queue_packet_id >= *m_write_packet_id)
-    {
-      warning ("os_queue_packet_id %#lx is not within [%#lx..%#lx[ in %s",
-               os_queue_packet_id, *m_read_packet_id, *m_write_packet_id,
-               to_string (id ()).c_str ());
-      return std::nullopt;
-    }
+    fatal_error ("os_queue_packet_id %#lx is not within [%#lx..%#lx[ in %s",
+                 os_queue_packet_id, *m_read_packet_id, *m_write_packet_id,
+                 to_string (id ()).c_str ());
 
   return os_queue_packet_id;
 }
@@ -619,7 +628,6 @@ aql_queue_t::update_waves ()
     process.memory_cache ().prefetch (prefetch_begin,
                                       prefetch_end - prefetch_begin);
 
-    std::optional<amd_dbgapi_wave_id_t> wave_id;
     wave_t *wave = nullptr;
 
     if (process.is_flag_set (process_t::flag_t::runtime_enable_during_attach))
@@ -629,51 +637,75 @@ aql_queue_t::update_waves ()
            before the debugger attached to the process may have stale
            wave_ids.  */
       }
-    else if (wave_id = cwsr_record->id (); wave_id)
+    else if (amd_dbgapi_wave_id_t wave_id = cwsr_record->id ();
+             wave_id != wave_t::undefined)
       {
         /* The wave already has a wave_id, so we should find it in this queue.
            Search all visible and invisible waves.  */
-        wave = process.find (*wave_id, true /* include invisible waves  */);
+        wave = process.find (wave_id, true /* include invisible waves  */);
 
         if (!wave)
           {
-            warning ("%s not found in %s", to_string (*wave_id).c_str (),
-                     to_string (id ()).c_str ());
-
-            /* The wave_id may be corrupted, create a new wave and assign it a
-               new wave_id that is part of this queue's monotonic wave_id
-               sequence.  */
-            wave_id.reset ();
+            /* The wave_id saved in the ttmp registers may be corrupted.  */
+            fatal_error ("%s not found in %s", to_string (wave_id).c_str (),
+                         to_string (id ()).c_str ());
           }
       }
 
     if (!wave)
       {
-        const dispatch_t *kernel_dispatch;
+        workgroup_t *workgroup;
 
-        if (auto packet_id = get_os_queue_packet_id (*cwsr_record); !packet_id)
+        if (group_leader)
           {
-            /* If this wave does not have a packet_id (ttmps are not setup
-               or may be corrupted), then use a dummy dispatch instance.  */
-            kernel_dispatch = &m_dummy_dispatch;
+            /* We already have identified the workgroup_t this wave belongs to,
+               it is the same workgroup_t as the thread group leader's.  */
+            workgroup = &group_leader->workgroup ();
+
+            if (workgroup->group_ids ()
+                && *workgroup->group_ids () != cwsr_record->group_ids ())
+              fatal_error ("not in the same workgroup as the group_leader");
+          }
+        else if (agent ().ttmps_initialized ())
+          {
+            amd_dbgapi_os_queue_packet_id_t packet_id
+              = get_os_queue_packet_id (*cwsr_record);
+
+            /* Find the dispatch this wave is associated with using the
+               packet_id.  The packet_id is only unique for a given queue.  */
+            aql_dispatch_t *dispatch
+              = reinterpret_cast<aql_dispatch_t *> (process.find_if (
+                [this, packet_id] (const dispatch_t &d) {
+                  return d.queue () == *this
+                         && d.os_queue_packet_id () == packet_id;
+                }));
+
+            if (!dispatch)
+              dispatch = &process.create<aql_dispatch_t> (
+                cwsr_record->queue (), packet_id);
+
+            /* Find the workgroup this wave belongs to.  */
+            const auto group_ids = cwsr_record->group_ids ();
+            workgroup = process.find_if (
+              [this, dispatch, &group_ids] (const workgroup_t &wg) {
+                return wg.dispatch () == *dispatch
+                       && wg.group_ids () == group_ids;
+              });
+
+            if (!workgroup)
+              workgroup = &process.create<workgroup_t> (*dispatch, group_ids);
           }
         else
           {
-            /* Find the dispatch this wave is associated with using the
-               packet_id.  The packet_id is only unique for a given queue.  */
-            kernel_dispatch = process.find_if (
-              [this, packet_id] (const dispatch_t &dispatch)
-              {
-                return dispatch.queue () == *this
-                       && dispatch.os_queue_packet_id () == *packet_id;
-              });
-
-            if (!kernel_dispatch)
-              kernel_dispatch = &process.create<aql_dispatch_t> (
-                cwsr_record->queue (), *packet_id);
+            /* If this wave does not have a packet_id (ttmps are not setup
+               or may be corrupted), then create a new workgroup associated
+               with the dummy_dispatch.  All waves belonging to this workgroup
+               will be associated with this instance.  */
+            workgroup = &process.create<workgroup_t> (m_dummy_dispatch);
           }
 
-        wave = &process.create<wave_t> (wave_id, *kernel_dispatch);
+        wave = &process.create<wave_t> (*workgroup,
+                                        cwsr_record->position_in_group ());
       }
 
     bool is_first_wave = cwsr_record->is_first_wave ();
@@ -713,11 +745,9 @@ aql_queue_t::update_waves ()
     if (is_last_wave)
       group_leader = nullptr;
 
-    /* Check that the wave is in the same group as its group leader.  */
-    if (wave->group_ids () != wave->group_leader ().group_ids ())
-      fatal_error ("wave is not in the same group as group_leader");
-
     wave->set_mark (wave_mark);
+    if (is_first_wave)
+      wave->workgroup ().set_mark (wave_mark);
   };
 
   process_t &process = this->process ();
@@ -767,10 +797,14 @@ aql_queue_t::update_waves ()
                 to_string (id ()).c_str ());
     }
 
-  /* Iterate all waves belonging to this queue, and prune those with a mark
-     older than the current mark.  Note that the waves must be pruned before
-     the dispatches to ensure there are no dangling pointers from waves to
-     pruned dispatches.  */
+  /* Iterate all waves, workgroups and dispatches belonging to this queue, and
+     prune waves and workgroups with a mark older than the current mark, and
+     dispatches with ids older (smaller) than the queue current read dispatch
+     id.
+
+     Note that the waves must be pruned before the workgroups and the
+     workgroups must be pruned before the dispatches to ensure there are no
+     dangling pointers to pruned objects.  */
 
   auto &&wave_range = process.range<wave_t> ();
   for (auto it = wave_range.begin (); it != wave_range.end ();)
@@ -783,9 +817,12 @@ aql_queue_t::update_waves ()
     else
       ++it;
 
-  /* Prune old dispatches. Dispatches with ids older (smaller) than the queue
-     current read dispatch id are now retired, so remove them from the process.
-   */
+  auto &&workgroup_range = process.range<workgroup_t> ();
+  for (auto it = workgroup_range.begin (); it != workgroup_range.end ();)
+    if (it->queue () == *this && it->mark () < wave_mark)
+      it = process.destroy (it);
+    else
+      ++it;
 
   auto &&dispatch_range = process.range<dispatch_t> ();
   for (auto it = dispatch_range.begin (); it != dispatch_range.end ();)

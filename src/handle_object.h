@@ -277,10 +277,11 @@ public:
   handle_object_set_t () = default;
 
   template <typename Derived = Object, typename... Args>
-  inline Object &create_object (std::optional<handle_type> id, Args &&...args);
+  inline Derived &create_object (std::optional<handle_type> id,
+                                 Args &&...args);
 
   template <typename Derived = Object, typename... Args>
-  Object &create_object (Args &&...args)
+  Derived &create_object (Args &&...args)
   {
     return create_object<Derived> (std::optional<handle_type>{},
                                    std::forward<Args> (args)...);
@@ -398,7 +399,7 @@ public:
 
 template <typename Object>
 template <typename Derived, typename... Args>
-inline Object &
+inline Derived &
 handle_object_set_t<Object>::create_object (std::optional<handle_type> id,
                                             Args &&...args)
 {
@@ -422,7 +423,7 @@ handle_object_set_t<Object>::create_object (std::optional<handle_type> id,
     }
 
   m_changed = true;
-  return *it->second.get ();
+  return *reinterpret_cast<Derived *> (it->second.get ());
 }
 
 namespace detail

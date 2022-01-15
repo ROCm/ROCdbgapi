@@ -54,6 +54,13 @@ agent_t::set_exceptions (os_exception_mask_t exceptions)
   m_exceptions |= exceptions;
 }
 
+bool
+agent_t::ttmps_initialized () const
+{
+  return process ().is_flag_set (process_t::flag_t::ttmps_setup_enabled)
+         || os_info ().ttmps_always_initialized;
+}
+
 amd_dbgapi_watchpoint_share_kind_t
 agent_t::watchpoint_share_kind () const
 {

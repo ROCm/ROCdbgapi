@@ -2133,7 +2133,15 @@ amd_dbgapi_process_attach (amd_dbgapi_client_process_id_t client_process_id,
     catch (const api_error_t &e)
       {
         /* For all other exceptions, destroy the newly created process.  */
-        process_t::destroy_process (process);
+        try
+          {
+            process->detach ();
+            process_t::destroy_process (process);
+          }
+        catch (...)
+          {
+          }
+        e.print_message ();
         THROW (e.code ());
       }
 
