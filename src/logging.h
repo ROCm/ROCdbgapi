@@ -103,7 +103,7 @@ to_string (const std::unique_ptr<T, D> &v)
 template <typename T, typename F>
 inline std::string
 to_string (
-  const std::vector<T> &vector, F transform = [] (const T &x) { return x; })
+  const std::vector<T> &vector, F &&transform = [] (const T &x) { return x; })
 {
   std::string str;
   for (auto &&x : vector)
@@ -113,6 +113,17 @@ to_string (
       str += to_string (transform (x));
     }
   return str;
+}
+
+/* See comment for to_cstring (T &&) below.  */
+template <typename T, typename F>
+inline const char *
+to_cstring (
+  const std::vector<T> &vector, F &&transform = [] (const T &x) { return x; },
+  std::string &&tmp = {})
+{
+  tmp = to_string (vector, std::forward<F> (transform));
+  return tmp.c_str ();
 }
 
 namespace detail
@@ -562,6 +573,18 @@ to_string (std::tuple<Args...> &&t)
     t);
 }
 
+/* Construct a temporary std::string in the caller's frame to hold the result
+   of to_string (T &&) and return a const char * that is equivalent to the
+   content of that string.  This is a convenience wrapper used to shorten
+   to_string (T &&).c_str ().  */
+template <typename T>
+inline const char *
+to_cstring (T &&value, std::string &&tmp = {})
+{
+  tmp = to_string (std::forward<T> (value));
+  return tmp.c_str ();
+}
+
 namespace detail
 {
 
@@ -624,7 +647,7 @@ tracer<LogLevel>::enter (std::tuple<Args...> &&in_args, Functor &&func)
     return detail::tracer_closure (std::forward<Functor> (func));
 
   detail::log (LogLevel, "%s%s (%s) {", m_prefix, m_function,
-               to_string (std::move (in_args)).c_str ());
+               to_cstring (std::move (in_args)));
   ++detail::log_indent_depth;
 
   try

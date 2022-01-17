@@ -116,7 +116,7 @@ wave_t::set_visibility (visibility_t visibility)
   if (m_visibility == visibility)
     return;
 
-  log_info ("changing %s's visibility to %s", to_string (id ()).c_str (),
+  log_info ("changing %s's visibility to %s", to_cstring (id ()),
             visibility == visibility_t::visible ? "visible" : "hidden");
 
   m_visibility = visibility;
@@ -199,7 +199,7 @@ wave_t::park ()
   /* From now on, every read/write to the pc register will be from/to
      m_parked_pc.  The real pc in the context save area will be untouched.  */
 
-  log_verbose ("parked %s (pc=%#lx)", to_string (id ()).c_str (), m_parked_pc);
+  log_verbose ("parked %s (pc=%#lx)", to_cstring (id ()), m_parked_pc);
 }
 
 void
@@ -218,7 +218,7 @@ wave_t::unpark ()
 
   write_register (amdgpu_regnum_t::pc, saved_pc);
 
-  log_verbose ("unparked %s (pc=%#lx)", to_string (id ()).c_str (), pc ());
+  log_verbose ("unparked %s (pc=%#lx)", to_cstring (id ()), pc ());
 }
 
 void
@@ -311,9 +311,9 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
       write_register (amdgpu_regnum_t::pc, *displaced_stepping->to ());
 
       log_info ("changing %s's pc from %#lx to %#lx (started %s)",
-                to_string (id ()).c_str (), displaced_stepping->from (),
+                to_cstring (id ()), displaced_stepping->from (),
                 *displaced_stepping->to (),
-                to_string (displaced_stepping->id ()).c_str ());
+                to_cstring (displaced_stepping->id ()));
     }
 
   displaced_stepping_t::retain (displaced_stepping);
@@ -335,10 +335,10 @@ wave_t::displaced_stepping_complete ()
       write_register (amdgpu_regnum_t::pc, restored_pc);
 
       log_info ("changing %s's pc from %#lx to %#lx (%s %s)",
-                to_string (id ()).c_str (), displaced_pc, pc (),
+                to_cstring (id ()), displaced_pc, pc (),
                 displaced_pc == *m_displaced_stepping->to () ? "aborted"
                                                              : "completed",
-                to_string (m_displaced_stepping->id ()).c_str ());
+                to_cstring (m_displaced_stepping->id ()));
     }
 
   displaced_stepping_t::release (m_displaced_stepping);
@@ -358,7 +358,7 @@ wave_t::update (std::unique_ptr<architecture_t::cwsr_record_t> cwsr_record)
   if (!utils::is_aligned (pc (),
                           architecture ().minimum_instruction_alignment ()))
     fatal_error ("corrupted state for %s: misaligned pc: %#lx",
-                 to_string (id ()).c_str (), pc ());
+                 to_cstring (id ()), pc ());
 
   /* Update the wave's state if this is a new wave, or if the wave was running
      the last time the queue it belongs to was resumed.  */
@@ -382,9 +382,8 @@ wave_t::update (std::unique_ptr<architecture_t::cwsr_record_t> cwsr_record)
   log_verbose ("%s %s%s in %s (pc=%#lx, state=%s) context_save:[%#lx..%#lx[",
                first_update ? "created" : "updated",
                visibility () != visibility_t::visible ? "invisible " : "",
-               to_string (id ()).c_str (),
-               to_string (workgroup ().id ()).c_str (), pc (),
-               to_string (m_state).c_str (), m_cwsr_record->begin (),
+               to_cstring (id ()), to_cstring (workgroup ().id ()), pc (),
+               to_cstring (m_state), m_cwsr_record->begin (),
                m_cwsr_record->end ());
 
   /* The wave was running, and it is now stopped.  */
@@ -454,8 +453,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
 
   log_info ("changing %s%s's state from %s to %s %s(pc=%#lx)",
             visibility () != visibility_t::visible ? "invisible " : "",
-            to_string (id ()).c_str (), to_string (prev_state).c_str (),
-            to_string (state).c_str (),
+            to_cstring (id ()), to_cstring (prev_state), to_cstring (state),
             exceptions != AMD_DBGAPI_EXCEPTION_NONE
               ? ("with " + to_string (exceptions) + " ").c_str ()
               : "",
@@ -988,7 +986,7 @@ wave_t::get_info (amd_dbgapi_wave_info_t query, size_t value_size,
             = process ().find_watchpoint (os_watch_id);
           if (!watchpoint)
             fatal_error ("kfd_watch_%d not set on %s", os_watch_id,
-                         to_string (agent ().id ()).c_str ());
+                         to_cstring (agent ().id ()));
           return watchpoint->id ();
         };
 

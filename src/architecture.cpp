@@ -999,7 +999,7 @@ amdgcn_architecture_t::simulate (wave_t &wave, amd_dbgapi_global_address_t pc,
        handler with no trap_id.  */
     simulate_trap_handler (wave, *new_pc);
 
-  log_info ("%s simulated \"%s\" (pc=%#lx)", to_string (wave.id ()).c_str (),
+  log_info ("%s simulated \"%s\" (pc=%#lx)", to_cstring (wave.id ()),
             std::get<std::string> (
               wave.architecture ().disassemble_instruction (pc, instruction))
               .c_str (),
@@ -2369,7 +2369,7 @@ gfx9_architecture_t::wave_get_state (wave_t &wave) const
           wave_set_state (wave, AMD_DBGAPI_WAVE_STATE_SINGLE_STEP);
 
           log_info ("%s (pc=%#lx) ignore spurious single-step",
-                    to_string (wave.id ()).c_str (), wave.pc ());
+                    to_cstring (wave.id ()), wave.pc ());
 
           return { AMD_DBGAPI_WAVE_STATE_SINGLE_STEP,
                    AMD_DBGAPI_WAVE_STOP_REASON_NONE };
@@ -2993,7 +2993,7 @@ gfx9_architecture_t::dispatch_packet_address (
 
   if ((dispatch_packet_index * queue.packet_size ()) >= queue.size ())
     fatal_error ("dispatch_packet_index %#lx is out of bounds in %s",
-                 dispatch_packet_index, to_string (queue.id ()).c_str ());
+                 dispatch_packet_index, to_cstring (queue.id ()));
 
   return queue.address () + (dispatch_packet_index * queue.packet_size ());
 }

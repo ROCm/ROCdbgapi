@@ -598,7 +598,7 @@ aql_queue_t::get_os_queue_packet_id (
       || os_queue_packet_id >= *m_write_packet_id)
     fatal_error ("os_queue_packet_id %#lx is not within [%#lx..%#lx[ in %s",
                  os_queue_packet_id, *m_read_packet_id, *m_write_packet_id,
-                 to_string (id ()).c_str ());
+                 to_cstring (id ()));
 
   return os_queue_packet_id;
 }
@@ -647,8 +647,8 @@ aql_queue_t::update_waves ()
         if (!wave)
           {
             /* The wave_id saved in the ttmp registers may be corrupted.  */
-            fatal_error ("%s not found in %s", to_string (wave_id).c_str (),
-                         to_string (id ()).c_str ());
+            fatal_error ("%s not found in %s", to_cstring (wave_id),
+                         to_cstring (id ()));
           }
       }
 
@@ -784,8 +784,8 @@ aql_queue_t::update_waves ()
     {
       log_info ("decoding %s's context save area: "
                 "ctrl_stk:[0x%llx..0x%llx[, wave_area:[0x%llx..0x%llx[",
-                to_string (id ()).c_str (), control_stack_begin,
-                control_stack_end, wave_area_begin, wave_area_end);
+                to_cstring (id ()), control_stack_begin, control_stack_end,
+                wave_area_begin, wave_area_end);
 
       /* Read the entire control stack from the inferior in one go.  */
       amd_dbgapi_size_t size = control_stack_end - control_stack_begin;
@@ -802,8 +802,7 @@ aql_queue_t::update_waves ()
         wave_area_end - wave_area_begin, process_cwsr_record);
 
       log_info ("%zu out of %zu wave%s running on %s", *m_waves_running,
-                wave_count, wave_count > 1 ? "s" : "",
-                to_string (id ()).c_str ());
+                wave_count, wave_count > 1 ? "s" : "", to_cstring (id ()));
     }
 
   /* Iterate all waves, workgroups and dispatches belonging to this queue, and
@@ -1058,7 +1057,7 @@ queue_t::set_state (state_t state)
     queue_state_changed ();
 
   if (m_state == state_t::invalid)
-    log_info ("invalidated %s", to_string (id ()).c_str ());
+    log_info ("invalidated %s", to_cstring (id ()));
 }
 
 amd_dbgapi_global_address_t

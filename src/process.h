@@ -364,21 +364,21 @@ public:
 
   /* Find an object for which the unary predicate f returns true.  */
   template <typename Functor>
-  auto *find_if (Functor predicate, bool all = false)
+  auto *find_if (Functor &&predicate, bool all = false)
   {
     using object_type = std::decay_t<utils::first_argument_of_t<Functor>>;
 
     return std::get<handle_object_set_t<object_type>> (m_handle_object_sets)
-      .find_if (predicate, all);
+      .find_if (std::forward<Functor> (predicate), all);
   }
 
   template <typename Functor>
-  auto const *find_if (Functor predicate, bool all = false) const
+  auto const *find_if (Functor &&predicate, bool all = false) const
   {
     using object_type = std::decay_t<utils::first_argument_of_t<Functor>>;
 
     return std::get<handle_object_set_t<object_type>> (m_handle_object_sets)
-      .find_if (predicate, all);
+      .find_if (std::forward<Functor> (predicate), all);
   }
 
   pipe_t &client_notifier_pipe () { return m_client_notifier_pipe; }

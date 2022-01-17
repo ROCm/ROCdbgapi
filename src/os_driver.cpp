@@ -1401,8 +1401,7 @@ to_string (os_runtime_info_t runtime_info)
   return string_printf (
     "{ .r_debug=%#llx, .runtime_state=%s, .ttmp_setup=%d }",
     runtime_info.r_debug,
-    to_string (static_cast<os_runtime_state_t> (runtime_info.runtime_state))
-      .c_str (),
+    to_cstring (static_cast<os_runtime_state_t> (runtime_info.runtime_state)),
     runtime_info.ttmp_setup);
 }
 

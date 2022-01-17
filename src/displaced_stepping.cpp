@@ -43,7 +43,7 @@ displaced_stepping_t::displaced_stepping_t (
 {
   dbgapi_assert (m_original_instruction.is_valid ());
 
-  log_info ("created new %s (from=%#lx%s)", to_string (id ()).c_str (), m_from,
+  log_info ("created new %s (from=%#lx%s)", to_cstring (id ()), m_from,
             m_to ? string_printf (", to=%#lx", m_to->get ()).c_str () : "");
 }
 
@@ -52,7 +52,7 @@ displaced_stepping_t::~displaced_stepping_t ()
   dbgapi_assert (m_reference_count == 0
                  && "all displaced stepping operations should have completed");
 
-  log_info ("destructed %s", to_string (id ()).c_str ());
+  log_info ("destructed %s", to_cstring (id ()));
 }
 
 void

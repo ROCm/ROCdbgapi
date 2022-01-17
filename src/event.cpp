@@ -99,18 +99,17 @@ event_t::pretty_printer_string () const
           = process ().find (std::get<wave_event_t> (m_data).wave_id);
         if (!wave)
           return string_printf (
-            "%s for terminated %s", to_string (kind ()).c_str (),
-            to_string (std::get<wave_event_t> (m_data).wave_id).c_str ());
+            "%s for terminated %s", to_cstring (kind ()),
+            to_cstring (std::get<wave_event_t> (m_data).wave_id));
 
         std::string stop_reason_str;
         if (kind () == AMD_DBGAPI_EVENT_KIND_WAVE_STOP)
-          stop_reason_str = string_printf (
-            ", stop_reason=%s", to_string (wave->stop_reason ()).c_str ());
+          stop_reason_str = string_printf (", stop_reason=%s",
+                                           to_cstring (wave->stop_reason ()));
 
-        return string_printf (
-                 "%s for %s on %s (pc=%#lx", to_string (kind ()).c_str (),
-                 to_string (wave->id ()).c_str (),
-                 to_string (wave->queue ().id ()).c_str (), wave->pc ())
+        return string_printf ("%s for %s on %s (pc=%#lx", to_cstring (kind ()),
+                              to_cstring (wave->id ()),
+                              to_cstring (wave->queue ().id ()), wave->pc ())
                + stop_reason_str + ")";
       }
 
@@ -120,13 +119,13 @@ event_t::pretty_printer_string () const
     case AMD_DBGAPI_EVENT_KIND_BREAKPOINT_RESUME:
       return string_printf (
         "EVENT_KIND_BREAKPOINT_RESUME for %s",
-        to_string (std::get<breakpoint_resume_event_t> (m_data).breakpoint_id)
-          .c_str ());
+        to_cstring (
+          std::get<breakpoint_resume_event_t> (m_data).breakpoint_id));
 
     case AMD_DBGAPI_EVENT_KIND_RUNTIME:
       return string_printf (
         "EVENT_KIND_RUNTIME state=%s",
-        to_string (std::get<runtime_event_t> (m_data).runtime_state).c_str ());
+        to_cstring (std::get<runtime_event_t> (m_data).runtime_state));
 
     case AMD_DBGAPI_EVENT_KIND_QUEUE_ERROR:
     default:

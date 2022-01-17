@@ -217,7 +217,7 @@ process_t::detach ()
           && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
         fatal_error ("Could not disable debug (rc=%d)", status);
 
-      log_info ("debugging is disabled for %s", to_string (id ()).c_str ());
+      log_info ("debugging is disabled for %s", to_cstring (id ()));
     }
 
   /* Destruct the waves, dispatches, queues, and agents, in this order.  */
@@ -233,7 +233,7 @@ process_t::detach ()
   std::get<handle_object_set_t<breakpoint_t>> (m_handle_object_sets).clear ();
   std::get<handle_object_set_t<code_object_t>> (m_handle_object_sets).clear ();
 
-  log_info ("detached %s", to_string (id ()).c_str ());
+  log_info ("detached %s", to_cstring (id ()));
 
   if (exception)
     std::rethrow_exception (exception);
@@ -342,7 +342,7 @@ process_t::set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode)
     throw process_exited_exception_t (*this);
   else if (status != AMD_DBGAPI_STATUS_SUCCESS)
     fatal_error ("os_driver_t::set_wave_launch_mode (%s) failed (rc=%d)",
-                 to_string (wave_launch_mode).c_str (), status);
+                 to_cstring (wave_launch_mode), status);
 
   /* When changing the wave launch mode from WAVE_LAUNCH_MODE_HALT, all
      waves halted at launch need to be resumed and reported to the client.
@@ -564,7 +564,7 @@ process_t::update_agents ()
         it = destroy (it);
 
         log_info ("destroyed deleted %s (os_agent_id=%d)",
-                  to_string (agent_id).c_str (), os_agent_id);
+                  to_cstring (agent_id), os_agent_id);
       }
     else
       ++it;
@@ -683,10 +683,10 @@ process_t::insert_watchpoint (const watchpoint_t &watchpoint)
       && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
     fatal_error ("os_driver_t::set_address_watch () failed (rc=%d)", status);
 
-  log_info ("%s: set address_watch%d [%#lx-%#lx] (%s)",
-            to_string (id ()).c_str (), os_watch_id, watchpoint.address (),
+  log_info ("%s: set address_watch%d [%#lx-%#lx] (%s)", to_cstring (id ()),
+            os_watch_id, watchpoint.address (),
             watchpoint.address () + watchpoint.size (),
-            to_string (watchpoint.kind ()).c_str ());
+            to_cstring (watchpoint.kind ()));
 
   if (!m_watchpoint_map.emplace (os_watch_id, &watchpoint).second)
     fatal_error ("os_watch_id %d is already in use", os_watch_id);
@@ -713,8 +713,7 @@ process_t::remove_watchpoint (const watchpoint_t &watchpoint)
 
   m_watchpoint_map.erase (it);
 
-  log_info ("%s: clear address_watch%d", to_string (id ()).c_str (),
-            os_watch_id);
+  log_info ("%s: clear address_watch%d", to_cstring (id ()), os_watch_id);
 
   const bool last_watchpoint = count<watchpoint_t> () == 1;
   if (last_watchpoint)
@@ -788,8 +787,8 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
   };
 
   if (!queue_ids.empty ())
-    log_info ("suspending %s (%s)",
-              to_string (queue_ids, os_queue_id_to_id).c_str (), reason);
+    log_info ("suspending %s (%s)", to_cstring (queue_ids, os_queue_id_to_id),
+              reason);
 
   size_t num_suspended_queues;
   amd_dbgapi_status_t status = os_driver ().suspend_queues (
@@ -821,7 +820,7 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
       if (queue_ids[i] & os_queue_error_mask)
         {
           fatal_error ("failed to suspend %s (%#x)",
-                       to_string (queues[i]->id ()).c_str (), queue_ids[i]);
+                       to_cstring (queues[i]->id ()), queue_ids[i]);
         }
       else if (queue_ids[i] & os_queue_invalid_mask)
         {
@@ -885,8 +884,8 @@ process_t::resume_queues (const std::vector<queue_t *> &queues,
   };
 
   if (!queue_ids.empty ())
-    log_info ("resuming %s (%s)",
-              to_string (queue_ids, os_queue_id_to_id).c_str (), reason);
+    log_info ("resuming %s (%s)", to_cstring (queue_ids, os_queue_id_to_id),
+              reason);
 
   size_t num_resumed_queues;
   amd_dbgapi_status_t status = os_driver ().resume_queues (
@@ -911,7 +910,7 @@ process_t::resume_queues (const std::vector<queue_t *> &queues,
       if (queue_ids[i] & os_queue_error_mask)
         {
           fatal_error ("failed to resume %s (%#x)",
-                       to_string (queues[i]->id ()).c_str (), queue_ids[i]);
+                       to_cstring (queues[i]->id ()), queue_ids[i]);
         }
       else if (queue_ids[i] & os_queue_invalid_mask)
         {
@@ -1025,7 +1024,7 @@ process_t::update_queues ()
             {
               log_info ("ignoring os_queue_id %d due to %s (os_gpu_id=%d) "
                         "not supporting debugging",
-                        queue_info.queue_id, to_string (agent->id ()).c_str (),
+                        queue_info.queue_id, to_cstring (agent->id ()),
                         queue_info.gpu_id);
               continue;
             }
@@ -1042,7 +1041,7 @@ process_t::update_queues ()
                   destroy (queue);
 
                   log_info ("destroyed stale %s (os_queue_id=%d)",
-                            to_string (destroyed_queue_id).c_str (),
+                            to_cstring (destroyed_queue_id),
                             queue_info.queue_id);
                 }
             }
@@ -1084,9 +1083,9 @@ process_t::update_queues ()
                     fatal_error (
                       "%s (os_queue_id %d) has a different %s than the "
                       "%s it had when created",
-                      to_string (queue->id ()).c_str (), queue_info.queue_id,
-                      to_string (agent->id ()).c_str (),
-                      to_string (queue->agent ().id ()).c_str ());
+                      to_cstring (queue->id ()), queue_info.queue_id,
+                      to_cstring (agent->id ()),
+                      to_cstring (queue->agent ().id ()));
 
                   /* This isn't a new queue, and it is fully initialized.
                      Mark it as active, and continue to the next snapshot.  */
@@ -1109,7 +1108,7 @@ process_t::update_queues ()
           queue->set_mark (queue_mark);
 
           log_info ("created new %s (os_queue_id=%d)",
-                    to_string (queue->id ()).c_str (), queue->os_queue_id ());
+                    to_cstring (queue->id ()), queue->os_queue_id ());
         }
     }
   while (queue_count > snapshot_count);
@@ -1127,7 +1126,7 @@ process_t::update_queues ()
         it = destroy (it);
 
         log_info ("destroyed deleted %s (os_queue_id=%d)",
-                  to_string (queue_id).c_str (), os_queue_id);
+                  to_cstring (queue_id), os_queue_id);
       }
     else
       ++it;
@@ -1362,7 +1361,7 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
   if (status != AMD_DBGAPI_STATUS_SUCCESS
       && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
     fatal_error ("Could not set the wave launch mode for %s (rc=%d).",
-                 to_string (id ()).c_str (), status);
+                 to_cstring (id ()), status);
 
   os_wave_launch_trap_mask_t supported_wave_trap_mask;
   status = os_driver ().set_wave_launch_trap_override (
@@ -1371,13 +1370,12 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
   if (status != AMD_DBGAPI_STATUS_SUCCESS
       && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
     fatal_error ("Could not set the wave launch trap override for %s (rc=%d).",
-                 to_string (id ()).c_str (), status);
+                 to_cstring (id ()), status);
 
   if ((m_wave_trap_mask & ~supported_wave_trap_mask) != 0)
-    fatal_error (
-      "Unsupported wave trap mask (%s) requested for %s",
-      to_string (m_wave_trap_mask & ~supported_wave_trap_mask).c_str (),
-      to_string (id ()).c_str ());
+    fatal_error ("Unsupported wave trap mask (%s) requested for %s",
+                 to_cstring (m_wave_trap_mask & ~supported_wave_trap_mask),
+                 to_cstring (id ()));
 
   status = os_driver ().set_wave_launch_trap_override (
     os_wave_launch_trap_override_t::apply, m_wave_trap_mask,
@@ -1385,7 +1383,7 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
   if (status != AMD_DBGAPI_STATUS_SUCCESS
       && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
     fatal_error ("Could not set the wave launch trap override for %s (rc=%d).",
-                 to_string (id ()).c_str (), status);
+                 to_cstring (id ()), status);
 
   if (m_supports_precise_memory)
     {
@@ -1393,7 +1391,7 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
       if (status != AMD_DBGAPI_STATUS_SUCCESS
           && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
         fatal_error ("Could not set precise memory for %s (rc=%d).",
-                     to_string (id ()).c_str (), status);
+                     to_cstring (id ()), status);
     }
 
   std::vector<queue_t *> queues;
@@ -1414,7 +1412,7 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
 void
 process_t::attach ()
 {
-  log_info ("attaching %s to %s", to_string (id ()).c_str (),
+  log_info ("attaching %s to %s", to_cstring (id ()),
             m_os_process_id
               ? string_printf ("OS process %d", *m_os_process_id).c_str ()
               : "exited process");
@@ -1461,7 +1459,7 @@ process_t::attach ()
     }
 
   disable_debug.release ();
-  log_info ("debugging is enabled for %s", to_string (id ()).c_str ());
+  log_info ("debugging is enabled for %s", to_cstring (id ()));
 }
 
 void
@@ -1502,7 +1500,7 @@ process_t::get_info (amd_dbgapi_process_info_t query, size_t value_size,
 void
 process_t::enqueue_event (event_t &event)
 {
-  log_info ("reporting %s, %s", to_string (event.id ()).c_str (),
+  log_info ("reporting %s, %s", to_cstring (event.id ()),
             event.pretty_printer_string ().c_str ());
 
   m_pending_events.emplace (&event);
@@ -1571,8 +1569,8 @@ process_t::query_debug_event (os_exception_mask_t cleared_exceptions)
             {
               log_info (
                 "dropping agent event (%s) on unsupported %s (os_gpu_id=%d)",
-                to_string (exceptions).c_str (),
-                to_string (agent->id ()).c_str (), os_agent_id);
+                to_cstring (exceptions), to_cstring (agent->id ()),
+                os_agent_id);
               continue;
             }
 
@@ -1608,8 +1606,8 @@ process_t::query_debug_event (os_exception_mask_t cleared_exceptions)
             {
               log_info ("dropping queue event (%s) for os_queue_id %d on "
                         "unsupported %s (os_gpu_id=%d)",
-                        to_string (exceptions).c_str (), os_queue_id,
-                        to_string (agent->id ()).c_str (), os_agent_id);
+                        to_cstring (exceptions), os_queue_id,
+                        to_cstring (agent->id ()), os_agent_id);
               continue;
             }
         }
@@ -1636,7 +1634,7 @@ process_t::query_debug_event (os_exception_mask_t cleared_exceptions)
               queue = nullptr;
 
               log_info ("destroyed stale %s (os_queue_id=%d)",
-                        to_string (stale_queue_id).c_str (), os_queue_id);
+                        to_cstring (stale_queue_id), os_queue_id);
             }
 
           /* ABA handling: create a temporary, partially initialized, queue
@@ -1669,7 +1667,7 @@ process_t::query_debug_event (os_exception_mask_t cleared_exceptions)
           if (!queue)
             {
               log_info ("dropping queue event (%s) for deleted os_queue_id %d",
-                        to_string (exceptions).c_str (), os_queue_id);
+                        to_cstring (exceptions), os_queue_id);
               continue;
             }
 
@@ -1741,7 +1739,7 @@ process_t::next_pending_event ()
             "%s has pending exceptions (%s)",
             std::visit ([] (auto &&x) { return to_string (x->id ()); }, source)
               .c_str (),
-            to_string (exceptions).c_str ());
+            to_cstring (exceptions));
 
           if ((exceptions & os_exception_mask_t::device_memory_violation)
               != os_exception_mask_t::none)
@@ -1968,7 +1966,7 @@ process_t::send_exceptions (
     }
 
   log_info ("%s sending runtime exceptions [ %s ] (source=%s)",
-            to_string (id ()).c_str (), to_string (exceptions).c_str (),
+            to_cstring (id ()), to_cstring (exceptions),
             std::visit ([] (auto &&x) { return to_string (x->id ()); }, source)
               .c_str ());
 

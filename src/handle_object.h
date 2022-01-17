@@ -334,7 +334,7 @@ public:
   }
 
   template <typename Functor>
-  Object *find_if (Functor predicate, bool all = false)
+  Object *find_if (Functor &&predicate, bool all = false)
   {
     auto it = std::find_if (m_map.begin (), m_map.end (),
                             [=] (const auto &value)
@@ -346,7 +346,7 @@ public:
   }
 
   template <typename Functor>
-  const Object *find_if (Functor predicate, bool all = false) const
+  const Object *find_if (Functor &&predicate, bool all = false) const
   {
     auto it = std::find_if (m_map.begin (), m_map.end (),
                             [=] (const auto &value)
