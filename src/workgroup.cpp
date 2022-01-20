@@ -21,6 +21,7 @@
 #include "workgroup.h"
 #include "agent.h"
 #include "dispatch.h"
+#include "memory.h"
 #include "process.h"
 #include "queue.h"
 
@@ -49,6 +50,68 @@ const architecture_t &
 workgroup_t::architecture () const
 {
   return queue ().architecture ();
+}
+
+void
+workgroup_t::update (amd_dbgapi_global_address_t local_memory_base_address)
+{
+  m_local_memory_base_address.emplace (local_memory_base_address);
+}
+
+size_t
+workgroup_t::xfer_local_memory (amd_dbgapi_segment_address_t segment_address,
+                                void *read, const void *write, size_t size)
+{
+  /* The LDS is stored in the context save area.  */
+  std::optional<scoped_queue_suspend_t> suspend;
+  if (!queue ().is_suspended ())
+    {
+      suspend.emplace (queue (), "xfer local memory");
+
+      /* Look for the workgroup_id again, all the waves may have exited.  */
+      workgroup_t *workgroup = find (id ());
+      if (!workgroup)
+        throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_WORKGROUP_ID);
+
+      dbgapi_assert (workgroup == this);
+    }
+
+  dbgapi_assert (m_local_memory_base_address);
+
+  amd_dbgapi_size_t limit = m_local_memory_size;
+  amd_dbgapi_size_t offset = segment_address;
+
+  if ((offset + size) > limit)
+    {
+      size_t max_size = offset < limit ? limit - offset : 0;
+      if (max_size == 0 && size != 0)
+        throw memory_access_error_t (*m_local_memory_base_address + limit);
+      size = max_size;
+    }
+
+  amd_dbgapi_global_address_t global_address
+    = *m_local_memory_base_address + offset;
+
+  return read
+           ? process ().read_global_memory_partial (global_address, read, size)
+           : process ().write_global_memory_partial (global_address, write,
+                                                     size);
+}
+
+size_t
+workgroup_t::xfer_segment_memory (const address_space_t &address_space,
+                                  amd_dbgapi_segment_address_t segment_address,
+                                  void *read, const void *write, size_t size)
+{
+  auto [lowered_address_space, lowered_address]
+    = address_space.lower (segment_address);
+
+  if (lowered_address_space.kind () == address_space_t::kind_t::local)
+    return xfer_local_memory (lowered_address, read, write, size);
+  else
+    throw memory_access_error_t (string_printf (
+      "xfer_segment_memory from address space `%s' not supported",
+      lowered_address_space.name ().c_str ()));
 }
 
 void

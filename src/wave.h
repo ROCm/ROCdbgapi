@@ -101,7 +101,6 @@ private:
   std::unique_ptr<architecture_t::cwsr_record_t> m_cwsr_record{};
 
   displaced_stepping_t *m_displaced_stepping{ nullptr };
-  const wave_t *m_group_leader{ nullptr };
   std::optional<uint32_t> const m_wave_in_group;
   workgroup_t &m_workgroup;
 
@@ -112,10 +111,6 @@ private:
   [[nodiscard]] size_t
   xfer_private_memory_unswizzled (amd_dbgapi_segment_address_t segment_address,
                                   void *read, const void *write, size_t size);
-
-  [[nodiscard]] size_t
-  xfer_local_memory (amd_dbgapi_segment_address_t segment_address, void *read,
-                     const void *write, size_t size);
 
   void raise_event (amd_dbgapi_event_kind_t event_kind);
 
@@ -143,14 +138,6 @@ public:
      processed and destroyed.  */
   const event_t *last_stop_event () const;
 
-  const wave_t &group_leader () const
-  {
-    dbgapi_assert (m_group_leader
-                   /* Make sure the group leader truly is a group leader.  */
-                   && m_group_leader == m_group_leader->m_group_leader);
-    return *m_group_leader;
-  }
-
   size_t lane_count () const { return m_cwsr_record->lane_count (); }
 
   uint64_t exec_mask () const;
@@ -173,8 +160,7 @@ public:
   }
 
   /* Update the wave's status from its saved state in the context save area. */
-  void update (const wave_t &group_leader,
-               std::unique_ptr<architecture_t::cwsr_record_t> cwsr_record);
+  void update (std::unique_ptr<architecture_t::cwsr_record_t> cwsr_record);
 
   static epoch_t next_mark ()
   {

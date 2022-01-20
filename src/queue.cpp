@@ -693,7 +693,8 @@ aql_queue_t::update_waves ()
               });
 
             if (!workgroup)
-              workgroup = &process.create<workgroup_t> (*dispatch, group_ids);
+              workgroup = &process.create<workgroup_t> (
+                *dispatch, group_ids, cwsr_record->lds_size ());
           }
         else
           {
@@ -714,14 +715,22 @@ aql_queue_t::update_waves ()
     /* The first wave in the group is the group leader.  The group leader owns
        the backing store for the group memory (LDS).  */
     if (is_first_wave)
-      group_leader = wave;
+      {
+        group_leader = wave;
+
+        auto shared_memory_base_address
+          = cwsr_record->register_address (amdgpu_regnum_t::lds_0);
+
+        dbgapi_assert (shared_memory_base_address);
+        group_leader->workgroup ().update (*shared_memory_base_address);
+      }
 
     if (!group_leader)
       fatal_error ("No group_leader, the control stack may be corrupted");
 
     /* Update this wave's state using the context save area as it may have
        changed since the queue was last suspended (or the wave is new).  */
-    wave->update (*group_leader, std::move (cwsr_record));
+    wave->update (std::move (cwsr_record));
 
     if (wave->state () == AMD_DBGAPI_WAVE_STATE_RUN)
       ++*m_waves_running;

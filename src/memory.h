@@ -134,8 +134,9 @@ public:
 
   /* Convert an address in the given address space to an address in this
      address space.  Return both the converted address and the number of
-     bytes that are contiguous in both address spaces.  Throws an invalid
-     address space conversion error if the conversion is not possible.  */
+     bytes that are contiguous in both address spaces.  Throws
+     AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION and
+     AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID errors.  */
   virtual std::pair<amd_dbgapi_segment_address_t /* to_address  */,
                     amd_dbgapi_size_t /* to_contiguous_bytes  */>
   convert (const wave_t &wave, amd_dbgapi_lane_id_t lane_id,

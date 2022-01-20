@@ -346,15 +346,13 @@ wave_t::displaced_stepping_complete ()
 }
 
 void
-wave_t::update (const wave_t &group_leader,
-                std::unique_ptr<architecture_t::cwsr_record_t> cwsr_record)
+wave_t::update (std::unique_ptr<architecture_t::cwsr_record_t> cwsr_record)
 {
   dbgapi_assert (queue ().is_suspended ());
   const bool first_update = !m_mark;
 
   dbgapi_assert (cwsr_record != nullptr);
   m_cwsr_record = std::move (cwsr_record);
-  m_group_leader = &group_leader;
 
   /* Check that the PC in the wave state save area is correctly aligned.  */
   if (!utils::is_aligned (pc (),
@@ -526,7 +524,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
     {
       /* The instruction was successfully executed, update wave state and
          raise a stop event.  */
-      update (*m_group_leader, std::move (m_cwsr_record));
+      update (std::move (m_cwsr_record));
       queue ().wave_state_changed (*this);
     }
 
@@ -748,7 +746,8 @@ wave_t::xfer_private_memory_swizzled (
   amd_dbgapi_size_t interleave, amd_dbgapi_segment_address_t segment_address,
   amd_dbgapi_lane_id_t lane_id, void *read, const void *write, size_t size)
 {
-  dbgapi_assert (lane_id != AMD_DBGAPI_LANE_NONE && lane_id < lane_count ());
+  if (lane_id == AMD_DBGAPI_LANE_NONE || lane_id >= lane_count ())
+    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID);
 
   auto [scratch_base, scratch_size] = scratch_memory_region ();
 
@@ -820,50 +819,6 @@ wave_t::xfer_private_memory_unswizzled (
                                                      size);
 }
 
-size_t
-wave_t::xfer_local_memory (amd_dbgapi_segment_address_t segment_address,
-                           void *read, const void *write, size_t size)
-{
-  /* The LDS is stored in the context save area.  */
-  std::optional<scoped_queue_suspend_t> suspend;
-  if (!queue ().is_suspended ())
-    {
-      suspend.emplace (queue (), "xfer local memory");
-
-      /* Look for the wave_id again, the wave may have exited.  */
-      wave_t *wave = find (id ());
-      if (!wave)
-        throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
-
-      dbgapi_assert (wave == this);
-    }
-
-  auto local_memory_base_address
-    = group_leader ().m_cwsr_record->register_address (amdgpu_regnum_t::lds_0);
-
-  if (!local_memory_base_address)
-    fatal_error ("local memory is not accessible");
-
-  amd_dbgapi_size_t limit = m_cwsr_record->lds_size ();
-  amd_dbgapi_size_t offset = segment_address;
-
-  if ((offset + size) > limit)
-    {
-      size_t max_size = offset < limit ? limit - offset : 0;
-      if (max_size == 0 && size != 0)
-        throw memory_access_error_t (*local_memory_base_address + limit);
-      size = max_size;
-    }
-
-  amd_dbgapi_global_address_t global_address
-    = *local_memory_base_address + offset;
-
-  return read
-           ? process ().read_global_memory_partial (global_address, read, size)
-           : process ().write_global_memory_partial (global_address, write,
-                                                     size);
-}
-
 /* Return the wave's scratch memory region (address and size).  */
 std::pair<amd_dbgapi_global_address_t /* address */,
           amd_dbgapi_size_t /* size */>
@@ -884,39 +839,30 @@ wave_t::xfer_segment_memory (const address_space_t &address_space,
                  && "the wave must be stopped to read/write memory");
   dbgapi_assert (!read != !write && "either read or write buffer");
 
-  /* Zero-extend the segment address.  */
-  segment_address &= utils::bit_mask (0, address_space.address_size () - 1);
+  auto [lowered_address_space, lowered_address]
+    = address_space.lower (segment_address);
 
-  switch (address_space.kind ())
+  switch (lowered_address_space.kind ())
     {
     case address_space_t::kind_t::private_swizzled:
       {
         const auto &private_swizzled_address_space
           = static_cast<const private_swizzled_address_space_t &> (
-            address_space);
+            lowered_address_space);
 
         return xfer_private_memory_swizzled (
-          private_swizzled_address_space.interleave_size (), segment_address,
+          private_swizzled_address_space.interleave_size (), lowered_address,
           lane_id, read, write, size);
       }
 
     case address_space_t::kind_t::private_unswizzled:
-      return xfer_private_memory_unswizzled (segment_address, read, write,
+      return xfer_private_memory_unswizzled (lowered_address, read, write,
                                              size);
-
-    case address_space_t::kind_t::local:
-      return xfer_local_memory (segment_address, read, write, size);
-
-    case address_space_t::kind_t::global:
-      return read ? process ().read_global_memory_partial (segment_address,
-                                                           read, size)
-                  : process ().write_global_memory_partial (segment_address,
-                                                            write, size);
 
     default:
       throw memory_access_error_t (string_printf (
         "xfer_segment_memory from address space `%s' not supported",
-        address_space.name ().c_str ()));
+        lowered_address_space.name ().c_str ()));
     }
 }
 

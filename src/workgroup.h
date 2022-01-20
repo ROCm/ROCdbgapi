@@ -24,9 +24,12 @@
 #include "amd-dbgapi.h"
 #include "handle_object.h"
 
+#include <optional>
+
 namespace amd::dbgapi
 {
 
+class address_space_t;
 class agent_t;
 class architecture_t;
 class compute_queue_t;
@@ -41,14 +44,22 @@ private:
   std::optional<const std::array<uint32_t, 3>> m_group_ids;
   epoch_t m_mark{ 0 };
 
+  std::optional<amd_dbgapi_global_address_t> m_local_memory_base_address;
+  amd_dbgapi_size_t const m_local_memory_size;
+
   const dispatch_t &m_dispatch;
+
+  [[nodiscard]] size_t
+  xfer_local_memory (amd_dbgapi_segment_address_t segment_address, void *read,
+                     const void *write, size_t size);
 
 public:
   workgroup_t (amd_dbgapi_workgroup_id_t workgroup_id,
                const dispatch_t &dispatch,
-               std::optional<const std::array<uint32_t, 3>> group_ids = {})
+               std::optional<const std::array<uint32_t, 3>> group_ids = {},
+               amd_dbgapi_size_t local_memory_size = 0)
     : handle_object (workgroup_id), m_group_ids (group_ids),
-      m_dispatch (dispatch)
+      m_local_memory_size (local_memory_size), m_dispatch (dispatch)
   {
   }
 
@@ -56,6 +67,13 @@ public:
 
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }
+
+  void update (amd_dbgapi_global_address_t local_memory_base_address);
+
+  [[nodiscard]] size_t
+  xfer_segment_memory (const address_space_t &address_space,
+                       amd_dbgapi_segment_address_t segment_address,
+                       void *read, const void *write, size_t size);
 
   void get_info (amd_dbgapi_workgroup_info_t query, size_t value_size,
                  void *value) const;

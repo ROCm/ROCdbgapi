@@ -193,6 +193,11 @@ public:
   void read_string (amd_dbgapi_global_address_t address, std::string *string,
                     size_t size);
 
+  [[nodiscard]] size_t
+  xfer_segment_memory (const address_space_t &address_space,
+                       amd_dbgapi_segment_address_t segment_address,
+                       void *read, const void *write, size_t size);
+
   bool forward_progress_needed () const { return m_forward_progress_needed; }
   void set_forward_progress_needed (bool forward_progress_needed);
 

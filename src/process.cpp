@@ -286,6 +286,23 @@ process_t::read_string (amd_dbgapi_global_address_t address,
     }
 }
 
+size_t
+process_t::xfer_segment_memory (const address_space_t &address_space,
+                                amd_dbgapi_segment_address_t segment_address,
+                                void *read, const void *write, size_t size)
+{
+  auto [lowered_address_space, lowered_address]
+    = address_space.lower (segment_address);
+
+  if (lowered_address_space.kind () == address_space_t::kind_t::global)
+    return read ? read_global_memory_partial (lowered_address, read, size)
+                : write_global_memory_partial (lowered_address, write, size);
+  else
+    throw memory_access_error_t (string_printf (
+      "xfer_segment_memory from address space `%s' not supported",
+      lowered_address_space.name ().c_str ()));
+}
+
 void
 process_t::set_forward_progress_needed (bool forward_progress_needed)
 {
