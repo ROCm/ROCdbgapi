@@ -5846,12 +5846,18 @@ typedef uint64_t amd_dbgapi_segment_address_t;
  * accessed can attempt to be converted to the various address spaces being
  * cached to see if it aliases with bytes being cached under a different
  * address space.  For example, an address in the AMD GPU \p generic address
- * space may alias with an address in the \p global, \p private_swizzled, or
- * \p local address spaces.
+ * space may alias with an address in the \p global, \p private_swizzled, or \p
+ * local address spaces.
  *
- * \param[in] wave_id The wave that is using the address.
+ * \param[in] wave_id The wave that is using the address.  If the \p
+ * address_space is ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL then \p wave_id may be
+ * ::AMD_DBGAPI_WAVE_NONE, as the address space does not depend on the active
+ * wave, in which case \p process_id is used.
  *
- * \param[in] lane_id The lane of the \p wave_id that is using the address.
+ * \param[in] lane_id The lane of the \p wave_id that is using the address.  If
+ * the \p address_space does not depend on the active lane then this may be
+ * ::AMD_DBGAPI_LANE_NONE.  For example, the ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL
+ * address space does not depend on the lane.
  *
  * \param[in] source_address_space_id The address space of the \p
  * source_segment_address.
@@ -5894,10 +5900,14 @@ typedef uint64_t amd_dbgapi_segment_address_t;
  * \p destination_segment_address and \p destination_contiguous_bytes are
  * unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID \p lane_id is invalid, or
- * \p lane_id is ::AMD_DBGAPI_LANE_NONE and \p source_address_space_id depends
- * on the active lane.  \p destination_segment_address and \p
- * destination_contiguous_bytes are unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID \p wave_id is
+ * ::AMD_DBGAPI_WAVE_NONE and \p lane_id is not ::AMD_DBGAPI_LANE_NONE.  \p
+ * wave_id is not ::AMD_DBGAPI_WAVE_NONE and \p lane_id is not
+ * ::AMD_DBGAPI_LANE_NONE and is not valid for \p wave_id.  \p lane_id is
+ * ::AMD_DBGAPI_LANE_NONE and \p source_address_space_id or \p
+ * destination_address_space_id depends on the active lane.  \p
+ * destination_segment_address and \p destination_contiguous_bytes are
+ * unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID \p
  * source_address_space_id or \p destination_address_space_id are invalid.  \p
@@ -5931,6 +5941,83 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_convert_address_space (
     AMD_DBGAPI_VERSION_0_62;
 
 /**
+ * The dependency when reading or writing a specific segment address of an
+ * address space using the ::amd_dbgapi_read_memory and
+ * ::amd_dbgapi_write_memory operations.
+ */
+typedef enum
+{
+  /**
+   * No dependence is available.
+   */
+  AMD_DBGAPI_SEGMENT_ADDRESS_DEPENDENCE_NONE = 0,
+  /**
+   * Reading or writing the segment address depends on the lane.
+   */
+  AMD_DBGAPI_SEGMENT_ADDRESS_DEPENDENCE_LANE = 1,
+  /**
+   * Reading or writing the segment address depends on the wavefront.
+   */
+  AMD_DBGAPI_SEGMENT_ADDRESS_DEPENDENCE_WAVE = 2,
+  /**
+   * Reading or writing the segment address depends on the workgroup.
+   */
+  AMD_DBGAPI_SEGMENT_ADDRESS_DEPENDENCE_WORKGROUP = 3,
+  /**
+   * Reading or writing the segment address depends on the agent.
+   */
+  AMD_DBGAPI_SEGMENT_ADDRESS_DEPENDENCE_AGENT = 4,
+  /**
+   * Reading or writing the segment address depends on the process.
+   */
+  AMD_DBGAPI_SEGMENT_ADDRESS_DEPENDENCE_PROCESS = 5
+} amd_dbgapi_segment_address_dependency_t;
+
+/**
+ * Determine the dependency of a segment address value in a particular address
+ * space.
+ *
+ * This indicates which arguments ::amd_dbgapi_read_memory and
+ * ::amd_dbgapi_write_memory require when reading and writing memory when given
+ * a specific segment address in an address space.
+ *
+ * \param[in] address_space_id The address space of the \p segment_address.
+ *
+ * \param[in] segment_address The integral value of the segment address.  Only
+ * the bits corresponding to the address size for the \p address_space_id
+ * requested are used.  The address size is provided by the
+ * ::AMD_DBGAPI_ADDRESS_SPACE_INFO_ADDRESS_SIZE query.
+ *
+ * \param[out] segment_address_dependency The dependency of the \p
+ * segment_address value in \p address_space_id.  Will be a value of
+ * ::amd_dbgapi_segment_address_dependency_t other than
+ * ::AMD_DBGAPI_SEGMENT_ADDRESS_DEPENDENCE_NONE.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
+ * successfully and the result is stored in \p segment_address_dependencies.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
+ * left uninitialized and \p segment_address_dependencies is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
+ * initialized.  The library is left uninitialized and \p
+ * destination_segment_address and \p segment_address_dependencies is
+ * unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID \p
+ * address_space_id is invalid.  \p segment_address_dependencies is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p
+ * segment_address_dependencies is NULL. \p segment_address_dependencies is
+ * unaltered.
+ */
+amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_dependency (
+  amd_dbgapi_address_space_id_t address_space_id,
+  amd_dbgapi_segment_address_t segment_address,
+  amd_dbgapi_segment_address_dependency_t *segment_address_dependency)
+  AMD_DBGAPI_VERSION_0_63;
+
+/**
  * Indication of whether a segment address in an address space is a member of
  * an source language address class.
  */
@@ -5958,9 +6045,15 @@ typedef enum
  * The address space, source language address class, and wave must all belong
  * to the same architecture.
  *
- * \param[in] wave_id The wave that is using the address.
+ * \param[in] wave_id The wave that is using the address.  If the \p
+ * address_space is ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL then \p wave_id may be
+ * ::AMD_DBGAPI_WAVE_NONE, as the address space does not depend on the active
+ * wave, in which case \p process_id is used.
  *
- * \param[in] lane_id The lane of the \p wave_id that is using the address.
+ * \param[in] lane_id The lane of the \p wave_id that is using the address.  If
+ * the \p address_space does not depend on the active lane then this may be
+ * ::AMD_DBGAPI_LANE_NONE.  For example, the ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL
+ * address space does not depend on the lane.
  *
  * \param[in] address_space_id The address space of the \p segment_address.  If
  * the address space is dependent on: the active lane then the \p lane_id with
@@ -5989,11 +6082,16 @@ typedef enum
  * initialized.  The library is left uninitialized and \p address_class_state
  * is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID \p wave_id is invalid.  \p
- * address_class_state is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID \p wave_id is invalid, or
+ * \p wave_id is ::AMD_DBGAPI_WAVE_NONE and \p address_space is not
+ * ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL.  \p address_class_state is unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID \p lane_id is invalid.  \p
- * address_class_state is unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID \p wave_id is
+ * ::AMD_DBGAPI_WAVE_NONE and \p lane_id is not ::AMD_DBGAPI_LANE_NONE.  \p
+ * wave_id is not ::AMD_DBGAPI_WAVE_NONE and \p lane_id is not
+ * ::AMD_DBGAPI_LANE_NONE and is not valid for \p wave_id.  \p lane_id is
+ * ::AMD_DBGAPI_LANE_NONE and \p address_space_id depends on the active lane.
+ * \p address_class_state is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID \p
  * address_space_id is invalid.  \p address_class_state is unaltered.
@@ -6047,9 +6145,9 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_is_in_address_class (
  * wave, in which case \p process_id is used.
  *
  * \param[in] lane_id The lane of \p wave_id that is accessing the memory.  If
- * the \p address_space does not depend on the active lane then this is ignored
- * and may be ::AMD_DBGAPI_LANE_NONE.  For example, the
- * ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL address space does not depend on the lane.
+ * the \p address_space does not depend on the active lane then this may be
+ * ::AMD_DBGAPI_LANE_NONE.  For example, the ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL
+ * address space does not depend on the lane.
  *
  * \param[in] address_space_id The address space of the \p segment_address.  If
  * the address space is dependent on: the active lane then the \p lane_id with
@@ -6089,9 +6187,12 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_is_in_address_class (
  * ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL.  \p value_size and \p value are
  * unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID \p lane_id is invalid, or
- * \p lane_id is ::AMD_DBGAPI_LANE_NONE and \p address_space depends on the
- * active lane.  \p value_size and \p value are unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID \p wave_id is
+ * ::AMD_DBGAPI_WAVE_NONE and \p lane_id is not ::AMD_DBGAPI_LANE_NONE.  \p
+ * wave_id is not ::AMD_DBGAPI_WAVE_NONE and \p lane_id is not
+ * ::AMD_DBGAPI_LANE_NONE and is not valid for \p wave_id.  \p lane_id is
+ * ::AMD_DBGAPI_LANE_NONE and \p address_space_id depends on the active lane.
+ * \p value_size and \p value are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID \p
  * address_space_id is invalid.  \p value is unaltered.
@@ -6109,7 +6210,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_is_in_address_class (
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS The input \p value_size was
  * greater than 0 and no bytes were successfully read.  The output \p
- * value_size is set to 0.  All bytes in \p value are unaltered.
+ * value_size is set to 0.  \p value is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_memory (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
@@ -6149,9 +6250,9 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_memory (
  * wave, in which case \p process_id is used.
  *
  * \param[in] lane_id The lane of \p wave_id that is accessing the memory.  If
- * the \p address_space does not depend on the active lane then this is ignored
- * and may be ::AMD_DBGAPI_LANE_NONE.  For example, the
- * ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL address space does not depend on the lane.
+ * the \p address_space does not depend on the active lane then this may be
+ * ::AMD_DBGAPI_LANE_NONE.  For example, the ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL
+ * address space does not depend on the lane.
  *
  * \param[in] address_space_id The address space of the \p segment_address.  If
  * the address space is dependent on: the active lane then the \p lane_id with
@@ -6174,7 +6275,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_memory (
  * written successfully.  The output \p value_size is set to the number of
  * bytes successfully written, which will be 0 if the input \p value_size was
  * 0.  The first output \p value_size bytes of memory starting at \p
- * segment_address are updated, all other memory is unaltered.
+ *     segment_address are updated, all other memory is unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
  * left uninitialized; and the memory and \p value_size are unaltered.
@@ -6191,9 +6292,12 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_memory (
  * ::AMD_DBGAPI_ADDRESS_SPACE_GLOBAL.  The memory and \p value_size are
  * unaltered.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID \p lane_id is invalid, or
- * \p lane_id is ::AMD_DBGAPI_LANE_NONE and \p address_space depends on the
- * active lane.  The memory and \p value_size are unaltered.
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID \p wave_id is
+ * ::AMD_DBGAPI_WAVE_NONE and \p lane_id is not ::AMD_DBGAPI_LANE_NONE.  \p
+ * wave_id is not ::AMD_DBGAPI_WAVE_NONE and \p lane_id is not
+ * ::AMD_DBGAPI_LANE_NONE and is not valid for \p wave_id.  \p lane_id is
+ * ::AMD_DBGAPI_LANE_NONE and \p address_space_id depends on the active lane.
+ * The memory and \p value_size are unaltered.
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID \p
  * address_space_id is invalid.  The memory and \p value_size are unaltered.
@@ -6211,7 +6315,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_memory (
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS The input \p value_size was
  * greater than 0 and no bytes were successfully written.  The output \p
- * value_size is set to 0.  The memory is unaltered.
+ * value_size is set to 0.  The memory and \p value_size are unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_memory (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
