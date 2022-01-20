@@ -44,14 +44,35 @@ agent_t::agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
   if (agent_id != AMD_DBGAPI_AGENT_NONE && !m_os_agent_info.firmware_supported)
     warning ("AMD GPU gpu_id %d's firmware version %d not supported",
              m_os_agent_info.os_agent_id, m_os_agent_info.fw_version);
-}
 
-agent_t::~agent_t () {}
+  if (!architecture)
+    return;
 
-void
-agent_t::set_exceptions (os_exception_mask_t exceptions)
-{
-  m_exceptions |= exceptions;
+  for (auto &&address_space : architecture->range<address_space_t> ())
+    {
+      if (address_space.kind () != address_space_t::kind_t::generic)
+        continue;
+
+      dbgapi_assert (
+        /* Lower the generic apertures addresses the os_driver reported for
+           this agent.  The resulting address spaces should be of the kind
+           local and private_swizzled for the local_address_aperture_base/limit
+           and private_address_aperture_base/limit respectively. If this check
+           fails, this agent's generic address spaces should be examined.  */
+        address_space.lower (os_info ().local_address_aperture_base)
+            .first.kind ()
+          == address_space_t::kind_t::local
+        && address_space.lower (os_info ().local_address_aperture_limit)
+               .first.kind ()
+             == address_space_t::kind_t::local
+        && address_space.lower (os_info ().private_address_aperture_base)
+               .first.kind ()
+             == address_space_t::kind_t::private_swizzled
+        && address_space.lower (os_info ().private_address_aperture_limit)
+               .first.kind ()
+             == address_space_t::kind_t::private_swizzled
+        && "check the generic address space apertures");
+    }
 }
 
 bool
@@ -70,6 +91,12 @@ agent_t::watchpoint_share_kind () const
   return m_os_agent_info.watchpoint_exclusive
            ? AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSHARED
            : AMD_DBGAPI_WATCHPOINT_SHARE_KIND_SHARED;
+}
+
+void
+agent_t::set_exceptions (os_exception_mask_t exceptions)
+{
+  m_exceptions |= exceptions;
 }
 
 void

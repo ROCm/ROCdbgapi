@@ -271,7 +271,11 @@ public:
   amd_dbgapi_status_t
   remove_breakpoint (amd_dbgapi_breakpoint_id_t breakpoint_id);
 
-  template <typename Object, typename... Args> auto &create (Args &&...args);
+  template <typename Object, typename... Args> auto &create (Args &&...args)
+  {
+    return get_base_type_element<Object> (m_handle_object_sets)
+      .template create_object<Object> (std::forward<Args> (args)...);
+  }
 
   /* Destroy the given object.  */
   template <typename Object> void destroy (Object *object)
@@ -411,41 +415,6 @@ process_t::write_global_memory (amd_dbgapi_global_address_t address,
 
 namespace detail
 {
-template <typename Object, std::size_t N, typename... Args>
-struct get_base_type_index
-{
-  static constexpr auto value = N;
-};
-
-template <typename Object, std::size_t N, typename HandleObjectSet,
-          typename... Args>
-struct get_base_type_index<Object, N, HandleObjectSet, Args...>
-{
-  static constexpr auto value
-    = std::is_base_of_v<typename HandleObjectSet::object_type, Object>
-        ? N
-        : get_base_type_index<Object, N + 1, Args...>::value;
-};
-
-template <typename Object, typename... Args>
-auto &
-get_base_type_element (std::tuple<Args...> &tuple)
-{
-  return std::get<detail::get_base_type_index<Object, 0, Args...>::value> (
-    tuple);
-}
-} /* namespace detail */
-
-template <typename Object, typename... Args>
-auto &
-process_t::create (Args &&...args)
-{
-  return detail::get_base_type_element<Object> (m_handle_object_sets)
-    .template create_object<Object> (std::forward<Args> (args)...);
-}
-
-namespace detail
-{
 template <typename Handle>
 using process_find_t
   = decltype (std::declval<process_t> ().find (std::declval<Handle> ()));
@@ -455,8 +424,8 @@ using process_find_t
 template <typename Handle,
           std::enable_if_t<
             utils::is_detected_v<detail::process_find_t, Handle>, int> = 0>
-auto *
-find (Handle id)
+auto
+find (Handle id) -> decltype (std::declval<process_t> ().find (id))
 {
   if (detail::last_found_process)
     if (auto value = detail::last_found_process->find (id); value)
@@ -474,7 +443,7 @@ find (Handle id)
         }
     }
 
-  return decltype (std::declval<process_t> ().find (id)){};
+  return nullptr;
 }
 
 template <> struct is_flag<process_t::flag_t> : std::true_type

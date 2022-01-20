@@ -79,10 +79,14 @@ struct os_agent_info_t
   uint32_t device_id{ 0 };
   /* ucode version.  */
   uint32_t fw_version{ 0 };
-  /* local/shared address space aperture base.  */
-  amd_dbgapi_global_address_t local_address_space_aperture{ 0 };
-  /* private/scratch address space aperture base.  */
-  amd_dbgapi_global_address_t private_address_space_aperture{ 0 };
+  /* local/shared address aperture base.  */
+  amd_dbgapi_global_address_t local_address_aperture_base{ 0 };
+  /* local/shared address aperture limit.  */
+  amd_dbgapi_global_address_t local_address_aperture_limit{ 0 };
+  /* private/scratch address aperture base.  */
+  amd_dbgapi_global_address_t private_address_aperture_base{ 0 };
+  /* private/scratch address aperture limit.  */
+  amd_dbgapi_global_address_t private_address_aperture_limit{ 0 };
   /* indicates if this agent's debugging capabilities are sufficient.  */
   bool debugging_supported{ false };
   /* indicates if address watch is supported.  */

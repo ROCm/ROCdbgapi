@@ -57,15 +57,36 @@ address_class_t::get_info (amd_dbgapi_address_class_info_t query,
   throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 }
 
-address_space_t address_space_t::s_global{
-  AMD_DBGAPI_ADDRESS_SPACE_GLOBAL,
-  "global",
-  address_space_t::kind_t::global,
-  DW_ASPACE_none,
-  64,
-  0x0000000000000000,
-  AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL
-};
+bool
+address_space_t::address_is_in_address_class (
+  const wave_t & /* wave */, amd_dbgapi_lane_id_t /* lane_id  */,
+  amd_dbgapi_segment_address_t segment_address,
+  const address_class_t &address_class) const
+{
+  /* The implementation follows this table:
+
+     address_space     is in  address_class
+     private_swizzled         generic, private
+     local                    generic, local
+     global                   generic, global
+     generic                  generic, lowered generic address_space
+     private_unswizzled       -
+   */
+
+  /* private_unswizzled addresses are not in any address classes.  */
+  if (kind () == kind_t::private_unswizzled)
+    return false;
+
+  /* private_swizzled, local, global, and generic are in the generic address
+     class.  */
+  if (address_class.address_space ().kind () == kind_t::generic)
+    return true;
+
+  /* The private_swizzled address space is in private address class, the local
+     address space is in the local address class, etc...  */
+  return lower (segment_address).first.kind ()
+         == address_class.address_space ().kind ();
+}
 
 void
 address_space_t::get_info (amd_dbgapi_address_space_info_t query,
@@ -95,6 +116,291 @@ address_space_t::get_info (amd_dbgapi_address_space_info_t query,
     }
 
   throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
+}
+
+const address_space_t &
+address_space_t::global ()
+{
+  static const global_address_space_t global_address_space (
+    AMD_DBGAPI_ADDRESS_SPACE_GLOBAL, "global");
+
+  return global_address_space;
+}
+
+std::pair<const address_space_t &, amd_dbgapi_segment_address_t>
+global_address_space_t::lower (
+  amd_dbgapi_segment_address_t global_address) const
+{
+  return { *this, utils::zero_extend (global_address, address_size ()) };
+}
+
+std::pair<amd_dbgapi_segment_address_t, amd_dbgapi_size_t>
+global_address_space_t::convert (
+  const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
+  const address_space_t &from_address_space,
+  amd_dbgapi_segment_address_t from_address) const
+{
+  auto [lowered_address_space, lowered_address]
+    = from_address_space.lower (from_address);
+
+  if (lowered_address == lowered_address_space.null_address ()
+      && (from_address_space.kind () == kind_t::generic
+          || lowered_address_space.kind () == kind_t::global
+          || lowered_address_space.kind () == kind_t::private_unswizzled
+          || lowered_address_space.kind () == kind_t::private_swizzled))
+    return { null_address (), 0 };
+
+  if (lowered_address_space.kind () == kind_t::global)
+    return { lowered_address, last_address () - lowered_address + 1 };
+
+  /* Convert from private_unswizzled.  */
+  if (lowered_address_space.kind () == kind_t::private_unswizzled)
+    {
+      auto [scratch_base, scratch_size] = wave.scratch_memory_region ();
+
+      if (lowered_address >= scratch_size)
+        throw api_error_t (
+          AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
+
+      return { scratch_base + lowered_address,
+               scratch_size - lowered_address };
+    }
+
+  /* Convert from private_swizzled.  */
+  if (lowered_address_space.kind () == kind_t::private_swizzled)
+    {
+      const auto &private_swizzled_address_space
+        = static_cast<const private_swizzled_address_space_t &> (
+          lowered_address_space);
+
+      auto [scratch_base, scratch_size] = wave.scratch_memory_region ();
+      const amd_dbgapi_size_t interleave
+        = private_swizzled_address_space.interleave_size ();
+
+      dbgapi_assert (lane_id < wave.lane_count ());
+      amd_dbgapi_size_t offset
+        = ((lowered_address / interleave) * wave.lane_count () * interleave)
+          + (lane_id * interleave) + (lowered_address % interleave);
+
+      if (offset > scratch_size)
+        throw api_error_t (
+          AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
+
+      return { scratch_base + offset, interleave - (offset % interleave) };
+    }
+
+  throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
+}
+
+std::pair<const address_space_t &, amd_dbgapi_segment_address_t>
+local_address_space_t::lower (amd_dbgapi_segment_address_t local_address) const
+{
+  return { *this, utils::zero_extend (local_address, address_size ()) };
+}
+
+std::pair<amd_dbgapi_segment_address_t, amd_dbgapi_size_t>
+local_address_space_t::convert (
+  const wave_t & /* wave  */, amd_dbgapi_lane_id_t /* lane_id  */,
+  const address_space_t &from_address_space,
+  amd_dbgapi_segment_address_t from_address) const
+{
+  auto [lowered_address_space, lowered_address]
+    = from_address_space.lower (from_address);
+
+  if (lowered_address == lowered_address_space.null_address ()
+      && (from_address_space.kind () == kind_t::generic
+          || lowered_address_space.kind () == kind_t::local))
+    return { null_address (), 0 };
+
+  if (lowered_address_space.kind () == kind_t::local)
+    return { lowered_address, last_address () - lowered_address + 1 };
+
+  throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
+}
+
+std::pair<const address_space_t &, amd_dbgapi_segment_address_t>
+private_swizzled_address_space_t::lower (
+  amd_dbgapi_segment_address_t private_address) const
+{
+  return { *this, utils::zero_extend (private_address, address_size ()) };
+}
+
+std::pair<amd_dbgapi_segment_address_t, amd_dbgapi_size_t>
+private_swizzled_address_space_t::convert (
+  const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
+  const address_space_t &from_address_space,
+  amd_dbgapi_segment_address_t from_address) const
+{
+  auto [lowered_address_space, lowered_address]
+    = from_address_space.lower (from_address);
+
+  if (lowered_address == lowered_address_space.null_address ()
+      && (from_address_space.kind () == kind_t::generic
+          || lowered_address_space.kind () == kind_t::private_swizzled))
+    return { null_address (), 0 };
+
+  if (lowered_address_space.kind () == kind_t::private_swizzled)
+    return { lowered_address, last_address () - lowered_address + 1 };
+
+  /* Convert from global.  */
+  if (lowered_address_space.kind () == kind_t::global)
+    {
+      const amd_dbgapi_size_t interleave = interleave_size ();
+      auto [scratch_base, scratch_size] = wave.scratch_memory_region ();
+
+      if (lowered_address < scratch_base
+          || lowered_address >= (scratch_base + scratch_size))
+        throw api_error_t (
+          AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
+
+      amd_dbgapi_size_t offset = lowered_address - scratch_base;
+
+      dbgapi_assert (lane_id < wave.lane_count ());
+      if (lane_id != (offset / interleave) % wave.lane_count ())
+        throw api_error_t (
+          AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
+
+      return { (offset / (wave.lane_count () * interleave)) * interleave
+                 + offset % interleave,
+               interleave - offset % interleave };
+    }
+
+  throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
+}
+
+std::pair<const address_space_t &, amd_dbgapi_segment_address_t>
+private_unswizzled_address_space_t::lower (
+  amd_dbgapi_segment_address_t private_address) const
+{
+  return { *this, utils::zero_extend (private_address, address_size ()) };
+}
+
+std::pair<amd_dbgapi_segment_address_t, amd_dbgapi_size_t>
+private_unswizzled_address_space_t::convert (
+  const wave_t &wave, amd_dbgapi_lane_id_t /* lane_id  */,
+  const address_space_t &from_address_space,
+  amd_dbgapi_segment_address_t from_address) const
+{
+  auto [lowered_address_space, lowered_address]
+    = from_address_space.lower (from_address);
+
+  if (lowered_address == lowered_address_space.null_address ()
+      && (from_address_space.kind () == kind_t::generic
+          || lowered_address_space.kind () == kind_t::private_unswizzled))
+    return { null_address (), 0 };
+
+  if (lowered_address_space.kind () == kind_t::private_unswizzled)
+    return { lowered_address, last_address () - lowered_address + 1 };
+
+  /* Convert from global.  */
+  if (lowered_address_space.kind () == kind_t::global)
+    {
+      auto [scratch_base, scratch_size] = wave.scratch_memory_region ();
+
+      if (lowered_address < scratch_base
+          || lowered_address >= (scratch_base + scratch_size))
+        throw api_error_t (
+          AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
+
+      return { lowered_address - scratch_base,
+               scratch_base + scratch_size - lowered_address };
+    }
+
+  throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
+}
+
+generic_address_space_t::generic_address_space_t (
+  amd_dbgapi_address_space_id_t address_space_id, std::string name,
+  std::vector<aperture_t> apertures)
+  : address_space_t (address_space_id, kind_t::generic, std::move (name),
+                     DW_ASPACE_AMDGPU_generic, 64,
+                     /* generic NULL is the same as global NULL  */
+                     global ().null_address (),
+                     AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL),
+    m_apertures (std::move (apertures))
+{
+  for (auto &&aperture : m_apertures)
+    dbgapi_assert (
+      /* The aperture base address should be in the mask's range.  */
+      (aperture.base & aperture.mask) == aperture.base
+      /* Segment addresses should not overlap with the aperture mask.  */
+      && !(utils::zero_extend (-1, aperture.address_space.address_size ())
+           & aperture.mask));
+}
+
+std::optional<amd_dbgapi_segment_address_t>
+generic_address_space_t::generic_address_for_address_space (
+  const address_space_t &segment_address_space,
+  amd_dbgapi_segment_address_t segment_address) const
+{
+  for (auto &&aperture : m_apertures)
+    if (aperture.address_space == segment_address_space)
+      {
+        if (segment_address == segment_address_space.null_address ())
+          return null_address ();
+
+        return aperture.base
+               | utils::zero_extend (segment_address,
+                                     segment_address_space.address_size ());
+      }
+
+  /* not a valid address space conversion.  */
+  return std::nullopt;
+}
+
+amd_dbgapi_segment_address_dependency_t
+generic_address_space_t::address_dependency (
+  amd_dbgapi_segment_address_t address) const
+{
+  auto [lowered_address_space, lowered_address] = lower (address);
+  return lowered_address_space.address_dependency (lowered_address);
+}
+
+std::pair<const address_space_t &, amd_dbgapi_segment_address_t>
+generic_address_space_t::lower (
+  amd_dbgapi_segment_address_t generic_address) const
+{
+  for (auto &&aperture : m_apertures)
+    {
+      if ((generic_address & aperture.mask) != aperture.base)
+        continue;
+
+      if (generic_address == null_address ())
+        return { aperture.address_space,
+                 aperture.address_space.null_address () };
+
+      return { aperture.address_space,
+               utils::zero_extend (generic_address,
+                                   aperture.address_space.address_size ()) };
+    }
+
+  /* There should always be a "catch all" aperture at the end of the apertures
+     vector, so if we did not find an address space for the given generic
+     address, it is likely that the apertures are incorrectly set up.  */
+  dbgapi_assert_not_reached ("invalid apertures");
+}
+
+std::pair<amd_dbgapi_segment_address_t, amd_dbgapi_size_t>
+generic_address_space_t::convert (
+  const wave_t & /* wave  */, amd_dbgapi_lane_id_t /* lane_id  */,
+  const address_space_t &from_address_space,
+  amd_dbgapi_segment_address_t from_address) const
+{
+  auto [lowered_address_space, lowered_address]
+    = from_address_space.lower (from_address);
+
+  auto generic_address = generic_address_for_address_space (
+    lowered_address_space, lowered_address);
+
+  if (!generic_address)
+    throw api_error_t (
+      AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
+
+  if (*generic_address == null_address ())
+    return { null_address (), 0 };
+
+  return { *generic_address,
+           lowered_address_space.last_address () - lowered_address + 1 };
 }
 
 void
@@ -604,16 +910,10 @@ amd_dbgapi_convert_address_space (
         && source_address_space_id == AMD_DBGAPI_ADDRESS_SPACE_GLOBAL
         && destination_address_space_id == AMD_DBGAPI_ADDRESS_SPACE_GLOBAL)
       {
-        const address_space_t *global_address_space
-          = find (AMD_DBGAPI_ADDRESS_SPACE_GLOBAL);
-        dbgapi_assert (global_address_space != nullptr);
-
-        amd_dbgapi_segment_address_t global_address_mask
-          = utils::bit_mask (0, global_address_space->address_size () - 1);
-
         *destination_segment_address = source_segment_address;
         *destination_contiguous_bytes
-          = global_address_mask - source_segment_address + 1;
+          = address_space_t::global ().last_address () - source_segment_address
+            + 1;
       }
 
     wave_t *wave = find (wave_id);
@@ -638,9 +938,8 @@ amd_dbgapi_convert_address_space (
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
     std::tie (*destination_segment_address, *destination_contiguous_bytes)
-      = architecture.convert_address_space (
-        *wave, lane_id, *source_address_space, *destination_address_space,
-        source_segment_address);
+      = destination_address_space->convert (
+        *wave, lane_id, *source_address_space, source_segment_address);
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID,
@@ -705,11 +1004,10 @@ amd_dbgapi_address_is_in_address_class (
         || !architecture.is_address_class_supported (*address_class))
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
-    *address_class_state
-      = architecture.address_is_in_address_class (
-          *wave, lane_id, *address_space, segment_address, *address_class)
-          ? AMD_DBGAPI_ADDRESS_CLASS_STATE_MEMBER
-          : AMD_DBGAPI_ADDRESS_CLASS_STATE_NOT_MEMBER;
+    *address_class_state = address_space->address_is_in_address_class (
+                             *wave, lane_id, segment_address, *address_class)
+                             ? AMD_DBGAPI_ADDRESS_CLASS_STATE_MEMBER
+                             : AMD_DBGAPI_ADDRESS_CLASS_STATE_NOT_MEMBER;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID,
@@ -775,8 +1073,7 @@ amd_dbgapi_read_memory (amd_dbgapi_process_id_t process_id,
           THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
         auto [lowered_address_space, lowered_address]
-          = wave->architecture ().lower_address_space (*wave, *address_space,
-                                                       segment_address);
+          = address_space->lower (segment_address);
 
         *value_size = wave->xfer_segment_memory (lowered_address_space,
                                                  lane_id, lowered_address,
@@ -851,8 +1148,7 @@ amd_dbgapi_write_memory (amd_dbgapi_process_id_t process_id,
           THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
         auto [lowered_address_space, lowered_address]
-          = wave->architecture ().lower_address_space (*wave, *address_space,
-                                                       segment_address);
+          = address_space->lower (segment_address);
 
         *value_size = wave->xfer_segment_memory (lowered_address_space,
                                                  lane_id, lowered_address,

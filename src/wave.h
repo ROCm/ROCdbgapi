@@ -105,10 +105,9 @@ private:
   std::optional<uint32_t> const m_wave_in_group;
   workgroup_t &m_workgroup;
 
-  [[nodiscard]] size_t
-  xfer_private_memory_swizzled (amd_dbgapi_segment_address_t segment_address,
-                                amd_dbgapi_lane_id_t lane_id, void *read,
-                                const void *write, size_t size);
+  [[nodiscard]] size_t xfer_private_memory_swizzled (
+    amd_dbgapi_size_t interleave, amd_dbgapi_segment_address_t segment_address,
+    amd_dbgapi_lane_id_t lane_id, void *read, const void *write, size_t size);
 
   [[nodiscard]] size_t
   xfer_private_memory_unswizzled (amd_dbgapi_segment_address_t segment_address,

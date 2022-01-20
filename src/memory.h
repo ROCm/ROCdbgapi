@@ -39,6 +39,7 @@ namespace amd::dbgapi
 
 class architecture_t;
 class process_t;
+class wave_t;
 
 /* AMDGPU DWARF Address Class Mapping
    See https://llvm.org/docs/AMDGPUUsage.html#address-class-identifier
@@ -60,6 +61,8 @@ constexpr uint64_t DW_ASPACE_AMDGPU_local = 0x03;
 constexpr uint64_t DW_ASPACE_AMDGPU_private_lane = 0x05;
 constexpr uint64_t DW_ASPACE_AMDGPU_private_wave = 0x06;
 
+class address_class_t;
+
 class address_space_t
   : public detail::handle_object<amd_dbgapi_address_space_id_t>
 {
@@ -70,41 +73,236 @@ public:
     local,
     global,
     private_swizzled,
-    private_unswizzled,
-    region
+    private_unswizzled
   };
 
-  static address_space_t s_global;
+  static const address_space_t &global ();
 
 private:
-  std::string const m_name;
   kind_t const m_kind;
+  std::string const m_name;
   uint64_t const m_dwarf_value;
   amd_dbgapi_size_t const m_address_size;
   amd_dbgapi_segment_address_t const m_null_address;
   amd_dbgapi_address_space_access_t const m_access;
 
-public:
-  address_space_t (amd_dbgapi_address_space_id_t address_space_id,
-                   std::string name, kind_t kind, uint64_t dwarf_value,
+protected:
+  address_space_t (amd_dbgapi_address_space_id_t address_space_id, kind_t kind,
+                   std::string name, uint64_t dwarf_value,
                    amd_dbgapi_size_t address_size,
                    amd_dbgapi_segment_address_t null_address,
                    amd_dbgapi_address_space_access_t access)
-    : handle_object (address_space_id), m_name (std::move (name)),
-      m_kind (kind), m_dwarf_value (dwarf_value),
+    : handle_object (address_space_id), m_kind (kind),
+      m_name (std::move (name)), m_dwarf_value (dwarf_value),
       m_address_size (address_size), m_null_address (null_address),
       m_access (access)
   {
+    dbgapi_assert (m_address_size <= sizeof (amd_dbgapi_segment_address_t) * 8
+                   && "address_size is too big");
   }
+
+public:
+  virtual ~address_space_t () = default;
 
   uint64_t dwarf_value () const { return m_dwarf_value; }
   const std::string &name () const { return m_name; }
   kind_t kind () const { return m_kind; }
+
   amd_dbgapi_size_t address_size () const { return m_address_size; }
   amd_dbgapi_segment_address_t null_address () const { return m_null_address; }
+  amd_dbgapi_segment_address_t last_address () const
+  {
+    return utils::bit_mask<amd_dbgapi_segment_address_t> (0,
+                                                          address_size () - 1);
+  }
+
+  bool
+  address_is_in_address_class (const wave_t &wave,
+                               amd_dbgapi_lane_id_t lane_id,
+                               amd_dbgapi_segment_address_t segment_address,
+                               const address_class_t &address_class) const;
+
+  virtual amd_dbgapi_segment_address_dependency_t
+  address_dependency (amd_dbgapi_segment_address_t address) const = 0;
+
+  /* Lower an address in this address space to an address in a base address
+     space in the same architecture.  The base address spaces kinds are global,
+     local, private_swizzled, and private_unswizzled.  */
+  virtual std::pair<const address_space_t & /* lowered_address_space  */,
+                    amd_dbgapi_segment_address_t /* lowered_address  */>
+  lower (amd_dbgapi_segment_address_t address) const = 0;
+
+  /* Convert an address in the given address space to an address in this
+     address space.  Return both the converted address and the number of
+     bytes that are contiguous in both address spaces.  Throws an invalid
+     address space conversion error if the conversion is not possible.  */
+  virtual std::pair<amd_dbgapi_segment_address_t /* to_address  */,
+                    amd_dbgapi_size_t /* to_contiguous_bytes  */>
+  convert (const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
+           const address_space_t &from_address_space,
+           amd_dbgapi_segment_address_t from_address) const = 0;
 
   void get_info (amd_dbgapi_address_space_info_t query, size_t value_size,
                  void *value) const;
+};
+
+class global_address_space_t : public address_space_t
+{
+public:
+  global_address_space_t (amd_dbgapi_address_space_id_t address_space_id,
+                          std::string name)
+    : address_space_t (address_space_id, kind_t::global, std::move (name),
+                       DW_ASPACE_none, 64, 0x0000000000000000,
+                       AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL)
+  {
+  }
+
+  amd_dbgapi_segment_address_dependency_t address_dependency (
+    amd_dbgapi_segment_address_t /* address  */) const override
+  {
+    return AMD_DBGAPI_SEGMENT_ADDRESS_DEPENDENCE_PROCESS;
+  }
+
+  std::pair<const address_space_t &, amd_dbgapi_segment_address_t>
+  lower (amd_dbgapi_segment_address_t global_address) const override;
+
+  std::pair<amd_dbgapi_segment_address_t, amd_dbgapi_size_t>
+  convert (const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
+           const address_space_t &from_address_space,
+           amd_dbgapi_segment_address_t from_address) const override;
+};
+
+class local_address_space_t : public address_space_t
+{
+public:
+  local_address_space_t (amd_dbgapi_address_space_id_t address_space_id,
+                         std::string name)
+    : address_space_t (address_space_id, kind_t::local, std::move (name),
+                       DW_ASPACE_AMDGPU_local, 32, 0xFFFFFFFF,
+                       AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL)
+  {
+  }
+
+  amd_dbgapi_segment_address_dependency_t address_dependency (
+    amd_dbgapi_segment_address_t /* address  */) const override
+  {
+    return AMD_DBGAPI_SEGMENT_ADDRESS_DEPENDENCE_WORKGROUP;
+  }
+
+  std::pair<const address_space_t &, amd_dbgapi_segment_address_t>
+  lower (amd_dbgapi_segment_address_t local_address) const override;
+
+  std::pair<amd_dbgapi_segment_address_t, amd_dbgapi_size_t>
+  convert (const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
+           const address_space_t &from_address_space,
+           amd_dbgapi_segment_address_t from_address) const override;
+};
+
+class private_swizzled_address_space_t : public address_space_t
+{
+private:
+  amd_dbgapi_size_t const m_interleave_size;
+
+public:
+  private_swizzled_address_space_t (
+    amd_dbgapi_address_space_id_t address_space_id, std::string name,
+    amd_dbgapi_size_t interleave_size)
+    : address_space_t (address_space_id, kind_t::private_swizzled,
+                       std::move (name), DW_ASPACE_AMDGPU_private_lane, 32,
+                       0x00000000, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL),
+      m_interleave_size (interleave_size)
+  {
+  }
+
+  /* Return the number of bytes (N) used to interleave private swizzled memory
+     accesses.  Private swizzled memory has the following layout in global
+     memory (X is the number of lanes in a wavefront):
+
+     global     lane0 private      lane1 private           laneX private
+     addresses  addresses          addresses               addresses
+     0*X*N:     [0*N, ..., 1*N-1], [0*N, ..., 1*N-1], ..., [0*N, ..., 1*N-1]
+     1*X*N:     [1*N, ..., 2*N-1], [1*N, ..., 2*N-1], ..., [1*N, ..., 2*N-1]
+     2*X*N:     [2*N, ..., 3*N-1], [2*N, ..., 3*N-1], ..., [2*N, ..., 3*N-1]
+     ...  */
+  amd_dbgapi_size_t interleave_size () const { return m_interleave_size; }
+
+  amd_dbgapi_segment_address_dependency_t address_dependency (
+    amd_dbgapi_segment_address_t /* address  */) const override
+  {
+    return AMD_DBGAPI_SEGMENT_ADDRESS_DEPENDENCE_LANE;
+  }
+
+  std::pair<const address_space_t &, amd_dbgapi_segment_address_t>
+  lower (amd_dbgapi_segment_address_t private_address) const override;
+
+  std::pair<amd_dbgapi_segment_address_t, amd_dbgapi_size_t>
+  convert (const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
+           const address_space_t &from_address_space,
+           amd_dbgapi_segment_address_t from_address) const override;
+};
+
+class private_unswizzled_address_space_t : public address_space_t
+{
+public:
+  private_unswizzled_address_space_t (
+    amd_dbgapi_address_space_id_t address_space_id, std::string name)
+    : address_space_t (address_space_id, kind_t::private_unswizzled,
+                       std::move (name), DW_ASPACE_AMDGPU_private_wave, 32,
+                       0x00000000, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL)
+  {
+  }
+
+  amd_dbgapi_segment_address_dependency_t address_dependency (
+    amd_dbgapi_segment_address_t /* address  */) const override
+  {
+    return AMD_DBGAPI_SEGMENT_ADDRESS_DEPENDENCE_WAVE;
+  }
+
+  std::pair<const address_space_t &, amd_dbgapi_segment_address_t>
+  lower (amd_dbgapi_segment_address_t private_address) const override;
+
+  std::pair<amd_dbgapi_segment_address_t, amd_dbgapi_size_t>
+  convert (const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
+           const address_space_t &from_address_space,
+           amd_dbgapi_segment_address_t from_address) const override;
+};
+
+class generic_address_space_t : public address_space_t
+{
+public:
+  struct aperture_t
+  {
+    amd_dbgapi_global_address_t base;
+    amd_dbgapi_global_address_t mask;
+    const address_space_t &address_space;
+  };
+
+private:
+  std::vector<aperture_t> const m_apertures;
+
+  /* Return the generic address for a given segment address space, segment
+     address pair.  Converting an address from an address space other than
+     one in the apertures is invalid.  */
+  std::optional<amd_dbgapi_segment_address_t>
+  generic_address_for_address_space (
+    const address_space_t &segment_address_space,
+    amd_dbgapi_segment_address_t segment_address) const;
+
+public:
+  generic_address_space_t (amd_dbgapi_address_space_id_t address_space_id,
+                           std::string name,
+                           std::vector<aperture_t> apertures);
+
+  amd_dbgapi_segment_address_dependency_t
+  address_dependency (amd_dbgapi_segment_address_t address) const override;
+
+  std::pair<const address_space_t &, amd_dbgapi_segment_address_t>
+  lower (amd_dbgapi_segment_address_t generic_address) const override;
+
+  std::pair<amd_dbgapi_segment_address_t, amd_dbgapi_size_t>
+  convert (const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
+           const address_space_t &from_address_space,
+           amd_dbgapi_segment_address_t from_address) const override;
 };
 
 /* The amd_dbgapi_address_space_id_t{1} is reserved for the distinguished

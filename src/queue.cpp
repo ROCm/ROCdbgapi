@@ -674,7 +674,7 @@ aql_queue_t::update_waves ()
             /* Find the dispatch this wave is associated with using the
                packet_id.  The packet_id is only unique for a given queue.  */
             aql_dispatch_t *dispatch
-              = reinterpret_cast<aql_dispatch_t *> (process.find_if (
+              = static_cast<aql_dispatch_t *> (process.find_if (
                 [this, packet_id] (const dispatch_t &d) {
                   return d.queue () == *this
                          && d.os_queue_packet_id () == packet_id;

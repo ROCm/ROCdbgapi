@@ -71,8 +71,14 @@ public:
 
   /* Since handle_object disallows copying & moving, two handle_objects are
      identical if they have the same address.  */
-  bool operator== (const handle_object &other) const { return this == &other; }
-  bool operator!= (const handle_object &other) const { return this != &other; }
+  bool operator== (const handle_object &other) const
+  {
+    return id () == other.id ();
+  }
+  bool operator!= (const handle_object &other) const
+  {
+    return id () != other.id ();
+  }
 };
 
 /* Wrap-around check functor for handles. An error is thrown if the
@@ -423,7 +429,7 @@ handle_object_set_t<Object>::create_object (std::optional<handle_type> id,
     }
 
   m_changed = true;
-  return *reinterpret_cast<Derived *> (it->second.get ());
+  return *static_cast<Derived *> (it->second.get ());
 }
 
 namespace detail
@@ -461,6 +467,33 @@ template <typename Handle, typename Tuple>
 using object_type_from_handle_t =
   typename detail::object_type_from_handle<Handle, Tuple,
                                            std::tuple_size_v<Tuple> - 1>::type;
+
+namespace detail
+{
+template <typename Object, std::size_t N, typename... Args>
+struct get_base_type_index
+{
+  static constexpr auto value = N;
+};
+
+template <typename Object, std::size_t N, typename HandleObjectSet,
+          typename... Args>
+struct get_base_type_index<Object, N, HandleObjectSet, Args...>
+{
+  static constexpr auto value
+    = std::is_base_of_v<typename HandleObjectSet::object_type, Object>
+        ? N
+        : get_base_type_index<Object, N + 1, Args...>::value;
+};
+} /* namespace detail */
+
+template <typename Object, typename... Args>
+auto &
+get_base_type_element (std::tuple<Args...> &tuple)
+{
+  return std::get<detail::get_base_type_index<Object, 0, Args...>::value> (
+    tuple);
+}
 
 } /* namespace amd::dbgapi */
 

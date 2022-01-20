@@ -745,13 +745,11 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
 
 size_t
 wave_t::xfer_private_memory_swizzled (
-  amd_dbgapi_segment_address_t segment_address, amd_dbgapi_lane_id_t lane_id,
-  void *read, const void *write, size_t size)
+  amd_dbgapi_size_t interleave, amd_dbgapi_segment_address_t segment_address,
+  amd_dbgapi_lane_id_t lane_id, void *read, const void *write, size_t size)
 {
   dbgapi_assert (lane_id != AMD_DBGAPI_LANE_NONE && lane_id < lane_count ());
 
-  const amd_dbgapi_size_t interleave
-    = architecture ().private_swizzled_interleave_size ();
   auto [scratch_base, scratch_size] = scratch_memory_region ();
 
   size_t bytes = size;
@@ -892,8 +890,15 @@ wave_t::xfer_segment_memory (const address_space_t &address_space,
   switch (address_space.kind ())
     {
     case address_space_t::kind_t::private_swizzled:
-      return xfer_private_memory_swizzled (segment_address, lane_id, read,
-                                           write, size);
+      {
+        const auto &private_swizzled_address_space
+          = static_cast<const private_swizzled_address_space_t &> (
+            address_space);
+
+        return xfer_private_memory_swizzled (
+          private_swizzled_address_space.interleave_size (), segment_address,
+          lane_id, read, write, size);
+      }
 
     case address_space_t::kind_t::private_unswizzled:
       return xfer_private_memory_unswizzled (segment_address, read, write,

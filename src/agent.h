@@ -50,7 +50,6 @@ public:
   agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
            const architecture_t *architecture,
            const os_agent_info_t &os_agent_info);
-  ~agent_t ();
 
   os_agent_id_t os_agent_id () const { return m_os_agent_info.os_agent_id; }
   const os_agent_info_t &os_info () const { return m_os_agent_info; }

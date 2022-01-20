@@ -648,8 +648,10 @@ kfd_driver_t::agent_snapshot (os_agent_info_t *snapshots,
       /* Fill in the apertures for this agent.  */
 
       dbgapi_assert (it->lds_base && it->scratch_base);
-      agent_info.local_address_space_aperture = it->lds_base;
-      agent_info.private_address_space_aperture = it->scratch_base;
+      agent_info.local_address_aperture_base = it->lds_base;
+      agent_info.local_address_aperture_limit = it->lds_limit;
+      agent_info.private_address_aperture_base = it->scratch_base;
+      agent_info.private_address_aperture_limit = it->scratch_limit;
 
       /* Retrieve the GPU node properties.  */
 
@@ -1349,8 +1351,9 @@ to_string (os_agent_info_t os_agent_info)
     "{ .os_agent_id=%d, .name=%s, .location_id=%d, .gfxip=[%d,%d,%d], "
     ".simd_count=%ld, .max_waves_per_simd=%ld, .shader_engine_count=%ld, "
     ".vendor_id=%#x, .device_id=%#x, .fw_version=%d, "
-    ".local_address_space_aperture=%#lx, "
-    ".private_address_space_aperture=%#lx, .debugging_supported=%d, "
+    ".local_address_aperture_base=%#lx, .local_address_aperture_limit=%#lx, "
+    ".private_address_aperture_base=%#lx, "
+    ".private_address_aperture_limit=%#lx, .debugging_supported=%d, "
     ".address_watch_supported=%d, .address_watch_register_count=%ld, "
     ".address_watch_mask_bits=%#lx, .watchpoint_exclusive=%d, "
     ".precise_memory_supported=%d, .firmware_supported=%d, "
@@ -1360,8 +1363,10 @@ to_string (os_agent_info_t os_agent_info)
     os_agent_info.gfxip[2], os_agent_info.simd_count,
     os_agent_info.max_waves_per_simd, os_agent_info.shader_engine_count,
     os_agent_info.vendor_id, os_agent_info.device_id, os_agent_info.fw_version,
-    os_agent_info.local_address_space_aperture,
-    os_agent_info.private_address_space_aperture,
+    os_agent_info.local_address_aperture_base,
+    os_agent_info.local_address_aperture_limit,
+    os_agent_info.private_address_aperture_base,
+    os_agent_info.private_address_aperture_limit,
     os_agent_info.debugging_supported, os_agent_info.address_watch_supported,
     os_agent_info.address_watch_register_count,
     os_agent_info.address_watch_mask_bits, os_agent_info.watchpoint_exclusive,
