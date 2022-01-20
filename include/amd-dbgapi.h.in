@@ -1517,7 +1517,7 @@ typedef enum
   /**
    * The instruction has no properties.
    */
-  AMD_DBGAPI_INSTRUCTION_PROPERTY_NONE = 0ULL
+  AMD_DBGAPI_INSTRUCTION_PROPERTY_NONE = 0
 } amd_dbgapi_instruction_properties_t;
 
 /**
@@ -2600,11 +2600,11 @@ typedef enum
   /**
    * If none of the bits are set, then the queue is not in the error state.
    */
-  AMD_DBGAPI_EXCEPTION_NONE = 0ULL,
+  AMD_DBGAPI_EXCEPTION_NONE = 0,
   /**
    * A wave on the queue executed a trap instruction used to abort a dispatch.
    */
-  AMD_DBGAPI_EXCEPTION_WAVE_ABORT = (1ULL << 0),
+  AMD_DBGAPI_EXCEPTION_WAVE_ABORT = (1 << 0),
   /**
    * A wave on the queue executed an instruction that caused an exception.
    * This includes executing a trap instruction (other than the trap reported
@@ -2614,7 +2614,7 @@ typedef enum
    * are handled by the library and are never passed to the inferior's runtime
    * to cause this exception).
    */
-  AMD_DBGAPI_EXCEPTION_WAVE_TRAP = (1ULL << 1),
+  AMD_DBGAPI_EXCEPTION_WAVE_TRAP = (1 << 1),
   /**
    * A wave on the queue executed an instruction that had a floating point or
    * integer enabled exception condition.  The conditions include:
@@ -2630,50 +2630,50 @@ typedef enum
    * - Floating point operation produced an inexact result.
    * - Integer operation performed a division by zero.
    */
-  AMD_DBGAPI_EXCEPTION_WAVE_MATH_ERROR = (1ULL << 2),
+  AMD_DBGAPI_EXCEPTION_WAVE_MATH_ERROR = (1 << 2),
   /**
    * A wave on the queue executed an illegal instruction.
    */
-  AMD_DBGAPI_EXCEPTION_WAVE_ILLEGAL_INSTRUCTION = (1ULL << 3),
+  AMD_DBGAPI_EXCEPTION_WAVE_ILLEGAL_INSTRUCTION = (1 << 3),
   /**
    * A wave on the queue had a memory violation.  This happens when accessing a
    * non-existent memory page or a page without the necessary permission (such
    * as writing to a readonly page or executing a non-execute page).
    */
-  AMD_DBGAPI_EXCEPTION_WAVE_MEMORY_VIOLATION = (1ULL << 4),
+  AMD_DBGAPI_EXCEPTION_WAVE_MEMORY_VIOLATION = (1 << 4),
   /**
    * A wave on the queue had an aperture violation.  This happens when
    * accessing a memory address outside the virtual memory address range.
    */
-  AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION = (1ULL << 5),
+  AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION = (1 << 5),
   /**
    * A dispatch packet on the queue has an invalid dimension.
    */
-  AMD_DBGAPI_EXCEPTION_PACKET_DISPATCH_DIM_INVALID = (1ULL << 16),
+  AMD_DBGAPI_EXCEPTION_PACKET_DISPATCH_DIM_INVALID = (1 << 16),
   /**
    * A dispatch packet on the queue has an invalid group segment size.
    */
-  AMD_DBGAPI_EXCEPTION_PACKET_DISPATCH_GROUP_SEGMENT_SIZE_INVALID = (1ULL << 17),
+  AMD_DBGAPI_EXCEPTION_PACKET_DISPATCH_GROUP_SEGMENT_SIZE_INVALID = (1 << 17),
   /**
    * A dispatch packet on the queue has a NULL code address.
    */
-  AMD_DBGAPI_EXCEPTION_PACKET_DISPATCH_CODE_INVALID = (1ULL << 18),
+  AMD_DBGAPI_EXCEPTION_PACKET_DISPATCH_CODE_INVALID = (1 << 18),
   /**
    * A packet on the queue has an unsupported code.
    */
-  AMD_DBGAPI_EXCEPTION_PACKET_UNSUPPORTED = (1ULL << 20),
+  AMD_DBGAPI_EXCEPTION_PACKET_UNSUPPORTED = (1 << 20),
   /**
    * A dispatch packet on the queue has an invalid workgroup size.
    */
-  AMD_DBGAPI_EXCEPTION_PACKET_DISPATCH_WORKGROUP_SIZE_INVALID = (1ULL << 21),
+  AMD_DBGAPI_EXCEPTION_PACKET_DISPATCH_WORKGROUP_SIZE_INVALID = (1 << 21),
   /**
    * A dispatch packet on the queue requires too many registers.
    */
-  AMD_DBGAPI_EXCEPTION_PACKET_DISPATCH_REGISTER_COUNT_TOO_LARGE = (1ULL << 22),
+  AMD_DBGAPI_EXCEPTION_PACKET_DISPATCH_REGISTER_COUNT_TOO_LARGE = (1 << 22),
   /**
    * A packet on the queue has an invalid vendor code.
    */
-  AMD_DBGAPI_EXCEPTION_PACKET_VENDOR_UNSUPPORTED = (1ULL << 23),
+  AMD_DBGAPI_EXCEPTION_PACKET_VENDOR_UNSUPPORTED = (1 << 23),
   /**
    * There was an error preempting the queue.  When the AMD GPU device driver
    * generates this error it may cause all waves associated with the queue to
@@ -2682,7 +2682,7 @@ typedef enum
    * step will report a ::AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED event
    * to indicate that the single step has been cancelled.
    */
-  AMD_DBGAPI_EXCEPTION_QUEUE_PREEMPTION_ERROR = (1ULL << 31)
+  AMD_DBGAPI_EXCEPTION_QUEUE_PREEMPTION_ERROR = (1 << 31)
 } amd_dbgapi_exceptions_t;
 
 /**
@@ -3493,13 +3493,13 @@ typedef enum
    * If none of the bits are set, then ::amd_dbgapi_wave_stop stopped the
    * wave.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_NONE = 0ULL,
+  AMD_DBGAPI_WAVE_STOP_REASON_NONE = 0,
   /**
    * The wave stopped due to executing a breakpoint instruction.  Use the
    * ::AMD_DBGAPI_ARCHITECTURE_INFO_BREAKPOINT_INSTRUCTION_PC_ADJUST query to
    * determine the address of the breakpoint instruction.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT = (1ULL << 0),
+  AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT = (1 << 0),
   /**
    * The wave stopped due to triggering a data watchpoint.  The
    * ::AMD_DBGAPI_WAVE_INFO_WATCHPOINTS query can be used to determine which
@@ -3511,11 +3511,11 @@ typedef enum
    * supports it, the ::amd_dbgapi_set_memory_precision can be used to control
    * the precision, but may significantly reduce performance.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT = (1ULL << 1),
+  AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT = (1 << 1),
   /**
    * The wave stopped due to completing an instruction single-step.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP = (1ULL << 2),
+  AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP = (1 << 2),
   /**
    * The wave stopped due to triggering an enabled floating point input
    * denormal exception.
@@ -3523,7 +3523,7 @@ typedef enum
    * This stop reason would normally put the wave's queue into the queue error
    * state and include the ::AMD_DBGAPI_EXCEPTION_WAVE_TRAP queue error reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_FP_INPUT_DENORMAL = (1ULL << 3),
+  AMD_DBGAPI_WAVE_STOP_REASON_FP_INPUT_DENORMAL = (1 << 3),
   /**
    * The wave stopped due to triggering an enabled floating point divide by
    * zero exception.
@@ -3531,7 +3531,7 @@ typedef enum
    * This stop reason would normally put the wave's queue into the queue error
    * state and include the ::AMD_DBGAPI_EXCEPTION_WAVE_TRAP queue error reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_FP_DIVIDE_BY_0 = (1ULL << 4),
+  AMD_DBGAPI_WAVE_STOP_REASON_FP_DIVIDE_BY_0 = (1 << 4),
   /**
    * The wave stopped due to triggering an enabled floating point overflow
    * exception.
@@ -3539,7 +3539,7 @@ typedef enum
    * This stop reason would normally put the wave's queue into the queue error
    * state and include the ::AMD_DBGAPI_EXCEPTION_WAVE_TRAP queue error reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_FP_OVERFLOW = (1ULL << 5),
+  AMD_DBGAPI_WAVE_STOP_REASON_FP_OVERFLOW = (1 << 5),
   /**
    * The wave stopped due to triggering an enabled floating point underflow
    * exception.
@@ -3547,7 +3547,7 @@ typedef enum
    * This stop reason would normally put the wave's queue into the queue error
    * state and include the ::AMD_DBGAPI_EXCEPTION_WAVE_TRAP queue error reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_FP_UNDERFLOW = (1ULL << 6),
+  AMD_DBGAPI_WAVE_STOP_REASON_FP_UNDERFLOW = (1 << 6),
   /**
    * The wave stopped due to triggering an enabled floating point inexact
    * exception.
@@ -3555,7 +3555,7 @@ typedef enum
    * This stop reason would normally put the wave's queue into the queue error
    * state and include the ::AMD_DBGAPI_EXCEPTION_WAVE_TRAP queue error reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_FP_INEXACT = (1ULL << 7),
+  AMD_DBGAPI_WAVE_STOP_REASON_FP_INEXACT = (1 << 7),
   /**
    * The wave stopped due to triggering an enabled floating point invalid
    * operation exception.
@@ -3563,7 +3563,7 @@ typedef enum
    * This stop reason would normally put the wave's queue into the queue error
    * state and include the ::AMD_DBGAPI_EXCEPTION_WAVE_TRAP queue error reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_FP_INVALID_OPERATION = (1ULL << 8),
+  AMD_DBGAPI_WAVE_STOP_REASON_FP_INVALID_OPERATION = (1 << 8),
   /**
    * The wave stopped due to triggering an enabled integer divide by zero
    * exception.
@@ -3571,7 +3571,7 @@ typedef enum
    * This stop reason would normally put the wave's queue into the queue error
    * state and include the ::AMD_DBGAPI_EXCEPTION_WAVE_TRAP queue error reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_INT_DIVIDE_BY_0 = (1ULL << 9),
+  AMD_DBGAPI_WAVE_STOP_REASON_INT_DIVIDE_BY_0 = (1 << 9),
   /**
    * The wave stopped due to executing a debug trap instruction.  The program
    * counter is left positioned after the trap instruction.  The wave can be
@@ -3586,7 +3586,7 @@ typedef enum
    * help debugging.  They behave as no operations if a debugger is not
    * connected and stop the wave if executed with the debugger attached.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_DEBUG_TRAP = (1ULL << 10),
+  AMD_DBGAPI_WAVE_STOP_REASON_DEBUG_TRAP = (1 << 10),
   /**
    * The wave stopped due to executing an assert trap instruction.  The program
    * counter is left positioned at the assert trap instruction.
@@ -3602,7 +3602,7 @@ typedef enum
    * This stop reason would normally put the wave's queue into the queue error
    * state and include the ::AMD_DBGAPI_EXCEPTION_WAVE_TRAP queue error reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_ASSERT_TRAP = (1ULL << 11),
+  AMD_DBGAPI_WAVE_STOP_REASON_ASSERT_TRAP = (1 << 11),
   /**
    * The wave stopped due to executing a trap instruction other than the
    * ::AMD_DBGAPI_WAVE_STOP_REASON_DEBUG_TRAP or
@@ -3612,7 +3612,7 @@ typedef enum
    * This stop reason would normally put the wave's queue into the queue error
    * state and include the ::AMD_DBGAPI_EXCEPTION_WAVE_TRAP queue error reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_TRAP = (1ULL << 12),
+  AMD_DBGAPI_WAVE_STOP_REASON_TRAP = (1 << 12),
   /**
    * The wave stopped due to a memory violation.  It indicates a non-existent
    * page was accessed or a page without the necessary permission (such as
@@ -3628,7 +3628,7 @@ typedef enum
    * state and include the ::AMD_DBGAPI_EXCEPTION_WAVE_MEMORY_VIOLATION queue
    * error reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_MEMORY_VIOLATION = (1ULL << 13),
+  AMD_DBGAPI_WAVE_STOP_REASON_MEMORY_VIOLATION = (1 << 13),
   /**
    * The wave stopped due to an aperture violation.  It indicates the memory
    * address is outside the virtual address range.
@@ -3643,7 +3643,7 @@ typedef enum
    * state and include the ::AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION
    * queue error reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_APERTURE_VIOLATION = (1ULL << 14),
+  AMD_DBGAPI_WAVE_STOP_REASON_APERTURE_VIOLATION = (1 << 14),
   /**
    * The wave stopped due to executing an illegal instruction.  The program
    * counter is left positioned at the illegal instruction.
@@ -3652,7 +3652,7 @@ typedef enum
    * state and include the ::AMD_DBGAPI_EXCEPTION_WAVE_ILLEGAL_INSTRUCTION
    * queue error reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_ILLEGAL_INSTRUCTION = (1ULL << 15),
+  AMD_DBGAPI_WAVE_STOP_REASON_ILLEGAL_INSTRUCTION = (1 << 15),
   /**
    * The wave stopped due to detecting an unrecoverable ECC error.
    *
@@ -3665,14 +3665,14 @@ typedef enum
    * This stop reason would normally put the wave's queue into the queue error
    * state and include the ::AMD_DBGAPI_EXCEPTION_WAVE_TRAP queue error reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_ECC_ERROR = (1ULL << 16),
+  AMD_DBGAPI_WAVE_STOP_REASON_ECC_ERROR = (1 << 16),
   /**
    * The wave stopped after causing a hardware fatal halt.
    *
    * This stop reason would normally put the wave's queue into the queue error
    * state and include the ::AMD_DBGAPI_EXCEPTION_WAVE_TRAP queue error reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_FATAL_HALT = (1ULL << 17)
+  AMD_DBGAPI_WAVE_STOP_REASON_FATAL_HALT = (1 << 17)
 } amd_dbgapi_wave_stop_reasons_t;
 
 /**
@@ -4741,27 +4741,27 @@ typedef enum
   /**
    * There are no properties.
    */
-  AMD_DBGAPI_REGISTER_PROPERTY_NONE = 0ULL,
+  AMD_DBGAPI_REGISTER_PROPERTY_NONE = 0,
   /**
    * At least one bit of the register value is readonly.  It is advisable for
    * the client to read the register after writing it to determine the value of
    * the readonly bits.
    */
-  AMD_DBGAPI_REGISTER_PROPERTY_READONLY_BITS = (1ULL << 0),
+  AMD_DBGAPI_REGISTER_PROPERTY_READONLY_BITS = (1 << 0),
   /**
    * The register value may change as a consequence of changing a register of
    * the same wavefront with the
    * ::AMD_DBGAPI_REGISTER_PROPERTY_INVALIDATE_VOLATILE property.  It is
    * advisable for the client to not cache the value of the register.
    */
-  AMD_DBGAPI_REGISTER_PROPERTY_VOLATILE = (1ULL << 1),
+  AMD_DBGAPI_REGISTER_PROPERTY_VOLATILE = (1 << 1),
   /**
    * Changing the value of the register may change a register of the same
    * wavefront with the ::AMD_DBGAPI_REGISTER_PROPERTY_VOLATILE property.  It
    * is advisable to invalidate any cached registers with the
    * ::AMD_DBGAPI_REGISTER_PROPERTY_VOLATILE property.
    */
-  AMD_DBGAPI_REGISTER_PROPERTY_INVALIDATE_VOLATILE = (1ULL << 2)
+  AMD_DBGAPI_REGISTER_PROPERTY_INVALIDATE_VOLATILE = (1 << 2)
 } amd_dbgapi_register_properties_t;
 
 /**
