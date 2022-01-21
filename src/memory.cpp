@@ -1051,6 +1051,33 @@ amd_dbgapi_address_is_in_address_class (
   TRACE_END (make_ref (param_out (address_class_state)));
 }
 
+amd_dbgapi_status_t AMD_DBGAPI
+amd_dbgapi_address_dependency (
+  amd_dbgapi_address_space_id_t address_space_id,
+  amd_dbgapi_segment_address_t segment_address,
+  amd_dbgapi_segment_address_dependency_t *segment_address_dependency)
+{
+  TRACE_BEGIN (param_in (address_space_id), param_in (segment_address),
+               param_in (segment_address_dependency));
+  TRY
+  {
+    if (!detail::is_initialized)
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
+
+    const address_space_t *address_space = find (address_space_id);
+
+    if (!address_space)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID);
+
+    *segment_address_dependency
+      = address_space->address_dependency (segment_address);
+  }
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
+  TRACE_END (make_ref (param_out (segment_address_dependency)));
+}
+
 namespace
 {
 
