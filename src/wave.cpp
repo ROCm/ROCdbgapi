@@ -624,10 +624,14 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
       && !process ().memory_cache ().contains_all (*reg_addr + offset,
                                                    value_size))
     {
+      /* Get the wave_id before suspending the queue, as this wave could have
+         exited, and queue_t::update_waves may destroy this wave_t.  */
+      amd_dbgapi_wave_id_t wave_id = id ();
+
       suspend.emplace (queue (), "read register");
 
       /* Look for the wave_id again, the wave may have exited.  */
-      wave_t *wave = find (id ());
+      wave_t *wave = find (wave_id);
       if (!wave)
         throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
@@ -691,10 +695,14 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
   std::optional<scoped_queue_suspend_t> suspend;
   if (!queue ().is_suspended ())
     {
+      /* Get the wave_id before suspending the queue, as this wave could have
+         exited, and queue_t::update_waves may destroy this wave_t.  */
+      amd_dbgapi_wave_id_t wave_id = id ();
+
       suspend.emplace (queue (), "write register");
 
       /* Look for the wave_id again, the wave may have exited.  */
-      wave_t *wave = find (id ());
+      wave_t *wave = find (wave_id);
       if (!wave)
         throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 

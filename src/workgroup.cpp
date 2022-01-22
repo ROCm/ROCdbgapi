@@ -66,10 +66,16 @@ workgroup_t::xfer_local_memory (amd_dbgapi_segment_address_t segment_address,
   std::optional<scoped_queue_suspend_t> suspend;
   if (!queue ().is_suspended ())
     {
+      /* Get the workgroup_id before suspending the queue, as this wave could
+         have exited, and queue_t::update_waves may destroy this workgroup_t.
+       */
+      amd_dbgapi_workgroup_id_t workgroup_id = id ();
+
       suspend.emplace (queue (), "xfer local memory");
 
-      /* Look for the workgroup_id again, all the waves may have exited.  */
-      workgroup_t *workgroup = find (id ());
+      /* Look for the workgroup_id again, all the waves may have exited, and
+         this workgroup may have been destroyed by the queue suspend.  */
+      workgroup_t *workgroup = find (workgroup_id);
       if (!workgroup)
         throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_WORKGROUP_ID);
 
