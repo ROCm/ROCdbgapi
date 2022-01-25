@@ -323,7 +323,7 @@ generic_address_space_t::generic_address_space_t (
                      AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL),
     m_apertures (std::move (apertures))
 {
-  for (auto &&aperture : m_apertures)
+  for ([[maybe_unused]] auto &&aperture : m_apertures)
     dbgapi_assert (
       /* The aperture base address should be in the mask's range.  */
       (aperture.base & aperture.mask) == aperture.base
