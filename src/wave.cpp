@@ -459,7 +459,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
               : "",
             pc ());
 
-  architecture.wave_set_state (*this, state, exceptions);
+  architecture.wave_set_state (*this, state);
   m_state = state;
   queue ().wave_state_changed (*this);
 
@@ -566,6 +566,9 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
       /* A wave should only send queue exceptions, sometimes combined with a
          device_memory_exception.  */
       dbgapi_assert ((os_exceptions & os_queue_exception_mask) != 0);
+
+      /* Halt the wave if resuming with exceptions.  */
+      architecture.wave_set_halt (*this, true);
 
       process ().send_exceptions (os_exceptions, &queue ());
     }

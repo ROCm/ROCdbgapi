@@ -280,9 +280,8 @@ public:
 
   std::pair<amd_dbgapi_wave_state_t, amd_dbgapi_wave_stop_reasons_t>
   wave_get_state (wave_t &wave) const override;
-  void wave_set_state (wave_t &wave, amd_dbgapi_wave_state_t state,
-                       amd_dbgapi_exceptions_t exceptions
-                       = AMD_DBGAPI_EXCEPTION_NONE) const override;
+  void wave_set_state (wave_t &wave,
+                       amd_dbgapi_wave_state_t state) const override;
 
   bool wave_get_halt (const wave_t &wave) const override;
   void wave_set_halt (wave_t &wave, bool halt) const override;
@@ -1291,24 +1290,13 @@ amdgcn_architecture_t::wave_get_state (wave_t &wave) const
 }
 
 void
-amdgcn_architecture_t::wave_set_state (
-  wave_t &wave, amd_dbgapi_wave_state_t state,
-  amd_dbgapi_exceptions_t exceptions) const
+amdgcn_architecture_t::wave_set_state (wave_t &wave,
+                                       amd_dbgapi_wave_state_t state) const
 {
-  dbgapi_assert ((exceptions == AMD_DBGAPI_EXCEPTION_NONE
-                  || state != AMD_DBGAPI_WAVE_STATE_STOP)
-                 && "raising an exception requires the wave to be resumed");
-
   uint32_t status_reg, mode_reg, ttmp6;
-
   wave.read_register (amdgpu_regnum_t::status, &status_reg);
   wave.read_register (amdgpu_regnum_t::mode, &mode_reg);
   wave.read_register (amdgpu_regnum_t::ttmp6, &ttmp6);
-
-  if (state != AMD_DBGAPI_WAVE_STATE_STOP
-      && exceptions != AMD_DBGAPI_EXCEPTION_NONE)
-    /* Halt the wave if resuming with exceptions.  */
-    wave_set_halt (wave, true);
 
   switch (state)
     {

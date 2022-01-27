@@ -323,9 +323,8 @@ public:
 
   virtual std::pair<amd_dbgapi_wave_state_t, amd_dbgapi_wave_stop_reasons_t>
   wave_get_state (wave_t &wave) const = 0;
-  virtual void wave_set_state (wave_t &wave, amd_dbgapi_wave_state_t state,
-                               amd_dbgapi_exceptions_t exceptions
-                               = AMD_DBGAPI_EXCEPTION_NONE) const = 0;
+  virtual void wave_set_state (wave_t &wave,
+                               amd_dbgapi_wave_state_t state) const = 0;
 
   virtual bool wave_get_halt (const wave_t &wave) const = 0;
   virtual void wave_set_halt (wave_t &wave, bool halt) const = 0;
