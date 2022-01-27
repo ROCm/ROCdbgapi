@@ -210,7 +210,7 @@ public:
     amd_dbgapi_size_t interleave_size)
     : address_space_t (address_space_id, kind_t::private_swizzled,
                        std::move (name), DW_ASPACE_AMDGPU_private_lane, 32,
-                       0x00000000, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL),
+                       0xFFFFFFFF, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL),
       m_interleave_size (interleave_size)
   {
   }
@@ -249,7 +249,7 @@ public:
     amd_dbgapi_address_space_id_t address_space_id, std::string name)
     : address_space_t (address_space_id, kind_t::private_unswizzled,
                        std::move (name), DW_ASPACE_AMDGPU_private_wave, 32,
-                       0x00000000, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL)
+                       0xFFFFFFFF, AMD_DBGAPI_ADDRESS_SPACE_ACCESS_ALL)
   {
   }
 
