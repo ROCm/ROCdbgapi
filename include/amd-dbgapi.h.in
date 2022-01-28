@@ -525,10 +525,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_62
 
 /**
- * The function was introduced in version 0.63 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.63"``.
+ * The function was introduced in version 0.64 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.64"``.
  */
-#define AMD_DBGAPI_VERSION_0_63
+#define AMD_DBGAPI_VERSION_0_64
 
 /** @} */
 
@@ -3202,7 +3202,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_workgroup_get_info (
     amd_dbgapi_workgroup_id_t workgroup_id, amd_dbgapi_workgroup_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_63;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_64;
 
 /**
  * Return the list of existing workgroups.
@@ -3256,7 +3256,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_workgroup_get_info (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_workgroup_list (
     amd_dbgapi_process_id_t process_id, size_t *workgroup_count,
     amd_dbgapi_workgroup_id_t **workgroups,
-    amd_dbgapi_changed_t *changed) AMD_DBGAPI_VERSION_0_63;
+    amd_dbgapi_changed_t *changed) AMD_DBGAPI_VERSION_0_64;
 
 /** @} */
 
@@ -3450,7 +3450,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_get_info (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_wave_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_63;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_64;
 
 /**
  * The execution state of a wave.
@@ -6015,7 +6015,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_address_dependency (
   amd_dbgapi_address_space_id_t address_space_id,
   amd_dbgapi_segment_address_t segment_address,
   amd_dbgapi_segment_address_dependency_t *segment_address_dependency)
-  AMD_DBGAPI_VERSION_0_63;
+  AMD_DBGAPI_VERSION_0_64;
 
 /**
  * Indication of whether a segment address in an address space is a member of

@@ -71,7 +71,7 @@ global: amd_dbgapi_address_class_get_info;
         amd_dbgapi_write_register;
 } @AMD_DBGAPI_NAME@_0.58;
 
-@AMD_DBGAPI_NAME@_0.63 {
+@AMD_DBGAPI_NAME@_0.64 {
 global: amd_dbgapi_address_dependency;
         amd_dbgapi_process_workgroup_list;
         amd_dbgapi_wave_get_info;
