@@ -90,7 +90,7 @@ private:
   amd_dbgapi_wave_state_t m_state{ AMD_DBGAPI_WAVE_STATE_RUN };
   bool m_stop_requested{ false };
   amd_dbgapi_wave_stop_reasons_t m_stop_reason{};
-  amd_dbgapi_global_address_t m_parked_pc{ 0 };
+  mutable amd_dbgapi_global_address_t m_parked_pc{ 0 };
   amd_dbgapi_global_address_t m_last_stopped_pc{ 0 };
   epoch_t m_mark{ 0 };
 
@@ -195,7 +195,7 @@ public:
                       void *value) const;
 
   void write_register (amdgpu_regnum_t regnum, size_t offset,
-                       size_t value_size, const void *value);
+                       size_t value_size, const void *value) const;
 
   template <typename T, /* T is a pointer or an array.  */
             std::enable_if_t<std::is_pointer_v<std::decay_t<T>>, int> = 0>
@@ -213,7 +213,8 @@ public:
       }
   }
 
-  template <typename T> void write_register (amdgpu_regnum_t regnum, T &&value)
+  template <typename T>
+  void write_register (amdgpu_regnum_t regnum, T &&value) const
   {
     try
       {

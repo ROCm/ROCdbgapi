@@ -394,8 +394,9 @@ public:
                                      amdgpu_regnum_t regnum, size_t offset,
                                      size_t value_size, void *value) const = 0;
 
-  virtual void write_pseudo_register (wave_t &wave, amdgpu_regnum_t regnum,
-                                      size_t offset, size_t value_size,
+  virtual void write_pseudo_register (const wave_t &wave,
+                                      amdgpu_regnum_t regnum, size_t offset,
+                                      size_t value_size,
                                       const void *value) const = 0;
 
   void get_info (amd_dbgapi_architecture_info_t query, size_t value_size,

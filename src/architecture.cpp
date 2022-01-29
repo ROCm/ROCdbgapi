@@ -274,7 +274,7 @@ public:
                              size_t offset, size_t value_size,
                              void *value) const override;
 
-  void write_pseudo_register (wave_t &wave, amdgpu_regnum_t regnum,
+  void write_pseudo_register (const wave_t &wave, amdgpu_regnum_t regnum,
                               size_t offset, size_t value_size,
                               const void *value) const override;
 
@@ -1958,7 +1958,7 @@ amdgcn_architecture_t::read_pseudo_register (const wave_t &wave,
 }
 
 void
-amdgcn_architecture_t::write_pseudo_register (wave_t &wave,
+amdgcn_architecture_t::write_pseudo_register (const wave_t &wave,
                                               amdgpu_regnum_t regnum,
                                               size_t offset, size_t value_size,
                                               const void *value) const
@@ -3419,7 +3419,7 @@ public:
                              size_t offset, size_t value_size,
                              void *value) const override;
 
-  void write_pseudo_register (wave_t &wave, amdgpu_regnum_t regnum,
+  void write_pseudo_register (const wave_t &wave, amdgpu_regnum_t regnum,
                               size_t offset, size_t value_size,
                               const void *value) const override;
 
@@ -3762,7 +3762,7 @@ gfx10_architecture_t::read_pseudo_register (const wave_t &wave,
 }
 
 void
-gfx10_architecture_t::write_pseudo_register (wave_t &wave,
+gfx10_architecture_t::write_pseudo_register (const wave_t &wave,
                                              amdgpu_regnum_t regnum,
                                              size_t offset, size_t value_size,
                                              const void *value) const

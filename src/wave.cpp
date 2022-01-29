@@ -647,7 +647,7 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
 
 void
 wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
-                        size_t value_size, const void *value)
+                        size_t value_size, const void *value) const
 {
   if (is_pseudo_register (regnum))
     return architecture ().write_pseudo_register (*this, regnum, offset,
