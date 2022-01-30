@@ -1273,18 +1273,12 @@ amdgcn_architecture_t::wave_get_state (wave_t &wave) const
           stop_reason |= AMD_DBGAPI_WAVE_STOP_REASON_TRAP;
           break;
         }
-
-      /* For all trap IDs except trap_id_t::breakpoint, check that the PC
-         points past an actual trap instruction.  We can't check
-         trap_id_t::breakpoint because the debugger may have removed the
-         breakpoint and restored the original instruction.  */
-      if (*trap_id != trap_id_t::breakpoint && ![&] () {
-            auto instruction
-              = wave.instruction_at_pc (-breakpoint_instruction_pc_adjust ());
-            return instruction && is_trap (*instruction);
-          }())
-        fatal_error ("trap exception not raised by a trap instruction");
     }
+
+  /* NOTE: Each derived architecture must check for a single-step stop reason.
+     Some architectures report trapping after executing an instruction by
+     raising a bit in the trapsts register, some don't, and in the absence of
+     any other stop reason, a single-step is assumed.  */
 
   return { AMD_DBGAPI_WAVE_STATE_STOP, stop_reason };
 }
