@@ -261,6 +261,8 @@ public:
   virtual amd_dbgapi_global_address_t dispatch_packet_address (
     const architecture_t::cwsr_record_t &cwsr_record) const = 0;
 
+  virtual size_t maximum_queue_packet_count () const = 0;
+
   virtual std::unique_ptr<const kernel_descriptor_t> make_kernel_descriptor (
     process_t &process,
     amd_dbgapi_global_address_t kernel_descriptor_address) const = 0;

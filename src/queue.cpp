@@ -391,8 +391,15 @@ aql_queue_t::aql_queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
   if (reinterpret_cast<uintptr_t> (m_hsa_queue.base_address) != address ())
     fatal_error ("hsa_queue_t base address != kfd queue info base address");
 
-  if ((m_hsa_queue.size * 64) != size ())
+  if ((m_hsa_queue.size * aql_packet_size) != size ())
     fatal_error ("hsa_queue_t size != kfd queue info ring size");
+
+  /* The dispatch packet index is stored in a trap temporary register when a
+     wave associated with that packet is initialized.  Make sure the field
+     containing the packet index is large enough.  The ROCr should not create
+     queues with more packets than the field can hold.  */
+  if (m_hsa_queue.size > architecture ().maximum_queue_packet_count ())
+    fatal_error ("queue ring size = %#lx is not supported", size ());
 }
 
 aql_queue_t::~aql_queue_t ()

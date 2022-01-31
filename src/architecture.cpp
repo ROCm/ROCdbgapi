@@ -2218,6 +2218,11 @@ public:
   amd_dbgapi_global_address_t dispatch_packet_address (
     const architecture_t::cwsr_record_t &cwsr_record) const override;
 
+  size_t maximum_queue_packet_count () const override
+  {
+    return ttmp6_queue_packet_id_mask + 1;
+  }
+
   std::pair<amd_dbgapi_size_t /* offset  */, amd_dbgapi_size_t /* size  */>
   scratch_memory_region (uint32_t compute_tmpring_size_register,
                          uint32_t bank_count, uint32_t bank_id,
