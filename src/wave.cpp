@@ -349,38 +349,41 @@ void
 wave_t::update (std::unique_ptr<architecture_t::cwsr_record_t> cwsr_record)
 {
   dbgapi_assert (queue ().is_suspended ());
-  const bool first_update = !m_mark;
+  const architecture_t &architecture = this->architecture ();
 
   dbgapi_assert (cwsr_record != nullptr);
   m_cwsr_record = std::move (cwsr_record);
 
   /* Check that the PC in the wave state save area is correctly aligned.  */
   if (!utils::is_aligned (pc (),
-                          architecture ().minimum_instruction_alignment ()))
+                          architecture.minimum_instruction_alignment ()))
     fatal_error ("corrupted state for %s: misaligned pc: %#lx",
                  to_cstring (id ()), pc ());
+
+  if (!m_ttmps_initialized)
+    {
+      /* Initialize the ttmp registers normally set up by SPI if this wave was
+         created before the SPI ttmps setup was enabled.  */
+      if (!agent ().spi_ttmps_setup_enabled ())
+        architecture.initialize_spi_ttmps (*this);
+
+      /* If the wave has not yet entered the trap handler, the ttmps used to
+         communicate with the debugger API library may be undefined on some
+         architectures.  */
+      if (!architecture.are_trap_handler_ttmps_initialized (*this))
+        architecture.initialize_trap_handler_ttmps (*this);
+
+      write_register (amdgpu_regnum_t::wave_id, id ());
+      m_ttmps_initialized = true;
+    }
 
   /* Update the wave's state if this is a new wave, or if the wave was running
      the last time the queue it belongs to was resumed.  */
   amd_dbgapi_wave_state_t prev_state = m_state;
   if (prev_state != AMD_DBGAPI_WAVE_STATE_STOP)
-    {
-      /* Zero-initialize the ttmp registers if they weren't set up by the
-         hardware.  Some ttmp registers are used to determine if the wave was
-         stopped by the trap handler because of an exception or a trap.  */
-      if (first_update && !agent ().spi_ttmps_setup_enabled ())
-        {
-          for (auto regnum = amdgpu_regnum_t::first_ttmp;
-               regnum <= amdgpu_regnum_t::last_ttmp; ++regnum)
-            write_register (regnum, uint32_t{ 0 });
-        }
+    std::tie (m_state, m_stop_reason) = architecture.wave_get_state (*this);
 
-      std::tie (m_state, m_stop_reason)
-        = architecture ().wave_get_state (*this);
-    }
-
-  log_verbose ("%s %s%s in %s (pc=%#lx, state=%s) context_save:[%#lx..%#lx[",
-               first_update ? "created" : "updated",
+  log_verbose ("%s%s in %s (pc=%#lx, state=%s) context_save:[%#lx..%#lx[",
                visibility () != visibility_t::visible ? "invisible " : "",
                to_cstring (id ()), to_cstring (workgroup ().id ()), pc (),
                to_cstring (m_state), m_cwsr_record->begin (),
@@ -392,17 +395,13 @@ wave_t::update (std::unique_ptr<architecture_t::cwsr_record_t> cwsr_record)
     {
       /* Park the wave if the architecture does not support halting at certain
          instructions.  */
-      if (architecture ().park_stopped_waves ())
+      if (architecture.park_stopped_waves ())
         park ();
 
       if (visibility () == visibility_t::visible
           && m_stop_reason != AMD_DBGAPI_WAVE_STOP_REASON_NONE)
         raise_event (AMD_DBGAPI_EVENT_KIND_WAVE_STOP);
     }
-
-  /* If this is the first time we update this wave, store the wave_id.  */
-  if (first_update)
-    write_register (amdgpu_regnum_t::wave_id, id ());
 }
 
 void

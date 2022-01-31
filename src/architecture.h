@@ -261,6 +261,17 @@ public:
   virtual amd_dbgapi_global_address_t dispatch_packet_address (
     const architecture_t::cwsr_record_t &cwsr_record) const = 0;
 
+  /* Return true if the trap temporary registers used by the trap handler to
+     communicate with the debugger API have been initialized.  */
+  virtual bool
+  are_trap_handler_ttmps_initialized (const wave_t &wave) const = 0;
+  /* Default initialize the trap temporary registers normally set up by SPI.
+   */
+  virtual void initialize_spi_ttmps (const wave_t &wave) const = 0;
+  /* Default initialize the trap temporary registers normally set up by the
+     trap handler.  */
+  virtual void initialize_trap_handler_ttmps (const wave_t &wave) const = 0;
+
   virtual size_t maximum_queue_packet_count () const = 0;
 
   virtual std::unique_ptr<const kernel_descriptor_t> make_kernel_descriptor (

@@ -278,6 +278,10 @@ public:
                               size_t offset, size_t value_size,
                               const void *value) const override;
 
+  bool are_trap_handler_ttmps_initialized (const wave_t &wave) const override;
+  void initialize_spi_ttmps (const wave_t &wave) const override;
+  void initialize_trap_handler_ttmps (const wave_t &wave) const override;
+
   std::pair<amd_dbgapi_wave_state_t, amd_dbgapi_wave_stop_reasons_t>
   wave_get_state (wave_t &wave) const override;
   void wave_set_state (wave_t &wave,
@@ -1173,6 +1177,28 @@ amdgcn_architecture_t::simulate_trap_handler (
   status_reg |= sq_wave_status_halt_mask;
   wave.write_register (amdgpu_regnum_t::status, status_reg);
 };
+
+bool
+amdgcn_architecture_t::are_trap_handler_ttmps_initialized (
+  const wave_t & /* wave  */) const
+{
+  /* SPI already initializes all ttmps the trap handler depends on.  */
+  return true;
+}
+
+void
+amdgcn_architecture_t::initialize_spi_ttmps (const wave_t &wave) const
+{
+  for (amdgpu_regnum_t regnum = amdgpu_regnum_t::ttmp6;
+       regnum <= amdgpu_regnum_t::ttmp11; ++regnum)
+    wave.write_register (regnum, uint32_t{ 0 });
+}
+
+void
+amdgcn_architecture_t::initialize_trap_handler_ttmps (
+  const wave_t & /* wave  */) const
+{
+}
 
 std::pair<amd_dbgapi_wave_state_t, amd_dbgapi_wave_stop_reasons_t>
 amdgcn_architecture_t::wave_get_state (wave_t &wave) const
