@@ -85,8 +85,8 @@ public:
        active queues with waves executing.  */
     runtime_enable_during_attach = 1 << 0,
     /* Trap temporary register setup is now enabled.  Any new wave created
-       after this flag is set will have its ttmp registers initialized.  */
-    ttmps_setup_enabled = 1 << 1,
+       after this flag is set will have its ttmps initialized by SPI.  */
+    spi_ttmps_setup_enabled = 1 << 1
   };
 
 private:

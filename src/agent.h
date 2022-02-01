@@ -60,10 +60,10 @@ public:
            && m_os_agent_info.firmware_supported;
   }
 
-  /* Return true if the ttmp registers are initialized when a new wave is
-     created on this agent.  If the ttmp registers are not initialized, the
+  /* Return true if the ttmp registers are initialized by SPI when a new wave
+     is created on this agent.  If the ttmp registers are not initialized, the
      wave's dispatch id and workgroup ids cannot be determined.  */
-  bool ttmps_initialized () const;
+  bool spi_ttmps_setup_enabled () const;
 
   amd_dbgapi_watchpoint_share_kind_t watchpoint_share_kind () const;
 

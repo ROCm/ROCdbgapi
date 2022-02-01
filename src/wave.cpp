@@ -368,7 +368,7 @@ wave_t::update (std::unique_ptr<architecture_t::cwsr_record_t> cwsr_record)
       /* Zero-initialize the ttmp registers if they weren't set up by the
          hardware.  Some ttmp registers are used to determine if the wave was
          stopped by the trap handler because of an exception or a trap.  */
-      if (first_update && !agent ().ttmps_initialized ())
+      if (first_update && !agent ().spi_ttmps_setup_enabled ())
         {
           for (auto regnum = amdgpu_regnum_t::first_ttmp;
                regnum <= amdgpu_regnum_t::last_ttmp; ++regnum)

@@ -76,9 +76,9 @@ agent_t::agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
 }
 
 bool
-agent_t::ttmps_initialized () const
+agent_t::spi_ttmps_setup_enabled () const
 {
-  return process ().is_flag_set (process_t::flag_t::ttmps_setup_enabled)
+  return process ().is_flag_set (process_t::flag_t::spi_ttmps_setup_enabled)
          || os_info ().ttmps_always_initialized;
 }
 

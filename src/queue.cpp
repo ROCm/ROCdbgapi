@@ -677,7 +677,7 @@ aql_queue_t::update_waves ()
                 && *workgroup->group_ids () != cwsr_record->group_ids ())
               fatal_error ("not in the same workgroup as the group_leader");
           }
-        else if (agent ().ttmps_initialized ())
+        else if (agent ().spi_ttmps_setup_enabled ())
           {
             amd_dbgapi_os_queue_packet_id_t packet_id
               = get_os_queue_packet_id (*cwsr_record);

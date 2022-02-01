@@ -1406,7 +1406,7 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
   resume_queues (queues, "attach to process");
 
   clear_flag (flag_t::runtime_enable_during_attach);
-  set_flag (flag_t::ttmps_setup_enabled);
+  set_flag (flag_t::spi_ttmps_setup_enabled);
 
   restriction_error.release ();
 }
@@ -1451,7 +1451,7 @@ process_t::attach ()
   if (runtime_info.runtime_state != os_runtime_state_t::disabled)
     {
       if (runtime_info.ttmp_setup)
-        set_flag (flag_t::ttmps_setup_enabled);
+        set_flag (flag_t::spi_ttmps_setup_enabled);
 
       set_flag (flag_t::runtime_enable_during_attach);
       runtime_enable (runtime_info);
