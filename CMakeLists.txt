@@ -26,6 +26,37 @@ project(AMD_DBGAPI VERSION 0.64.0)
 # it explicitly.
 set(AMD_DBGAPI_NAME "${PROJECT_NAME}")
 
+string(TOUPPER "${CMAKE_BUILD_TYPE}" uppercase_CMAKE_BUILD_TYPE)
+
+# Add an option to enable assertions even in non-debug builds.
+if(NOT uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
+  option(ENABLE_ASSERTIONS "Enable assertions" OFF)
+else()
+  option(ENABLE_ASSERTIONS "Enable assertions" ON)
+endif()
+
+if(ENABLE_ASSERTIONS)
+  if(NOT uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
+    # Add -UNDEBUG to the CFLAGS and CXXFLAGS
+    add_compile_options(
+      $<$<OR:$<COMPILE_LANGUAGE:C>,$<COMPILE_LANGUAGE:CXX>>:-UNDEBUG>)
+    # Remove -DNDEBUG from the CFLAGS and CXXFLAGS
+    foreach (flags
+             CMAKE_C_FLAGS_RELEASE
+             CMAKE_C_FLAGS_RELWITHDEBINFO
+             CMAKE_C_FLAGS_MINSIZEREL
+             CMAKE_CXX_FLAGS_RELEASE
+             CMAKE_CXX_FLAGS_RELWITHDEBINFO
+             CMAKE_CXX_FLAGS_MINSIZEREL)
+      string (REGEX REPLACE "(^| )-D *NDEBUG($| )" " " "${flags}" "${${flags}}")
+     endforeach()
+  endif()
+else()
+  if(uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
+    add_compile_definitions(NDEBUG)
+  endif()
+endif()
+
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
@@ -51,7 +82,11 @@ set_target_properties(amd-dbgapi PROPERTIES
   VERSION ${AMD_DBGAPI_VERSION}
   SOVERSION ${AMD_DBGAPI_VERSION_MAJOR})
 
-target_compile_options(amd-dbgapi PRIVATE -Werror -Wall -Wextra -Wshadow) #-pedantic)
+target_compile_options(amd-dbgapi PRIVATE
+  -fno-rtti -Werror -Wall -Wextra -Wshadow -Wno-attributes) #-pedantic)
+
+target_compile_definitions(amd-dbgapi
+  PRIVATE _GNU_SOURCE __STDC_LIMIT_MACROS __STDC_CONSTANT_MACROS)
 
 check_include_file(backtrace.h BACKTRACE_H)
 if(BACKTRACE_H)
@@ -108,12 +143,6 @@ else()
 endif()
 
 target_link_libraries(amd-dbgapi PRIVATE amd_comgr Threads::Threads ${CMAKE_DL_LIBS})
-
-target_compile_options(amd-dbgapi
-  PRIVATE $<$<CONFIG:RELEASE>:-fno-rtti> -Wall -Wno-attributes)
-
-target_compile_definitions(amd-dbgapi
-  PRIVATE _GNU_SOURCE __STDC_LIMIT_MACROS __STDC_CONSTANT_MACROS)
 
 set_source_files_properties(src/versioning.cpp src/initialization.cpp PROPERTIES
   COMPILE_DEFINITIONS "AMD_DBGAPI_VERSION_PATCH=${AMD_DBGAPI_VERSION_PATCH};AMD_DBGAPI_BUILD_INFO=\"${AMD_DBGAPI_VERSION}-${build_info}\"")

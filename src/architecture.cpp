@@ -2811,10 +2811,6 @@ std::optional<amd_dbgapi_global_address_t>
 gfx9_architecture_t::cwsr_record_t::register_address (
   amdgpu_regnum_t regnum) const
 {
-  dbgapi_assert (
-    dynamic_cast<const gfx9_architecture_t *> (&queue ().architecture ())
-    != nullptr);
-
   const auto &architecture
     = static_cast<const gfx9_architecture_t &> (queue ().architecture ());
 
