@@ -362,6 +362,8 @@ protected:
   virtual bool can_halt_at_endpgm () const = 0;
   bool park_stopped_waves () const override { return !can_halt_at_endpgm (); }
 
+  bool has_architected_flat_scratch () const override { return false; };
+
   virtual bool is_branch_taken (wave_t &wave,
                                 const instruction_t &instruction) const;
 

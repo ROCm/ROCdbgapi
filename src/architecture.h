@@ -317,6 +317,8 @@ public:
 
   virtual bool park_stopped_waves () const = 0;
 
+  virtual bool has_architected_flat_scratch () const = 0;
+
   virtual amd_dbgapi_size_t
   instruction_size (const instruction_t &instruction) const = 0;
 
