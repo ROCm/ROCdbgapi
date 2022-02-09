@@ -698,7 +698,7 @@ aql_queue_t::update_waves ()
             /* Find the workgroup this wave belongs to.  */
             const auto group_ids = cwsr_record->group_ids ();
             workgroup = process.find_if (
-              [this, dispatch, &group_ids] (const workgroup_t &wg) {
+              [dispatch, &group_ids] (const workgroup_t &wg) {
                 return wg.dispatch () == *dispatch
                        && wg.group_ids () == group_ids;
               });
