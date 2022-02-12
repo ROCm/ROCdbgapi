@@ -26,6 +26,7 @@
 #include "logging.h"
 #include "process.h"
 #include "utils.h"
+#include <limits>
 
 namespace amd::dbgapi
 {
