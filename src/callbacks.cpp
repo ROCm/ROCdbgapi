@@ -44,7 +44,8 @@ breakpoint_t::breakpoint_t (amd_dbgapi_breakpoint_id_t breakpoint_id,
   m_inserted = (status == AMD_DBGAPI_STATUS_SUCCESS);
 
   if (!m_inserted)
-    warning ("Could not insert breakpoint at %#lx (rc=%d)", address, status);
+    warning ("Could not insert breakpoint at %#lx (%s)", address,
+             to_cstring (status));
 }
 
 breakpoint_t::~breakpoint_t ()
@@ -54,7 +55,7 @@ breakpoint_t::~breakpoint_t ()
 
   amd_dbgapi_status_t status = process ().remove_breakpoint (id ());
   if (status != AMD_DBGAPI_STATUS_SUCCESS)
-    warning ("remove_breakpoint failed (rc=%d)", status);
+    warning ("remove_breakpoint failed (%s)", to_cstring (status));
 }
 
 void
