@@ -321,6 +321,8 @@ os_queue_type (os_queue_snapshot_entry_t entry)
 constexpr os_queue_id_t os_invalid_queueid = KFD_INVALID_QUEUEID;
 constexpr os_queue_id_t os_queue_error_mask = KFD_DBG_QUEUE_ERROR_MASK;
 constexpr os_queue_id_t os_queue_invalid_mask = KFD_DBG_QUEUE_INVALID_MASK;
+constexpr os_queue_id_t os_queue_id_mask
+  = ~(os_queue_error_mask | os_queue_invalid_mask);
 
 enum class os_wave_launch_mode_t : uint32_t
 {
