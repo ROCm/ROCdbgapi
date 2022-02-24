@@ -766,7 +766,7 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
   std::vector<os_queue_id_t> queue_ids;
   queue_ids.reserve (queues.size ());
 
-  for (auto *queue : queues)
+  for (queue_t *queue : queues)
     {
       dbgapi_assert (queue && !queue->is_suspended ()
                      && "queue is null or already suspended");
@@ -776,10 +776,7 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
         continue;
 
       if (queue->is_all_stopped ())
-        {
-          queue->set_state (queue_t::state_t::suspended);
-          ++num_all_stopped_queues;
-        }
+        ++num_all_stopped_queues;
       else
         queue_ids.emplace_back (queue->os_queue_id ());
     }
@@ -816,30 +813,35 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
     fatal_error ("os_driver::suspend_queues failed (%s)", to_cstring (status));
 
   size_t num_invalid_queues = 0;
-  for (size_t i = 0; i < queue_ids.size (); ++i)
+  for (os_queue_id_t mask : queue_ids)
     {
+      os_queue_id_t queue_id = mask & os_queue_id_mask;
+
       /* Some queues may have failed to suspend because they are the
          os_invalid_queueid, or no longer exist. Check the queue_ids returned
          by KFD and invalidate those marked as invalid.  It is allowed to
          invalidate a queue that is already invalid.  */
 
-      if (queue_ids[i] & os_queue_error_mask)
+      if (mask & os_queue_error_mask)
+        fatal_error ("failed to suspend os_queue_id %d", queue_id);
+
+      if (mask & os_queue_invalid_mask)
         {
-          fatal_error ("failed to suspend %s (%#x)",
-                       to_cstring (queues[i]->id ()), queue_ids[i]);
-        }
-      else if (queue_ids[i] & os_queue_invalid_mask)
-        {
-          queues[i]->set_state (queue_t::state_t::invalid);
+          auto it = std::find_if (queues.begin (), queues.end (),
+                                  [=] (const queue_t *q)
+                                  { return q->os_queue_id () == queue_id; });
+          dbgapi_assert (it != queues.end ());
+
+          (*it)->set_state (queue_t::state_t::invalid);
           ++num_invalid_queues;
         }
-      else
-        {
-          /* The queue state is published last so that listeners may
-             act on the state right after the queue is unscheduled.  */
-          queues[i]->set_state (queue_t::state_t::suspended);
-        }
     }
+
+  /* The queue state is published last so that listeners may
+     act on the state right after the queue is unscheduled.  */
+  for (queue_t *queue : queues)
+    if (queue->is_valid ())
+      queue->set_state (queue_t::state_t::suspended);
 
   dbgapi_assert (
     (num_suspended_queues + num_invalid_queues) == queue_ids.size ()
@@ -862,7 +864,7 @@ process_t::resume_queues (const std::vector<queue_t *> &queues,
 
   /* The queue state is published first to give a chance to the listeners to
      act on the state before the hardware is updated.  */
-  for (auto *queue : queues)
+  for (queue_t *queue : queues)
     {
       dbgapi_assert (queue && !queue->is_running ()
                      && "queue is null or already running");
@@ -906,21 +908,26 @@ process_t::resume_queues (const std::vector<queue_t *> &queues,
     fatal_error ("os_driver::resume_queues failed (%s)", to_cstring (status));
 
   size_t num_invalid_queues = 0;
-  for (size_t i = 0; i < queue_ids.size (); ++i)
+  for (os_queue_id_t mask : queue_ids)
     {
+      os_queue_id_t queue_id = mask & os_queue_id_mask;
+
       /* Some queues may have failed to resume because they are the
          os_invalid_queueid, or no longer exist. Check the queue_ids returned
          by KFD and invalidate those marked as invalid.  It is allowed to
          invalidate a queue that is already invalid.  */
 
-      if (queue_ids[i] & os_queue_error_mask)
+      if (mask & os_queue_error_mask)
+        fatal_error ("failed to resume os_queue_id %d", queue_id);
+
+      if (queue_id & os_queue_invalid_mask)
         {
-          fatal_error ("failed to resume %s (%#x)",
-                       to_cstring (queues[i]->id ()), queue_ids[i]);
-        }
-      else if (queue_ids[i] & os_queue_invalid_mask)
-        {
-          queues[i]->set_state (queue_t::state_t::invalid);
+          auto it = std::find_if (queues.begin (), queues.end (),
+                                  [=] (const queue_t *q)
+                                  { return q->os_queue_id () == queue_id; });
+          dbgapi_assert (it != queues.end ());
+
+          (*it)->set_state (queue_t::state_t::invalid);
           ++num_invalid_queues;
         }
     }
