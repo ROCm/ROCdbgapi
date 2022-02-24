@@ -2253,8 +2253,9 @@ public:
 
   std::pair<amd_dbgapi_size_t /* offset  */, amd_dbgapi_size_t /* size  */>
   scratch_memory_region (uint32_t compute_tmpring_size_register,
-                         uint32_t bank_count, uint32_t bank_id,
-                         uint32_t slot_id) const override;
+                         uint32_t shader_engine_count,
+                         uint32_t shader_engine_id,
+                         uint32_t scoreboard_id) const override;
 };
 
 gfx9_architecture_t::gfx9_architecture_t (elf_amdgpu_machine_t e_machine,
@@ -3011,19 +3012,28 @@ gfx9_architecture_t::dispatch_packet_address (
 
 std::pair<amd_dbgapi_size_t /* offset  */, amd_dbgapi_size_t /* size  */>
 gfx9_architecture_t::scratch_memory_region (
-  uint32_t compute_tmpring_size_register, uint32_t bank_count,
-  uint32_t bank_id, uint32_t slot_id) const
+  uint32_t compute_tmpring_size_register, uint32_t shader_engine_count,
+  uint32_t shader_engine_id, uint32_t scoreboard_id) const
 {
-  amd_dbgapi_size_t scratch_slot_count
+  /* Total size of allocated scratch memory in number of waves.  */
+  amd_dbgapi_size_t waves
     = utils::bit_extract (compute_tmpring_size_register, 0, 11);
-  amd_dbgapi_size_t scratch_slot_size
+  /* Amount of space in bytes used by each wave.  */
+  amd_dbgapi_size_t wavesize
     = utils::bit_extract (compute_tmpring_size_register, 12, 24) * 1024;
 
-  dbgapi_assert (bank_count != 0);
+  dbgapi_assert (shader_engine_count != 0);
 
-  return { scratch_slot_size
-             * ((scratch_slot_count / bank_count) * bank_id + slot_id),
-           scratch_slot_size };
+  /* Make sure the number of waves is divisible by the number of shader
+     engines.  If it isn't, it is likely the hardware is not setting up the
+     scratch_offset/flat_scratch correctly.  */
+  if ((waves % shader_engine_count) != 0)
+    fatal_error ("compute_tmpring_size.waves (%ld) is not divisible by %d",
+                 waves, shader_engine_count);
+
+  return { ((waves / shader_engine_count) * shader_engine_id + scoreboard_id)
+             * wavesize,
+           wavesize };
 }
 
 /* Vega10 Architecture.  */

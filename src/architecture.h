@@ -281,8 +281,9 @@ public:
   virtual std::pair<amd_dbgapi_size_t /* offset  */,
                     amd_dbgapi_size_t /* size  */>
   scratch_memory_region (uint32_t compute_tmpring_size_register,
-                         uint32_t bank_count, uint32_t bank_id,
-                         uint32_t slot_id) const = 0;
+                         uint32_t shader_engine_count,
+                         uint32_t shader_engine_id,
+                         uint32_t scoreboard_id) const = 0;
 
   virtual bool
   is_address_space_supported (const address_space_t &address_space) const = 0;
