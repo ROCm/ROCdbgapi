@@ -166,7 +166,8 @@ public:
 
   std::pair<amd_dbgapi_global_address_t /* address */,
             amd_dbgapi_size_t /* size */>
-  scratch_memory_region (uint32_t engine_id, uint32_t slot_id) const override;
+  scratch_memory_region (uint32_t shader_engine_id,
+                         uint32_t scoreboard_id) const override;
 
   size_t packet_size () const override { return aql_packet_size; };
 
@@ -853,11 +854,12 @@ aql_queue_t::update_waves ()
 
 std::pair<amd_dbgapi_global_address_t /* address */,
           amd_dbgapi_size_t /* size */>
-aql_queue_t::scratch_memory_region (uint32_t engine_id, uint32_t slot_id) const
+aql_queue_t::scratch_memory_region (uint32_t shader_engine_id,
+                                    uint32_t scoreboard_id) const
 {
   auto [offset, size] = architecture ().scratch_memory_region (
-    m_compute_tmpring_size, agent ().os_info ().shader_engine_count, engine_id,
-    slot_id);
+    m_compute_tmpring_size, agent ().os_info ().shader_engine_count,
+    shader_engine_id, scoreboard_id);
   return { m_scratch_backing_memory_address + offset, size };
 }
 

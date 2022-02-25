@@ -838,15 +838,23 @@ wave_t::scratch_memory_region () const
 
   /* On architectures with an architected flat_scratch register, check that the
      computed slot scratch address matches the content of the register.  */
-  dbgapi_assert (!architecture ().has_architected_flat_scratch ()
-                 || address ==
-                      [this] ()
-                      {
-                        amd_dbgapi_global_address_t flat_scratch;
-                        read_register (amdgpu_regnum_t::flat_scratch,
-                                       &flat_scratch);
-                        return flat_scratch;
-                      }());
+  if (architecture ().has_architected_flat_scratch ())
+    {
+      amd_dbgapi_global_address_t flat_scratch;
+      read_register (amdgpu_regnum_t::flat_scratch, &flat_scratch);
+
+      if (address != flat_scratch && size != 0)
+        {
+          warning ("flat_scratch may be corrupted, "
+                   "private memory access is disabled");
+
+          /* If the computed scratch address differs from the content of the
+             flat_scratch register, either the calculation is incorrect or the
+             register is corrupted.  Disable access to the scratch memory
+             region by returning a 0 size.  */
+          size = 0;
+        }
+    }
 
   return { address, size };
 }
