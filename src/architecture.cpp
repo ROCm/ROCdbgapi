@@ -3024,16 +3024,23 @@ gfx9_architecture_t::scratch_memory_region (
 
   dbgapi_assert (shader_engine_count != 0);
 
+  amd_dbgapi_size_t offset
+    = ((waves / shader_engine_count) * shader_engine_id + scoreboard_id)
+      * wavesize;
+
   /* Make sure the number of waves is divisible by the number of shader
      engines.  If it isn't, it is likely the hardware is not setting up the
-     scratch_offset/flat_scratch correctly.  */
+     scratch_offset/flat_scratch correctly, so make the scratch region
+     inaccessible by returning a 0 size.  */
   if ((waves % shader_engine_count) != 0)
-    fatal_error ("compute_tmpring_size.waves (%ld) is not divisible by %d",
-                 waves, shader_engine_count);
+    {
+      warning ("compute_tmpring_size.waves (%ld) is not divisible by %d, "
+               "private memory access is disabled",
+               waves, shader_engine_count);
+      wavesize = 0;
+    }
 
-  return { ((waves / shader_engine_count) * shader_engine_id + scoreboard_id)
-             * wavesize,
-           wavesize };
+  return { offset, wavesize };
 }
 
 /* Vega10 Architecture.  */
