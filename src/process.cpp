@@ -1513,9 +1513,6 @@ process_t::get_info (amd_dbgapi_process_info_t query, size_t value_size,
 void
 process_t::enqueue_event (event_t &event)
 {
-  log_info ("reporting %s, %s", to_cstring (event.id ()),
-            event.pretty_printer_string ().c_str ());
-
   m_pending_events.emplace (&event);
   event.set_state (event_t::state_t::queued);
 

@@ -23,6 +23,7 @@
 
 #include "amd-dbgapi.h"
 #include "handle_object.h"
+#include "logging.h"
 
 #include <cstddef>
 #include <string>
@@ -77,6 +78,16 @@ private:
                runtime_event_t, wave_event_t> const m_data;
 
   process_t &m_process;
+
+  template <typename T>
+  event_t (amd_dbgapi_event_id_t event_id, process_t &process,
+           amd_dbgapi_event_kind_t event_kind, T &&data)
+    : handle_object (event_id), m_event_kind (event_kind),
+      m_data (std::forward<T> (data)), m_process (process)
+  {
+    log_info ("created %s, %s", to_cstring (id ()),
+              pretty_printer_string ().c_str ());
+  }
 
 public:
   /* Breakpoint resume event.  */
