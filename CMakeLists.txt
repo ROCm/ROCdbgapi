@@ -20,7 +20,7 @@
 
 cmake_minimum_required(VERSION 3.8)
 
-project(AMD_DBGAPI VERSION 0.64.0)
+project(AMD_DBGAPI VERSION 0.65.0)
 
 # The project command does not set the <PROJECT-NAME>_NAME variable so must set
 # it explicitly.
@@ -62,7 +62,7 @@ find_package(Threads REQUIRED)
 
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/amd-dbgapi.h.in
-  ${CMAKE_CURRENT_BINARY_DIR}/include/amd-dbgapi.h @ONLY)
+  ${CMAKE_CURRENT_BINARY_DIR}/include/amd-dbgapi/amd-dbgapi.h @ONLY)
 
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/exportmap.in
@@ -149,7 +149,7 @@ set_source_files_properties(src/versioning.cpp src/initialization.cpp PROPERTIES
 
 target_include_directories(amd-dbgapi
   PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include/amd-dbgapi>
     $<INSTALL_INTERFACE:include>)
 
 target_link_libraries(amd-dbgapi
@@ -174,8 +174,8 @@ install(TARGETS amd-dbgapi
   DESTINATION lib)
 
 install(FILES
-  "${CMAKE_CURRENT_BINARY_DIR}/include/amd-dbgapi.h"
-  DESTINATION include)
+  "${CMAKE_CURRENT_BINARY_DIR}/include/amd-dbgapi/amd-dbgapi.h"
+  DESTINATION include/amd-dbgapi)
 
 install(FILES
   "LICENSE.txt"
@@ -283,7 +283,7 @@ if(DOXYGEN_FOUND)
     COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
     COMMAND make -C ${CMAKE_CURRENT_BINARY_DIR}/doc/latex pdf
     MAIN_DEPENDENCY ${DOXYGEN_OUT} ${DOXYGEN_IN}
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/include/amd-dbgapi.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/amd-dbgapi.h
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/include/amd-dbgapi.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/amd-dbgapi/amd-dbgapi.h
     COMMENT "Generating documentation")
 
   add_custom_target(doc DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/doc/html/index.html
