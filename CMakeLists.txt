@@ -68,6 +68,14 @@ configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/exportmap.in
   ${CMAKE_CURRENT_BINARY_DIR}/src/exportmap @ONLY)
 
+if(NOT CPACK_PACKAGING_INSTALL_PREFIX)
+  set(CPACK_PACKAGING_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
+endif()
+
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/amd-dbgapi.pc.in
+  ${CMAKE_CURRENT_BINARY_DIR}/amd-dbgapi.pc @ONLY)
+
 file(GLOB SOURCES "src/*.cpp")
 add_library(amd-dbgapi SHARED ${SOURCES})
 
@@ -176,6 +184,10 @@ install(TARGETS amd-dbgapi
 install(FILES
   "${CMAKE_CURRENT_BINARY_DIR}/include/amd-dbgapi.h"
   DESTINATION include)
+
+install (FILES
+  "${CMAKE_CURRENT_BINARY_DIR}/amd-dbgapi.pc"
+  DESTINATION share/pkgconfig)
 
 install(FILES
   "LICENSE.txt"
