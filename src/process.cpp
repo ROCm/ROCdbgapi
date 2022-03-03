@@ -1257,7 +1257,7 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
     if (r_version != ROCR_RDEBUG_VERSION)
       {
         warning ("AMD GPU runtime's r_debug::r_version %d not supported "
-                 "(r_debug::r_version >= %d required)",
+                 "(r_debug::r_version %d required)",
                  r_version, ROCR_RDEBUG_VERSION);
         return AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION;
       }
