@@ -1,0 +1,11 @@
+prefix=@CPACK_PACKAGING_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: amd-dbgapi
+Description: AMD Debugger API library
+Version: @AMD_DBGAPI_VERSION@
+
+Libs: -L${libdir} -lrocm-dbgapi
+Cflags: -I${includedir}
