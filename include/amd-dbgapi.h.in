@@ -283,7 +283,7 @@
  *
  * For more information about the AMD ROCm ecosystem, please refer to:
  *
- * - https://rocmdocs.amd.com/
+ * - https://docs.amd.com/
  *
  * \section known_limitations Known Limitations and Restrictions
  *
@@ -347,7 +347,7 @@
  * \section references References
  *
  * 1. Advanced Micro Devices: [www.amd.com] (https://www.amd.com/)
- * 2. AMD ROCm Ecosystem: [rocmdocs.amd.com] (https://rocmdocs.amd.com/)
+ * 2. AMD ROCm Ecosystem: [docs.amd.com] (https://docs.amd.com/)
  * 3. Bus:Device.Function (BDF) Notation:
  *    [wiki.xen.org/wiki/Bus:Device.Function_(BDF)_Notation]
  *    (https://wiki.xen.org/wiki/Bus:Device.Function_(BDF)_Notation)
@@ -546,8 +546,8 @@ typedef struct amd_dbgapi_callbacks_s amd_dbgapi_callbacks_t;
  * functions using pointers.  The C language does not define the underlying
  * type used for enumeration types.  This interface requires that:
  *
- * - For the all enumeration types the underlying type used by the client will
- *   be \p int with a size of 32 bits.
+ * - For all enumeration types the underlying type used by the client will be
+ *   \p int with a size of 32 bits.
  *
  * In addition, it requires that enumeration types passed by value to
  * functions, or returned as values from functions, will have the platform
