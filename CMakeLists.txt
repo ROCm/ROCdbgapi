@@ -74,7 +74,7 @@ endif()
 
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/amd-dbgapi.pc.in
-  ${CMAKE_CURRENT_BINARY_DIR}/amd-dbgapi.pc @ONLY)
+  ${CMAKE_CURRENT_BINARY_DIR}/share/pkgconfig/amd-dbgapi.pc @ONLY)
 
 file(GLOB SOURCES "src/*.cpp")
 add_library(amd-dbgapi SHARED ${SOURCES})
@@ -186,7 +186,7 @@ install(FILES
   DESTINATION include/amd-dbgapi)
 
 install (FILES
-  "${CMAKE_CURRENT_BINARY_DIR}/amd-dbgapi.pc"
+  "${CMAKE_CURRENT_BINARY_DIR}/share/pkgconfig/amd-dbgapi.pc"
   DESTINATION share/pkgconfig)
 
 install(FILES
