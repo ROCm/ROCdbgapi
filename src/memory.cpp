@@ -443,7 +443,8 @@ memory_cache_t::fetch_cache_line (cache_line_t &cache_line,
                                            nullptr, cache_line.m_data.size ());
 
   if (xfer_size != cache_line.m_data.size ())
-    throw memory_access_error_t (address + cache_line_size);
+    throw memory_access_error_t (address_space_t::global (),
+                                 address + cache_line_size);
 
   cache_line.m_dirty = false;
 }
@@ -459,7 +460,8 @@ memory_cache_t::commit_cache_line (cache_line_t &cache_line,
     address, nullptr, &cache_line.m_data[0], cache_line.m_data.size ());
 
   if (xfer_size != cache_line.m_data.size ())
-    throw memory_access_error_t (address + xfer_size);
+    throw memory_access_error_t (address_space_t::global (),
+                                 address + xfer_size);
 
   cache_line.m_dirty = false;
 }
@@ -597,7 +599,8 @@ memory_cache_t::write_back (amd_dbgapi_global_address_t address,
             cache_line_address, nullptr, &staging_buffer[0], request_size);
 
           if (xfer_size != request_size)
-            throw memory_access_error_t (cache_line_address + xfer_size);
+            throw memory_access_error_t (address_space_t::global (),
+                                         cache_line_address + xfer_size);
         }
       catch (const process_exited_exception_t &)
         {
@@ -1174,7 +1177,7 @@ xfer_memory (amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
         THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
       *value_size = wave->xfer_segment_memory (
-        *address_space, lane_id, segment_address, read, write, *value_size);
+        *address_space, segment_address, lane_id, read, write, *value_size);
       break;
 
     default:

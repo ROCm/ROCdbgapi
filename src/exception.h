@@ -30,6 +30,7 @@
 namespace amd::dbgapi
 {
 
+class address_space_t;
 class process_t;
 
 /* AMD Debugger API exception.  */
@@ -78,20 +79,16 @@ public:
 class memory_access_error_t : public api_error_t
 {
 private:
-  std::optional<amd_dbgapi_global_address_t> m_address;
+  std::optional<
+    std::pair<const address_space_t &, amd_dbgapi_segment_address_t>>
+    m_address;
 
 public:
-  memory_access_error_t (amd_dbgapi_global_address_t address,
+  memory_access_error_t (const address_space_t &address_space,
+                         amd_dbgapi_segment_address_t segment_address,
                          std::string message = {});
-  memory_access_error_t (std::string message = {})
-    : api_error_t (AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS, message)
-  {
-  }
 
-  std::optional<amd_dbgapi_global_address_t> address () const noexcept
-  {
-    return m_address;
-  }
+  const auto &address () const noexcept { return m_address; }
 };
 
 class fatal_error_t : public api_error_t

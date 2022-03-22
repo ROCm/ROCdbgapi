@@ -393,7 +393,8 @@ process_t::read_global_memory (amd_dbgapi_global_address_t address, T *ptr,
     {
       if (size_t xfer_size = read_global_memory_partial (address, ptr, size);
           xfer_size != size)
-        throw memory_access_error_t (address + xfer_size);
+        throw memory_access_error_t (address_space_t::global (),
+                                     address + xfer_size);
     }
   catch (const memory_access_error_t &e)
     {
@@ -410,7 +411,8 @@ process_t::write_global_memory (amd_dbgapi_global_address_t address,
     {
       if (size_t xfer_size = write_global_memory_partial (address, ptr, size);
           xfer_size != size)
-        throw memory_access_error_t (address + xfer_size);
+        throw memory_access_error_t (address_space_t::global (),
+                                     address + xfer_size);
     }
   catch (const memory_access_error_t &e)
     {

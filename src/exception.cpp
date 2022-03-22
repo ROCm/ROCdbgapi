@@ -20,6 +20,7 @@
 
 #include "exception.h"
 #include "logging.h"
+#include "memory.h"
 
 namespace amd::dbgapi
 {
@@ -32,11 +33,14 @@ exception_t::print_message () const noexcept
 }
 
 memory_access_error_t::memory_access_error_t (
-  amd_dbgapi_global_address_t address, std::string message)
+  const address_space_t &address_space,
+  amd_dbgapi_segment_address_t segment_address, std::string message)
   : api_error_t (AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS,
-                 string_printf ("Cannot access memory at %#lx", address)
+                 string_printf ("Cannot access memory at %s#%#lx",
+                                address_space.name ().c_str (),
+                                segment_address)
                    + (message.empty () ? "" : (": " + message))),
-    m_address (address)
+    m_address (std::make_pair (std::cref (address_space), segment_address))
 {
 }
 

@@ -73,7 +73,7 @@ process_t::process_t (amd_dbgapi_process_id_t process_id,
         if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
           throw process_exited_exception_t (*this);
         else if (status == AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS)
-          throw memory_access_error_t (address);
+          throw memory_access_error_t (address_space_t::global (), address);
         else if (status != AMD_DBGAPI_STATUS_SUCCESS)
           fatal_error ("xfer_global_memory_partial failed (%s)",
                        to_cstring (status));
@@ -267,7 +267,7 @@ process_t::read_string (amd_dbgapi_global_address_t address,
       size_t length = std::min (size, xfer_size);
 
       if (!length)
-        throw memory_access_error_t (address);
+        throw memory_access_error_t (address_space_t::global (), address);
 
       /* Copy the staging buffer into the string, stop at the '\0'
          terminating char if seen.  */
@@ -282,7 +282,7 @@ process_t::read_string (amd_dbgapi_global_address_t address,
       /* If unable to read full request, then no point trying again as it will
          just fail again.  */
       if (request_size != xfer_size)
-        throw memory_access_error_t (address);
+        throw memory_access_error_t (address_space_t::global (), address);
 
       address += length;
       size -= length;
@@ -301,9 +301,8 @@ process_t::xfer_segment_memory (const address_space_t &address_space,
     return read ? read_global_memory_partial (lowered_address, read, size)
                 : write_global_memory_partial (lowered_address, write, size);
   else
-    throw memory_access_error_t (string_printf (
-      "xfer_segment_memory from address space `%s' not supported",
-      lowered_address_space.name ().c_str ()));
+    throw memory_access_error_t (address_space, segment_address,
+                                 "address is not supported");
 }
 
 void

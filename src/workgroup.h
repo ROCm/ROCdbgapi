@@ -50,7 +50,8 @@ private:
   const dispatch_t &m_dispatch;
 
   [[nodiscard]] size_t
-  xfer_local_memory (amd_dbgapi_segment_address_t segment_address, void *read,
+  xfer_local_memory (const address_space_t &address_space,
+                     amd_dbgapi_segment_address_t segment_address, void *read,
                      const void *write, size_t size);
 
 public:

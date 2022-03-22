@@ -59,7 +59,8 @@ workgroup_t::update (amd_dbgapi_global_address_t local_memory_base_address)
 }
 
 size_t
-workgroup_t::xfer_local_memory (amd_dbgapi_segment_address_t segment_address,
+workgroup_t::xfer_local_memory (const address_space_t &address_space,
+                                amd_dbgapi_segment_address_t segment_address,
                                 void *read, const void *write, size_t size)
 {
   /* The LDS is stored in the context save area.  */
@@ -91,7 +92,7 @@ workgroup_t::xfer_local_memory (amd_dbgapi_segment_address_t segment_address,
     {
       size_t max_size = offset < limit ? limit - offset : 0;
       if (max_size == 0 && size != 0)
-        throw memory_access_error_t (*m_local_memory_base_address + limit);
+        throw memory_access_error_t (address_space, limit);
       size = max_size;
     }
 
@@ -113,11 +114,11 @@ workgroup_t::xfer_segment_memory (const address_space_t &address_space,
     = address_space.lower (segment_address);
 
   if (lowered_address_space.kind () == address_space_t::kind_t::local)
-    return xfer_local_memory (lowered_address, read, write, size);
+    return xfer_local_memory (lowered_address_space, lowered_address, read,
+                              write, size);
   else
-    throw memory_access_error_t (string_printf (
-      "xfer_segment_memory from address space `%s' not supported",
-      lowered_address_space.name ().c_str ()));
+    throw memory_access_error_t (address_space, segment_address,
+                                 "address is not supported");
 }
 
 void

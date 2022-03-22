@@ -778,7 +778,8 @@ wave_t::xfer_private_memory_swizzled (
         {
           xfer_size = offset < scratch_size ? scratch_size - offset : 0;
           if (xfer_size == 0)
-            throw memory_access_error_t (scratch_base + scratch_size);
+            throw memory_access_error_t (address_space_t::global (),
+                                         scratch_base + scratch_size);
         }
 
       amd_dbgapi_global_address_t global_address = scratch_base + offset;
@@ -790,7 +791,8 @@ wave_t::xfer_private_memory_swizzled (
 
       bytes -= xfer_size;
       if (request_size != xfer_size)
-        throw memory_access_error_t (global_address + xfer_size);
+        throw memory_access_error_t (address_space_t::global (),
+                                     global_address + xfer_size);
 
       if (read)
         read = static_cast<char *> (read) + xfer_size;
@@ -815,7 +817,8 @@ wave_t::xfer_private_memory_unswizzled (
       size_t max_size
         = segment_address < scratch_size ? scratch_size - segment_address : 0;
       if (max_size == 0 && size != 0)
-        throw memory_access_error_t (scratch_base + scratch_size);
+        throw memory_access_error_t (address_space_t::global (),
+                                     scratch_base + scratch_size);
       size = max_size;
     }
 
@@ -861,9 +864,9 @@ wave_t::scratch_memory_region () const
 
 size_t
 wave_t::xfer_segment_memory (const address_space_t &address_space,
-                             amd_dbgapi_lane_id_t lane_id,
                              amd_dbgapi_segment_address_t segment_address,
-                             void *read, const void *write, size_t size)
+                             amd_dbgapi_lane_id_t lane_id, void *read,
+                             const void *write, size_t size)
 {
   dbgapi_assert (state () == AMD_DBGAPI_WAVE_STATE_STOP
                  && "the wave must be stopped to read/write memory");
@@ -890,9 +893,8 @@ wave_t::xfer_segment_memory (const address_space_t &address_space,
                                              size);
 
     default:
-      throw memory_access_error_t (string_printf (
-        "xfer_segment_memory from address space `%s' not supported",
-        lowered_address_space.name ().c_str ()));
+      throw memory_access_error_t (address_space, segment_address,
+                                   "address is not supported");
     }
 }
 
