@@ -641,6 +641,10 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
   if (queues.empty ())
     return 0;
 
+  log_verbose (
+    "requesting to suspend %s",
+    to_cstring (queues, [] (const queue_t *queue) { return queue->id (); }));
+
   size_t num_all_stopped_queues = 0;
   std::vector<os_queue_id_t> queue_ids;
   queue_ids.reserve (queues.size ());
@@ -655,7 +659,12 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
         continue;
 
       if (queue->is_all_stopped ())
-        ++num_all_stopped_queues;
+        {
+          log_verbose ("%s has no running waves and wave creation is stopped. "
+                       "It is already suspended, ignoring request to suspend",
+                       to_cstring (queue->id ()));
+          ++num_all_stopped_queues;
+        }
       else
         queue_ids.emplace_back (queue->os_queue_id ());
     }
@@ -737,6 +746,10 @@ process_t::resume_queues (const std::vector<queue_t *> &queues,
   if (queues.empty ())
     return 0;
 
+  log_verbose (
+    "requesting to resume %s",
+    to_cstring (queues, [] (const queue_t *queue) { return queue->id (); }));
+
   size_t num_all_stopped_queues = 0;
   std::vector<os_queue_id_t> queue_ids;
   queue_ids.reserve (queues.size ());
@@ -755,7 +768,12 @@ process_t::resume_queues (const std::vector<queue_t *> &queues,
         continue;
 
       if (queue->is_all_stopped ())
-        ++num_all_stopped_queues;
+        {
+          log_verbose ("%s has no running waves and wave creation is stopped, "
+                       "ignoring request to resume",
+                       to_cstring (queue->id ()));
+          ++num_all_stopped_queues;
+        }
       else
         queue_ids.emplace_back (queue->os_queue_id ());
 

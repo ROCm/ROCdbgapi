@@ -383,11 +383,20 @@ wave_t::update (std::unique_ptr<architecture_t::cwsr_record_t> cwsr_record)
   if (prev_state != AMD_DBGAPI_WAVE_STATE_STOP)
     std::tie (m_state, m_stop_reason) = architecture.wave_get_state (*this);
 
+  auto wave_state_to_string = [] (amd_dbgapi_wave_state_t state,
+                                  amd_dbgapi_wave_stop_reasons_t stop_reason)
+  {
+    std::string string = to_string (state);
+    if (state == AMD_DBGAPI_WAVE_STATE_STOP)
+      string += string_printf (", stop_reason=%s", to_cstring (stop_reason));
+    return string;
+  };
+
   log_verbose ("%s%s in %s (pc=%#lx, state=%s) context_save:[%#lx..%#lx[",
                visibility () != visibility_t::visible ? "invisible " : "",
                to_cstring (id ()), to_cstring (workgroup ().id ()), pc (),
-               to_cstring (m_state), m_cwsr_record->begin (),
-               m_cwsr_record->end ());
+               wave_state_to_string (m_state, m_stop_reason).c_str (),
+               m_cwsr_record->begin (), m_cwsr_record->end ());
 
   /* The wave was running, and it is now stopped.  */
   if (prev_state != AMD_DBGAPI_WAVE_STATE_STOP
@@ -1083,7 +1092,12 @@ amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
     /* The wave is not resumable if the stop event is not yet processed.  */
     if (const event_t *event = wave->last_stop_event ();
         event != nullptr && event->state () < event_t::state_t::processed)
-      THROW (AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_RESUMABLE);
+      {
+        log_verbose ("%s is not resumable because its last stop event (%s) "
+                     "has not been processed",
+                     to_cstring (wave->id ()), to_cstring (event->id ()));
+        THROW (AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_RESUMABLE);
+      }
 
     if (wave->displaced_stepping () != nullptr
         && resume_mode != AMD_DBGAPI_RESUME_MODE_SINGLE_STEP)

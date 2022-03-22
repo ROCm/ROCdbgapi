@@ -746,14 +746,18 @@ aql_queue_t::update_waves ()
       ++*m_waves_running;
 
     /* Hide new waves halted at launch until the process' wave creation mode is
-       changed to not halted.  A wave is halted at launch if it is halted
-       without having entered the trap handler, and its pc points to the kernel
-       entry point.  */
-    if (!wave->mark () && wave->state () == AMD_DBGAPI_WAVE_STATE_RUN
+       changed to not stopped.  A wave is halted at launch if it is halted
+       (status.halt=1) without having entered the trap handler, and its pc
+       points to the kernel entry point.  */
+    if (!wave->mark () /* A wave without a mark is a new wave that has not been
+                          seen by queue_t::update_waves before.  */
+        && wave->state () == AMD_DBGAPI_WAVE_STATE_RUN
         && wave->pc ()
              == wave->dispatch ().kernel_descriptor ().entry_address ()
         && wave->is_halted ())
       {
+        log_verbose ("%s is halted at launch", to_cstring (wave->id ()));
+
         wave->set_visibility (wave_t::visibility_t::hidden_halted_at_launch);
         wave->set_halted (false);
         wave->set_state (AMD_DBGAPI_WAVE_STATE_STOP);
