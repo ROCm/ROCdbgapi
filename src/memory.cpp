@@ -184,7 +184,7 @@ global_address_space_t::convert (
         = ((lowered_address / interleave) * wave.lane_count () * interleave)
           + (lane_id * interleave) + (lowered_address % interleave);
 
-      if (offset > scratch_size)
+      if (offset >= scratch_size)
         throw api_error_t (
           AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_CONVERSION);
 
