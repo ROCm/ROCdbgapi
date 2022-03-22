@@ -183,6 +183,14 @@ public:
     return m_memory_cache.write_global_memory (address, buffer, size);
   }
 
+  [[nodiscard]] size_t
+  xfer_global_memory (amd_dbgapi_segment_address_t global_address, void *read,
+                      const void *write, size_t size)
+  {
+    return read ? read_global_memory_partial (global_address, read, size)
+                : write_global_memory_partial (global_address, write, size);
+  }
+
   template <typename T>
   void read_global_memory (amd_dbgapi_global_address_t address, T *ptr,
                            size_t size = sizeof (T));

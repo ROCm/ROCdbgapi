@@ -749,87 +749,6 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
   process ().write_global_memory (*reg_addr + offset, value, value_size);
 }
 
-size_t
-wave_t::xfer_private_memory_swizzled (
-  amd_dbgapi_size_t interleave, amd_dbgapi_segment_address_t segment_address,
-  amd_dbgapi_lane_id_t lane_id, void *read, const void *write, size_t size)
-{
-  if (lane_id == AMD_DBGAPI_LANE_NONE || lane_id >= lane_count ())
-    THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID);
-
-  auto [scratch_base, scratch_size] = scratch_memory_region ();
-
-  size_t bytes = size;
-  while (bytes > 0)
-    {
-      /* Transfer one aligned dword at a time, except for the first (or last)
-         read which could read less than a dword if the start (or end) address
-         is not aligned.  */
-
-      size_t request_size
-        = std::min (interleave - (segment_address % interleave), bytes);
-      size_t xfer_size = request_size;
-
-      amd_dbgapi_size_t offset
-        = ((segment_address / interleave) * lane_count () * interleave)
-          + (lane_id * interleave) + (segment_address % interleave);
-
-      if ((offset + xfer_size) > scratch_size)
-        {
-          xfer_size = offset < scratch_size ? scratch_size - offset : 0;
-          if (xfer_size == 0)
-            throw memory_access_error_t (address_space_t::global (),
-                                         scratch_base + scratch_size);
-        }
-
-      amd_dbgapi_global_address_t global_address = scratch_base + offset;
-
-      xfer_size = read ? process ().read_global_memory_partial (
-                    global_address, read, xfer_size)
-                       : process ().write_global_memory_partial (
-                         global_address, write, xfer_size);
-
-      bytes -= xfer_size;
-      if (request_size != xfer_size)
-        throw memory_access_error_t (address_space_t::global (),
-                                     global_address + xfer_size);
-
-      if (read)
-        read = static_cast<char *> (read) + xfer_size;
-      else
-        write = static_cast<const char *> (write) + xfer_size;
-
-      segment_address += xfer_size;
-    }
-
-  return size - bytes;
-}
-
-size_t
-wave_t::xfer_private_memory_unswizzled (
-  amd_dbgapi_segment_address_t segment_address, void *read, const void *write,
-  size_t size)
-{
-  auto [scratch_base, scratch_size] = scratch_memory_region ();
-
-  if ((segment_address + size) > scratch_size)
-    {
-      size_t max_size
-        = segment_address < scratch_size ? scratch_size - segment_address : 0;
-      if (max_size == 0 && size != 0)
-        throw memory_access_error_t (address_space_t::global (),
-                                     scratch_base + scratch_size);
-      size = max_size;
-    }
-
-  amd_dbgapi_global_address_t global_address = scratch_base + segment_address;
-
-  return read
-           ? process ().read_global_memory_partial (global_address, read, size)
-           : process ().write_global_memory_partial (global_address, write,
-                                                     size);
-}
-
 /* Return the wave's scratch memory region (address and size).  */
 std::pair<amd_dbgapi_global_address_t /* address */,
           amd_dbgapi_size_t /* size */>
@@ -863,6 +782,65 @@ wave_t::scratch_memory_region () const
 }
 
 size_t
+wave_t::xfer_private_memory (const address_space_t &address_space,
+                             amd_dbgapi_segment_address_t segment_address,
+                             amd_dbgapi_lane_id_t lane_id, void *read,
+                             const void *write, size_t size)
+{
+  /* private_swizzled and private_unswizzled memory is backed by global memory,
+     so we can convert the private segment addresses and read/write from
+     global memory.  */
+
+  size_t xfer_bytes = 0;
+  while (size > 0)
+    {
+      amd_dbgapi_global_address_t global_address;
+      size_t contiguous_bytes;
+
+      try
+        {
+          std::tie (global_address, contiguous_bytes)
+            = address_space_t::global ().convert (
+              *this, lane_id, address_space, segment_address + xfer_bytes);
+        }
+      catch (...)
+        {
+          /* A conversion exception means that the segment address is out of
+             bounds for the given address space.  Return the number of bytes
+             transferred so far, or throw a memory access error exception if
+             none were transferred.  */
+
+          if (!xfer_bytes)
+            throw memory_access_error_t (address_space, segment_address,
+                                         "address is out of bounds");
+          break;
+        }
+
+      /* The transfer size is limited by the amount of contiguous bytes for
+         this conversion.  Multiple iterations may be needed to completely
+         transfer the host buffer using swizzled address spaces.  */
+      size_t request_size = std::min (size, contiguous_bytes);
+
+      size_t xfer_size = process ().xfer_global_memory (
+        global_address, read ? static_cast<char *> (read) + xfer_bytes : read,
+        write ? static_cast<const char *> (write) + xfer_bytes : write,
+        request_size);
+
+      size -= xfer_size;
+      xfer_bytes += xfer_size;
+
+      if (xfer_size != request_size)
+        {
+          /* global_address + xfer_size may have reached the end of a mapped
+             global memory region.  */
+          break;
+        }
+    }
+
+  return xfer_bytes;
+}
+
+size_t
 wave_t::xfer_segment_memory (const address_space_t &address_space,
                              amd_dbgapi_segment_address_t segment_address,
                              amd_dbgapi_lane_id_t lane_id, void *read,
@@ -878,22 +856,12 @@ wave_t::xfer_segment_memory (const address_space_t &address_space,
   switch (lowered_address_space.kind ())
     {
     case address_space_t::kind_t::private_swizzled:
-      {
-        const auto &private_swizzled_address_space
-          = static_cast<const private_swizzled_address_space_t &> (
-            lowered_address_space);
-
-        return xfer_private_memory_swizzled (
-          private_swizzled_address_space.interleave_size (), lowered_address,
-          lane_id, read, write, size);
-      }
-
     case address_space_t::kind_t::private_unswizzled:
-      return xfer_private_memory_unswizzled (lowered_address, read, write,
-                                             size);
+      return xfer_private_memory (lowered_address_space, lowered_address,
+                                  lane_id, read, write, size);
 
     default:
-      throw memory_access_error_t (address_space, segment_address,
+      throw memory_access_error_t (lowered_address_space, lowered_address,
                                    "address is not supported");
     }
 }
