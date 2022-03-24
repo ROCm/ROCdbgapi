@@ -43,7 +43,7 @@
 #include <utility>
 #include <vector>
 
-#include <amd_comgr.h>
+#include <amd_comgr/amd_comgr.h>
 
 namespace amd::dbgapi
 {
