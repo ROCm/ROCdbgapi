@@ -82,6 +82,12 @@ struct os_agent_info_t
   uint32_t vendor_id{ 0 };
   /* PCI device id.  */
   uint32_t device_id{ 0 };
+  /* PCI revision id.  */
+  uint32_t revision_id{ 0 };
+  /* PCI subsystem vendor id.  */
+  uint32_t subsystem_vendor_id{ 0 };
+  /* PCI subsystem device id.  */
+  uint32_t subsystem_device_id{ 0 };
   /* ucode version.  */
   uint32_t fw_version{ 0 };
   /* local/shared address aperture base.  */
