@@ -597,36 +597,8 @@ kfd_driver_t::check_version () const
       return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
     }
 
-  /* KFD_IOC_DBG_TRAP_GET_VERSION (#7)
-     data1: [out] major version
-     data2: [out] minor version */
-
-  constexpr version_t KFD_DBG_TRAP_VERSION_BEGIN{ 13, 1 };
-  constexpr version_t KFD_DBG_TRAP_VERSION_END{ 14, 0 };
-
-  kfd_ioctl_dbg_trap_args dbg_trap_args{};
-  dbg_trap_args.pid = static_cast<uint32_t> (getpid ());
-  dbg_trap_args.op = KFD_IOC_DBG_TRAP_GET_VERSION;
-
-  if (::ioctl (*s_kfd_fd, AMDKFD_IOC_DBG_TRAP, &dbg_trap_args))
-    fatal_error ("KFD_IOC_DBG_TRAP_GET_VERSION failed");
-
-  const version_t kfd_dbg_trap_version{ dbg_trap_args.data1,
-                                        dbg_trap_args.data2 };
-  if (kfd_dbg_trap_version < KFD_DBG_TRAP_VERSION_BEGIN
-      || kfd_dbg_trap_version >= KFD_DBG_TRAP_VERSION_END)
-    {
-      warning (
-        "AMD GPU driver's debug support version %u.%u not supported "
-        "(version must be >= %u.%u and < %u.%u)",
-        kfd_dbg_trap_version.first, kfd_dbg_trap_version.second,
-        KFD_DBG_TRAP_VERSION_BEGIN.first, KFD_DBG_TRAP_VERSION_BEGIN.second,
-        KFD_DBG_TRAP_VERSION_END.first, KFD_DBG_TRAP_VERSION_END.second);
-      return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
-    }
-
-  log_info ("using AMD GPU driver's debug support version %d.%d",
-            kfd_dbg_trap_version.first, kfd_dbg_trap_version.second);
+  log_info ("using AMD GPU driver version %d.%d",
+            get_version_args.major_version, get_version_args.minor_version);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
@@ -658,21 +630,27 @@ kfd_driver_t::agent_snapshot (os_agent_info_t *snapshots,
      ptr:   [in] user buffer  */
 
   kfd_ioctl_dbg_trap_args args{};
-  args.exception_mask = static_cast<uint64_t> (exceptions_cleared);
-  args.data1 = static_cast<uint32_t> (kfd_device_infos.size ());
-  args.data2 = static_cast<uint32_t> (sizeof (kfd_dbg_device_info_entry));
-  args.ptr = reinterpret_cast<uint64_t> (kfd_device_infos.data ());
+  args.device_snapshot.exception_mask
+    = static_cast<uint64_t> (exceptions_cleared);
+  args.device_snapshot.snapshot_buf_ptr
+    = reinterpret_cast<uint64_t> (kfd_device_infos.data ());
+  args.device_snapshot.num_devices
+    = static_cast<uint32_t> (kfd_device_infos.size ());
+  args.device_snapshot.entry_size
+    = static_cast<uint32_t> (sizeof (kfd_dbg_device_info_entry));
 
-  int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_DEVICE_SNAPSHOT, &args);
+  int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_GET_DEVICE_SNAPSHOT, &args);
   if (err == -ESRCH)
     return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
-  else if (args.data2 != sizeof (kfd_dbg_device_info_entry) || err < 0)
+  else if (args.device_snapshot.entry_size
+             != sizeof (kfd_dbg_device_info_entry)
+           || err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
   /* KFD writes up to snapshot_count device snapshots, but returns the number
      of devices in the process so that we can check if we have allocated enough
      memory to hold all the snapshots.  */
-  *agent_count = args.data1;
+  *agent_count = args.device_snapshot.num_devices;
 
   for (unsigned int i = 0; i < *agent_count; i++)
     {
@@ -690,6 +668,9 @@ kfd_driver_t::agent_snapshot (os_agent_info_t *snapshots,
       agent_info.max_waves_per_simd = entry.max_waves_per_simd;
       agent_info.vendor_id = entry.vendor_id;
       agent_info.device_id = entry.device_id;
+      agent_info.revision_id = entry.revision_id;
+      agent_info.subsystem_vendor_id = entry.subsystem_vendor_id;
+      agent_info.subsystem_device_id = entry.subsystem_device_id;
       agent_info.fw_version = entry.fw_version;
       agent_info.gfxip = { entry.gfx_target_version / 10000,
                            (entry.gfx_target_version / 100) % 100,
@@ -743,19 +724,11 @@ kfd_driver_t::enable_debug (os_exception_mask_t exceptions_reported,
 
   dbgapi_assert (!is_debug_enabled () && "debug is already enabled");
 
-  /* KFD_IOC_DBG_TRAP_ENABLE (#0):
-     exception_mask: [in] exceptions to be reported to the debugger
-     ptr:   [in] runtime info buffer to copy to
-     data1: [in] 0=disable, 1=enable
-     data2: [in] poll_fd
-     data3: [in/out] runtime info size  */
-
   kfd_ioctl_dbg_trap_args args{};
-  args.ptr = reinterpret_cast<uintptr_t> (runtime_info);
-  args.data1 = 1; /* enable  */
-  args.data2 = notifier;
-  args.data3 = sizeof (*runtime_info);
-  args.exception_mask = static_cast<uint64_t> (exceptions_reported);
+  args.enable.exception_mask = static_cast<uint64_t> (exceptions_reported);
+  args.enable.rinfo_ptr = reinterpret_cast<uintptr_t> (runtime_info);
+  args.enable.rinfo_size = sizeof (*runtime_info);
+  args.enable.dbg_fd = notifier;
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_ENABLE, &args);
   if (err == -ESRCH)
@@ -763,7 +736,7 @@ kfd_driver_t::enable_debug (os_exception_mask_t exceptions_reported,
   else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
-  if (sizeof (*runtime_info) > args.data3)
+  if (sizeof (*runtime_info) > args.enable.rinfo_size)
     return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
 
   m_is_debug_enabled = true;
@@ -780,13 +753,9 @@ kfd_driver_t::disable_debug ()
   if (!is_debug_enabled ())
     return AMD_DBGAPI_STATUS_SUCCESS;
 
-  /* KFD_IOC_DBG_TRAP_ENABLE (#0):
-     data1: [in] 0=disable, 1=enable  */
-
   kfd_ioctl_dbg_trap_args args{};
-  args.data1 = 0; /* disable  */
 
-  int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_ENABLE, &args);
+  int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_DISABLE, &args);
   if (err == -ESRCH)
     return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
   else if (err < 0)
@@ -804,11 +773,9 @@ kfd_driver_t::set_exceptions_reported (
 {
   TRACE_DRIVER_BEGIN (exceptions_reported);
 
-  /* KFD_IOC_DBG_TRAP_SET_EXCEPTIONS_ENABLED (#15):
-     exception_mask: exceptions to report  */
-
   kfd_ioctl_dbg_trap_args args{};
-  args.exception_mask = static_cast<uint64_t> (exceptions_reported);
+  args.set_exceptions_enabled.exception_mask
+    = static_cast<uint64_t> (exceptions_reported);
 
   int err
     = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_EXCEPTIONS_ENABLED, &args);
@@ -832,15 +799,10 @@ kfd_driver_t::send_exceptions (os_exception_mask_t exceptions,
 
   dbgapi_assert (is_debug_enabled () && "debug is not enabled");
 
-  /* KFD_IOC_DBG_TRAP_SEND_RUNTIME_EVENT (#14):
-     exception_mask: [in] exceptions to send
-     data1: [in] destination device id
-     data2: [in] destination queue id  */
-
   kfd_ioctl_dbg_trap_args args{};
-  args.exception_mask = static_cast<uint64_t> (exceptions);
-  args.data1 = agent_id;
-  args.data2 = queue_id;
+  args.send_runtime_event.exception_mask = static_cast<uint64_t> (exceptions);
+  args.send_runtime_event.gpu_id = agent_id;
+  args.send_runtime_event.queue_id = queue_id;
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SEND_RUNTIME_EVENT, &args);
   if (err == -ESRCH)
@@ -872,14 +834,9 @@ kfd_driver_t::query_debug_event (os_exception_mask_t *exceptions_present,
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
 
-  /* KFD_IOC_DBG_TRAP_QUERY_DEBUG_EVENT (#5):
-
-     exception_mask: [in/out] exception to clear on query, and report
-     data1: [out] queue id
-     data2: [out] gpu id  */
-
   kfd_ioctl_dbg_trap_args args{};
-  args.exception_mask = static_cast<uint64_t> (exceptions_cleared);
+  args.query_debug_event.exception_mask
+    = static_cast<uint64_t> (exceptions_cleared);
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_QUERY_DEBUG_EVENT, &args);
   if (err == -ESRCH)
@@ -894,9 +851,10 @@ kfd_driver_t::query_debug_event (os_exception_mask_t *exceptions_present,
   else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
-  *exceptions_present = static_cast<os_exception_mask_t> (args.exception_mask);
-  *os_queue_id = args.data1;
-  *os_agent_id = args.data2;
+  *exceptions_present
+    = static_cast<os_exception_mask_t> (args.query_debug_event.exception_mask);
+  *os_queue_id = args.query_debug_event.queue_id;
+  *os_agent_id = args.query_debug_event.gpu_id;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
@@ -918,19 +876,13 @@ kfd_driver_t::query_exception_info (os_exception_code_t exception,
 
   dbgapi_assert (is_debug_enabled () && "debug is not enabled");
 
-  /* KFD_IOC_DBG_TRAP_QUERY_EXCEPTION_INFO (#11)
-     ptr: [in] exception info pointer to copy to
-     data1: [in] source_id
-     data2: [in] exception_code
-     data3: [in] clear_exception (1 == true, 0 == false)
-     data4: [in/out] exception info data size  */
-
   kfd_ioctl_dbg_trap_args args{};
-  args.ptr = reinterpret_cast<uintptr_t> (exception_info);
-  args.data1 = os_source_id.raw;
-  args.data2 = static_cast<uint32_t> (exception);
-  args.data3 = clear_exception ? 1 : 0;
-  args.data4 = exception_info_size;
+  args.query_exception_info.info_ptr
+    = reinterpret_cast<uintptr_t> (exception_info);
+  args.query_exception_info.info_size = exception_info_size;
+  args.query_exception_info.source_id = os_source_id.raw;
+  args.query_exception_info.exception_code = static_cast<uint32_t> (exception);
+  args.query_exception_info.clear_exception = clear_exception ? 1 : 0;
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_QUERY_EXCEPTION_INFO, &args);
   if (err == -ESRCH)
@@ -938,7 +890,7 @@ kfd_driver_t::query_exception_info (os_exception_code_t exception,
   else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
-  return exception_info_size > args.data4
+  return exception_info_size > args.query_exception_info.info_size
            ? AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY
            : AMD_DBGAPI_STATUS_SUCCESS;
 
@@ -957,18 +909,14 @@ kfd_driver_t::suspend_queues (os_queue_id_t *queues, size_t queue_count,
   dbgapi_assert (suspended_count != nullptr);
   dbgapi_assert (queue_count <= std::numeric_limits<uint32_t>::max ());
 
-  /* KFD_IOC_DBG_TRAP_NODE_SUSPEND (#3):
-     exception_mask: [in] exceptions to clear on suspend
-     data1: [in] number of queues
-     data2: [in] grace period
-     ptr:   [in/out] queue ids  */
-
   kfd_ioctl_dbg_trap_args args{};
-  args.exception_mask = static_cast<uint64_t> (exceptions_cleared);
-  args.data1 = static_cast<uint32_t> (queue_count);
-  args.ptr = reinterpret_cast<uint64_t> (queues);
+  args.suspend_queues.exception_mask
+    = static_cast<uint64_t> (exceptions_cleared);
+  args.suspend_queues.queue_array_ptr = reinterpret_cast<uint64_t> (queues);
+  args.suspend_queues.num_queues = static_cast<uint32_t> (queue_count);
+  args.suspend_queues.grace_period = 0;
 
-  int ret = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_SUSPEND, &args);
+  int ret = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SUSPEND_QUEUES, &args);
   if (ret == -ESRCH)
     return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
   else if (ret < 0)
@@ -992,15 +940,11 @@ kfd_driver_t::resume_queues (os_queue_id_t *queues, size_t queue_count,
   dbgapi_assert (resumed_count != nullptr);
   dbgapi_assert (queue_count <= std::numeric_limits<uint32_t>::max ());
 
-  /* KFD_IOC_DBG_TRAP_NODE_RESUME (#4):
-     data1: [in] number of queues
-     ptr:   [in/out] queue ids  */
-
   kfd_ioctl_dbg_trap_args args{};
-  args.data1 = static_cast<uint32_t> (queue_count);
-  args.ptr = reinterpret_cast<uint64_t> (queues);
+  args.resume_queues.queue_array_ptr = reinterpret_cast<uint64_t> (queues);
+  args.resume_queues.num_queues = static_cast<uint32_t> (queue_count);
 
-  int ret = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_NODE_RESUME, &args);
+  int ret = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_RESUME_QUEUES, &args);
   if (ret == -ESRCH)
     return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
   else if (ret < 0)
@@ -1032,28 +976,26 @@ kfd_driver_t::queue_snapshot (os_queue_snapshot_entry_t *snapshots,
       return AMD_DBGAPI_STATUS_SUCCESS;
     }
 
-  /* KFD_IOC_DBG_TRAP_GET_QUEUE_SNAPSHOT (#6):
-     exception_mask: [in] exceptions to clear on snapshot
-     data1: [in/out] number of queues snapshots
-     data2: [in/out] snapshot size
-     ptr:   [in] user buffer  */
-
   kfd_ioctl_dbg_trap_args args{};
-  args.exception_mask = static_cast<uint64_t> (exceptions_cleared);
-  args.data1 = static_cast<uint32_t> (snapshot_count);
-  args.data2 = static_cast<uint32_t> (sizeof (os_queue_snapshot_entry_t));
-  args.ptr = reinterpret_cast<uint64_t> (snapshots);
+  args.queue_snapshot.exception_mask
+    = static_cast<uint64_t> (exceptions_cleared);
+  args.queue_snapshot.snapshot_buf_ptr
+    = reinterpret_cast<uint64_t> (snapshots);
+  args.queue_snapshot.num_queues = static_cast<uint32_t> (snapshot_count);
+  args.queue_snapshot.entry_size
+    = static_cast<uint32_t> (sizeof (os_queue_snapshot_entry_t));
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_GET_QUEUE_SNAPSHOT, &args);
   if (err == -ESRCH)
     return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
-  else if (args.data2 != sizeof (os_queue_snapshot_entry_t) || err < 0)
+  else if (args.queue_snapshot.entry_size != sizeof (os_queue_snapshot_entry_t)
+           || err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
   /* KFD writes up to snapshot_count queue snapshots, but returns the number of
      queues in the process so that we can check if we have allocated enough
      memory to hold all the snapshots.  */
-  *queue_count = args.data1;
+  *queue_count = args.queue_snapshot.num_queues;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
@@ -1074,19 +1016,13 @@ kfd_driver_t::set_address_watch (os_agent_id_t os_agent_id,
 
   dbgapi_assert (os_watch_id && "must not be null");
 
-  /* KFD_IOC_DBG_TRAP_SET_NODE_ADDRESS_WATCH (#9)
-     ptr:   [in] watch address
-     data1: [out] watch ID
-     data2: [in] watch_mode: 0=read, 1=nonread, 2=atomic, 3=all
-     data3: [in] watch address mask
-     data4: [in] gpu ID  */
-
   kfd_ioctl_dbg_trap_args args{};
-  args.ptr = address;
-  args.data2 = static_cast<std::underlying_type_t<decltype (os_watch_mode)>> (
-    os_watch_mode);
-  args.data3 = mask;
-  args.data4 = os_agent_id;
+  args.set_node_address_watch.address = address;
+  args.set_node_address_watch.mode
+    = static_cast<std::underlying_type_t<decltype (os_watch_mode)>> (
+      os_watch_mode);
+  args.set_node_address_watch.mask = mask;
+  args.set_node_address_watch.gpu_id = os_agent_id;
 
   int err
     = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_NODE_ADDRESS_WATCH, &args);
@@ -1097,7 +1033,7 @@ kfd_driver_t::set_address_watch (os_agent_id_t os_agent_id,
   else if (err < 0)
     fatal_error ("failed to set address watch: %s", strerror (err));
 
-  *os_watch_id = args.data1;
+  *os_watch_id = args.set_node_address_watch.id;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
@@ -1110,13 +1046,9 @@ kfd_driver_t::clear_address_watch (os_agent_id_t os_agent_id,
 {
   TRACE_DRIVER_BEGIN (param_in (os_watch_id));
 
-  /* KFD_IOC_DBG_TRAP_CLEAR_NODE_ADDRESS_WATCH (#8)
-     data1: [in] watch ID
-     data2: [in] gpu ID  */
-
   kfd_ioctl_dbg_trap_args args{};
-  args.data1 = os_watch_id;
-  args.data2 = os_agent_id;
+  args.clear_node_address_watch.gpu_id = os_agent_id;
+  args.clear_node_address_watch.id = os_watch_id;
 
   int err
     = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_CLEAR_NODE_ADDRESS_WATCH, &args);
@@ -1135,11 +1067,9 @@ kfd_driver_t::set_wave_launch_mode (os_wave_launch_mode_t mode) const
 {
   TRACE_DRIVER_BEGIN (param_in (mode));
 
-  /* KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_MODE (#2)
-     data1: mode (0=normal, 1=halt, 2=kill, 3=single-step, 4=disable)  */
-
   kfd_ioctl_dbg_trap_args args{};
-  args.data1 = static_cast<std::underlying_type_t<decltype (mode)>> (mode);
+  args.launch_mode.launch_mode
+    = static_cast<std::underlying_type_t<decltype (mode)>> (mode);
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_MODE, &args);
   if (err == -ESRCH)
@@ -1161,16 +1091,13 @@ kfd_driver_t::set_wave_launch_trap_override (
   TRACE_DRIVER_BEGIN (param_in (override), param_in (value), param_in (mask),
                       param_in (previous_value), param_in (supported_mask));
 
-  /* KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_OVERRIDE (#1)
-     data1: [in] override mode (see enum kfd_dbg_trap_override_mode)
-     data2: [in/out] trap mask (see enum kfd_dbg_trap_mask)
-     data3: [in] requested mask, [out] supported mask  */
-
   kfd_ioctl_dbg_trap_args args{};
-  args.data1
+  args.launch_override.override_mode
     = static_cast<std::underlying_type_t<decltype (override)>> (override);
-  args.data2 = static_cast<std::underlying_type_t<decltype (value)>> (value);
-  args.data3 = static_cast<std::underlying_type_t<decltype (mask)>> (mask);
+  args.launch_override.enable_mask
+    = static_cast<std::underlying_type_t<decltype (value)>> (value);
+  args.launch_override.support_request_mask
+    = static_cast<std::underlying_type_t<decltype (mask)>> (mask);
 
   int err
     = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_WAVE_LAUNCH_OVERRIDE, &args);
@@ -1182,9 +1109,11 @@ kfd_driver_t::set_wave_launch_trap_override (
     return AMD_DBGAPI_STATUS_ERROR;
 
   if (previous_value != nullptr)
-    *previous_value = static_cast<os_wave_launch_trap_mask_t> (args.data2);
+    *previous_value = static_cast<os_wave_launch_trap_mask_t> (
+      args.launch_override.enable_mask);
   if (supported_mask != nullptr)
-    *supported_mask = static_cast<os_wave_launch_trap_mask_t> (args.data3);
+    *supported_mask = static_cast<os_wave_launch_trap_mask_t> (
+      args.launch_override.support_request_mask);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
@@ -1197,13 +1126,12 @@ kfd_driver_t::set_precise_memory (bool enabled) const
 {
   TRACE_DRIVER_BEGIN (param_in (enabled));
 
-  /* KFD_IOC_DBG_TRAP_SET_PRECISE_MEM_OPS (#10)
-     data1: 0=disable, 1=enable  */
-
   kfd_ioctl_dbg_trap_args args{};
-  args.data1 = enabled ? 1 : 0;
+  args.set_flags.flags = enabled
+                           ? KFD_DBG_TRAP_FLAG_SINGLE_MEM_OP /* enable  */
+                           : 0 /* disable  */;
 
-  int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_PRECISE_MEM_OPS, &args);
+  int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_FLAGS, &args);
   if (err == -ESRCH)
     return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
   else if (err < 0)
@@ -1354,6 +1282,7 @@ to_string (os_agent_info_t os_agent_info)
     "{ .os_agent_id=%d, .name=%s, .domain=%#x, .location_id=%#x, "
     ".gfxip=[%d,%d,%d], .simd_count=%ld, .max_waves_per_simd=%ld, "
     ".shader_engine_count=%ld, .vendor_id=%#x, .device_id=%#x, "
+    ".revision_id=%#x, .subsystem_vendor_id=%#x, .subsystem_device_id=%#x, "
     ".fw_version=%d, .local_address_aperture_base=%#lx, "
     ".local_address_aperture_limit=%#lx, .private_address_aperture_base=%#lx, "
     ".private_address_aperture_limit=%#lx, .debugging_supported=%d, "
@@ -1365,7 +1294,9 @@ to_string (os_agent_info_t os_agent_info)
     os_agent_info.domain, os_agent_info.location_id, os_agent_info.gfxip[0],
     os_agent_info.gfxip[1], os_agent_info.gfxip[2], os_agent_info.simd_count,
     os_agent_info.max_waves_per_simd, os_agent_info.shader_engine_count,
-    os_agent_info.vendor_id, os_agent_info.device_id, os_agent_info.fw_version,
+    os_agent_info.vendor_id, os_agent_info.device_id,
+    os_agent_info.revision_id, os_agent_info.subsystem_vendor_id,
+    os_agent_info.subsystem_device_id, os_agent_info.fw_version,
     os_agent_info.local_address_aperture_base,
     os_agent_info.local_address_aperture_limit,
     os_agent_info.private_address_aperture_base,

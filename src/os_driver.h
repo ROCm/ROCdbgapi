@@ -59,7 +59,7 @@ enum elf_amdgpu_machine_t : uint32_t
 
 using os_agent_id_t = uint32_t;
 
-constexpr os_agent_id_t os_invalid_agentid = KFD_INVALID_GPUID;
+constexpr os_agent_id_t os_invalid_agentid = 0xFFFFFFFF; // KFD_INVALID_GPUID;
 
 struct os_agent_info_t
 {
@@ -83,6 +83,12 @@ struct os_agent_info_t
   uint32_t vendor_id{ 0 };
   /* PCI device id.  */
   uint32_t device_id{ 0 };
+  /* PCI revision id.  */
+  uint32_t revision_id{ 0 };
+  /* PCI subsystem vendor id.  */
+  uint32_t subsystem_vendor_id{ 0 };
+  /* PCI subsystem device id.  */
+  uint32_t subsystem_device_id{ 0 };
   /* ucode version.  */
   uint32_t fw_version{ 0 };
   /* local/shared address aperture base.  */
@@ -324,7 +330,8 @@ os_queue_type (os_queue_snapshot_entry_t entry)
   return static_cast<os_queue_type_t> (entry.queue_type);
 }
 
-constexpr os_queue_id_t os_invalid_queueid = KFD_INVALID_QUEUEID;
+constexpr os_queue_id_t os_invalid_queueid
+  = 0xFFFFFFFF; // KFD_INVALID_QUEUEID;
 constexpr os_queue_id_t os_queue_error_mask = KFD_DBG_QUEUE_ERROR_MASK;
 constexpr os_queue_id_t os_queue_invalid_mask = KFD_DBG_QUEUE_INVALID_MASK;
 constexpr os_queue_id_t os_queue_id_mask
