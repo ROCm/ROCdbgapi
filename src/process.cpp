@@ -812,7 +812,7 @@ process_t::suspend_queues (const std::vector<queue_t *> &queues,
   else if (status != AMD_DBGAPI_STATUS_SUCCESS)
     fatal_error ("os_driver::suspend_queues failed (%s)", to_cstring (status));
 
-  size_t num_invalid_queues = 0;
+  [[maybe_unused]] size_t num_invalid_queues = 0;
   for (os_queue_id_t mask : queue_ids)
     {
       os_queue_id_t queue_id = mask & os_queue_id_mask;
@@ -907,7 +907,7 @@ process_t::resume_queues (const std::vector<queue_t *> &queues,
   else if (status != AMD_DBGAPI_STATUS_SUCCESS)
     fatal_error ("os_driver::resume_queues failed (%s)", to_cstring (status));
 
-  size_t num_invalid_queues = 0;
+  [[maybe_unused]] size_t num_invalid_queues = 0;
   for (os_queue_id_t mask : queue_ids)
     {
       os_queue_id_t queue_id = mask & os_queue_id_mask;
