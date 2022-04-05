@@ -434,7 +434,8 @@ amdgcn_architecture_t::disassembly_info () const
           return 0;
 
         size = std::min (size, data->size - offset);
-        memcpy (to, static_cast<const char *> (data->memory) + offset, size);
+        memcpy (to, static_cast<const std::byte *> (data->memory) + offset,
+                size);
 
         return size;
       };
@@ -1930,7 +1931,8 @@ amdgcn_architecture_t::read_pseudo_register (const wave_t &wave,
       if (ttmp6 & ttmp6_saved_status_halt_mask)
         status_reg |= sq_wave_status_halt_mask;
 
-      memcpy (value, reinterpret_cast<const char *> (&status_reg) + offset,
+      memcpy (value,
+              reinterpret_cast<const std::byte *> (&status_reg) + offset,
               value_size);
       return;
     }
@@ -1942,7 +1944,8 @@ amdgcn_architecture_t::read_pseudo_register (const wave_t &wave,
       wave.read_register (amdgpu_regnum_t::ttmp4, &wave_id[0]);
       wave.read_register (amdgpu_regnum_t::ttmp5, &wave_id[1]);
 
-      memcpy (value, reinterpret_cast<const char *> (wave_id.data ()) + offset,
+      memcpy (value,
+              reinterpret_cast<const std::byte *> (wave_id.data ()) + offset,
               value_size);
       return;
     }
@@ -1955,7 +1958,7 @@ amdgcn_architecture_t::read_pseudo_register (const wave_t &wave,
 
       uint32_t csp = utils::bit_extract (mode, 29, 31);
 
-      memcpy (value, reinterpret_cast<const char *> (&csp) + offset,
+      memcpy (value, reinterpret_cast<const std::byte *> (&csp) + offset,
               value_size);
       return;
     }
@@ -1996,7 +1999,7 @@ amdgcn_architecture_t::write_pseudo_register (const wave_t &wave,
       wave.read_register (amdgpu_regnum_t::status, &status_reg);
       wave.read_register (base_regnum, &base_reg);
 
-      memcpy (reinterpret_cast<char *> (&base_reg) + offset, value,
+      memcpy (reinterpret_cast<std::byte *> (&base_reg) + offset, value,
               value_size);
 
       status_reg
@@ -2016,7 +2019,7 @@ amdgcn_architecture_t::write_pseudo_register (const wave_t &wave,
       wave.read_register (amdgpu_regnum_t::status, &status_reg);
       wave.read_register (amdgpu_regnum_t::ttmp6, &ttmp6);
 
-      memcpy (reinterpret_cast<char *> (&status_reg) + offset, value,
+      memcpy (reinterpret_cast<std::byte *> (&status_reg) + offset, value,
               value_size);
 
       ttmp6 &= ~ttmp6_saved_status_halt_mask;
@@ -2032,13 +2035,10 @@ amdgcn_architecture_t::write_pseudo_register (const wave_t &wave,
     {
       std::array<uint32_t, 2> wave_id;
 
-      if (offset != 0 || value_size != sizeof (wave_id))
-        {
-          wave.read_register (amdgpu_regnum_t::ttmp4, &wave_id[0]);
-          wave.read_register (amdgpu_regnum_t::ttmp5, &wave_id[1]);
-        }
+      if (value_size < sizeof (wave_id))
+        wave.read_register (amdgpu_regnum_t::wave_id, wave_id.data ());
 
-      memcpy (reinterpret_cast<char *> (wave_id.data ()) + offset, value,
+      memcpy (reinterpret_cast<std::byte *> (wave_id.data ()) + offset, value,
               value_size);
 
       wave.write_register (amdgpu_regnum_t::ttmp4, wave_id[0]);
@@ -2053,7 +2053,8 @@ amdgcn_architecture_t::write_pseudo_register (const wave_t &wave,
       wave.read_register (amdgpu_regnum_t::mode, &mode);
 
       csp = utils::bit_extract (mode, 29, 31);
-      memcpy (reinterpret_cast<char *> (&csp) + offset, value, value_size);
+      memcpy (reinterpret_cast<std::byte *> (&csp) + offset, value,
+              value_size);
 
       mode = (mode & ~utils::bit_mask (29, 31)) | (csp << 29);
 
@@ -3813,7 +3814,7 @@ gfx10_architecture_t::write_pseudo_register (const wave_t &wave,
       wave.read_register (amdgpu_regnum_t::status, &status_reg);
       wave.read_register (base_regnum, &base_reg);
 
-      memcpy (reinterpret_cast<char *> (&base_reg) + offset, value,
+      memcpy (reinterpret_cast<std::byte *> (&base_reg) + offset, value,
               value_size);
 
       status_reg

@@ -624,7 +624,8 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
 
   if (m_is_parked && regnum == amdgpu_regnum_t::pc)
     {
-      memcpy (value, reinterpret_cast<const char *> (&m_parked_pc) + offset,
+      memcpy (value,
+              reinterpret_cast<const std::byte *> (&m_parked_pc) + offset,
               value_size);
       return;
     }
@@ -686,7 +687,8 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
           read_only != nullptr)
         {
           amd_dbgapi_global_address_t pc = m_parked_pc;
-          memcpy (reinterpret_cast<char *> (&pc) + offset, value, value_size);
+          memcpy (reinterpret_cast<std::byte *> (&pc) + offset, value,
+                  value_size);
 
           amd_dbgapi_global_address_t mask
             = *static_cast<const amd_dbgapi_global_address_t *> (read_only);
@@ -695,7 +697,7 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
         }
       else
         {
-          memcpy (reinterpret_cast<char *> (&m_parked_pc) + offset, value,
+          memcpy (reinterpret_cast<std::byte *> (&m_parked_pc) + offset, value,
                   value_size);
         }
 
@@ -748,9 +750,11 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
       else /* General case, mask one byte at a time.  */
         for (size_t i = 0; i < value_size; ++i)
           {
-            char mask = static_cast<const char *> (read_only)[offset + i];
-            char &x1 = static_cast<char *> (masked_value)[i];
-            x1 = (*static_cast<const char *> (value) & ~mask) | (x1 & mask);
+            std::byte mask
+              = static_cast<const std::byte *> (read_only)[offset + i];
+            std::byte &x1 = static_cast<std::byte *> (masked_value)[i];
+            x1 = (*static_cast<const std::byte *> (value) & ~mask)
+                 | (x1 & mask);
           }
 
       value = masked_value;
@@ -833,8 +837,8 @@ wave_t::xfer_private_memory (const address_space_t &address_space,
 
       size_t xfer_size = process ().xfer_global_memory (
         global_address,
-        read != nullptr ? static_cast<char *> (read) + xfer_bytes : read,
-        write != nullptr ? static_cast<const char *> (write) + xfer_bytes
+        read != nullptr ? static_cast<std::byte *> (read) + xfer_bytes : read,
+        write != nullptr ? static_cast<const std::byte *> (write) + xfer_bytes
                          : write,
         request_size);
 
