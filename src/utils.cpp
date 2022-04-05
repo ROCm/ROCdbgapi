@@ -79,7 +79,7 @@ template <>
 void
 get_info (size_t value_size, void *ret, const std::string &value)
 {
-  if (!ret)
+  if (ret == nullptr)
     throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
   if (value_size != sizeof (char *))
@@ -98,7 +98,7 @@ template <>
 void
 get_info (size_t value_size, void *ret, const instruction_t &value)
 {
-  if (!ret)
+  if (ret == nullptr)
     throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
   if (value_size != sizeof (uint8_t *))

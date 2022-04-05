@@ -73,7 +73,7 @@ amd_dbgapi_dispatch_get_info (amd_dbgapi_dispatch_id_t dispatch_id,
 
     dispatch_t *dispatch = find (dispatch_id);
 
-    if (!dispatch)
+    if (dispatch == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_DISPATCH_ID);
 
     dispatch->get_info (query, value_size, value);
@@ -101,7 +101,7 @@ amd_dbgapi_process_dispatch_list (amd_dbgapi_process_id_t process_id,
 
     std::vector<process_t *> processes = process_t::match (process_id);
 
-    if (!dispatches || !dispatch_count)
+    if (dispatches == nullptr || dispatch_count == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     std::vector<std::pair<process_t *, std::vector<queue_t *>>>
@@ -124,7 +124,7 @@ amd_dbgapi_process_dispatch_list (amd_dbgapi_process_id_t process_id,
 
     amd_dbgapi_changed_t dispatch_list_changed;
     auto dispatch_list = utils::get_handle_list<dispatch_t> (
-      processes, changed ? &dispatch_list_changed : nullptr);
+      processes, changed != nullptr ? &dispatch_list_changed : nullptr);
 
     auto deallocate_dispatch_list = utils::make_scope_fail (
       [&] () { amd::dbgapi::deallocate_memory (dispatches); });
@@ -133,7 +133,7 @@ amd_dbgapi_process_dispatch_list (amd_dbgapi_process_id_t process_id,
       process->resume_queues (queues, "refresh dispatch list");
 
     std::tie (*dispatches, *dispatch_count) = dispatch_list;
-    if (changed)
+    if (changed != nullptr)
       *changed = dispatch_list_changed;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,

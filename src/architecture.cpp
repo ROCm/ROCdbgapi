@@ -448,7 +448,7 @@ amdgcn_architecture_t::disassembly_info () const
         while (isspace (*instruction))
           ++instruction;
 
-        if (data->instruction)
+        if (data->instruction != nullptr)
           data->instruction->assign (instruction);
       };
 
@@ -457,7 +457,7 @@ amdgcn_architecture_t::disassembly_info () const
       {
         detail::disassembly_user_data_t *data
           = static_cast<detail::disassembly_user_data_t *> (user_data);
-        if (data->operands)
+        if (data->operands != nullptr)
           data->operands->emplace_back (
             static_cast<amd_dbgapi_global_address_t> (address));
       };
@@ -4433,7 +4433,7 @@ architecture_t::name () const
 const architecture_t *
 architecture_t::find (amd_dbgapi_architecture_id_t architecture_id, int)
 {
-  if (detail::last_found_architecture
+  if (detail::last_found_architecture != nullptr
       && detail::last_found_architecture->id () == architecture_id)
     return detail::last_found_architecture;
 
@@ -4451,7 +4451,7 @@ architecture_t::find (amd_dbgapi_architecture_id_t architecture_id, int)
 const architecture_t *
 architecture_t::find (elf_amdgpu_machine_t elf_amdgpu_machine)
 {
-  if (detail::last_found_architecture
+  if (detail::last_found_architecture != nullptr
       && detail::last_found_architecture->elf_amdgpu_machine ()
            == elf_amdgpu_machine)
     return detail::last_found_architecture;
@@ -4473,7 +4473,7 @@ architecture_t::find (elf_amdgpu_machine_t elf_amdgpu_machine)
 const architecture_t *
 architecture_t::find (const std::string &name)
 {
-  if (detail::last_found_architecture
+  if (detail::last_found_architecture != nullptr
       && detail::last_found_architecture->name () == name)
     return detail::last_found_architecture;
 
@@ -4606,13 +4606,13 @@ amd_dbgapi_get_architecture (uint32_t elf_amdgpu_machine,
     if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-    if (!architecture_id)
+    if (architecture_id == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     const architecture_t *architecture = architecture_t::find (
       static_cast<elf_amdgpu_machine_t> (elf_amdgpu_machine));
 
-    if (!architecture)
+    if (architecture == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ELF_AMDGPU_MACHINE);
 
     *architecture_id = architecture->id ();
@@ -4638,7 +4638,7 @@ amd_dbgapi_architecture_get_info (amd_dbgapi_architecture_id_t architecture_id,
     const architecture_t *architecture
       = architecture_t::find (architecture_id);
 
-    if (!architecture)
+    if (architecture == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID);
 
     architecture->get_info (query, value_size, value);
@@ -4671,13 +4671,13 @@ amd_dbgapi_disassemble_instruction (
     if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-    if (!memory || !size || !*size)
+    if (memory == nullptr || size == nullptr || !*size)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     const architecture_t *architecture
       = architecture_t::find (architecture_id);
 
-    if (!architecture)
+    if (architecture == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID);
 
     if (utils::align_down (address,
@@ -4690,7 +4690,7 @@ amd_dbgapi_disassemble_instruction (
                        static_cast<const std::byte *> (memory),
                        static_cast<const std::byte *> (memory) + *size));
 
-    if (!instruction_text)
+    if (instruction_text == nullptr)
       {
         if (!instruction.is_valid ())
           THROW (AMD_DBGAPI_STATUS_ERROR_ILLEGAL_INSTRUCTION);
@@ -4716,7 +4716,7 @@ amd_dbgapi_disassemble_instruction (
             address_operands_str
               += address_operands_str.empty () ? "  # " : ", ";
 
-            if (symbolizer)
+            if (symbolizer != nullptr)
               {
                 char *symbol_text{};
 
@@ -4725,7 +4725,7 @@ amd_dbgapi_disassemble_instruction (
 
                 if (status == AMD_DBGAPI_STATUS_SUCCESS)
                   {
-                    if (!symbol_text)
+                    if (symbol_text == nullptr)
                       THROW (AMD_DBGAPI_STATUS_ERROR);
 
                     auto deallocate_symbol_text = utils::make_scope_exit (
@@ -4783,13 +4783,14 @@ amd_dbgapi_classify_instruction (
     if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-    if (!memory || !size_p || !*size_p || !instruction_kind_p)
+    if (memory == nullptr || size_p == nullptr || !*size_p
+        || instruction_kind_p == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     const architecture_t *architecture
       = architecture_t::find (architecture_id);
 
-    if (!architecture)
+    if (architecture == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID);
 
     if (utils::align_down (address,
@@ -4808,7 +4809,7 @@ amd_dbgapi_classify_instruction (
     auto [kind, properties, size, information]
       = architecture->classify_instruction (address, instruction);
 
-    if (instruction_information_p)
+    if (instruction_information_p != nullptr)
       {
         using information_type = decltype (information)::value_type;
         size_t mem_size = information.size () * sizeof (information_type);
@@ -4825,7 +4826,7 @@ amd_dbgapi_classify_instruction (
           }
       }
 
-    if (instruction_properties_p)
+    if (instruction_properties_p != nullptr)
       *instruction_properties_p = properties;
 
     *size_p = size;

@@ -45,7 +45,7 @@ agent_t::agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
     warning ("AMD GPU gpu_id %d's firmware version %d not supported",
              m_os_agent_info.os_agent_id, m_os_agent_info.fw_version);
 
-  if (!architecture)
+  if (architecture == nullptr)
     return;
 
   for (auto &&address_space : architecture->range<address_space_t> ())
@@ -180,7 +180,7 @@ amd_dbgapi_agent_get_info (amd_dbgapi_agent_id_t agent_id,
 
     agent_t *agent = find (agent_id);
 
-    if (!agent)
+    if (agent == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_AGENT_ID);
 
     agent->get_info (query, value_size, value);
@@ -209,7 +209,7 @@ amd_dbgapi_process_agent_list (amd_dbgapi_process_id_t process_id,
 
     std::vector<process_t *> processes = process_t::match (process_id);
 
-    if (!agents || !agent_count)
+    if (agents == nullptr || agent_count == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     for (auto &&process : processes)

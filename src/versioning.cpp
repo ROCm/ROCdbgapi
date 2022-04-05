@@ -44,11 +44,11 @@ amd_dbgapi_get_version (uint32_t *major, uint32_t *minor, uint32_t *patch)
 {
   TRACE_BEGIN (major, minor, patch);
 
-  if (major)
+  if (major != nullptr)
     *major = AMD_DBGAPI_VERSION_MAJOR;
-  if (minor)
+  if (minor != nullptr)
     *minor = AMD_DBGAPI_VERSION_MINOR;
-  if (patch)
+  if (patch != nullptr)
     *patch = AMD_DBGAPI_VERSION_PATCH;
 
   TRACE_END (make_ref (major), make_ref (minor), make_ref (patch));
@@ -214,7 +214,7 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
            an enum value is missing.  */
       }
 
-    if (!status_string || !string)
+    if (status_string == nullptr || string == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     *status_string = string;

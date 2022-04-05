@@ -207,7 +207,8 @@ to_string (amd_dbgapi_register_id_t register_id)
 
   std::string str = string_printf ("register_%ld", register_id.handle);
 
-  if (architecture && regnum && architecture->is_register_available (*regnum))
+  if (architecture != nullptr && regnum
+      && architecture->is_register_available (*regnum))
     str += " <" + architecture->name ()
            + "::" + architecture->register_name (*regnum) + ">";
 

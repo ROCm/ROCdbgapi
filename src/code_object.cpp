@@ -71,7 +71,7 @@ amd_dbgapi_code_object_get_info (amd_dbgapi_code_object_id_t code_object_id,
 
     code_object_t *code_object = find (code_object_id);
 
-    if (!code_object)
+    if (code_object == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_CODE_OBJECT_ID);
 
     code_object->get_info (query, value_size, value);
@@ -98,7 +98,7 @@ amd_dbgapi_process_code_object_list (
 
     std::vector<process_t *> processes = process_t::match (process_id);
 
-    if (!code_objects || !code_object_count)
+    if (code_objects == nullptr || code_object_count == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     std::tie (*code_objects, *code_object_count)

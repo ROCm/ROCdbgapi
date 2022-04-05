@@ -300,10 +300,11 @@ linux_driver_t::xfer_global_memory_partial (
   dbgapi_assert (!read != !write && "either read or write buffer");
   dbgapi_assert (is_valid ());
 
-  ++(read ? m_read_request_count : m_write_request_count);
+  ++(read != nullptr ? m_read_request_count : m_write_request_count);
 
-  ssize_t ret = read ? pread (*m_proc_mem_fd, read, *size, address)
-                     : pwrite (*m_proc_mem_fd, write, *size, address);
+  ssize_t ret = read != nullptr
+                  ? pread (*m_proc_mem_fd, read, *size, address)
+                  : pwrite (*m_proc_mem_fd, write, *size, address);
 
   if (ret < 0 && errno != EIO && errno != EINVAL)
     warning ("linux_driver_t::xfer_memory failed: %s", strerror (errno));
@@ -313,7 +314,7 @@ linux_driver_t::xfer_global_memory_partial (
   else if (ret < 0)
     return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
 
-  (read ? m_bytes_read : m_bytes_written) += ret;
+  (read != nullptr ? m_bytes_read : m_bytes_written) += ret;
 
   *size = ret;
   return AMD_DBGAPI_STATUS_SUCCESS;
@@ -1178,9 +1179,9 @@ kfd_driver_t::set_wave_launch_trap_override (
   else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
-  if (previous_value)
+  if (previous_value != nullptr)
     *previous_value = static_cast<os_wave_launch_trap_mask_t> (args.data2);
-  if (supported_mask)
+  if (supported_mask != nullptr)
     *supported_mask = static_cast<os_wave_launch_trap_mask_t> (args.data3);
 
   return AMD_DBGAPI_STATUS_SUCCESS;

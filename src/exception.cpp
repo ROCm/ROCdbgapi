@@ -28,7 +28,7 @@ namespace amd::dbgapi
 void
 exception_t::print_message () const noexcept
 {
-  if (const char *message = what (); message && *message)
+  if (const char *message = what (); message != nullptr && *message)
     dbgapi_log (AMD_DBGAPI_LOG_LEVEL_FATAL_ERROR, "%s", message);
 }
 

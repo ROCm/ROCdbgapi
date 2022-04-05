@@ -63,7 +63,7 @@ syminfo_callback (void *data, uintptr_t /* pc  */, const char *symname,
   backtrace_info *info = static_cast<backtrace_info *> (data);
   int status;
 
-  if (!symname)
+  if (symname == nullptr)
     return;
 
   char *demangled = abi::__cxa_demangle (symname, nullptr, nullptr, &status);
@@ -83,7 +83,7 @@ full_callback (void *data, uintptr_t pc, const char *filename, int lineno,
                 << std::hex << std::setfill ('0')
                 << std::setw (sizeof (pc) * 2) << pc;
 
-  if (!function)
+  if (function == nullptr)
     backtrace_syminfo (info->state, pc, syminfo_callback, error_callback,
                        data);
   else
@@ -93,7 +93,7 @@ full_callback (void *data, uintptr_t pc, const char *filename, int lineno,
       info->sstream << ' ' << (status == 0 ? demangled : function);
       free (demangled);
 
-      if (filename)
+      if (filename != nullptr)
         info->sstream << " in " << filename << ':' << std::dec << lineno;
     }
 

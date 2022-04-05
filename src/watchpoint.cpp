@@ -168,14 +168,14 @@ amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
 
     process_t *process = process_t::find (process_id);
 
-    if (!process)
+    if (process == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
     if (process->watchpoint_shared_kind ()
         == AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSUPPORTED)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED);
 
-    if (!size || !watchpoint_id)
+    if (!size || watchpoint_id == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     switch (kind)
@@ -218,12 +218,12 @@ amd_dbgapi_remove_watchpoint (amd_dbgapi_process_id_t process_id,
 
     process_t *process = process_t::find (process_id);
 
-    if (!process)
+    if (process == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
     watchpoint_t *watchpoint = process->find (watchpoint_id);
 
-    if (!watchpoint)
+    if (watchpoint == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID);
 
     process->remove_watchpoint (*watchpoint);
@@ -249,7 +249,7 @@ amd_dbgapi_watchpoint_get_info (amd_dbgapi_watchpoint_id_t watchpoint_id,
 
     watchpoint_t *watchpoint = find (watchpoint_id);
 
-    if (!watchpoint)
+    if (watchpoint == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID);
 
     watchpoint->get_info (query, value_size, value);

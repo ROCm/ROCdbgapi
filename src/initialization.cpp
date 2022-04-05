@@ -47,7 +47,8 @@ amd_dbgapi_initialize (struct amd_dbgapi_callbacks_s *callbacks)
 
   /* check that all the callback functions are defined.  */
   for (size_t i = 0; i < sizeof (*callbacks) / sizeof (void (*) (void)); ++i)
-    if (!callbacks || !reinterpret_cast<void (**) (void)> (callbacks)[i])
+    if (callbacks == nullptr
+        || reinterpret_cast<void (**) (void)> (callbacks)[i] == nullptr)
       return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
 
   detail::process_callbacks = *callbacks;

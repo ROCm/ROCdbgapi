@@ -93,7 +93,7 @@ event_t::pretty_printer_string () const
       {
         wave_t *wave
           = process ().find (std::get<wave_event_t> (m_data).wave_id);
-        if (!wave)
+        if (wave == nullptr)
           return string_printf (
             "%s for terminated %s", to_cstring (kind ()),
             to_cstring (std::get<wave_event_t> (m_data).wave_id));
@@ -263,7 +263,7 @@ amd_dbgapi_process_next_pending_event (amd_dbgapi_process_id_t process_id,
     if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-    if (!event_id || !kind)
+    if (event_id == nullptr || kind == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     event_t *event = nullptr;
@@ -272,7 +272,7 @@ amd_dbgapi_process_next_pending_event (amd_dbgapi_process_id_t process_id,
       {
         process_t *process = process_t::find (process_id);
 
-        if (!process)
+        if (process == nullptr)
           THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
         event = process->next_pending_event ();
@@ -280,11 +280,11 @@ amd_dbgapi_process_next_pending_event (amd_dbgapi_process_id_t process_id,
     else
       {
         for (auto &&process : process_t::all ())
-          if ((event = process.next_pending_event ()))
+          if ((event = process.next_pending_event ()) != nullptr)
             break;
       }
 
-    if (!event)
+    if (event == nullptr)
       {
         *event_id = AMD_DBGAPI_EVENT_NONE;
         *kind = AMD_DBGAPI_EVENT_KIND_NONE;
@@ -316,7 +316,7 @@ amd_dbgapi_event_get_info (amd_dbgapi_event_id_t event_id,
 
     event_t *event = find (event_id);
 
-    if (!event || event->state () < event_t::state_t::reported)
+    if (event == nullptr || event->state () < event_t::state_t::reported)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID);
 
     event->get_info (query, value_size, value);
@@ -340,7 +340,7 @@ amd_dbgapi_event_processed (amd_dbgapi_event_id_t event_id)
 
     event_t *event = find (event_id);
 
-    if (!event || event->state () < event_t::state_t::reported)
+    if (event == nullptr || event->state () < event_t::state_t::reported)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_EVENT_ID);
 
     event->set_state (event_t::state_t::processed);

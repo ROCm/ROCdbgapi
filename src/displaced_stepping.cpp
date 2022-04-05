@@ -105,19 +105,19 @@ amd_dbgapi_displaced_stepping_start (
     if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-    if (!saved_instruction_bytes || !displaced_stepping_id)
+    if (saved_instruction_bytes == nullptr || displaced_stepping_id == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     wave_t *wave = find (wave_id);
 
-    if (!wave)
+    if (wave == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
     if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
       THROW (AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED);
 
     /* Already displaced stepping?  */
-    if (wave->displaced_stepping ())
+    if (wave->displaced_stepping () != nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_ACTIVE);
 
     wave->displaced_stepping_start (saved_instruction_bytes);
@@ -148,7 +148,7 @@ amd_dbgapi_displaced_stepping_complete (
 
     wave_t *wave = find (wave_id);
 
-    if (!wave)
+    if (wave == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
     if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
@@ -156,7 +156,7 @@ amd_dbgapi_displaced_stepping_complete (
 
     displaced_stepping_t *displaced_stepping = find (displaced_stepping_id);
 
-    if (!displaced_stepping)
+    if (displaced_stepping == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_DISPLACED_STEPPING_ID);
 
     /* Not displaced stepping or stepping with a different displaced stepping
@@ -188,7 +188,7 @@ amd_dbgapi_displaced_stepping_get_info (
 
     displaced_stepping_t *displaced_stepping = find (displaced_stepping_id);
 
-    if (!displaced_stepping)
+    if (displaced_stepping == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_DISPLACED_STEPPING_ID);
 
     displaced_stepping->get_info (query, value_size, value);

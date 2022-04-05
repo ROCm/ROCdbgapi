@@ -676,7 +676,7 @@ memory_cache_t::xfer_global_memory (amd_dbgapi_global_address_t address,
   auto &cache_line = begin->second;
   auto offset = address - first_line;
 
-  if (read)
+  if (read != nullptr)
     {
       memcpy (read, &cache_line.m_data[0] + offset, size);
     }
@@ -711,10 +711,10 @@ amd_dbgapi_address_class_get_info (
 
     const address_class_t *address_class = find (address_class_id);
 
-    if (!address_class)
+    if (address_class == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_CLASS_ID);
 
-    if (!value)
+    if (value == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     address_class->get_info (query, value_size, value);
@@ -739,13 +739,13 @@ amd_dbgapi_architecture_address_class_list (
     if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-    if (!address_class_count || !address_classes)
+    if (address_class_count == nullptr || address_classes == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     const architecture_t *architecture
       = architecture_t::find (architecture_id);
 
-    if (!architecture)
+    if (architecture == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID);
 
     size_t count = architecture->count<address_class_t> ();
@@ -783,17 +783,17 @@ amd_dbgapi_dwarf_address_class_to_address_class (
     const architecture_t *architecture
       = architecture_t::find (architecture_id);
 
-    if (!architecture)
+    if (architecture == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID);
 
-    if (!address_class_id)
+    if (address_class_id == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     const address_class_t *address_class = architecture->find_if (
       [=] (const address_class_t &ac)
       { return ac.dwarf_value () == dwarf_address_class; });
 
-    if (!address_class)
+    if (address_class == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
     *address_class_id = address_class->id ();
@@ -819,10 +819,10 @@ amd_dbgapi_address_space_get_info (
 
     const address_space_t *address_space = find (address_space_id);
 
-    if (!address_space)
+    if (address_space == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID);
 
-    if (!value)
+    if (value == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     address_space->get_info (query, value_size, value);
@@ -847,13 +847,13 @@ amd_dbgapi_architecture_address_space_list (
     if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-    if (!address_space_count || !address_spaces)
+    if (address_space_count == nullptr || address_spaces == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     const architecture_t *architecture
       = architecture_t::find (architecture_id);
 
-    if (!architecture)
+    if (architecture == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID);
 
     size_t count = 1 + architecture->count<address_space_t> ();
@@ -893,17 +893,17 @@ amd_dbgapi_dwarf_address_space_to_address_space (
     const architecture_t *architecture
       = architecture_t::find (architecture_id);
 
-    if (!architecture)
+    if (architecture == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARCHITECTURE_ID);
 
-    if (!address_space_id)
+    if (address_space_id == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     const address_space_t *address_space = architecture->find_if (
       [=] (const address_space_t &ac)
       { return ac.dwarf_value () == dwarf_address_space; });
 
-    if (!address_space)
+    if (address_space == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
 
     *address_space_id = address_space->id ();
@@ -934,7 +934,8 @@ amd_dbgapi_convert_address_space (
     if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-    if (!destination_segment_address || !destination_contiguous_bytes)
+    if (destination_segment_address == nullptr
+        || destination_contiguous_bytes == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     const address_space_t *source_address_space
@@ -942,12 +943,13 @@ amd_dbgapi_convert_address_space (
     const address_space_t *destination_address_space
       = find (destination_address_space_id);
 
-    if (!source_address_space || !destination_address_space)
+    if (source_address_space == nullptr
+        || destination_address_space == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID);
 
     wave_t *wave = find (wave_id);
 
-    if (wave)
+    if (wave != nullptr)
       {
         if (!wave->architecture ().is_address_space_supported (
               *destination_address_space)
@@ -978,7 +980,7 @@ amd_dbgapi_convert_address_space (
       }
     else
       {
-        if (!wave)
+        if (wave == nullptr)
           THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
         /* The lane_id is validated by address_space_t::convert if the
@@ -1017,20 +1019,20 @@ amd_dbgapi_address_is_in_address_class (
 
     const address_class_t *address_class = find (address_class_id);
 
-    if (!address_class)
+    if (address_class == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_CLASS_ID);
 
-    if (!address_class_state)
+    if (address_class_state == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     const address_space_t *address_space = find (address_space_id);
 
-    if (!address_space)
+    if (address_space == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID);
 
     wave_t *wave = find (wave_id);
 
-    if (wave)
+    if (wave != nullptr)
       {
         if (!wave->architecture ().is_address_space_supported (*address_space)
             || !wave->architecture ().is_address_class_supported (
@@ -1055,7 +1057,7 @@ amd_dbgapi_address_is_in_address_class (
       }
     else
       {
-        if (!wave)
+        if (wave == nullptr)
           THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
         if (lane_id == AMD_DBGAPI_LANE_NONE
@@ -1095,7 +1097,7 @@ amd_dbgapi_address_dependency (
 
     const address_space_t *address_space = find (address_space_id);
 
-    if (!address_space)
+    if (address_space == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID);
 
     *segment_address_dependency
@@ -1122,20 +1124,20 @@ xfer_memory (amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
 
   process_t *process = process_t::find (process_id);
 
-  if (!process)
+  if (process == nullptr)
     THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
-  if ((!read == !write) || !value_size)
+  if ((read == nullptr) == (write == nullptr) || value_size == nullptr)
     THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
   const address_space_t *address_space = find (address_space_id);
 
-  if (!address_space)
+  if (address_space == nullptr)
     THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID);
 
   wave_t *wave = find (wave_id);
 
-  if (wave)
+  if (wave != nullptr)
     {
       if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
         THROW (AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED);
@@ -1160,7 +1162,7 @@ xfer_memory (amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
       break;
 
     case AMD_DBGAPI_SEGMENT_ADDRESS_DEPENDENCE_WORKGROUP:
-      if (!wave)
+      if (wave == nullptr)
         THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
       *value_size = wave->workgroup ().xfer_segment_memory (
@@ -1173,7 +1175,7 @@ xfer_memory (amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
       [[fallthrough]];
 
     case AMD_DBGAPI_SEGMENT_ADDRESS_DEPENDENCE_WAVE:
-      if (!wave)
+      if (wave == nullptr)
         THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
       *value_size = wave->xfer_segment_memory (
@@ -1260,7 +1262,7 @@ amd_dbgapi_set_memory_precision (
 
     process_t *process = process_t::find (process_id);
 
-    if (!process)
+    if (process == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
     if (memory_precision != AMD_DBGAPI_MEMORY_PRECISION_NONE

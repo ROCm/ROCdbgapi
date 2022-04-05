@@ -53,7 +53,7 @@ wave_t::wave_t (amd_dbgapi_wave_id_t wave_id, workgroup_t &workgroup,
 
 wave_t::~wave_t ()
 {
-  if (displaced_stepping ())
+  if (displaced_stepping () != nullptr)
     {
       /* displaced step operations are cancelled by the process on detach,
          unless the process has exited and the queue is invalid, in which case,
@@ -224,7 +224,7 @@ wave_t::unpark ()
 void
 wave_t::terminate ()
 {
-  if (m_displaced_stepping)
+  if (m_displaced_stepping != nullptr)
     {
       displaced_stepping_t::release (m_displaced_stepping);
       m_displaced_stepping = nullptr;
@@ -259,7 +259,7 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
 
   /* If we can't share a displaced stepping operation with another wave, create
      a new one.  */
-  if (!displaced_stepping)
+  if (displaced_stepping == nullptr)
     {
       /* Reconstitute the original instruction bytes.  */
       std::vector<std::byte> original_instruction_bytes (
@@ -435,7 +435,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
       && exceptions == AMD_DBGAPI_EXCEPTION_NONE &&
       [&] ()
       {
-        if (m_displaced_stepping)
+        if (m_displaced_stepping != nullptr)
           /* The displaced instruction is a terminating instruction.  */
           return architecture.is_terminating_instruction (
             m_displaced_stepping->original_instruction ());
@@ -501,7 +501,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
         && exceptions == AMD_DBGAPI_EXCEPTION_NONE &&
         [&] () -> bool /* Return true if the instruction was simulated.  */
       {
-        if (m_displaced_stepping)
+        if (m_displaced_stepping != nullptr)
           {
             /* Simulate displaced instructions that are position sensitive (for
                example, instructions that manipulate the program counter).
@@ -632,7 +632,7 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
 
       /* Look for the wave_id again, the wave may have exited.  */
       wave_t *wave = find (wave_id);
-      if (!wave)
+      if (wave == nullptr)
         throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
       dbgapi_assert (wave == this);
@@ -703,7 +703,7 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
 
       /* Look for the wave_id again, the wave may have exited.  */
       wave_t *wave = find (wave_id);
-      if (!wave)
+      if (wave == nullptr)
         throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
       dbgapi_assert (wave == this);
@@ -822,8 +822,10 @@ wave_t::xfer_private_memory (const address_space_t &address_space,
       size_t request_size = std::min (size, contiguous_bytes);
 
       size_t xfer_size = process ().xfer_global_memory (
-        global_address, read ? static_cast<char *> (read) + xfer_bytes : read,
-        write ? static_cast<const char *> (write) + xfer_bytes : write,
+        global_address,
+        read != nullptr ? static_cast<char *> (read) + xfer_bytes : read,
+        write != nullptr ? static_cast<const char *> (write) + xfer_bytes
+                         : write,
         request_size);
 
       size -= xfer_size;
@@ -895,7 +897,7 @@ wave_t::client_visible_state () const
     return state;
 
   if (const event_t *event = last_stop_event ();
-      !event || event->state () >= event_t::state_t::reported)
+      event == nullptr || event->state () >= event_t::state_t::reported)
     return AMD_DBGAPI_WAVE_STATE_STOP;
 
   /* If the wave is stopped, but the wave stop event has not yet been
@@ -978,7 +980,7 @@ wave_t::get_info (amd_dbgapi_wave_info_t query, size_t value_size,
         {
           const watchpoint_t *watchpoint
             = process ().find_watchpoint (os_watch_id);
-          if (!watchpoint)
+          if (watchpoint == nullptr)
             fatal_error ("kfd_watch_%d not set on %s", os_watch_id,
                          to_cstring (agent ().id ()));
           return watchpoint->id ();
@@ -1018,7 +1020,7 @@ amd_dbgapi_wave_stop (amd_dbgapi_wave_id_t wave_id)
 
     wave_t *wave = find (wave_id);
 
-    if (!wave)
+    if (wave == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
     if (wave->client_visible_state () == AMD_DBGAPI_WAVE_STATE_STOP)
@@ -1030,7 +1032,7 @@ amd_dbgapi_wave_stop (amd_dbgapi_wave_id_t wave_id)
     scoped_queue_suspend_t suspend (wave->queue (), "stop wave");
 
     /* Look for the wave_id again, the wave may have exited.  */
-    if (!(wave = find (wave_id)))
+    if ((wave = find (wave_id)) == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
     wave->set_state (AMD_DBGAPI_WAVE_STATE_STOP);
@@ -1056,7 +1058,7 @@ amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
 
     wave_t *wave = find (wave_id);
 
-    if (!wave)
+    if (wave == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
     if (resume_mode != AMD_DBGAPI_RESUME_MODE_NORMAL
@@ -1077,17 +1079,17 @@ amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
 
     /* The wave is not resumable if the stop event is not yet processed.  */
     if (const event_t *event = wave->last_stop_event ();
-        event && event->state () < event_t::state_t::processed)
+        event != nullptr && event->state () < event_t::state_t::processed)
       THROW (AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_RESUMABLE);
 
-    if (wave->displaced_stepping ()
+    if (wave->displaced_stepping () != nullptr
         && resume_mode != AMD_DBGAPI_RESUME_MODE_SINGLE_STEP)
       THROW (AMD_DBGAPI_STATUS_ERROR_RESUME_DISPLACED_STEPPING);
 
     scoped_queue_suspend_t suspend (wave->queue (), "resume wave");
 
     /* Look for the wave_id again, the wave may have exited.  */
-    if (!(wave = find (wave_id)))
+    if ((wave = find (wave_id)) == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
     wave->set_state (resume_mode == AMD_DBGAPI_RESUME_MODE_SINGLE_STEP
@@ -1118,7 +1120,7 @@ amd_dbgapi_wave_get_info (amd_dbgapi_wave_id_t wave_id,
 
     wave_t *wave = find (wave_id);
 
-    if (!wave)
+    if (wave == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
     switch (query)
@@ -1159,7 +1161,7 @@ amd_dbgapi_process_wave_list (amd_dbgapi_process_id_t process_id,
 
     std::vector<process_t *> processes = process_t::match (process_id);
 
-    if (!waves || !wave_count)
+    if (waves == nullptr || wave_count == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
     std::vector<std::pair<process_t *, std::vector<queue_t *>>>
@@ -1182,7 +1184,7 @@ amd_dbgapi_process_wave_list (amd_dbgapi_process_id_t process_id,
 
     amd_dbgapi_changed_t wave_list_changed;
     auto wave_list = utils::get_handle_list<wave_t> (
-      processes, changed ? &wave_list_changed : nullptr);
+      processes, changed != nullptr ? &wave_list_changed : nullptr);
 
     auto deallocate_wave_list = utils::make_scope_fail (
       [&] () { amd::dbgapi::deallocate_memory (wave_list.first); });
@@ -1191,7 +1193,7 @@ amd_dbgapi_process_wave_list (amd_dbgapi_process_id_t process_id,
       process->resume_queues (queues, "refresh wave list");
 
     std::tie (*waves, *wave_count) = wave_list;
-    if (changed)
+    if (changed != nullptr)
       *changed = wave_list_changed;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,

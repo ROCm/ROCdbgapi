@@ -187,8 +187,9 @@ public:
   xfer_global_memory (amd_dbgapi_segment_address_t global_address, void *read,
                       const void *write, size_t size)
   {
-    return read ? read_global_memory_partial (global_address, read, size)
-                : write_global_memory_partial (global_address, write, size);
+    return read != nullptr
+             ? read_global_memory_partial (global_address, read, size)
+             : write_global_memory_partial (global_address, write, size);
   }
 
   template <typename T>
