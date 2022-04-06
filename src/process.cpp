@@ -553,7 +553,7 @@ process_t::update_agents ()
 
       if (agent->supports_debugging ())
         precise_memory_supported = precise_memory_supported.value_or (true)
-                                   & agent_info.precise_memory_supported;
+                                   && agent_info.precise_memory_supported;
     }
 
   /* Remove agents that are no longer online.  */
@@ -1329,7 +1329,7 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
 
     /* If nothing has changed, we don't need to report an event.  */
     if (!set_changed<code_object_t> (changed<code_object_t> ()
-                                     | saved_changed))
+                                     || saved_changed))
       {
         *action = AMD_DBGAPI_BREAKPOINT_ACTION_RESUME;
         return;
