@@ -491,6 +491,18 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
          pc before the wave is unhalted.  */
       m_last_stopped_pc = pc ();
 
+      /* If there is a stop event, it must have already been reported otherwise
+         the wave could not be resumed, and we can now clear it.  */
+      [[maybe_unused]] auto has_unreported_stop_event = [this] ()
+      {
+        const event_t *event = process ().find (m_last_stop_event_id);
+        return event != nullptr
+               && event->state () < event_t::state_t::reported;
+      };
+      dbgapi_assert (!has_unreported_stop_event ()
+                     && "a stop event for this wave is still pending");
+      m_last_stop_event_id = AMD_DBGAPI_EVENT_NONE;
+
       /* Clear the stop reason.  */
       m_stop_reason = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
     }
