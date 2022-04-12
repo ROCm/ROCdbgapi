@@ -99,9 +99,9 @@ protected:
   static constexpr amd_dbgapi_global_address_t local_address_aperture_base
     = amd_dbgapi_global_address_t{ 1 } << 48;
   static constexpr amd_dbgapi_global_address_t private_address_aperture_base
-    = amd_dbgapi_global_address_t{ 1 } << 49;
+    = amd_dbgapi_global_address_t{ 2 } << 48;
   static constexpr amd_dbgapi_global_address_t address_aperture_mask
-    = utils::bit_mask (48, 63);
+    = utils::bit_mask<amd_dbgapi_global_address_t> (0, 15) << 48;
 
   static constexpr uint32_t sq_wave_status_scc_mask = 1 << 0;
   static constexpr uint32_t sq_wave_status_priv_mask = 1 << 5;
