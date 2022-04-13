@@ -23,6 +23,7 @@
 
 #include "amd-dbgapi.h"
 #include "handle_object.h"
+#include "utils.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -125,14 +126,17 @@ enum class amdgpu_regnum_t : uint32_t
   xnack_mask_64,      /* XNACK mask for wave64 wavefronts.  */
   flat_scratch,       /* Flat scratch.  */
 
-  flat_scratch_lo, /* Flat scratch lower 32 bits.  */
-  flat_scratch_hi, /* Flat scratch lower 32 bits.  */
-  exec_lo,         /* Execution mask lower 32bits.  */
-  exec_hi,         /* Execution mask lower 32bits.  */
-  vcc_lo,          /* Vector Condition Code lower 32 bits.  */
-  vcc_hi,          /* Vector Condition Code higher 32 bits.  */
-  xnack_mask_lo,   /* XNACK mask lower 32 bits.  */
-  xnack_mask_hi,   /* XNACK mask higher 32 bits.  */
+  /* Align the base of the following register pairs.  */
+  aligned_block = utils::align_up (flat_scratch + 1, 2),
+
+  flat_scratch_lo = aligned_block, /* Flat scratch lower 32 bits.  */
+  flat_scratch_hi,                 /* Flat scratch lower 32 bits.  */
+  exec_lo,                         /* Execution mask lower 32bits.  */
+  exec_hi,                         /* Execution mask lower 32bits.  */
+  vcc_lo,                          /* Vector Condition Code lower 32 bits.  */
+  vcc_hi,                          /* Vector Condition Code higher 32 bits.  */
+  xnack_mask_lo,                   /* XNACK mask lower 32 bits.  */
+  xnack_mask_hi,                   /* XNACK mask higher 32 bits.  */
 
   last_aliased = xnack_mask_hi,
   first_pseudo = last_aliased + 1,

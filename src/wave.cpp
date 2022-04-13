@@ -425,7 +425,8 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
   m_stop_requested = state == AMD_DBGAPI_WAVE_STATE_STOP;
 
   std::optional<instruction_t> instruction;
-  if (state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
+  if (m_displaced_stepping == nullptr
+      && state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
     instruction = instruction_at_pc ();
 
   /* A wave single-stepping a terminating instruction does not generate a trap

@@ -690,10 +690,7 @@ amdgcn_architecture_t::is_branch_taken (wave_t &wave,
       auto regnum = scalar_operand_to_regnum (is_cbranch_i_fork (instruction)
                                                 ? sdst_operand (instruction)
                                                 : ssrc0_operand (instruction));
-
-      /* The hardware requires a 64-bit address register pair to have the lower
-         register number be even.  */
-      dbgapi_assert (regnum && !(*regnum & 1));
+      dbgapi_assert (regnum);
 
       wave.read_register (*regnum + 0, &mask_lo);
       wave.read_register (*regnum + 1, &mask_hi);
@@ -754,10 +751,7 @@ amdgcn_architecture_t::branch_target (wave_t &wave,
   else if (is_cbranch_g_fork (instruction))
     {
       auto regnum = scalar_operand_to_regnum (ssrc1_operand (instruction));
-
-      /* The hardware requires a 64-bit address register pair to have the lower
-         register number be even.  */
-      dbgapi_assert (regnum && !(*regnum & 1));
+      dbgapi_assert (regnum);
 
       uint32_t pc_lo, pc_hi;
       wave.read_register (*regnum + 0, &pc_lo);
@@ -769,10 +763,7 @@ amdgcn_architecture_t::branch_target (wave_t &wave,
     {
       auto ssrc_regnum
         = scalar_operand_to_regnum (ssrc0_operand (instruction));
-
-      /* The hardware requires a 64-bit address register pair to have the
-         lower register number be even.  */
-      dbgapi_assert (ssrc_regnum && !(*ssrc_regnum & 1));
+      dbgapi_assert (ssrc_regnum);
 
       uint32_t ssrc_lo, ssrc_hi;
       wave.read_register (*ssrc_regnum + 0, &ssrc_lo);
@@ -1039,10 +1030,6 @@ amdgcn_architecture_t::simulate_instruction (
                                         : ssrc0_operand (instruction));
       dbgapi_assert (mask_regnum);
 
-      /* The hardware requires a 64-bit address register pair to have the lower
-         register number be even.  */
-      dbgapi_assert (mask_regnum && !(*mask_regnum & 1));
-
       uint32_t mask_lo, mask_hi;
       wave.read_register (*mask_regnum + 0, &mask_lo);
       wave.read_register (*mask_regnum + 1, &mask_hi);
@@ -1104,10 +1091,7 @@ amdgcn_architecture_t::simulate_instruction (
            || is_swappc (instruction))
     {
       auto sdst_regnum = scalar_operand_to_regnum (sdst_operand (instruction));
-
-      /* The hardware requires a 64-bit address register pair to have the
-         lower register number be even.  */
-      dbgapi_assert (sdst_regnum && !(*sdst_regnum & 1));
+      dbgapi_assert (sdst_regnum);
 
       uint64_t sdst_value = pc + instruction.size ();
       uint32_t sdst_lo = static_cast<uint32_t> (sdst_value);
