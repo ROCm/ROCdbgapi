@@ -241,7 +241,7 @@ process_t::detach ()
 
 void
 process_t::read_string (amd_dbgapi_global_address_t address,
-                        std::string *string, size_t size)
+                        std::string *string, size_t size) const
 {
   constexpr size_t chunk_size = memory_cache_t::cache_line_size;
   static_assert (!(chunk_size & (chunk_size - 1)), "must be a power of 2");
@@ -289,7 +289,8 @@ process_t::read_string (amd_dbgapi_global_address_t address,
 size_t
 process_t::xfer_segment_memory (const address_space_t &address_space,
                                 amd_dbgapi_segment_address_t segment_address,
-                                void *read, const void *write, size_t size)
+                                void *read, const void *write,
+                                size_t size) const
 {
   auto [lowered_address_space, lowered_address]
     = address_space.lower (segment_address);
