@@ -2225,8 +2225,9 @@ public:
     compute_queue_t &queue, const uint32_t *control_stack,
     size_t control_stack_words, amd_dbgapi_global_address_t wave_area_address,
     amd_dbgapi_size_t wave_area_size,
-    const std::function<void (std::unique_ptr<architecture_t::cwsr_record_t>)>
-      &wave_callback) const override;
+    const std::function<void (
+      std::unique_ptr<const architecture_t::cwsr_record_t>)> &wave_callback)
+    const override;
 
   amd_dbgapi_global_address_t dispatch_packet_address (
     const architecture_t::cwsr_record_t &cwsr_record) const override;
@@ -2929,8 +2930,9 @@ gfx9_architecture_t::control_stack_iterate (
   compute_queue_t &queue, const uint32_t *control_stack,
   size_t control_stack_words, amd_dbgapi_global_address_t wave_area_address,
   amd_dbgapi_size_t wave_area_size,
-  const std::function<void (std::unique_ptr<architecture_t::cwsr_record_t>)>
-    &wave_callback) const
+  const std::function<void (
+    std::unique_ptr<const architecture_t::cwsr_record_t>)> &wave_callback)
+  const
 {
   size_t wave_count = 0;
   uint32_t state = 0;
@@ -2977,8 +2979,6 @@ amd_dbgapi_global_address_t
 gfx9_architecture_t::dispatch_packet_address (
   const architecture_t::cwsr_record_t &cwsr_record) const
 {
-  compute_queue_t &queue = cwsr_record.queue ();
-
   const amd_dbgapi_global_address_t ttmp6_address
     = cwsr_record.register_address (amdgpu_regnum_t::ttmp6).value ();
 
@@ -2987,6 +2987,8 @@ gfx9_architecture_t::dispatch_packet_address (
 
   uint64_t dispatch_packet_index
     = (ttmp6 & ttmp6_queue_packet_id_mask) >> ttmp6_queue_packet_id_shift;
+
+  const compute_queue_t &queue = cwsr_record.queue ();
 
   if ((dispatch_packet_index * queue.packet_size ()) >= queue.size ())
     fatal_error ("dispatch_packet_index %#lx is out of bounds in %s",
@@ -3482,8 +3484,9 @@ public:
     compute_queue_t &queue, const uint32_t *control_stack,
     size_t control_stack_words, amd_dbgapi_global_address_t wave_area_address,
     amd_dbgapi_size_t wave_area_size,
-    const std::function<void (std::unique_ptr<architecture_t::cwsr_record_t>)>
-      &wave_callback) const override;
+    const std::function<void (
+      std::unique_ptr<const architecture_t::cwsr_record_t>)> &wave_callback)
+    const override;
 
   bool can_halt_at_endpgm () const override { return false; }
   size_t largest_instruction_size () const override { return 20; }
@@ -4284,8 +4287,9 @@ gfx10_architecture_t::control_stack_iterate (
   compute_queue_t &queue, const uint32_t *control_stack,
   size_t control_stack_words, amd_dbgapi_global_address_t wave_area_address,
   amd_dbgapi_size_t wave_area_size,
-  const std::function<void (std::unique_ptr<architecture_t::cwsr_record_t>)>
-    &wave_callback) const
+  const std::function<void (
+    std::unique_ptr<const architecture_t::cwsr_record_t>)> &wave_callback)
+  const
 {
   size_t wave_count = 0;
   uint32_t state0 = 0, state1 = 0;

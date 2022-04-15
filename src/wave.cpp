@@ -346,7 +346,8 @@ wave_t::displaced_stepping_complete ()
 }
 
 void
-wave_t::update (std::unique_ptr<architecture_t::cwsr_record_t> cwsr_record)
+wave_t::update (
+  std::unique_ptr<const architecture_t::cwsr_record_t> cwsr_record)
 {
   dbgapi_assert (queue ().is_suspended ());
   const architecture_t &architecture = this->architecture ();

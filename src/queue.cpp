@@ -130,8 +130,8 @@ private:
 
   hsa_queue_t m_hsa_queue{};
 
-  amd_dbgapi_os_queue_packet_id_t
-  get_os_queue_packet_id (architecture_t::cwsr_record_t &cwsr_record) const;
+  amd_dbgapi_os_queue_packet_id_t get_os_queue_packet_id (
+    const architecture_t::cwsr_record_t &cwsr_record) const;
 
   displaced_instruction_ptr_t
   allocate_displaced_instruction (const instruction_t &instruction) override;
@@ -580,7 +580,7 @@ aql_queue_t::queue_state_changed ()
 
 amd_dbgapi_os_queue_packet_id_t
 aql_queue_t::get_os_queue_packet_id (
-  architecture_t::cwsr_record_t &cwsr_record) const
+  const architecture_t::cwsr_record_t &cwsr_record) const
 {
   amd_dbgapi_global_address_t packet_address
     = architecture ().dispatch_packet_address (cwsr_record);
@@ -691,8 +691,7 @@ aql_queue_t::update_waves ()
                 }));
 
             if (!dispatch)
-              dispatch = &process.create<aql_dispatch_t> (
-                cwsr_record->queue (), packet_id);
+              dispatch = &process.create<aql_dispatch_t> (*this, packet_id);
 
             /* Find the workgroup this wave belongs to.  */
             const auto group_ids = cwsr_record->group_ids ();

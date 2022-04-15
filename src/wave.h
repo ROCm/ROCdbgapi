@@ -99,7 +99,7 @@ private:
   visibility_t m_visibility{ visibility_t::visible };
   bool m_is_parked{ false };
 
-  std::unique_ptr<architecture_t::cwsr_record_t> m_cwsr_record{};
+  std::unique_ptr<const architecture_t::cwsr_record_t> m_cwsr_record{};
 
   displaced_stepping_t *m_displaced_stepping{ nullptr };
   std::optional<uint32_t> const m_wave_in_group;
@@ -159,7 +159,8 @@ public:
   }
 
   /* Update the wave's status from its saved state in the context save area. */
-  void update (std::unique_ptr<architecture_t::cwsr_record_t> cwsr_record);
+  void
+  update (std::unique_ptr<const architecture_t::cwsr_record_t> cwsr_record);
 
   static epoch_t next_mark ()
   {

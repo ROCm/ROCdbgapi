@@ -190,10 +190,10 @@ public:
   class cwsr_record_t
   {
   private:
-    compute_queue_t &m_queue;
+    const compute_queue_t &m_queue;
 
   public:
-    cwsr_record_t (compute_queue_t &queue) : m_queue (queue) {}
+    cwsr_record_t (const compute_queue_t &queue) : m_queue (queue) {}
     /* cwsr_record_t is a polymorphic base class.  */
     virtual ~cwsr_record_t () = default;
 
@@ -230,7 +230,7 @@ public:
     /* The address of the byte following the last byte in the context save. */
     virtual amd_dbgapi_global_address_t end () const = 0;
 
-    compute_queue_t &queue () const { return m_queue; }
+    const compute_queue_t &queue () const { return m_queue; }
     const agent_t &agent () const;
     process_t &process () const;
     const architecture_t &architecture () const;
@@ -255,8 +255,8 @@ public:
     compute_queue_t &queue, const uint32_t *control_stack,
     size_t control_stack_words, amd_dbgapi_global_address_t wave_area_address,
     amd_dbgapi_size_t wave_area_size,
-    const std::function<void (std::unique_ptr<cwsr_record_t>)> &wave_callback)
-    const = 0;
+    const std::function<void (std::unique_ptr<const cwsr_record_t>)>
+      &wave_callback) const = 0;
 
   virtual amd_dbgapi_global_address_t dispatch_packet_address (
     const architecture_t::cwsr_record_t &cwsr_record) const = 0;
