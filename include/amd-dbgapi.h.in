@@ -5761,7 +5761,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_architecture_address_space_list (
  * architecture.
  *
  * A DWARF address space describes the architecture specific address spaces.
- * If is used in DWARF location expressions that calculate addresses.  See
+ * It is used in DWARF location expressions that calculate addresses.  See
  * [User Guide for AMDGPU Backend - Code Object - DWARF - Address Space
  * Mapping] (https://llvm.org/docs/AMDGPUUsage.html#address-space-mapping).
  *
