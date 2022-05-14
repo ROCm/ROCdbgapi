@@ -781,7 +781,7 @@ std::pair<amd_dbgapi_global_address_t /* address */,
           amd_dbgapi_size_t /* size */>
 wave_t::scratch_memory_region () const
 {
-  auto &&[address, size]
+  auto [address, size]
     = queue ().scratch_memory_region (m_cwsr_record->shader_engine_id (),
                                       m_cwsr_record->scratch_scoreboard_id ());
 

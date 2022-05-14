@@ -417,7 +417,7 @@ public:
   {
   }
 
-  unique_resource_t (unique_resource_t &&other)
+  unique_resource_t (unique_resource_t &&other) noexcept
     : m_resource (std::move (other.m_resource)),
       m_deleter (std::move (other.m_deleter)),
       m_execute_on_reset (other.m_execute_on_reset)
@@ -429,7 +429,7 @@ public:
   ~unique_resource_t () { reset (); }
 
   /* Assignment  */
-  unique_resource_t &operator= (unique_resource_t &&other)
+  unique_resource_t &operator= (unique_resource_t &&other) noexcept
   {
     reset ();
     m_resource = std::move (other.m_resource);
@@ -489,7 +489,7 @@ struct doubly_linked_entry_t : private not_copyable_t
   doubly_linked_entry_t<T, Tag> *m_prev{ nullptr };
   doubly_linked_entry_t<T, Tag> *m_next{ nullptr };
 
-  doubly_linked_entry_t (doubly_linked_entry_t &&rhs)
+  doubly_linked_entry_t (doubly_linked_entry_t &&rhs) noexcept
   {
     m_next = rhs.m_next;
     m_prev = rhs.m_prev;
@@ -497,7 +497,7 @@ struct doubly_linked_entry_t : private not_copyable_t
     m_prev->n_next = this;
     rhs.m_next = rhs.m_prev = nullptr;
   }
-  doubly_linked_entry_t &operator= (doubly_linked_entry_t &&rhs)
+  doubly_linked_entry_t &operator= (doubly_linked_entry_t &&rhs) noexcept
   {
     m_next = rhs.m_next;
     m_prev = rhs.m_prev;
@@ -577,7 +577,7 @@ public:
     m_head.m_prev = &m_head;
     m_head.m_next = &m_head;
   }
-  doubly_linked_list_t (doubly_linked_list_t &&rhs)
+  doubly_linked_list_t (doubly_linked_list_t &&rhs) noexcept
   {
     if (rhs.empty ())
       {
@@ -593,7 +593,7 @@ public:
       }
   }
 
-  doubly_linked_list_t &operator= (doubly_linked_list_t &&rhs)
+  doubly_linked_list_t &operator= (doubly_linked_list_t &&rhs) noexcept
   {
     if (rhs.empty ())
       {

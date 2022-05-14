@@ -100,12 +100,6 @@ public:
     m_size.emplace (m_bytes.size ());
   }
 
-  instruction_t (const instruction_t &instruction) = default;
-  instruction_t (instruction_t &&instruction) = default;
-
-  instruction_t &operator= (const instruction_t &instruction) = default;
-  instruction_t &operator= (instruction_t &&instruction) = default;
-
   /* The number of bytes reserved in the instruction bytes storage.  Not all
      bytes in the storage belong to the instruction, the instruction could have
      been created from memory for the largest instruction byte size the
