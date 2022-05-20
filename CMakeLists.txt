@@ -22,6 +22,7 @@ cmake_minimum_required(VERSION 3.8)
 
 project(amd-dbgapi VERSION 0.65.3)
 
+include(GNUInstallDirs)
 # Convert the project's name to uppercase and replace '-' with '_'.
 string(TOUPPER "${PROJECT_NAME}" AMD_DBGAPI_NAME)
 string(REPLACE "-" "_" AMD_DBGAPI_NAME ${AMD_DBGAPI_NAME})
@@ -165,7 +166,7 @@ target_link_libraries(amd-dbgapi
 
 set(AMD_DBGAPI_CONFIG_NAME amd-dbgapi-config.cmake)
 set(AMD_DBGAPI_TARGETS_NAME amd-dbgapi-targets.cmake)
-set(AMD_DBGAPI_PACKAGE_PREFIX lib/cmake/amd-dbgapi)
+set(AMD_DBGAPI_PACKAGE_PREFIX ${CMAKE_INSTALL_LIBDIR}/cmake/amd-dbgapi)
 
 # Generate the build-tree package.
 set(AMD_DBGAPI_PREFIX_CODE)
@@ -179,19 +180,19 @@ configure_file("cmake/${AMD_DBGAPI_CONFIG_NAME}.in"
 
 install(TARGETS amd-dbgapi
   EXPORT amd-dbgapi-export
-  DESTINATION lib)
+  DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 install(FILES
   "${CMAKE_CURRENT_BINARY_DIR}/include/amd-dbgapi/amd-dbgapi.h"
-  DESTINATION include/amd-dbgapi)
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/amd-dbgapi)
 
 install (FILES
   "${CMAKE_CURRENT_BINARY_DIR}/share/pkgconfig/amd-dbgapi.pc"
-  DESTINATION share/pkgconfig)
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/pkgconfig)
 
 install(FILES
   "LICENSE.txt"
-  DESTINATION share/doc/amd-dbgapi)
+  DESTINATION ${CMAKE_INSTALL_DOCDIR})
 
 # Generate the install-tree package.
 set(AMD_DBGAPI_PREFIX_CODE "
@@ -303,13 +304,13 @@ if(DOXYGEN_FOUND)
 
   install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/doc/latex/refman.pdf"
-    DESTINATION share/doc/amd-dbgapi
+    DESTINATION ${CMAKE_INSTALL_DOCDIR}
     RENAME "amd-dbgapi.pdf"
     OPTIONAL)
 
   install(DIRECTORY
     "${CMAKE_CURRENT_BINARY_DIR}/doc/html/"
-    DESTINATION share/html/amd-dbgapi
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/html/amd-dbgapi
     OPTIONAL)
 
 endif()
