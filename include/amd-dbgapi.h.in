@@ -581,6 +581,12 @@ extern "C" {
  */
 #define AMD_DBGAPI_VERSION_0_70
 
+/**
+ * The function was introduced in version 0.72 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.72"``.
+ */
+#define AMD_DBGAPI_VERSION_0_72
+
 /** @} */
 
 /** \ingroup callbacks_group
@@ -1098,7 +1104,7 @@ amd_dbgapi_get_build_name (void) AMD_DBGAPI_VERSION_0_54;
  * error.  The library remains uninitialized.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_initialize (
-    amd_dbgapi_callbacks_t *callbacks) AMD_DBGAPI_VERSION_0_54;
+    amd_dbgapi_callbacks_t *callbacks) AMD_DBGAPI_VERSION_0_72;
 
 /**
  * Finalize the library.
@@ -7130,6 +7136,48 @@ struct amd_dbgapi_callbacks_s
   amd_dbgapi_status_t (*remove_breakpoint) (
       amd_dbgapi_client_process_id_t client_process_id,
       amd_dbgapi_breakpoint_id_t breakpoint_id);
+
+  /**
+   * Uncached global memory transfer.
+   *
+   * \p client_process_id is the client handle of the process for which the
+   * memory transfer is being requested.
+   *
+   * \p global_address is the global address space address of the start of
+   * the memory transfer being requested.
+   *
+   * \p value_size is the number of bytes of the memory transfer being
+   * requested.
+   *
+   * \p read_buffer if not NULL then a read transfer is being requested. On
+   * return, contains the read bytes and \p value_size is set to the number of
+   * bytes actually read.
+   *
+   * \p write_buffer if not NULL then a write transfer is being requested.
+   * Contains the bytes to be written. On return \p value_size is set to the
+   * number of bytes actually written.
+   *
+   * Return ::AMD_DBGAPI_STATUS_SUCCESS if successful.
+   *
+   * Return ::AMD_DBGAPI_STATUS_ERROR_INVALID_CLIENT_PROCESS_ID if the
+   * \p client_process_id handle is invalid.
+   *
+   * Return ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY if not
+   * only one of read_buffer and \p write_puffer are NULL.
+   *
+   * Return ::AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED if the \p
+   * client_process_id handle is associated with a native operating system
+   * process that has already exited.
+   *
+   * Return ::AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS if the input \p value_size
+   * was greater than 0 and no bytes were successfully transferred.  The output
+   * \p value_size is set to 0.  \p read_buffer and write_buffer are unaltered.
+   */
+  amd_dbgapi_status_t (*xfer_global_memory) (
+      amd_dbgapi_client_process_id_t client_process_id,
+      amd_dbgapi_global_address_t global_address,
+      amd_dbgapi_size_t *value_size, void *read_buffer,
+      const void *write_buffer);
 
   /**
    * Report a log message.

@@ -23,7 +23,6 @@ global: amd_dbgapi_address_is_in_address_class;
         amd_dbgapi_get_build_name;
         amd_dbgapi_get_status_string;
         amd_dbgapi_get_version;
-        amd_dbgapi_initialize;
         amd_dbgapi_process_agent_list;
         amd_dbgapi_process_code_object_list;
         amd_dbgapi_process_detach;
@@ -87,5 +86,6 @@ global: amd_dbgapi_queue_get_info;
 global: amd_dbgapi_register_get_info;
 } @AMD_DBGAPI_NAME@_0.68;
 
-@AMD_DBGAPI_NAME@_0.71 {
+@AMD_DBGAPI_NAME@_0.72 {
+global: amd_dbgapi_initialize;
 } @AMD_DBGAPI_NAME@_0.70;

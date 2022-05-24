@@ -70,6 +70,10 @@ process_t::process_t (amd_dbgapi_process_id_t process_id,
         amd_dbgapi_status_t status = os_driver ().xfer_global_memory_partial (
           address, read, write, &size);
 
+        if (status == AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS)
+          status = detail::process_callbacks.xfer_global_memory (
+            m_client_process_id, address, &size, read, write);
+
         if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
           throw process_exited_exception_t (*this);
         else if (status == AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS)
