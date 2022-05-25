@@ -572,7 +572,8 @@ memory_cache_t::write_back (amd_dbgapi_global_address_t address,
       /* It is more efficient to do a single large memory access, so try to
          group as many contiguous cache lines as possible.  */
       auto next = std::next (it);
-      while (next->second.m_dirty
+      while (next != limit
+             && next->second.m_dirty
              && next->first == (cache_line_address + request_size))
         {
           request_size += cache_line_size;
