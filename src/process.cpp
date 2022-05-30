@@ -336,9 +336,9 @@ process_t::set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode)
 
   amd_dbgapi_status_t status
     = os_driver ().set_wave_launch_mode (wave_launch_mode);
-  if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-    throw process_exited_exception_t (*this);
-  else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+
+  if (status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED
+      && status != AMD_DBGAPI_STATUS_SUCCESS)
     fatal_error ("os_driver_t::set_wave_launch_mode (%s) failed (%s)",
                  to_cstring (wave_launch_mode), to_cstring (status));
 
@@ -399,9 +399,8 @@ process_t::set_wave_launch_trap_override (os_wave_launch_trap_mask_t value,
   amd_dbgapi_status_t status = os_driver ().set_wave_launch_trap_override (
     os_wave_launch_trap_override_t::apply, value, mask);
 
-  if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-    throw process_exited_exception_t (*this);
-  else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+  if (status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED
+      && status != AMD_DBGAPI_STATUS_SUCCESS)
     fatal_error ("os_driver::set_wave_launch_trap_override failed (%s)",
                  to_cstring (status));
 }
@@ -423,9 +422,8 @@ process_t::set_precise_memory (bool enabled)
 
   amd_dbgapi_status_t status = os_driver ().set_precise_memory (enabled);
 
-  if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-    throw process_exited_exception_t (*this);
-  else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+  if (status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED
+      && status != AMD_DBGAPI_STATUS_SUCCESS)
     fatal_error ("os_driver::set_precise_memory failed (%s)",
                  to_cstring (status));
 }
@@ -1929,16 +1927,7 @@ amd_dbgapi_process_set_progress (amd_dbgapi_process_id_t process_id,
       }
 
     for (auto &&process : processes)
-      {
-        try
-          {
-            process->set_forward_progress_needed (forward_progress_needed);
-          }
-        catch (const process_exited_exception_t &)
-          {
-            /* The process has exited, forward progress is irrelevant.  */
-          }
-      }
+      process->set_forward_progress_needed (forward_progress_needed);
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
@@ -1961,23 +1950,16 @@ amd_dbgapi_process_set_wave_creation (amd_dbgapi_process_id_t process_id,
     if (process == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
-    try
+    switch (creation)
       {
-        switch (creation)
-          {
-          case AMD_DBGAPI_WAVE_CREATION_NORMAL:
-            process->set_wave_launch_mode (os_wave_launch_mode_t::normal);
-            break;
-          case AMD_DBGAPI_WAVE_CREATION_STOP:
-            process->set_wave_launch_mode (os_wave_launch_mode_t::halt);
-            break;
-          default:
-            THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
-          }
-      }
-    catch (const process_exited_exception_t &)
-      {
-        /* The process has exited, the wave launch mode is irrelevant.  */
+      case AMD_DBGAPI_WAVE_CREATION_NORMAL:
+        process->set_wave_launch_mode (os_wave_launch_mode_t::normal);
+        break;
+      case AMD_DBGAPI_WAVE_CREATION_STOP:
+        process->set_wave_launch_mode (os_wave_launch_mode_t::halt);
+        break;
+      default:
+        THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
       }
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,

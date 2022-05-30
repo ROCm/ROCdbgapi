@@ -427,13 +427,21 @@ aql_queue_t::~aql_queue_t ()
      If the process is being detached, then there's really no need to discard
      since the process will be destructed and the cache destructed.  */
 
-  /* Need to write back only because discard requires no dirty data exists.  */
-  process.memory_cache ().write_back (
-    m_os_queue_info.ctx_save_restore_address,
-    m_os_queue_info.ctx_save_restore_area_size);
+  try
+    {
+      /* Need to write back only because discard requires no dirty data exists.
+       */
+      process.memory_cache ().write_back (
+        m_os_queue_info.ctx_save_restore_address,
+        m_os_queue_info.ctx_save_restore_area_size);
 
-  process.memory_cache ().discard (m_os_queue_info.ctx_save_restore_address,
-                                   m_os_queue_info.ctx_save_restore_area_size);
+      process.memory_cache ().discard (
+        m_os_queue_info.ctx_save_restore_address,
+        m_os_queue_info.ctx_save_restore_area_size);
+    }
+  catch (const process_exited_exception_t &)
+    {
+    }
 }
 
 compute_queue_t::displaced_instruction_ptr_t
@@ -1054,10 +1062,19 @@ queue_t::set_state (state_t state)
   dbgapi_assert (m_state != state_t::invalid
                  && "an invalid queue cannot change state");
 
-  std::swap (m_state, state);
+  m_state = state;
 
-  if (!is_all_stopped ())
-    queue_state_changed ();
+  /* queue_t::set_state should not throw exceptions, if the process has exited,
+     mark the queue as invalid.  */
+  try
+    {
+      if (!is_all_stopped ())
+        queue_state_changed ();
+    }
+  catch (const process_exited_exception_t &)
+    {
+      m_state = state_t::invalid;
+    }
 
   if (m_state == state_t::invalid)
     log_info ("invalidated %s", to_cstring (id ()));
