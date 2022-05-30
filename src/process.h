@@ -114,8 +114,6 @@ private:
 
   pipe_t m_client_notifier_pipe{};
 
-  std::unordered_map<os_watch_id_t, const watchpoint_t *> m_watchpoint_map{};
-
   std::queue<event_t *> m_pending_events{};
 
   std::tuple<
@@ -255,9 +253,6 @@ public:
 
   size_t watchpoint_count () const;
   amd_dbgapi_watchpoint_share_kind_t watchpoint_shared_kind () const;
-  void insert_watchpoint (const watchpoint_t &watchpoint);
-  void remove_watchpoint (const watchpoint_t &watchpoint);
-  const watchpoint_t *find_watchpoint (os_watch_id_t os_watch_id) const;
 
   static process_t &
   create_process (amd_dbgapi_client_process_id_t client_process_id)

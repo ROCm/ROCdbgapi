@@ -23,8 +23,10 @@
 
 #include "amd-dbgapi.h"
 #include "handle_object.h"
+#include "os_driver.h"
 
 #include <cstddef>
+#include <optional>
 
 namespace amd::dbgapi
 {
@@ -42,6 +44,8 @@ private:
 
   amd_dbgapi_global_address_t m_address;
   amd_dbgapi_size_t m_size;
+
+  std::optional<os_watch_id_t> m_os_watch_id;
 
   process_t &m_process;
 
@@ -62,6 +66,15 @@ public:
   amd_dbgapi_size_t requested_size () const { return m_requested_size; }
 
   amd_dbgapi_watchpoint_kind_t kind () const { return m_kind; }
+
+  os_watch_id_t os_watch_id () const
+  {
+    dbgapi_assert (m_os_watch_id.has_value () && "watchpoint is not inserted");
+    return *m_os_watch_id;
+  }
+
+  void insert ();
+  void remove ();
 
   void get_info (amd_dbgapi_watchpoint_info_t query, size_t value_size,
                  void *value) const;
