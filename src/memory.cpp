@@ -572,8 +572,7 @@ memory_cache_t::write_back (amd_dbgapi_global_address_t address,
       /* It is more efficient to do a single large memory access, so try to
          group as many contiguous cache lines as possible.  */
       auto next = std::next (it);
-      while (next != limit
-             && next->second.m_dirty
+      while (next != limit && next->second.m_dirty
              && next->first == (cache_line_address + request_size))
         {
           request_size += cache_line_size;
@@ -1155,36 +1154,47 @@ xfer_memory (amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
   else if (lane_id != AMD_DBGAPI_LANE_NONE)
     THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID);
 
-  switch (address_space->address_dependency (segment_address))
+  try
     {
-    case AMD_DBGAPI_SEGMENT_ADDRESS_DEPENDENCE_PROCESS:
-      *value_size = process->xfer_segment_memory (
-        *address_space, segment_address, read, write, *value_size);
-      break;
+      switch (address_space->address_dependency (segment_address))
+        {
+        case AMD_DBGAPI_SEGMENT_ADDRESS_DEPENDENCE_PROCESS:
+          *value_size = process->xfer_segment_memory (
+            *address_space, segment_address, read, write, *value_size);
+          break;
 
-    case AMD_DBGAPI_SEGMENT_ADDRESS_DEPENDENCE_WORKGROUP:
-      if (wave == nullptr)
-        THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
+        case AMD_DBGAPI_SEGMENT_ADDRESS_DEPENDENCE_WORKGROUP:
+          if (wave == nullptr)
+            THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
-      *value_size = wave->workgroup ().xfer_segment_memory (
-        *address_space, segment_address, read, write, *value_size);
-      break;
+          *value_size = wave->workgroup ().xfer_segment_memory (
+            *address_space, segment_address, read, write, *value_size);
+          break;
 
-    case AMD_DBGAPI_SEGMENT_ADDRESS_DEPENDENCE_LANE:
-      if (lane_id == AMD_DBGAPI_LANE_NONE)
-        THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID);
-      [[fallthrough]];
+        case AMD_DBGAPI_SEGMENT_ADDRESS_DEPENDENCE_LANE:
+          if (lane_id == AMD_DBGAPI_LANE_NONE)
+            THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_LANE_ID);
+          [[fallthrough]];
 
-    case AMD_DBGAPI_SEGMENT_ADDRESS_DEPENDENCE_WAVE:
-      if (wave == nullptr)
-        THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
+        case AMD_DBGAPI_SEGMENT_ADDRESS_DEPENDENCE_WAVE:
+          if (wave == nullptr)
+            THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
-      *value_size = wave->xfer_segment_memory (
-        *address_space, segment_address, lane_id, read, write, *value_size);
-      break;
+          *value_size
+            = wave->xfer_segment_memory (*address_space, segment_address,
+                                         lane_id, read, write, *value_size);
+          break;
 
-    default:
-      dbgapi_assert_not_reached ("unsupported address dependency");
+        default:
+          dbgapi_assert_not_reached ("unsupported address dependency");
+        }
+    }
+  catch (const memory_access_error_t &)
+    {
+      /* The API specification requires the value_size to return 0 if a memory
+         access error is reported.  */
+      *value_size = 0;
+      throw;
     }
 }
 
