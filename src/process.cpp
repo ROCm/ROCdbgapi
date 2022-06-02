@@ -331,7 +331,11 @@ process_t::set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode)
   auto set_wave_launch_mode = utils::make_scope_success (
     [=] () { m_wave_launch_mode = wave_launch_mode; });
 
-  if (!os_driver ().is_debug_enabled ())
+  /* If this is called before the runtime is loaded (or after the runtime is
+     unloaded), only record the setting in the process_t instance. The actual
+     change to the configuration will be done when the runtime is loaded and
+     the debug mode is activated.  */
+  if (m_runtime_state != AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS)
     return;
 
   amd_dbgapi_status_t status
@@ -393,7 +397,11 @@ process_t::set_wave_launch_trap_override (os_wave_launch_trap_mask_t value,
   auto set_wave_trap_mask = utils::make_scope_success (
     [=] () { m_wave_trap_mask = wave_trap_mask; });
 
-  if (!os_driver ().is_debug_enabled ())
+  /* If this is called before the runtime is loaded (or after the runtime is
+     unloaded), only record the setting in the process_t instance. The actual
+     change to the configuration will be done when the runtime is loaded and
+     the debug mode is activated.  */
+  if (m_runtime_state != AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS)
     return;
 
   amd_dbgapi_status_t status = os_driver ().set_wave_launch_trap_override (
@@ -417,7 +425,11 @@ process_t::set_precise_memory (bool enabled)
   auto set_precise_memory
     = utils::make_scope_success ([=] () { m_precise_memory = enabled; });
 
-  if (!os_driver ().is_debug_enabled ())
+  /* If this is called before the runtime is loaded (or after the runtime is
+     unloaded), only record the setting in the process_t instance. The actual
+     change to the configuration will be done when the runtime is loaded and
+     the debug mode is activated.  */
+  if (m_runtime_state != AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS)
     return;
 
   amd_dbgapi_status_t status = os_driver ().set_precise_memory (enabled);
