@@ -490,22 +490,34 @@ kfd_driver_t::check_version () const
 {
   dbgapi_assert (is_valid ());
 
+  using version_t = std::pair<uint32_t, uint32_t>;
+  constexpr version_t KFD_IOCTL_VERSION_BEGIN{ 1, 6 };
+  constexpr version_t KFD_IOCTL_VERSION_END{ 2, 0 };
+
   /* Check that the KFD major == IOCTL major, and KFD minor >= IOCTL minor.  */
   kfd_ioctl_get_version_args get_version_args{};
-  if (::ioctl (*s_kfd_fd, AMDKFD_IOC_GET_VERSION, &get_version_args)
-      || get_version_args.major_version != KFD_IOCTL_MAJOR_VERSION
-      || get_version_args.minor_version < KFD_IOCTL_MINOR_VERSION)
+  if (::ioctl (*s_kfd_fd, AMDKFD_IOC_GET_VERSION, &get_version_args))
+    fatal_error ("AMDKFD_IOC_GET_VERSION failed");
+
+  const version_t kfd_ioctl_version{ get_version_args.major_version,
+                                     get_version_args.minor_version };
+  if (kfd_ioctl_version < KFD_IOCTL_VERSION_BEGIN
+      || kfd_ioctl_version >= KFD_IOCTL_VERSION_END)
     {
-      warning ("AMD GPU driver's version %d.%d not supported "
-               "(version %d.x where x >= %d required)",
-               get_version_args.major_version, get_version_args.minor_version,
-               KFD_IOCTL_MAJOR_VERSION, KFD_IOCTL_MINOR_VERSION);
+      warning ("AMD GPU driver's version %u.%u not supported "
+               "(version must be >= %u.%u and < %u.%u)",
+               kfd_ioctl_version.first, kfd_ioctl_version.second,
+               KFD_IOCTL_VERSION_BEGIN.first, KFD_IOCTL_VERSION_BEGIN.second,
+               KFD_IOCTL_VERSION_END.first, KFD_IOCTL_VERSION_END.second);
       return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
     }
 
   /* KFD_IOC_DBG_TRAP_GET_VERSION (#7)
      data1: [out] major version
      data2: [out] minor version */
+
+  constexpr version_t KFD_DBG_TRAP_VERSION_BEGIN{ 10, 3 };
+  constexpr version_t KFD_DBG_TRAP_VERSION_END{ 12, 0 };
 
   kfd_ioctl_dbg_trap_args dbg_trap_args{};
   dbg_trap_args.pid = static_cast<uint32_t> (getpid ());
@@ -514,23 +526,22 @@ kfd_driver_t::check_version () const
   if (::ioctl (*s_kfd_fd, AMDKFD_IOC_DBG_TRAP, &dbg_trap_args))
     fatal_error ("KFD_IOC_DBG_TRAP_GET_VERSION failed");
 
-  int32_t major = dbg_trap_args.data1;
-  int32_t minor = dbg_trap_args.data2;
-
-  /* Check that the KFD dbg trap major == IOCTL dbg trap major,
-     and KFD dbg trap minor >= IOCTL dbg trap minor.  */
-  if (major != KFD_IOCTL_DBG_MAJOR_VERSION
-      || minor < KFD_IOCTL_DBG_MINOR_VERSION)
+  const version_t kfd_dbg_trap_version{ dbg_trap_args.data1,
+                                        dbg_trap_args.data2 };
+  if (kfd_dbg_trap_version < KFD_DBG_TRAP_VERSION_BEGIN
+      || kfd_dbg_trap_version >= KFD_DBG_TRAP_VERSION_END)
     {
-      warning ("AMD GPU driver's debug support version %d.%d not supported "
-               "(version %d.x where x >= %d required)",
-               major, minor, KFD_IOCTL_DBG_MAJOR_VERSION,
-               KFD_IOCTL_DBG_MINOR_VERSION);
+      warning (
+        "AMD GPU driver's debug support version %u.%u not supported "
+        "(version must be >= %u.%u and < %u.%u)",
+        kfd_dbg_trap_version.first, kfd_dbg_trap_version.second,
+        KFD_DBG_TRAP_VERSION_BEGIN.first, KFD_DBG_TRAP_VERSION_BEGIN.second,
+        KFD_DBG_TRAP_VERSION_END.first, KFD_DBG_TRAP_VERSION_END.second);
       return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
     }
 
-  log_info ("using AMD GPU driver's debug support version %d.%d", major,
-            minor);
+  log_info ("using AMD GPU driver's debug support version %d.%d",
+            kfd_dbg_trap_version.first, kfd_dbg_trap_version.second);
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
