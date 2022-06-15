@@ -742,7 +742,7 @@ aql_queue_t::update_waves ()
        changed since the queue was last suspended (or the wave is new).  */
     wave->update (std::move (cwsr_record));
 
-    if (wave->state () == AMD_DBGAPI_WAVE_STATE_RUN)
+    if (wave->state () != AMD_DBGAPI_WAVE_STATE_STOP)
       ++*m_waves_running;
 
     /* Hide new waves halted at launch until the process' wave creation mode is
