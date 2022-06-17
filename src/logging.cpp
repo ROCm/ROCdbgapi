@@ -56,7 +56,8 @@ vlog (amd_dbgapi_log_level_t level, const char *format, va_list va)
 
   message.append (string_vprintf (format, va));
 
-  (*detail::process_callbacks.log_message) (level, message.c_str ());
+  if (detail::process_callbacks.log_message != nullptr)
+    (*detail::process_callbacks.log_message) (level, message.c_str ());
 }
 
 namespace detail

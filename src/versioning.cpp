@@ -42,7 +42,7 @@ amd_dbgapi_get_build_name ()
 void AMD_DBGAPI
 amd_dbgapi_get_version (uint32_t *major, uint32_t *minor, uint32_t *patch)
 {
-  TRACE_BEGIN (major, minor, patch);
+  TRACE_BEGIN (param_in (major), param_in (minor), param_in (patch));
 
   if (major != nullptr)
     *major = AMD_DBGAPI_VERSION_MAJOR;
@@ -51,14 +51,15 @@ amd_dbgapi_get_version (uint32_t *major, uint32_t *minor, uint32_t *patch)
   if (patch != nullptr)
     *patch = AMD_DBGAPI_VERSION_PATCH;
 
-  TRACE_END (make_ref (major), make_ref (minor), make_ref (patch));
+  TRACE_END (make_ref (param_out (major)), make_ref (param_out (minor)),
+             make_ref (param_out (patch)));
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
 amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
                               const char **status_string)
 {
-  TRACE_BEGIN (status, status_string);
+  TRACE_BEGIN (param_in (status), param_in (status_string));
   TRY
   {
     const char *string = nullptr;
@@ -220,5 +221,5 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
     *status_string = string;
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
-  TRACE_END (make_ref (status_string));
+  TRACE_END (make_ref (param_out (status_string)));
 }
