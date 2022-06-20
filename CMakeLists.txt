@@ -20,11 +20,11 @@
 
 cmake_minimum_required(VERSION 3.8)
 
-project(AMD_DBGAPI VERSION 0.65.3)
+project(amd-dbgapi VERSION 0.65.3)
 
-# The project command does not set the <PROJECT-NAME>_NAME variable so must set
-# it explicitly.
-set(AMD_DBGAPI_NAME "${PROJECT_NAME}")
+# Convert the project's name to uppercase and replace '-' with '_'.
+string(TOUPPER "${PROJECT_NAME}" AMD_DBGAPI_NAME)
+string(REPLACE "-" "_" AMD_DBGAPI_NAME ${AMD_DBGAPI_NAME})
 
 string(TOUPPER "${CMAKE_BUILD_TYPE}" uppercase_CMAKE_BUILD_TYPE)
 
@@ -87,8 +87,8 @@ set_target_properties(amd-dbgapi PROPERTIES
   OUTPUT_NAME "rocm-dbgapi"
   LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib
   DEFINE_SYMBOL "AMD_DBGAPI_EXPORTS"
-  VERSION ${AMD_DBGAPI_VERSION}
-  SOVERSION ${AMD_DBGAPI_VERSION_MAJOR})
+  VERSION ${PROJECT_VERSION}
+  SOVERSION ${PROJECT_VERSION_MAJOR})
 
 target_compile_options(amd-dbgapi PRIVATE
   -fno-rtti -Werror -Wall -Wextra -Wshadow -Wno-attributes) #-pedantic)
@@ -153,7 +153,7 @@ endif()
 target_link_libraries(amd-dbgapi PRIVATE amd_comgr Threads::Threads ${CMAKE_DL_LIBS})
 
 set_source_files_properties(src/versioning.cpp src/initialization.cpp PROPERTIES
-  COMPILE_DEFINITIONS "AMD_DBGAPI_VERSION_PATCH=${AMD_DBGAPI_VERSION_PATCH};AMD_DBGAPI_BUILD_INFO=\"${AMD_DBGAPI_VERSION}-${build_info}\"")
+  COMPILE_DEFINITIONS "AMD_DBGAPI_VERSION_PATCH=${PROJECT_VERSION_PATCH};AMD_DBGAPI_BUILD_INFO=\"${PROJECT_VERSION}-${build_info}\"")
 
 target_include_directories(amd-dbgapi
   PUBLIC
@@ -217,9 +217,9 @@ install(EXPORT amd-dbgapi-export
 # Add packaging directives for amd-dbgapi
 set(CPACK_PACKAGE_NAME rocm-dbgapi)
 set(CPACK_PACKAGE_VENDOR "Advanced Micro Devices, Inc.")
-set(CPACK_PACKAGE_VERSION_MAJOR ${AMD_DBGAPI_VERSION_MAJOR})
-set(CPACK_PACKAGE_VERSION_MINOR ${AMD_DBGAPI_VERSION_MINOR})
-set(CPACK_PACKAGE_VERSION_PATCH ${AMD_DBGAPI_VERSION_PATCH})
+set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
 set(CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}")
 set(CPACK_PACKAGE_CONTACT "ROCm Debugger Support <rocm-gdb.support@amd.com>")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Library to provide AMD GPU debugger API")
