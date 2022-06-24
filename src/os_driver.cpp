@@ -31,11 +31,9 @@
 #include <optional>
 #include <sstream>
 #include <type_traits>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
-#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <string.h>
@@ -603,7 +601,7 @@ kfd_driver_t::check_version () const
      data1: [out] major version
      data2: [out] minor version */
 
-  constexpr version_t KFD_DBG_TRAP_VERSION_BEGIN{ 13, 0 };
+  constexpr version_t KFD_DBG_TRAP_VERSION_BEGIN{ 13, 1 };
   constexpr version_t KFD_DBG_TRAP_VERSION_END{ 14, 0 };
 
   kfd_ioctl_dbg_trap_args dbg_trap_args{};
@@ -676,155 +674,57 @@ kfd_driver_t::agent_snapshot (os_agent_info_t *snapshots,
      memory to hold all the snapshots.  */
   *agent_count = args.data1;
 
-  /* Fill in the missing information from the sysfs topology.  */
-
-  static const std::string sysfs_nodes_path (
-    "/sys/devices/virtual/kfd/kfd/topology/nodes/");
-
-  std::unique_ptr<DIR, void (*) (DIR *)> dirp (
-    opendir (sysfs_nodes_path.c_str ()), [] (DIR *d) { closedir (d); });
-
-  if (!dirp && errno == ENOENT)
+  for (unsigned int i = 0; i < *agent_count; i++)
     {
-      /* The sysfs is not mounted, maybe KFD driver is not installed, or we
-         don't have any GPUs installed.  */
-      return AMD_DBGAPI_STATUS_SUCCESS;
-    }
-  else if (!dirp)
-    fatal_error ("Could not opendir `%s': %s", sysfs_nodes_path.c_str (),
-                 strerror (errno));
+      auto &agent_info = snapshots[i];
+      const kfd_dbg_device_info_entry &entry = kfd_device_infos[i];
 
-  std::unordered_set<os_agent_id_t> processed_os_agent_ids;
-  size_t agents_found = 0;
-  struct dirent *dir;
+      agent_info.os_agent_id = entry.gpu_id;
 
-  while ((dir = readdir (dirp.get ())) != nullptr)
-    {
-      if (dir->d_name == "."s || dir->d_name == ".."s)
-        continue;
-
-      std::string node_path (sysfs_nodes_path + dir->d_name);
-
-      /* Retrieve the GPU ID.  */
-      std::ifstream gpu_id_ifs (node_path + "/gpu_id");
-      if (!gpu_id_ifs.is_open ())
-        fatal_error ("Could not open %s/gpu_id", node_path.c_str ());
-
-      os_agent_id_t gpu_id;
-      gpu_id_ifs >> gpu_id;
-
-      if (gpu_id_ifs.fail () || !gpu_id)
-        /* Skip inaccessible nodes and CPU nodes.  */
-        continue;
-
-      auto it
-        = std::find_if (kfd_device_infos.begin (), kfd_device_infos.end (),
-                        [&] (const auto &device_info)
-                        { return device_info.gpu_id == gpu_id; });
-      if (it == kfd_device_infos.end ())
-        /* This sysfs topology node was not reported by the device snapshot
-           ioctl, skip it.  */
-        continue;
-
-      if (!processed_os_agent_ids.emplace (gpu_id).second)
-        fatal_error (
-          "More than one os_agent_id %d reported in the sysfs topology",
-          gpu_id);
-
-      auto &agent_info = snapshots[agents_found++];
-      agent_info.os_agent_id = gpu_id;
-
-      /* Fill in the apertures for this agent.  */
-
-      dbgapi_assert (it->lds_base && it->scratch_base);
-      agent_info.local_address_aperture_base = it->lds_base;
-      agent_info.local_address_aperture_limit = it->lds_limit;
-      agent_info.private_address_aperture_base = it->scratch_base;
-      agent_info.private_address_aperture_limit = it->scratch_limit;
-
-      /* Retrieve the GPU node properties.  */
-
-      std::ifstream props_ifs (node_path + "/properties");
-      if (!props_ifs.is_open ())
-        fatal_error ("Could not open %s/properties", node_path.c_str ());
-
-      size_t array_count{}, arrays_per_engine{};
-
-      std::string prop_name;
-      uint64_t prop_value;
-      while (props_ifs >> prop_name >> prop_value)
-        {
-          if (prop_name == "domain")
-            agent_info.domain = static_cast<uint16_t> (prop_value);
-          else if (prop_name == "location_id")
-            agent_info.location_id = static_cast<uint16_t> (prop_value);
-          else if (prop_name == "simd_count")
-            agent_info.simd_count = static_cast<size_t> (prop_value);
-          else if (prop_name == "max_waves_per_simd")
-            agent_info.max_waves_per_simd = static_cast<size_t> (prop_value);
-          else if (prop_name == "array_count")
-            array_count = static_cast<size_t> (prop_value);
-          else if (prop_name == "simd_arrays_per_engine")
-            arrays_per_engine = static_cast<size_t> (prop_value);
-          else if (prop_name == "vendor_id")
-            agent_info.vendor_id = static_cast<uint32_t> (prop_value);
-          else if (prop_name == "device_id")
-            agent_info.device_id = static_cast<uint32_t> (prop_value);
-          else if (prop_name == "fw_version")
-            agent_info.fw_version = static_cast<uint16_t> (prop_value);
-          else if (prop_name == "gfx_target_version")
-            {
-              auto version = static_cast<uint32_t> (prop_value);
-              agent_info.gfxip
-                = { version / 10000, (version / 100) % 100, version % 100 };
-            }
-          else if (prop_name == "capability")
-            {
-              auto capability = static_cast<uint32_t> (prop_value);
-
-              agent_info.debugging_supported
-                = capability & HSA_CAP_TRAP_DEBUG_SUPPORT;
-              agent_info.address_watch_supported
-                = capability & HSA_CAP_WATCH_POINTS_SUPPORTED;
-              agent_info.address_watch_register_count
-                /* WATCH_POINTS_TOTALBITS is the log2 of watchpoint_count.  */
-                = 1 << ((capability & HSA_CAP_WATCH_POINTS_TOTALBITS_MASK)
-                        >> HSA_CAP_WATCH_POINTS_TOTALBITS_SHIFT);
-              agent_info.precise_memory_supported
-                = capability
-                  & HSA_CAP_TRAP_DEBUG_PRECISE_MEMORY_OPERATIONS_SUPPORTED;
-              agent_info.firmware_supported
-                = capability & HSA_CAP_TRAP_DEBUG_FIRMWARE_SUPPORTED;
-            }
-          else if (prop_name == "debug_prop")
-            {
-              auto debug_properties = static_cast<uint32_t> (prop_value);
-
-              agent_info.address_watch_mask_bits = utils::bit_mask (
-                (debug_properties & HSA_DBG_WATCH_ADDR_MASK_LO_BIT_MASK)
-                  >> HSA_DBG_WATCH_ADDR_MASK_LO_BIT_SHIFT,
-                (debug_properties & HSA_DBG_WATCH_ADDR_MASK_HI_BIT_MASK)
-                  >> HSA_DBG_WATCH_ADDR_MASK_HI_BIT_SHIFT);
-              agent_info.ttmps_always_initialized
-                = debug_properties & HSA_DBG_DISPATCH_INFO_ALWAYS_VALID;
-              agent_info.watchpoint_exclusive
-                = debug_properties & HSA_DBG_WATCHPOINTS_EXCLUSIVE;
-            }
-        }
+      agent_info.local_address_aperture_base = entry.lds_base;
+      agent_info.local_address_aperture_limit = entry.lds_limit;
+      agent_info.private_address_aperture_base = entry.scratch_base;
+      agent_info.private_address_aperture_limit = entry.scratch_limit;
+      agent_info.location_id = entry.location_id;
+      agent_info.simd_count = entry.simd_count;
+      agent_info.max_waves_per_simd = entry.max_waves_per_simd;
+      agent_info.vendor_id = entry.vendor_id;
+      agent_info.device_id = entry.device_id;
+      agent_info.fw_version = entry.fw_version;
+      agent_info.gfxip = { entry.gfx_target_version / 10000,
+                           (entry.gfx_target_version / 100) % 100,
+                           entry.gfx_target_version % 100 };
+      agent_info.debugging_supported
+        = entry.capability & HSA_CAP_TRAP_DEBUG_SUPPORT;
+      agent_info.address_watch_supported
+        = entry.capability & HSA_CAP_WATCH_POINTS_SUPPORTED;
+      agent_info.address_watch_register_count
+        = 1 << ((entry.capability & HSA_CAP_WATCH_POINTS_TOTALBITS_MASK)
+                >> HSA_CAP_WATCH_POINTS_TOTALBITS_SHIFT);
+      agent_info.precise_memory_supported
+        = (entry.capability
+           & HSA_CAP_TRAP_DEBUG_PRECISE_MEMORY_OPERATIONS_SUPPORTED);
+      agent_info.firmware_supported
+        = entry.capability & HSA_CAP_TRAP_DEBUG_FIRMWARE_SUPPORTED;
+      agent_info.address_watch_mask_bits = utils::bit_mask (
+        ((entry.debug_prop & HSA_DBG_WATCH_ADDR_MASK_LO_BIT_MASK)
+         >> HSA_DBG_WATCH_ADDR_MASK_LO_BIT_SHIFT),
+        ((entry.debug_prop & HSA_DBG_WATCH_ADDR_MASK_HI_BIT_MASK)
+         >> HSA_DBG_WATCH_ADDR_MASK_HI_BIT_SHIFT));
+      agent_info.ttmps_always_initialized
+        = entry.debug_prop & HSA_DBG_DISPATCH_INFO_ALWAYS_VALID;
+      agent_info.watchpoint_exclusive
+        = entry.debug_prop & HSA_DBG_WATCHPOINTS_EXCLUSIVE;
 
       if (!agent_info.simd_count || !agent_info.max_waves_per_simd
-          || !array_count || !arrays_per_engine)
+          || !entry.array_count || !entry.simd_arrays_per_engine)
         fatal_error ("Invalid node properties");
 
-      agent_info.shader_engine_count = array_count / arrays_per_engine;
+      agent_info.shader_engine_count
+        = entry.array_count / entry.simd_arrays_per_engine;
       agent_info.name
         = pci_device_name (agent_info.vendor_id, agent_info.device_id);
     }
-
-  /* Make sure we filled the information for all snapshot entries returned by
-     the kfd device snapshot ioctl.  */
-  if (agents_found != std::min (snapshot_count, *agent_count))
-    fatal_error ("not all agents found in the sysfs topology");
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
