@@ -111,8 +111,7 @@ public:
 
   amd_dbgapi_status_t disable_debug () override
   {
-    /* Debug is never enabled.  */
-    return AMD_DBGAPI_STATUS_ERROR;
+    return AMD_DBGAPI_STATUS_SUCCESS;
   }
 
   bool is_debug_enabled () const override { return false; }
@@ -507,6 +506,212 @@ struct kfd_note_header_t
   uint32_t queue_entry_count;
   uint32_t queue_entry_size;
 };
+
+class kfd_core_driver_t final : public kfd_driver_base_t
+{
+public:
+  kfd_core_driver_t (const amd_dbgapi_core_state_data_t &core_state);
+
+  bool is_valid () const override { return m_state != nullptr; }
+
+  kfd_driver_base_t::version_t get_kfd_version () const override final;
+
+  amd_dbgapi_status_t enable_debug (os_exception_mask_t exceptions_reported,
+                                    file_desc_t notifier,
+                                    os_runtime_info_t *runtime_info) override;
+
+  amd_dbgapi_status_t disable_debug () override
+  {
+    return AMD_DBGAPI_STATUS_SUCCESS;
+  }
+
+  bool is_debug_enabled () const override;
+
+protected:
+  virtual amd_dbgapi_status_t
+  kfd_agent_snapshot (kfd_dbg_device_info_entry *agents, size_t snapshot_count,
+                      size_t *agent_count,
+                      os_exception_mask_t exceptions_cleared) const override;
+
+  virtual amd_dbgapi_status_t
+  kfd_queue_snapshot (kfd_queue_snapshot_entry *queues, size_t snapshot_count,
+                      size_t *queue_count,
+                      os_exception_mask_t exceptions_cleared) const override;
+
+private:
+  /* Keep some internal state so we can simulate what KFD would have done.  */
+  struct kfd_simulated_state_t
+  {
+    kfd_driver_base_t::version_t version;
+    kfd_runtime_info runtime_info;
+    std::vector<kfd_dbg_device_info_entry> agents;
+    std::vector<kfd_queue_snapshot_entry> queues;
+  };
+
+  std::unique_ptr<kfd_simulated_state_t> m_state;
+};
+
+kfd_driver_base_t::version_t
+kfd_core_driver_t::get_kfd_version () const
+{
+  return m_state->version;
+}
+
+namespace
+{
+class note_reader
+{
+public:
+  explicit note_reader (const amd_dbgapi_core_state_data_t &core_state)
+    : head{ static_cast<const std::byte *> (core_state.data) }, end{
+        head + core_state.size
+      }
+  {
+  }
+
+  template <typename T> T read ()
+  {
+    T val{};
+    read (val);
+    return val;
+  }
+
+  template <typename T> void read (T &val) { read (val, sizeof (T)); }
+
+  /* Read up to SIZE bytes into val from the note.  */
+  template <typename T> void read (T &val, size_t size)
+  {
+    if (!m_error && head + size <= end)
+      {
+        std::memcpy (&val, head, std::min (size, sizeof (T)));
+        head += size;
+      }
+    else
+      {
+        /* The user tried to read more data than available.  */
+        m_error = true;
+      }
+  }
+
+  bool eof () const { return !m_error && head == end; }
+
+private:
+  const std::byte *head;
+  const std::byte *const end;
+  bool m_error{ false };
+};
+};
+
+kfd_core_driver_t::kfd_core_driver_t (
+  const amd_dbgapi_core_state_data_t &core_state)
+  : kfd_driver_base_t (std::nullopt)
+{
+  if (core_state.endianness
+      != (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? AMD_DBGAPI_ENDIAN_LITTLE
+                                                    : AMD_DBGAPI_ENDIAN_BIG))
+    {
+      warning ("Invalid corefile note endianness.");
+      return;
+    }
+
+  note_reader reader{ core_state };
+  [[maybe_unused]] const auto note_version
+    = reader.read<amdgpu_core_note_version_t> ();
+  dbgapi_assert (note_version == amdgpu_core_note_version_t::kfd_note);
+
+  auto header = reader.read<kfd_note_header_t> ();
+
+  auto state = std::make_unique<kfd_simulated_state_t> ();
+  state->version.first = header.kfd_version_major;
+  state->version.second = header.kfd_version_minor;
+
+  if (header.runtime_info_size % 8 != 0 || header.agent_entry_size % 8 != 0
+      || header.queue_entry_size % 8 != 0)
+    {
+      warning ("Invalid alignment in corefile note.");
+      return;
+    }
+
+  state->agents.resize (header.agent_entry_count);
+  state->queues.resize (header.queue_entry_count);
+
+  reader.read (state->runtime_info, header.runtime_info_size);
+  for (auto &agent : state->agents)
+    reader.read (agent, header.agent_entry_size);
+  for (auto &queue : state->queues)
+    reader.read (queue, header.queue_entry_size);
+
+  if (!reader.eof ())
+    {
+      warning ("Invalid corefile note.");
+      return;
+    }
+
+  m_state = std::move (state);
+}
+
+bool
+kfd_core_driver_t::is_debug_enabled () const
+{
+  return m_state->runtime_info.runtime_state == os_runtime_state_t::enabled;
+}
+
+amd_dbgapi_status_t
+kfd_core_driver_t::kfd_agent_snapshot (
+  kfd_dbg_device_info_entry *agents, size_t snapshot_count,
+  size_t *agent_count, os_exception_mask_t exceptions_cleared) const
+{
+  TRACE_DRIVER_BEGIN (param_in (agents), param_in (snapshot_count),
+                      param_in (agent_count), param_in (exceptions_cleared));
+
+  const size_t count = std::min (snapshot_count, m_state->agents.size ());
+  for (size_t i = 0; i < count; ++i)
+    {
+      agents[i] = m_state->agents[i];
+      m_state->agents[i].exception_status
+        &= ~static_cast<uint64_t> (exceptions_cleared);
+    }
+  *agent_count = m_state->agents.size ();
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+
+  TRACE_DRIVER_END (
+    make_ref (param_out (agents), std::min (snapshot_count, *agent_count)),
+    make_ref (param_out (agent_count)));
+}
+
+amd_dbgapi_status_t
+kfd_core_driver_t::kfd_queue_snapshot (
+  kfd_queue_snapshot_entry *queues, size_t snapshot_count, size_t *queue_count,
+  os_exception_mask_t exceptions_cleared) const
+{
+  TRACE_DRIVER_BEGIN (param_in (queues), param_in (snapshot_count),
+                      param_in (queue_count), param_in (exceptions_cleared));
+
+  const size_t count = std::min (snapshot_count, m_state->queues.size ());
+  for (size_t i = 0; i < count; i++)
+    {
+      queues[i] = m_state->queues[i];
+      m_state->queues[i].exception_status
+        &= ~static_cast<uint64_t> (exceptions_cleared);
+    }
+  *queue_count = m_state->queues.size ();
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+
+  TRACE_DRIVER_END (
+    make_ref (param_out (queues), std::min (snapshot_count, *queue_count)),
+    make_ref (param_out (queue_count)));
+}
+
+amd_dbgapi_status_t
+kfd_core_driver_t::enable_debug (os_exception_mask_t /* exceptions_reported */,
+                                 file_desc_t /* notifier */,
+                                 os_runtime_info_t *runtime_info)
+{
+  *runtime_info = m_state->runtime_info;
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
 
 class kfd_driver_t final : public kfd_driver_base_t
 {
@@ -1406,6 +1611,35 @@ os_driver_t::create_driver (std::optional<amd_dbgapi_os_process_id_t> os_pid)
   /* If we failed to create a kfd_driver_t (kfd is not installed?), then revert
      to a plain null driver.  */
   return std::make_unique<null_driver_t> (*os_pid);
+}
+
+std::unique_ptr<os_driver_t>
+os_driver_t::create_driver (const amd_dbgapi_core_state_data_t &core_state)
+{
+  std::unique_ptr<os_driver_t> os_driver;
+
+  /* We need to read the first 8 bytes of the note to figure out which
+     backend should be used.  */
+  note_reader reader{ core_state };
+  auto note_version = reader.read<amdgpu_core_note_version_t> ();
+  switch (note_version)
+    {
+    case amdgpu_core_note_version_t::kfd_note:
+      os_driver = std::make_unique<kfd_core_driver_t> (core_state);
+      break;
+    default:
+      warning (
+        "Cannot open core state version %" PRIu64,
+        static_cast<std::underlying_type_t<decltype (note_version)>> (
+          note_version));
+    }
+
+  if (os_driver != nullptr && os_driver->is_valid ())
+    return os_driver;
+
+  /* Fallback to the null_driver if none of the above was appropriate or could
+     be initialized successfully.  */
+  return std::make_unique<null_driver_t> (std::nullopt);
 }
 
 template <>
