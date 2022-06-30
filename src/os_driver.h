@@ -450,6 +450,7 @@ public:
 };
 
 template <> std::string to_string (os_agent_info_t os_agent_info);
+template <> std::string to_string (kfd_dbg_device_info_entry);
 template <> std::string to_string (os_exception_code_t exception_code);
 template <> std::string to_string (os_exception_mask_t exception_mask);
 template <> std::string to_string (os_queue_snapshot_entry_t snapshot);

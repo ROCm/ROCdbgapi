@@ -406,7 +406,176 @@ linux_driver_t::pci_device_name (uint32_t vendor_id, uint32_t device_id)
 
 /* OS Driver implementation for the Linux ROCm stack using KFD.  */
 
-class kfd_driver_t : public linux_driver_t
+class kfd_driver_base_t : public linux_driver_t
+{
+public:
+  explicit kfd_driver_base_t (amd_dbgapi_os_process_id_t os_pid)
+    : linux_driver_t{ os_pid }
+  {
+  }
+
+  amd_dbgapi_status_t check_version () const override final;
+
+  amd_dbgapi_status_t
+  agent_snapshot (os_agent_info_t *snapshots, size_t snapshot_count,
+                  size_t *agent_count,
+                  os_exception_mask_t exceptions_cleared) const override final;
+
+  amd_dbgapi_status_t
+  queue_snapshot (os_queue_snapshot_entry_t *snapshots, size_t snapshot_count,
+                  size_t *queue_count,
+                  os_exception_mask_t exceptions_cleared) const override final;
+
+protected:
+  using version_t = std::pair<uint32_t, uint32_t>;
+
+  /* Query KFD version.  */
+  virtual version_t get_kfd_version () const = 0;
+
+  /* Perform the ioctl call, or act as if using core file provided data.  */
+  virtual amd_dbgapi_status_t
+  kfd_agent_snapshot (kfd_dbg_device_info_entry *agents, size_t snapshot_count,
+                      size_t *agent_count,
+                      os_exception_mask_t exceptions_cleared) const = 0;
+
+  virtual amd_dbgapi_status_t
+  kfd_queue_snapshot (kfd_queue_snapshot_entry *queues, size_t snapshot_count,
+                      size_t *queue_cout,
+                      os_exception_mask_t exceptions_cleared) const = 0;
+};
+
+amd_dbgapi_status_t
+kfd_driver_base_t::check_version () const
+{
+  dbgapi_assert (is_valid ());
+
+  constexpr version_t KFD_IOCTL_VERSION_BEGIN{ 1, 13 };
+  constexpr version_t KFD_IOCTL_VERSION_END{ 2, 0 };
+
+  version_t kfd_ioctl_version = get_kfd_version ();
+
+  if (kfd_ioctl_version < KFD_IOCTL_VERSION_BEGIN
+      || kfd_ioctl_version >= KFD_IOCTL_VERSION_END)
+    {
+      warning ("AMD GPU driver's version %u.%u not supported "
+               "(version must be >= %u.%u and < %u.%u)",
+               kfd_ioctl_version.first, kfd_ioctl_version.second,
+               KFD_IOCTL_VERSION_BEGIN.first, KFD_IOCTL_VERSION_BEGIN.second,
+               KFD_IOCTL_VERSION_END.first, KFD_IOCTL_VERSION_END.second);
+      return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
+    }
+
+  log_info ("using AMD GPU driver version %d.%d", kfd_ioctl_version.first,
+            kfd_ioctl_version.second);
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
+amd_dbgapi_status_t
+kfd_driver_base_t::agent_snapshot (
+  os_agent_info_t *snapshots, size_t snapshot_count, size_t *agent_count,
+  os_exception_mask_t exceptions_cleared) const
+{
+  TRACE_DRIVER_BEGIN (param_in (snapshots), param_in (snapshot_count),
+                      param_in (agent_count), param_in (exceptions_cleared));
+
+  dbgapi_assert (snapshots && agent_count && "must not be null");
+  dbgapi_assert (snapshot_count <= std::numeric_limits<uint32_t>::max ()
+                 && "invalid argument");
+
+  if (!is_debug_enabled ())
+    {
+      *agent_count = 0;
+      return AMD_DBGAPI_STATUS_SUCCESS;
+    }
+
+  std::vector<kfd_dbg_device_info_entry> kfd_device_infos (snapshot_count);
+  if (amd_dbgapi_status_t status
+      = kfd_agent_snapshot (kfd_device_infos.data (), snapshot_count,
+                            agent_count, exceptions_cleared);
+      status != AMD_DBGAPI_STATUS_SUCCESS)
+    return status;
+
+  for (unsigned int i = 0; i < std::min (snapshot_count, *agent_count); i++)
+    {
+      os_agent_info_t &agent_info = snapshots[i];
+      const kfd_dbg_device_info_entry &entry = kfd_device_infos[i];
+
+      agent_info.os_agent_id = entry.gpu_id;
+
+      agent_info.local_address_aperture_base = entry.lds_base;
+      agent_info.local_address_aperture_limit = entry.lds_limit;
+      agent_info.private_address_aperture_base = entry.scratch_base;
+      agent_info.private_address_aperture_limit = entry.scratch_limit;
+      agent_info.location_id = entry.location_id;
+      agent_info.simd_count = entry.simd_count * entry.num_xcc;
+      agent_info.max_waves_per_simd = entry.max_waves_per_simd;
+      agent_info.vendor_id = entry.vendor_id;
+      agent_info.device_id = entry.device_id;
+      agent_info.revision_id = entry.revision_id;
+      agent_info.subsystem_vendor_id = entry.subsystem_vendor_id;
+      agent_info.subsystem_device_id = entry.subsystem_device_id;
+      agent_info.fw_version = entry.fw_version;
+      agent_info.gfxip = { entry.gfx_target_version / 10000,
+                           (entry.gfx_target_version / 100) % 100,
+                           entry.gfx_target_version % 100 };
+      agent_info.debugging_supported
+        = entry.capability & HSA_CAP_TRAP_DEBUG_SUPPORT;
+      agent_info.address_watch_supported
+        = entry.capability & HSA_CAP_WATCH_POINTS_SUPPORTED;
+      agent_info.address_watch_register_count
+        = 1 << ((entry.capability & HSA_CAP_WATCH_POINTS_TOTALBITS_MASK)
+                >> HSA_CAP_WATCH_POINTS_TOTALBITS_SHIFT);
+      agent_info.precise_memory_supported
+        = (entry.capability
+           & HSA_CAP_TRAP_DEBUG_PRECISE_MEMORY_OPERATIONS_SUPPORTED);
+      agent_info.firmware_supported
+        = entry.capability & HSA_CAP_TRAP_DEBUG_FIRMWARE_SUPPORTED;
+      agent_info.address_watch_mask_bits = utils::bit_mask (
+        ((entry.debug_prop & HSA_DBG_WATCH_ADDR_MASK_LO_BIT_MASK)
+         >> HSA_DBG_WATCH_ADDR_MASK_LO_BIT_SHIFT),
+        ((entry.debug_prop & HSA_DBG_WATCH_ADDR_MASK_HI_BIT_MASK)
+         >> HSA_DBG_WATCH_ADDR_MASK_HI_BIT_SHIFT));
+      agent_info.ttmps_always_initialized
+        = entry.debug_prop & HSA_DBG_DISPATCH_INFO_ALWAYS_VALID;
+      agent_info.watchpoint_exclusive
+        = entry.debug_prop & HSA_DBG_WATCHPOINTS_EXCLUSIVE;
+      agent_info.xcc_count = entry.num_xcc;
+
+      if (!agent_info.simd_count || !agent_info.max_waves_per_simd
+          || !entry.array_count || !entry.simd_arrays_per_engine)
+        fatal_error ("Invalid node properties");
+
+      agent_info.shader_engine_count
+        = (entry.array_count * entry.num_xcc) / entry.simd_arrays_per_engine;
+      agent_info.name
+        = pci_device_name (agent_info.vendor_id, agent_info.device_id);
+    }
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+
+  TRACE_DRIVER_END (
+    make_ref (param_out (snapshots), std::min (snapshot_count, *agent_count)),
+    make_ref (param_out (agent_count)));
+}
+
+amd_dbgapi_status_t
+kfd_driver_base_t::queue_snapshot (
+  os_queue_snapshot_entry_t *snapshots, size_t snapshot_count,
+  size_t *queue_count, os_exception_mask_t exceptions_cleared) const
+{
+  TRACE_DRIVER_BEGIN (param_in (snapshots), param_in (snapshot_count),
+                      param_in (queue_count), param_in (exceptions_cleared));
+
+  return kfd_queue_snapshot (snapshots, snapshot_count, queue_count,
+                             exceptions_cleared);
+
+  TRACE_DRIVER_END (
+    make_ref (param_out (snapshots), std::min (snapshot_count, *queue_count)),
+    make_ref (param_out (queue_count)));
+}
+
+class kfd_driver_t final : public kfd_driver_base_t
 {
 private:
   static size_t s_kfd_open_count;
@@ -421,7 +590,7 @@ private:
                           kfd_ioctl_dbg_trap_args *args) const;
 
 public:
-  kfd_driver_t (amd_dbgapi_os_process_id_t os_pid) : linux_driver_t (os_pid)
+  kfd_driver_t (amd_dbgapi_os_process_id_t os_pid) : kfd_driver_base_t (os_pid)
   {
     open_kfd ();
 
@@ -446,12 +615,12 @@ public:
     return linux_driver_t::is_valid () && s_kfd_fd.has_value ();
   }
 
-  amd_dbgapi_status_t check_version () const override;
+  kfd_driver_base_t::version_t get_kfd_version () const override final;
 
   amd_dbgapi_status_t
-  agent_snapshot (os_agent_info_t *snapshots, size_t snapshot_count,
-                  size_t *agent_count,
-                  os_exception_mask_t exceptions_cleared) const override;
+  kfd_agent_snapshot (kfd_dbg_device_info_entry *agents, size_t snapshot_count,
+                      size_t *agent_count,
+                      os_exception_mask_t exceptions_cleared) const override;
 
   amd_dbgapi_status_t enable_debug (os_exception_mask_t exceptions_reported,
                                     file_desc_t notifier,
@@ -486,9 +655,9 @@ public:
                                      size_t *resumed_count) const override;
 
   amd_dbgapi_status_t
-  queue_snapshot (os_queue_snapshot_entry_t *snapshots, size_t snapshot_count,
-                  size_t *queue_count,
-                  os_exception_mask_t exceptions_cleared) const override;
+  kfd_queue_snapshot (kfd_queue_snapshot_entry *snapshots,
+                      size_t snapshot_count, size_t *queue_count,
+                      os_exception_mask_t exceptions_cleared) const override;
 
   amd_dbgapi_status_t set_address_watch (
     os_agent_id_t os_agent_id, amd_dbgapi_global_address_t address,
@@ -572,66 +741,37 @@ kfd_driver_t::kfd_dbg_trap_ioctl (uint32_t action,
   return ret < 0 ? -errno : ret;
 }
 
-amd_dbgapi_status_t
-kfd_driver_t::check_version () const
+kfd_driver_base_t::version_t
+kfd_driver_t::get_kfd_version () const
 {
-  dbgapi_assert (is_valid ());
-
-  using version_t = std::pair<uint32_t, uint32_t>;
-  constexpr version_t KFD_IOCTL_VERSION_BEGIN{ 1, 13 };
-  constexpr version_t KFD_IOCTL_VERSION_END{ 2, 0 };
-
-  /* Check that the KFD major == IOCTL major, and KFD minor >= IOCTL minor.  */
   kfd_ioctl_get_version_args get_version_args{};
   if (::ioctl (*s_kfd_fd, AMDKFD_IOC_GET_VERSION, &get_version_args))
     fatal_error ("AMDKFD_IOC_GET_VERSION failed");
 
-  const version_t kfd_ioctl_version{ get_version_args.major_version,
-                                     get_version_args.minor_version };
-  if (kfd_ioctl_version < KFD_IOCTL_VERSION_BEGIN
-      || kfd_ioctl_version >= KFD_IOCTL_VERSION_END)
-    {
-      warning ("AMD GPU driver's version %u.%u not supported "
-               "(version must be >= %u.%u and < %u.%u)",
-               kfd_ioctl_version.first, kfd_ioctl_version.second,
-               KFD_IOCTL_VERSION_BEGIN.first, KFD_IOCTL_VERSION_BEGIN.second,
-               KFD_IOCTL_VERSION_END.first, KFD_IOCTL_VERSION_END.second);
-      return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
-    }
-
-  log_info ("using AMD GPU driver version %d.%d",
-            get_version_args.major_version, get_version_args.minor_version);
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
+  return { get_version_args.major_version, get_version_args.minor_version };
 }
 
 amd_dbgapi_status_t
-kfd_driver_t::agent_snapshot (os_agent_info_t *snapshots,
-                              size_t snapshot_count, size_t *agent_count,
-                              os_exception_mask_t exceptions_cleared) const
+kfd_driver_t::kfd_agent_snapshot (kfd_dbg_device_info_entry *agents_infos,
+                                  size_t agent_info_count, size_t *agent_count,
+                                  os_exception_mask_t exceptions_cleared) const
 {
-  TRACE_DRIVER_BEGIN (param_in (snapshots), param_in (snapshot_count),
+  TRACE_DRIVER_BEGIN (param_in (agents_infos), param_in (agent_info_count),
                       param_in (agent_count), param_in (exceptions_cleared));
 
-  dbgapi_assert (snapshots && agent_count && "must not be null");
-  dbgapi_assert (snapshot_count <= std::numeric_limits<uint32_t>::max ()
+  dbgapi_assert (agents_infos != nullptr && agent_count != nullptr
+                 && "must not be null");
+  dbgapi_assert (agent_info_count <= std::numeric_limits<uint32_t>::max ()
                  && "invalid argument");
 
-  if (!is_debug_enabled ())
-    {
-      *agent_count = 0;
-      return AMD_DBGAPI_STATUS_SUCCESS;
-    }
-
-  std::vector<kfd_dbg_device_info_entry> kfd_device_infos (snapshot_count);
+  dbgapi_assert (is_debug_enabled () && "debug must be enabled");
 
   kfd_ioctl_dbg_trap_args args{};
   args.device_snapshot.exception_mask
     = static_cast<uint64_t> (exceptions_cleared);
   args.device_snapshot.snapshot_buf_ptr
-    = reinterpret_cast<uint64_t> (kfd_device_infos.data ());
-  args.device_snapshot.num_devices
-    = static_cast<uint32_t> (kfd_device_infos.size ());
+    = reinterpret_cast<uint64_t> (agents_infos);
+  args.device_snapshot.num_devices = static_cast<uint32_t> (*agent_count);
   args.device_snapshot.entry_size
     = static_cast<uint32_t> (sizeof (kfd_dbg_device_info_entry));
 
@@ -643,72 +783,13 @@ kfd_driver_t::agent_snapshot (os_agent_info_t *snapshots,
            || err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
-  /* KFD writes up to snapshot_count device snapshots, but returns the number
-     of devices in the process so that we can check if we have allocated enough
-     memory to hold all the snapshots.  */
   *agent_count = args.device_snapshot.num_devices;
-
-  for (unsigned int i = 0; i < std::min (snapshot_count, *agent_count); i++)
-    {
-      auto &agent_info = snapshots[i];
-      const kfd_dbg_device_info_entry &entry = kfd_device_infos[i];
-
-      agent_info.os_agent_id = entry.gpu_id;
-
-      agent_info.local_address_aperture_base = entry.lds_base;
-      agent_info.local_address_aperture_limit = entry.lds_limit;
-      agent_info.private_address_aperture_base = entry.scratch_base;
-      agent_info.private_address_aperture_limit = entry.scratch_limit;
-      agent_info.location_id = entry.location_id;
-      agent_info.simd_count = entry.simd_count * entry.num_xcc;
-      agent_info.max_waves_per_simd = entry.max_waves_per_simd;
-      agent_info.vendor_id = entry.vendor_id;
-      agent_info.device_id = entry.device_id;
-      agent_info.revision_id = entry.revision_id;
-      agent_info.subsystem_vendor_id = entry.subsystem_vendor_id;
-      agent_info.subsystem_device_id = entry.subsystem_device_id;
-      agent_info.fw_version = entry.fw_version;
-      agent_info.gfxip = { entry.gfx_target_version / 10000,
-                           (entry.gfx_target_version / 100) % 100,
-                           entry.gfx_target_version % 100 };
-      agent_info.debugging_supported
-        = entry.capability & HSA_CAP_TRAP_DEBUG_SUPPORT;
-      agent_info.address_watch_supported
-        = entry.capability & HSA_CAP_WATCH_POINTS_SUPPORTED;
-      agent_info.address_watch_register_count
-        = 1 << ((entry.capability & HSA_CAP_WATCH_POINTS_TOTALBITS_MASK)
-                >> HSA_CAP_WATCH_POINTS_TOTALBITS_SHIFT);
-      agent_info.precise_memory_supported
-        = (entry.capability
-           & HSA_CAP_TRAP_DEBUG_PRECISE_MEMORY_OPERATIONS_SUPPORTED);
-      agent_info.firmware_supported
-        = entry.capability & HSA_CAP_TRAP_DEBUG_FIRMWARE_SUPPORTED;
-      agent_info.address_watch_mask_bits = utils::bit_mask (
-        ((entry.debug_prop & HSA_DBG_WATCH_ADDR_MASK_LO_BIT_MASK)
-         >> HSA_DBG_WATCH_ADDR_MASK_LO_BIT_SHIFT),
-        ((entry.debug_prop & HSA_DBG_WATCH_ADDR_MASK_HI_BIT_MASK)
-         >> HSA_DBG_WATCH_ADDR_MASK_HI_BIT_SHIFT));
-      agent_info.ttmps_always_initialized
-        = entry.debug_prop & HSA_DBG_DISPATCH_INFO_ALWAYS_VALID;
-      agent_info.watchpoint_exclusive
-        = entry.debug_prop & HSA_DBG_WATCHPOINTS_EXCLUSIVE;
-      agent_info.xcc_count = entry.num_xcc;
-
-      if (!agent_info.simd_count || !agent_info.max_waves_per_simd
-          || !entry.array_count || !entry.simd_arrays_per_engine)
-        fatal_error ("Invalid node properties");
-
-      agent_info.shader_engine_count
-        = (entry.array_count * entry.num_xcc) / entry.simd_arrays_per_engine;
-      agent_info.name
-        = pci_device_name (agent_info.vendor_id, agent_info.device_id);
-    }
 
   return AMD_DBGAPI_STATUS_SUCCESS;
 
-  TRACE_DRIVER_END (
-    make_ref (param_out (snapshots), std::min (snapshot_count, *agent_count)),
-    make_ref (param_out (agent_count)));
+  TRACE_DRIVER_END (make_ref (param_out (agents_infos),
+                              std::min (agent_info_count, *agent_count)),
+                    make_ref (param_out (agent_count)));
 }
 
 amd_dbgapi_status_t
@@ -958,14 +1039,12 @@ kfd_driver_t::resume_queues (os_queue_id_t *queues, size_t queue_count,
 }
 
 amd_dbgapi_status_t
-kfd_driver_t::queue_snapshot (os_queue_snapshot_entry_t *snapshots,
-                              size_t snapshot_count, size_t *queue_count,
-                              os_exception_mask_t exceptions_cleared) const
+kfd_driver_t::kfd_queue_snapshot (kfd_queue_snapshot_entry *snapshots,
+                                  size_t snapshot_count, size_t *queue_count,
+                                  os_exception_mask_t exceptions_cleared) const
 {
-  TRACE_DRIVER_BEGIN (param_in (snapshots), param_in (snapshot_count),
-                      param_in (queue_count), param_in (exceptions_cleared));
-
-  dbgapi_assert (snapshots && queue_count && "must not be null");
+  dbgapi_assert (snapshots != nullptr && queue_count != nullptr
+                 && "must not be null");
   dbgapi_assert (snapshot_count <= std::numeric_limits<uint32_t>::max ()
                  && "invalid argument");
 
@@ -997,10 +1076,6 @@ kfd_driver_t::queue_snapshot (os_queue_snapshot_entry_t *snapshots,
   *queue_count = args.queue_snapshot.num_queues;
 
   return AMD_DBGAPI_STATUS_SUCCESS;
-
-  TRACE_DRIVER_END (
-    make_ref (param_out (snapshots), std::min (snapshot_count, *queue_count)),
-    make_ref (param_out (queue_count)));
 }
 
 amd_dbgapi_status_t
@@ -1305,6 +1380,25 @@ to_string (os_agent_info_t os_agent_info)
     os_agent_info.address_watch_mask_bits, os_agent_info.watchpoint_exclusive,
     os_agent_info.precise_memory_supported, os_agent_info.firmware_supported,
     os_agent_info.ttmps_always_initialized);
+}
+
+template <>
+std::string
+to_string (kfd_dbg_device_info_entry entry)
+{
+  return string_printf (
+    "{ .exception_status=%#llx, .lds_base=%#llx, .lds_limit=%#llx, "
+    ".scratch_base=%#llx, .scratch_limit=%#llx, .gpuvm_base=%#llx, "
+    ".gpuvm_limit=%#llx, .gpu_id=%d, .location_id=%#x, .vendor_id=%#x, "
+    ".device_id=%#x, .fw_version=%d, .gfx_target_version=%#x, "
+    ".simd_count=%d, .max_waves_per_simd=%d, .array_count=%d, "
+    ".simd_arrays_per_engine=%d, .capability=%#x, .debug_prop=%#x }",
+    entry.exception_status, entry.lds_base, entry.lds_limit,
+    entry.scratch_base, entry.scratch_limit, entry.gpuvm_base,
+    entry.gpuvm_limit, entry.gpu_id, entry.location_id, entry.vendor_id,
+    entry.device_id, entry.fw_version, entry.gfx_target_version,
+    entry.simd_count, entry.max_waves_per_simd, entry.array_count,
+    entry.simd_arrays_per_engine, entry.capability, entry.debug_prop);
 }
 
 template <>
