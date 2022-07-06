@@ -51,6 +51,7 @@ enum elf_amdgpu_machine_t : uint32_t
   EF_AMDGPU_MACH_AMDGCN_GFX1012 = 0x035,
   EF_AMDGPU_MACH_AMDGCN_GFX1030 = 0x036,
   EF_AMDGPU_MACH_AMDGCN_GFX1031 = 0x037,
+  EF_AMDGPU_MACH_AMDGCN_GFX1032 = 0x038,
 };
 
 using os_agent_id_t = uint32_t;

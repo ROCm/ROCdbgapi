@@ -4392,6 +4392,15 @@ public:
   }
 };
 
+class gfx1032_t final : public gfx10_3_t
+{
+public:
+  gfx1032_t ()
+    : gfx10_3_t (EF_AMDGPU_MACH_AMDGCN_GFX1032, "amdgcn-amd-amdhsa--gfx1032")
+  {
+  }
+};
+
 architecture_t::architecture_t (elf_amdgpu_machine_t e_machine,
                                 std::string target_triple)
   : m_architecture_id (
@@ -4562,6 +4571,7 @@ decltype (architecture_t::s_architecture_map)
       map.emplace (make_architecture<gfx1012_t> ());
       map.emplace (make_architecture<gfx1030_t> ());
       map.emplace (make_architecture<gfx1031_t> ());
+      map.emplace (make_architecture<gfx1032_t> ());
       return map;
     }()
   };

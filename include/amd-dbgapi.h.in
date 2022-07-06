@@ -280,6 +280,7 @@
  * - gfx1012 (Navi14)
  * - gfx1030 (Sienna Cichlid)
  * - gfx1031 (Navy Flounder)
+ * - gfx1032 (Dimgrey Cavefish)
  *
  * For more information about the AMD ROCm ecosystem, please refer to:
  *
@@ -341,8 +342,8 @@
  *    happens if the \p DX10_CLAMP kernel descriptor field is set.
  *
  * 9. The library does not support single root I/O virtualization (SR-IOV) on
- *    any AMD GPU architecture that supports it.  That includes gfx1030 and
- *    gfx1031.
+ *    any AMD GPU architecture that supports it.  That includes gfx1030,
+ *    gfx1031, and gfx1032.
  *
  * \section references References
  *
