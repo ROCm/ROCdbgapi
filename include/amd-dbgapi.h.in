@@ -531,6 +531,12 @@ extern "C" {
  */
 #define AMD_DBGAPI_VERSION_0_64
 
+/**
+ * The function was introduced in version 0.66 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.66"``.
+ */
+#define AMD_DBGAPI_VERSION_0_66
+
 /** @} */
 
 /** \ingroup callbacks_group
@@ -4545,8 +4551,6 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_watchpoint (
  * Remove a hardware data watchpoint previously set by
  * ::amd_dbgapi_set_watchpoint.
  *
- * \param[in] process_id The process that owns the watchpoint.
- *
  * \param[in] watchpoint_id The watchpoint to remove.
  *
  * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
@@ -4559,15 +4563,11 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_watchpoint (
  * initialized.  The library is left uninitialized and no watchpoint is
  * removed.
  *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
- * invalid.  No watchpoint is removed.
- *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID \p watchpoint_id is
  * invalid.  No watchpoint is removed.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_remove_watchpoint (
-    amd_dbgapi_process_id_t process_id,
-    amd_dbgapi_watchpoint_id_t watchpoint_id) AMD_DBGAPI_VERSION_0_54;
+    amd_dbgapi_watchpoint_id_t watchpoint_id) AMD_DBGAPI_VERSION_0_66;
 
 /** @} */
 

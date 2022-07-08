@@ -324,30 +324,23 @@ amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
 }
 
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_remove_watchpoint (amd_dbgapi_process_id_t process_id,
-                              amd_dbgapi_watchpoint_id_t watchpoint_id)
+amd_dbgapi_remove_watchpoint (amd_dbgapi_watchpoint_id_t watchpoint_id)
 {
-  TRACE_BEGIN (param_in (process_id), param_in (watchpoint_id));
+  TRACE_BEGIN (param_in (watchpoint_id));
   TRY
   {
     if (!detail::is_initialized)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
 
-    process_t *process = process_t::find (process_id);
-
-    if (process == nullptr)
-      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
-
-    watchpoint_t *watchpoint = process->find (watchpoint_id);
+    watchpoint_t *watchpoint = find (watchpoint_id);
 
     if (watchpoint == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID);
 
     watchpoint->remove ();
-    process->destroy (watchpoint);
+    watchpoint->process ().destroy (watchpoint);
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
-         AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
          AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID);
   TRACE_END ();
 }
