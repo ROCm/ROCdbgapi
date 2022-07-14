@@ -36,9 +36,10 @@
  * - 1.8 - CRIU - Support for SDMA transfers with GTT BOs
  * - 1.9 - Add available memory ioctl
  * - 1.10 - Add SMI profiler event log
+ * - 1.11 - Add unified memory for ctx save/restore area
  */
 #define KFD_IOCTL_MAJOR_VERSION 1
-#define KFD_IOCTL_MINOR_VERSION 10
+#define KFD_IOCTL_MINOR_VERSION 11
 
 /*
  * Debug revision change log
@@ -74,8 +75,9 @@
  * 10.2 - Reserved
  * 10.3 - Pass context_save_restore_area size to user-space
  * 11.0 - Restrict HW mode ops access to trap activate
+ * 12.0 - Let the debugger specifiy entry sizes for snapshots
  */
-#define KFD_IOCTL_DBG_MAJOR_VERSION	11
+#define KFD_IOCTL_DBG_MAJOR_VERSION	12
 #define KFD_IOCTL_DBG_MINOR_VERSION	0
 
 struct kfd_ioctl_get_version_args {
@@ -475,7 +477,7 @@ struct kfd_runtime_info {
  * exception_mask: exception to clear on snapshot
  * ptr: user buffer (IN)
  * data1: number of queue snapshots (IN/OUT) - 0 for IN ignores buffer writes
- * data2: unused
+ * data2: buffer entry size in bytes (IN/OUT)
  * data3: unused
  * data4: unused
  */
@@ -538,7 +540,7 @@ struct kfd_runtime_info {
  * exception_mask: exception to clear on snapshot
  * ptr: user buffer for 'struct kfd_dbg_device_info_entry' entries (IN)
  * data1: number of devices in snapshot (IN/OUT)
- * data2: unused
+ * data2: buffer entry size in bytes (IN/OUT)
  * data3: unused
  * data4: unused
  */

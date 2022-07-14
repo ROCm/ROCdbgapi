@@ -516,8 +516,8 @@ kfd_driver_t::check_version () const
      data1: [out] major version
      data2: [out] minor version */
 
-  constexpr version_t KFD_DBG_TRAP_VERSION_BEGIN{ 10, 3 };
-  constexpr version_t KFD_DBG_TRAP_VERSION_END{ 12, 0 };
+  constexpr version_t KFD_DBG_TRAP_VERSION_BEGIN{ 12, 0 };
+  constexpr version_t KFD_DBG_TRAP_VERSION_END{ 13, 0 };
 
   kfd_ioctl_dbg_trap_args dbg_trap_args{};
   dbg_trap_args.pid = static_cast<uint32_t> (getpid ());
@@ -569,17 +569,19 @@ kfd_driver_t::agent_snapshot (os_agent_info_t *snapshots,
   /* KFD_IOC_DBG_TRAP_DEVICE_SNAPSHOT (#12):
      exception_mask: [in] exceptions to clear on snapshot
      data1: [in/out] number of device snapshots
+     data2: [in/out] snapshot size
      ptr:   [in] user buffer  */
 
   kfd_ioctl_dbg_trap_args args{};
   args.exception_mask = static_cast<uint64_t> (exceptions_cleared);
   args.data1 = static_cast<uint32_t> (kfd_device_infos.size ());
+  args.data2 = static_cast<uint32_t> (sizeof (kfd_dbg_device_info_entry));
   args.ptr = reinterpret_cast<uint64_t> (kfd_device_infos.data ());
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_DEVICE_SNAPSHOT, &args);
   if (err == -ESRCH)
     return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
-  else if (err < 0)
+  else if (args.data2 != sizeof (kfd_dbg_device_info_entry) || err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
   /* KFD writes up to snapshot_count device snapshots, but returns the number
@@ -1056,17 +1058,19 @@ kfd_driver_t::queue_snapshot (os_queue_snapshot_entry_t *snapshots,
   /* KFD_IOC_DBG_TRAP_GET_QUEUE_SNAPSHOT (#6):
      exception_mask: [in] exceptions to clear on snapshot
      data1: [in/out] number of queues snapshots
+     data2: [in/out] snapshot size
      ptr:   [in] user buffer  */
 
   kfd_ioctl_dbg_trap_args args{};
   args.exception_mask = static_cast<uint64_t> (exceptions_cleared);
   args.data1 = static_cast<uint32_t> (snapshot_count);
+  args.data2 = static_cast<uint32_t> (sizeof (os_queue_snapshot_entry_t));
   args.ptr = reinterpret_cast<uint64_t> (snapshots);
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_GET_QUEUE_SNAPSHOT, &args);
   if (err == -ESRCH)
     return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
-  else if (err < 0)
+  else if (args.data2 != sizeof (os_queue_snapshot_entry_t) || err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
   /* KFD writes up to snapshot_count queue snapshots, but returns the number of
