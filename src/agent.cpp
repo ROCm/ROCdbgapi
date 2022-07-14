@@ -28,6 +28,7 @@
 #include "os_driver.h"
 #include "process.h"
 #include "utils.h"
+#include "watchpoint.h"
 
 #include <cstdint>
 #include <vector>
@@ -73,6 +74,8 @@ agent_t::agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
              == address_space_t::kind_t::private_swizzled
         && "check the generic address space apertures");
     }
+
+  m_watchpoints.resize (os_info ().address_watch_register_count);
 }
 
 bool
@@ -164,6 +167,75 @@ agent_t::get_info (amd_dbgapi_agent_info_t query, size_t value_size,
     }
 
   throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
+}
+
+void
+agent_t::insert_watchpoint (const watchpoint_t &watchpoint)
+{
+  os_watch_mode_t watch_mode;
+  switch (watchpoint.kind ())
+    {
+    case AMD_DBGAPI_WATCHPOINT_KIND_LOAD:
+      watch_mode = os_watch_mode_t::read;
+      break;
+    case AMD_DBGAPI_WATCHPOINT_KIND_STORE_AND_RMW:
+      watch_mode = os_watch_mode_t::nonread;
+      break;
+    case AMD_DBGAPI_WATCHPOINT_KIND_RMW:
+      watch_mode = os_watch_mode_t::atomic;
+      break;
+    case AMD_DBGAPI_WATCHPOINT_KIND_ALL:
+      watch_mode = os_watch_mode_t::all;
+      break;
+    default:
+      dbgapi_assert_not_reached ("not a valid watchpoint kind");
+    }
+
+  os_watch_id_t os_watch_id;
+  amd_dbgapi_status_t status = process ().os_driver ().set_address_watch (
+    os_agent_id (), watchpoint.address (), -watchpoint.size (), watch_mode,
+    &os_watch_id);
+
+  if (status == AMD_DBGAPI_STATUS_ERROR_NO_WATCHPOINT_AVAILABLE)
+    throw api_error_t (AMD_DBGAPI_STATUS_ERROR_NO_WATCHPOINT_AVAILABLE);
+  else if (status != AMD_DBGAPI_STATUS_SUCCESS
+           && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    fatal_error ("os_driver_t::set_address_watch () failed (%s)",
+                 to_cstring (status));
+
+  if (os_watch_id > os_info ().address_watch_register_count)
+    fatal_error (
+      "invalid os_watch_id returned by os_driver_t::set_address_watch ()");
+
+  log_info ("%s: set address_watch%d [%#lx-%#lx] (%s)", to_cstring (id ()),
+            os_watch_id, watchpoint.address (),
+            watchpoint.address () + watchpoint.size (),
+            to_cstring (watchpoint.kind ()));
+
+  m_watchpoints[os_watch_id] = &watchpoint;
+}
+
+void
+agent_t::remove_watchpoint (const watchpoint_t &watchpoint)
+{
+  auto it = std::find_if (std::begin (m_watchpoints), std::end (m_watchpoints),
+                          [&watchpoint] (const watchpoint_t *w)
+                          { return w == &watchpoint; });
+
+  /* The watchpoint is not inserted for this agent.  */
+  if (it == std::end (m_watchpoints))
+    return;
+
+  os_watch_id_t os_watch_id = std::distance (begin (m_watchpoints), it);
+
+  amd_dbgapi_status_t status = process ().os_driver ().clear_address_watch (
+    os_agent_id (), os_watch_id);
+
+  if (status != AMD_DBGAPI_STATUS_SUCCESS
+      && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    fatal_error ("failed to remove watchpoint (%s)", to_cstring (status));
+
+  log_info ("%s: clear address_watch%d", to_cstring (id ()), os_watch_id);
 }
 
 } /* namespace amd::dbgapi */

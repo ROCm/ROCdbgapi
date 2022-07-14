@@ -27,12 +27,14 @@
 #include "os_driver.h"
 
 #include <cstddef>
+#include <vector>
 
 namespace amd::dbgapi
 {
 
 class architecture_t;
 class process_t;
+class watchpoint_t;
 
 /* Agent.  */
 
@@ -43,6 +45,7 @@ private:
   os_exception_mask_t m_exceptions{ os_exception_mask_t::none };
   epoch_t m_mark{ 0 };
 
+  std::vector<const watchpoint_t *> m_watchpoints;
   const architecture_t *const m_architecture;
   process_t &m_process;
 
@@ -78,6 +81,13 @@ public:
   void set_exceptions (os_exception_mask_t exceptions);
   void clear_exceptions (os_exception_mask_t exceptions);
   os_exception_mask_t exceptions () const { return m_exceptions; }
+
+  void insert_watchpoint (const watchpoint_t &watchpoint);
+  void remove_watchpoint (const watchpoint_t &watchpoint);
+  const watchpoint_t *get_watchpoint (os_watch_id_t os_watch_id) const
+  {
+    return m_watchpoints[os_watch_id];
+  }
 
   void get_info (amd_dbgapi_agent_info_t query, size_t value_size,
                  void *value) const;

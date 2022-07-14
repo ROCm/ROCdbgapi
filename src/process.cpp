@@ -172,7 +172,7 @@ process_t::detach ()
 
       /* Remove the watchpoints that may still be inserted.  */
       for (auto &&watchpoint : range<watchpoint_t> ())
-        watchpoint.remove ();
+        remove_watchpoint (watchpoint);
 
       for (auto &&wave : range<wave_t> ())
         {
@@ -581,6 +581,88 @@ process_t::update_agents ()
       ++it;
 
   m_supports_precise_memory = precise_memory_supported.value_or (false);
+}
+
+void
+process_t::insert_watchpoint (const watchpoint_t &watchpoint)
+{
+  /* If this is the first watchpoint we are setting on this device, we need
+   to enable the address watch exception trap for all new waves as well as
+   update the existing waves.  */
+  const bool first_watchpoint = count<watchpoint_t> () == 1;
+  if (first_watchpoint)
+    {
+      set_wave_launch_trap_override (
+        os_wave_launch_trap_mask_t::address_watch,
+        os_wave_launch_trap_mask_t::address_watch);
+
+      update_queues ();
+
+      std::vector<queue_t *> queues;
+      queues.reserve (count<queue_t> ());
+
+      for (auto &&queue : range<queue_t> ())
+        if (!queue.is_suspended ())
+          queues.emplace_back (&queue);
+
+      suspend_queues (queues, "insert watchpoint");
+
+      for (auto &&wave : range<wave_t> ())
+        wave.architecture ().wave_enable_traps (
+          wave, os_wave_launch_trap_mask_t::address_watch);
+
+      if (forward_progress_needed ())
+        resume_queues (queues, "insert watchpoint");
+    }
+
+  try
+    {
+      for (auto &&agent : range<agent_t> ())
+        agent.insert_watchpoint (watchpoint);
+    }
+  catch (...)
+    {
+      /* If any of the agents failed to insert the watchpoint and an exception
+         (AMD_DBGAPI_STATUS_ERROR_NO_WATCHPOINT_AVAILABLE) was thrown, remove
+         the watchpoint and forward the exception.  Note: Removing a watchpoint
+         that is not inserted is a no-op.  */
+      for (auto &&agent : range<agent_t> ())
+        agent.remove_watchpoint (watchpoint);
+      throw;
+    }
+}
+
+void
+process_t::remove_watchpoint (const watchpoint_t &watchpoint)
+{
+  for (auto &&agent : range<agent_t> ())
+    agent.remove_watchpoint (watchpoint);
+
+  const bool last_watchpoint = count<watchpoint_t> () == 1;
+  if (last_watchpoint)
+    {
+      set_wave_launch_trap_override (
+        os_wave_launch_trap_mask_t::none,
+        os_wave_launch_trap_mask_t::address_watch);
+
+      update_queues ();
+
+      std::vector<queue_t *> queues;
+      queues.reserve (count<queue_t> ());
+
+      for (auto &&queue : range<queue_t> ())
+        if (!queue.is_suspended ())
+          queues.emplace_back (&queue);
+
+      suspend_queues (queues, "remove watchpoint");
+
+      for (auto &&wave : range<wave_t> ())
+        wave.architecture ().wave_disable_traps (
+          wave, os_wave_launch_trap_mask_t::address_watch);
+
+      if (forward_progress_needed ())
+        resume_queues (queues, "remove watchpoint");
+    }
 }
 
 size_t

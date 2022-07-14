@@ -178,7 +178,8 @@ public:
   }
 
   amd_dbgapi_status_t
-  set_address_watch (amd_dbgapi_global_address_t /* address  */,
+  set_address_watch (os_agent_id_t /* os_agent_id  */,
+                     amd_dbgapi_global_address_t /* address  */,
                      amd_dbgapi_global_address_t /* mask  */,
                      os_watch_mode_t /* os_watch_mode  */,
                      os_watch_id_t * /* os_watch_id  */) const override
@@ -187,7 +188,8 @@ public:
   }
 
   amd_dbgapi_status_t
-    clear_address_watch (os_watch_id_t /* os_watch_id  */) const override
+    clear_address_watch (os_agent_id_t /* os_agent_id  */,
+                         os_watch_id_t /* os_watch_id  */) const override
   {
     fatal_error (
       "should not call this, null_driver does not support watchpoints");
@@ -406,11 +408,13 @@ public:
                   os_exception_mask_t exceptions_cleared) const override;
 
   amd_dbgapi_status_t set_address_watch (
-    amd_dbgapi_global_address_t address, amd_dbgapi_global_address_t mask,
-    os_watch_mode_t os_watch_mode, os_watch_id_t *os_watch_id) const override;
+    os_agent_id_t os_agent_id, amd_dbgapi_global_address_t address,
+    amd_dbgapi_global_address_t mask, os_watch_mode_t os_watch_mode,
+    os_watch_id_t *os_watch_id) const override;
 
   amd_dbgapi_status_t
-  clear_address_watch (os_watch_id_t os_watch_id) const override;
+  clear_address_watch (os_agent_id_t os_agent_id,
+                       os_watch_id_t os_watch_id) const override;
 
   amd_dbgapi_status_t
   set_wave_launch_mode (os_wave_launch_mode_t mode) const override;
@@ -516,8 +520,8 @@ kfd_driver_t::check_version () const
      data1: [out] major version
      data2: [out] minor version */
 
-  constexpr version_t KFD_DBG_TRAP_VERSION_BEGIN{ 12, 0 };
-  constexpr version_t KFD_DBG_TRAP_VERSION_END{ 13, 0 };
+  constexpr version_t KFD_DBG_TRAP_VERSION_BEGIN{ 13, 0 };
+  constexpr version_t KFD_DBG_TRAP_VERSION_END{ 14, 0 };
 
   kfd_ioctl_dbg_trap_args dbg_trap_args{};
   dbg_trap_args.pid = static_cast<uint32_t> (getpid ());
@@ -1086,7 +1090,8 @@ kfd_driver_t::queue_snapshot (os_queue_snapshot_entry_t *snapshots,
 }
 
 amd_dbgapi_status_t
-kfd_driver_t::set_address_watch (amd_dbgapi_global_address_t address,
+kfd_driver_t::set_address_watch (os_agent_id_t os_agent_id,
+                                 amd_dbgapi_global_address_t address,
                                  amd_dbgapi_global_address_t mask,
                                  os_watch_mode_t os_watch_mode,
                                  os_watch_id_t *os_watch_id) const
@@ -1096,19 +1101,22 @@ kfd_driver_t::set_address_watch (amd_dbgapi_global_address_t address,
 
   dbgapi_assert (os_watch_id && "must not be null");
 
-  /* KFD_IOC_DBG_TRAP_SET_ADDRESS_WATCH (#9)
+  /* KFD_IOC_DBG_TRAP_SET_NODE_ADDRESS_WATCH (#9)
      ptr:   [in] watch address
      data1: [out] watch ID
      data2: [in] watch_mode: 0=read, 1=nonread, 2=atomic, 3=all
-     data3: [in] watch address mask  */
+     data3: [in] watch address mask
+     data4: [in] gpu ID  */
 
   kfd_ioctl_dbg_trap_args args{};
   args.ptr = address;
   args.data2 = static_cast<std::underlying_type_t<decltype (os_watch_mode)>> (
     os_watch_mode);
   args.data3 = mask;
+  args.data4 = os_agent_id;
 
-  int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_ADDRESS_WATCH, &args);
+  int err
+    = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_NODE_ADDRESS_WATCH, &args);
   if (err == -ENOMEM)
     return AMD_DBGAPI_STATUS_ERROR_NO_WATCHPOINT_AVAILABLE;
   else if (err == -ESRCH)
@@ -1124,17 +1132,21 @@ kfd_driver_t::set_address_watch (amd_dbgapi_global_address_t address,
 }
 
 amd_dbgapi_status_t
-kfd_driver_t::clear_address_watch (os_watch_id_t os_watch_id) const
+kfd_driver_t::clear_address_watch (os_agent_id_t os_agent_id,
+                                   os_watch_id_t os_watch_id) const
 {
   TRACE_DRIVER_BEGIN (param_in (os_watch_id));
 
-  /* KFD_IOC_DBG_TRAP_CLEAR_ADDRESS_WATCH (#8)
-     data1: [in] watch ID  */
+  /* KFD_IOC_DBG_TRAP_CLEAR_NODE_ADDRESS_WATCH (#8)
+     data1: [in] watch ID
+     data2: [in] gpu ID  */
 
   kfd_ioctl_dbg_trap_args args{};
   args.data1 = os_watch_id;
+  args.data2 = os_agent_id;
 
-  int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_CLEAR_ADDRESS_WATCH, &args);
+  int err
+    = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_CLEAR_NODE_ADDRESS_WATCH, &args);
   if (err == -ESRCH)
     return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
   else if (err < 0)

@@ -251,6 +251,8 @@ public:
   void enqueue_event (event_t &event);
   event_t *next_pending_event ();
 
+  void insert_watchpoint (const watchpoint_t &watchpoint);
+  void remove_watchpoint (const watchpoint_t &watchpoint);
   size_t watchpoint_count () const;
   amd_dbgapi_watchpoint_share_kind_t watchpoint_shared_kind () const;
 

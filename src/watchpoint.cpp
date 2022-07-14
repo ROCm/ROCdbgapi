@@ -129,124 +129,6 @@ watchpoint_t::watchpoint_t (amd_dbgapi_watchpoint_id_t watchpoint_id,
 }
 
 void
-watchpoint_t::insert ()
-{
-  dbgapi_assert (!m_os_watch_id.has_value ()
-                 && "watchpoint is already inserted");
-  process_t &process = this->process ();
-
-  /* If this is the first watchpoint we are setting on this device, we need
-   to enable the address watch exception trap for all new waves as well as
-   update the existing waves.  */
-  const bool first_watchpoint = process.count<watchpoint_t> () == 1;
-  if (first_watchpoint)
-    {
-      process.set_wave_launch_trap_override (
-        os_wave_launch_trap_mask_t::address_watch,
-        os_wave_launch_trap_mask_t::address_watch);
-
-      process.update_queues ();
-
-      std::vector<queue_t *> queues;
-      queues.reserve (process.count<queue_t> ());
-
-      for (auto &&queue : process.range<queue_t> ())
-        if (!queue.is_suspended ())
-          queues.emplace_back (&queue);
-
-      process.suspend_queues (queues, "insert watchpoint");
-
-      for (auto &&wave : process.range<wave_t> ())
-        wave.architecture ().wave_enable_traps (
-          wave, os_wave_launch_trap_mask_t::address_watch);
-
-      if (process.forward_progress_needed ())
-        process.resume_queues (queues, "insert watchpoint");
-    }
-
-  os_watch_mode_t watch_mode;
-  switch (kind ())
-    {
-    case AMD_DBGAPI_WATCHPOINT_KIND_LOAD:
-      watch_mode = os_watch_mode_t::read;
-      break;
-    case AMD_DBGAPI_WATCHPOINT_KIND_STORE_AND_RMW:
-      watch_mode = os_watch_mode_t::nonread;
-      break;
-    case AMD_DBGAPI_WATCHPOINT_KIND_RMW:
-      watch_mode = os_watch_mode_t::atomic;
-      break;
-    case AMD_DBGAPI_WATCHPOINT_KIND_ALL:
-      watch_mode = os_watch_mode_t::all;
-      break;
-    default:
-      dbgapi_assert_not_reached ("not a valid watchpoint kind");
-    }
-
-  os_watch_id_t os_watch_id;
-  amd_dbgapi_status_t status = process.os_driver ().set_address_watch (
-    address (), -size (), watch_mode, &os_watch_id);
-
-  if (status == AMD_DBGAPI_STATUS_ERROR_NO_WATCHPOINT_AVAILABLE)
-    throw api_error_t (AMD_DBGAPI_STATUS_ERROR_NO_WATCHPOINT_AVAILABLE);
-  else if (status != AMD_DBGAPI_STATUS_SUCCESS
-           && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-    fatal_error ("os_driver_t::set_address_watch () failed (%s)",
-                 to_cstring (status));
-
-  log_info ("%s: set address_watch%d [%#lx-%#lx] (%s)",
-            to_cstring (process.id ()), os_watch_id, address (),
-            address () + size (), to_cstring (kind ()));
-
-  m_os_watch_id.emplace (os_watch_id);
-}
-
-void
-watchpoint_t::remove ()
-{
-  process_t &process = this->process ();
-
-  dbgapi_assert (m_os_watch_id.has_value () && "watchpoint is not inserted");
-  amd_dbgapi_status_t status
-    = process.os_driver ().clear_address_watch (*m_os_watch_id);
-
-  if (status != AMD_DBGAPI_STATUS_SUCCESS
-      && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-    fatal_error ("failed to remove watchpoint (%s)", to_cstring (status));
-
-  log_info ("%s: clear address_watch%d", to_cstring (process.id ()),
-            *m_os_watch_id);
-
-  m_os_watch_id.reset ();
-
-  const bool last_watchpoint = process.count<watchpoint_t> () == 1;
-  if (last_watchpoint)
-    {
-      process.set_wave_launch_trap_override (
-        os_wave_launch_trap_mask_t::none,
-        os_wave_launch_trap_mask_t::address_watch);
-
-      process.update_queues ();
-
-      std::vector<queue_t *> queues;
-      queues.reserve (process.count<queue_t> ());
-
-      for (auto &&queue : process.range<queue_t> ())
-        if (!queue.is_suspended ())
-          queues.emplace_back (&queue);
-
-      process.suspend_queues (queues, "remove watchpoint");
-
-      for (auto &&wave : process.range<wave_t> ())
-        wave.architecture ().wave_disable_traps (
-          wave, os_wave_launch_trap_mask_t::address_watch);
-
-      if (process.forward_progress_needed ())
-        process.resume_queues (queues, "remove watchpoint");
-    }
-}
-
-void
 watchpoint_t::get_info (amd_dbgapi_watchpoint_info_t query, size_t value_size,
                         void *value) const
 {
@@ -312,7 +194,7 @@ amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
     auto destroy_watchpoint
       = utils::make_scope_fail ([&] () { process->destroy (&watchpoint); });
 
-    watchpoint.insert ();
+    process->insert_watchpoint (watchpoint);
     *watchpoint_id = watchpoint.id ();
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
@@ -337,8 +219,9 @@ amd_dbgapi_remove_watchpoint (amd_dbgapi_watchpoint_id_t watchpoint_id)
     if (watchpoint == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID);
 
-    watchpoint->remove ();
-    watchpoint->process ().destroy (watchpoint);
+    process_t &process = watchpoint->process ();
+    process.remove_watchpoint (*watchpoint);
+    process.destroy (watchpoint);
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID);
