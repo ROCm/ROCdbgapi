@@ -66,7 +66,9 @@ struct os_agent_info_t
   std::string name{};
   /* The graphics IP version {major, minor, stepping}.  */
   std::array<unsigned, 3> gfxip{};
-  /* BDF - Identifies the device location in the overall system.  */
+  /* PCI domain the agent is in.  */
+  uint16_t domain{ 0 };
+  /* BDF - Identifies the device location in the PCI domain.  */
   uint16_t location_id{ 0 };
   /* Number of FCompute cores.  */
   size_t simd_count{ 0 };

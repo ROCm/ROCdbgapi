@@ -677,7 +677,9 @@ kfd_driver_t::agent_snapshot (os_agent_info_t *snapshots,
       uint64_t prop_value;
       while (props_ifs >> prop_name >> prop_value)
         {
-          if (prop_name == "location_id")
+          if (prop_name == "domain")
+            agent_info.domain = static_cast<uint16_t> (prop_value);
+          else if (prop_name == "location_id")
             agent_info.location_id = static_cast<uint16_t> (prop_value);
           else if (prop_name == "simd_count")
             agent_info.simd_count = static_cast<size_t> (prop_value);
@@ -1360,19 +1362,19 @@ std::string
 to_string (os_agent_info_t os_agent_info)
 {
   return string_printf (
-    "{ .os_agent_id=%d, .name=%s, .location_id=%d, .gfxip=[%d,%d,%d], "
-    ".simd_count=%ld, .max_waves_per_simd=%ld, .shader_engine_count=%ld, "
-    ".vendor_id=%#x, .device_id=%#x, .fw_version=%d, "
-    ".local_address_aperture_base=%#lx, .local_address_aperture_limit=%#lx, "
-    ".private_address_aperture_base=%#lx, "
+    "{ .os_agent_id=%d, .name=%s, .domain=%#x, .location_id=%#x, "
+    ".gfxip=[%d,%d,%d], .simd_count=%ld, .max_waves_per_simd=%ld, "
+    ".shader_engine_count=%ld, .vendor_id=%#x, .device_id=%#x, "
+    ".fw_version=%d, .local_address_aperture_base=%#lx, "
+    ".local_address_aperture_limit=%#lx, .private_address_aperture_base=%#lx, "
     ".private_address_aperture_limit=%#lx, .debugging_supported=%d, "
     ".address_watch_supported=%d, .address_watch_register_count=%ld, "
     ".address_watch_mask_bits=%#lx, .watchpoint_exclusive=%d, "
     ".precise_memory_supported=%d, .firmware_supported=%d, "
     "ttmps_always_initialized=%d }",
     os_agent_info.os_agent_id, os_agent_info.name.c_str (),
-    os_agent_info.location_id, os_agent_info.gfxip[0], os_agent_info.gfxip[1],
-    os_agent_info.gfxip[2], os_agent_info.simd_count,
+    os_agent_info.domain, os_agent_info.location_id, os_agent_info.gfxip[0],
+    os_agent_info.gfxip[1], os_agent_info.gfxip[2], os_agent_info.simd_count,
     os_agent_info.max_waves_per_simd, os_agent_info.shader_engine_count,
     os_agent_info.vendor_id, os_agent_info.device_id, os_agent_info.fw_version,
     os_agent_info.local_address_aperture_base,

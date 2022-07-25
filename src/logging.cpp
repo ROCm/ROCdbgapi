@@ -755,6 +755,7 @@ to_string (amd_dbgapi_agent_info_t agent_info)
       CASE (AGENT_INFO_NAME);
       CASE (AGENT_INFO_ARCHITECTURE);
       CASE (AGENT_INFO_STATE);
+      CASE (AGENT_INFO_PCI_DOMAIN);
       CASE (AGENT_INFO_PCI_SLOT);
       CASE (AGENT_INFO_PCI_VENDOR_ID);
       CASE (AGENT_INFO_PCI_DEVICE_ID);
@@ -783,6 +784,7 @@ to_string (detail::query_ref<amd_dbgapi_agent_info_t> ref)
     case AMD_DBGAPI_AGENT_INFO_STATE:
       return to_string (
         make_ref (static_cast<const amd_dbgapi_agent_state_t *> (value)));
+    case AMD_DBGAPI_AGENT_INFO_PCI_DOMAIN:
     case AMD_DBGAPI_AGENT_INFO_PCI_SLOT:
       return to_string (
         make_hex (make_ref (static_cast<const uint16_t *> (value))));

@@ -532,10 +532,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_64
 
 /**
- * The function was introduced in version 0.66 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.66"``.
+ * The function was introduced in version 0.67 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.67"``.
  */
-#define AMD_DBGAPI_VERSION_0_66
+#define AMD_DBGAPI_VERSION_0_67
 
 /** @} */
 
@@ -2281,34 +2281,38 @@ typedef enum
    * */
   AMD_DBGAPI_AGENT_INFO_STATE = 4,
   /**
+   * PCI domain the agent is in. The type of this attribute is \p uint16_t.
+   */
+  AMD_DBGAPI_AGENT_INFO_PCI_DOMAIN = 5,
+  /**
    * PCI slot of the agent in BDF format (see [Bus:Device.Function (BDF)
    * Notation][bfd].
    * The type of this attribute is \p uint16_t.
    */
-  AMD_DBGAPI_AGENT_INFO_PCI_SLOT = 5,
+  AMD_DBGAPI_AGENT_INFO_PCI_SLOT = 6,
   /**
    * PCI vendor ID of the agent.  The type of this attribute is \p uint32_t.
    */
-  AMD_DBGAPI_AGENT_INFO_PCI_VENDOR_ID = 6,
+  AMD_DBGAPI_AGENT_INFO_PCI_VENDOR_ID = 7,
   /**
    * PCI device ID of the agent.  The type of this attribute is \p uint32_t.
    */
-  AMD_DBGAPI_AGENT_INFO_PCI_DEVICE_ID = 7,
+  AMD_DBGAPI_AGENT_INFO_PCI_DEVICE_ID = 8,
   /**
    * Total number of Execution Units (EUs) available in the agent.  The type of
    * this attribute is \p size_t.
    */
-  AMD_DBGAPI_AGENT_INFO_EXECUTION_UNIT_COUNT = 8,
+  AMD_DBGAPI_AGENT_INFO_EXECUTION_UNIT_COUNT = 9,
   /**
    * Maximum number of waves supported by an execution unit.  The type of this
    * attribute is \p size_t.
    */
-  AMD_DBGAPI_AGENT_INFO_MAX_WAVES_PER_EXECUTION_UNIT = 9,
+  AMD_DBGAPI_AGENT_INFO_MAX_WAVES_PER_EXECUTION_UNIT = 10,
   /**
    * Native operating system agent ID.  The type of this attribute is
    * ::amd_dbgapi_os_agent_id_t.
    */
-  AMD_DBGAPI_AGENT_INFO_OS_ID = 10
+  AMD_DBGAPI_AGENT_INFO_OS_ID = 11
 } amd_dbgapi_agent_info_t;
 
 /**
@@ -2387,7 +2391,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_agent_get_info (
     amd_dbgapi_agent_id_t agent_id, amd_dbgapi_agent_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_56;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_67;
 
 /**
  * Return the list of agents.
@@ -4567,7 +4571,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_watchpoint (
  * invalid.  No watchpoint is removed.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_remove_watchpoint (
-    amd_dbgapi_watchpoint_id_t watchpoint_id) AMD_DBGAPI_VERSION_0_66;
+    amd_dbgapi_watchpoint_id_t watchpoint_id) AMD_DBGAPI_VERSION_0_67;
 
 /** @} */
 

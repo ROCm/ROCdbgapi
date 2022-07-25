@@ -20,7 +20,7 @@
 
 cmake_minimum_required(VERSION 3.8)
 
-project(amd-dbgapi VERSION 0.66.0)
+project(amd-dbgapi VERSION 0.67.0)
 
 include(GNUInstallDirs)
 # Convert the project's name to uppercase and replace '-' with '_'.

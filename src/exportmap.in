@@ -47,8 +47,7 @@ local:  *;
 };
 
 @AMD_DBGAPI_NAME@_0.56 {
-global: amd_dbgapi_agent_get_info;
-        amd_dbgapi_process_attach;
+global: amd_dbgapi_process_attach;
         amd_dbgapi_process_get_info;
 } @AMD_DBGAPI_NAME@_0.54;
 
@@ -77,6 +76,7 @@ global: amd_dbgapi_address_dependency;
         amd_dbgapi_workgroup_get_info;
 } @AMD_DBGAPI_NAME@_0.62;
 
-@AMD_DBGAPI_NAME@_0.66 {
-global: amd_dbgapi_remove_watchpoint;
+@AMD_DBGAPI_NAME@_0.67 {
+global: amd_dbgapi_agent_get_info;
+        amd_dbgapi_remove_watchpoint;
 } @AMD_DBGAPI_NAME@_0.64;

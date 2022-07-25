@@ -132,6 +132,10 @@ agent_t::get_info (amd_dbgapi_agent_info_t query, size_t value_size,
                          : AMD_DBGAPI_AGENT_STATE_NOT_SUPPORTED);
       return;
 
+    case AMD_DBGAPI_AGENT_INFO_PCI_DOMAIN:
+      utils::get_info (value_size, value, m_os_agent_info.domain);
+      return;
+
     case AMD_DBGAPI_AGENT_INFO_PCI_SLOT:
       utils::get_info (value_size, value, m_os_agent_info.location_id);
       return;
