@@ -26,8 +26,10 @@
 
 #include <algorithm>
 #include <fstream>
+#include <iomanip>
 #include <limits>
 #include <optional>
+#include <sstream>
 #include <type_traits>
 #include <unordered_set>
 #include <utility>
@@ -261,6 +263,9 @@ public:
   amd_dbgapi_status_t
   xfer_global_memory_partial (amd_dbgapi_global_address_t address, void *read,
                               const void *write, size_t *size) const override;
+
+protected:
+  static std::string pci_device_name (uint32_t vendor_id, uint32_t device_id);
 };
 
 linux_driver_t::linux_driver_t (amd_dbgapi_os_process_id_t os_pid)
@@ -320,6 +325,84 @@ linux_driver_t::xfer_global_memory_partial (
 
   *size = ret;
   return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
+/* Find the marketing name for the PCI device VENDOR_ID:DEVICE_ID.
+
+   The information is extracted from the pci.ids database[1] which might or
+   might not be up to date, so the result might change from host to host.  The
+   location of the pci.ids file is resolved by CMake and available via the
+   PCI_IDS_PATH macro.  The file can usually be updated using the update-pciids
+   command.
+
+   [1] https://pci-ids.ucw.cz/  */
+
+std::string
+linux_driver_t::pci_device_name (uint32_t vendor_id, uint32_t device_id)
+{
+  auto fallback_name = [vendor_id, device_id] () -> std::string
+  {
+    std::stringstream name;
+    name << "Device " << std::hex << std::setfill ('0') << std::setw (4)
+         << vendor_id << ':' << std::setw (4) << device_id;
+    return name.str ();
+  };
+
+  const char *pciids_file_path = PCI_IDS_PATH;
+  std::ifstream pci_ids (pciids_file_path);
+  if (!pci_ids.is_open ())
+    {
+      warning ("Could not open '%s'", pciids_file_path);
+      return fallback_name ();
+    }
+
+  unsigned int curr_vendor_id = 0, curr_device_id = 0;
+  std::string curr_device_name;
+  for (std::string line; pci_ids.good (); std::getline (pci_ids, line))
+    {
+      std::stringstream line_st (line);
+      int nextchar = line_st.peek ();
+      if (nextchar == std::char_traits<char>::eof () || nextchar == '#')
+        continue;
+      if (nextchar != '\t')
+        {
+          /* Format: "vendor_id vendor_name".  */
+          line_st >> std::hex >> curr_vendor_id;
+          curr_device_id = 0;
+          curr_device_name = "";
+
+          /* We reached the end of the list of vendors and did not find
+             the one we are looking for.  Break here as the end of the
+             file has a different format.  */
+          if (curr_vendor_id == 0xffff)
+            break;
+        }
+      else
+        {
+          /* Skip decoding of the current line if the vendor_id does not match
+             the one we are looking for.  */
+          if (curr_vendor_id != vendor_id)
+            continue;
+
+          /* Consume the leading \t.  */
+          line_st.get ();
+          nextchar = line_st.peek ();
+          if (nextchar != '\t')
+            {
+              /* Format: "TAB device_id device_name".  */
+              line_st >> std::hex >> curr_device_id;
+              std::getline (line_st >> std::ws, curr_device_name);
+            }
+
+          /* There is a "TAB TAB subvendor subdevice  subsystem_name" format
+             we do not care about.  */
+        }
+      if (curr_vendor_id == vendor_id && curr_device_id == device_id)
+        return curr_device_name;
+    }
+
+  /* We have not found the device.  */
+  return fallback_name ();
 }
 
 /* OS Driver implementation for the Linux ROCm stack using KFD.  */
@@ -651,18 +734,6 @@ kfd_driver_t::agent_snapshot (os_agent_info_t *snapshots,
       auto &agent_info = snapshots[agents_found++];
       agent_info.os_agent_id = gpu_id;
 
-      /* Retrieve the GPU name.  */
-
-      std::ifstream gpu_name_ifs (node_path + "/name");
-      if (!gpu_name_ifs.is_open ())
-        fatal_error ("Could not open %s/name", node_path.c_str ());
-
-      gpu_name_ifs >> agent_info.name;
-      if (agent_info.name.empty ())
-        fatal_error (
-          "os_agent_id %d: asic family name not present in the sysfs.",
-          agent_info.os_agent_id);
-
       /* Fill in the apertures for this agent.  */
 
       dbgapi_assert (it->lds_base && it->scratch_base);
@@ -746,6 +817,8 @@ kfd_driver_t::agent_snapshot (os_agent_info_t *snapshots,
         fatal_error ("Invalid node properties");
 
       agent_info.shader_engine_count = array_count / arrays_per_engine;
+      agent_info.name
+        = pci_device_name (agent_info.vendor_id, agent_info.device_id);
     }
 
   /* Make sure we filled the information for all snapshot entries returned by

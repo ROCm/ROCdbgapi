@@ -113,6 +113,27 @@ if(API_TRACING)
   target_compile_definitions(amd-dbgapi PRIVATE WITH_API_TRACING)
 endif()
 
+find_file(
+  PCI_IDS_PATH
+  NAMES
+    pci.ids
+  PATHS
+    /usr/share/misc
+    /usr/share/hwdata
+  NO_DEFAULT_PATH
+)
+# CMake-3.18 adds the REQUIRED parameter to find_file, but we cannot rely on it
+# yet.  Check manually the file is found until then.
+if("${PCI_IDS_PATH}" STREQUAL "PCI_IDS_PATH-NOTFOUND")
+  message(FATAL_ERROR "Cannot found the pci.ids file. Use PCI_IDS_PATH to specify known path.")
+endif()
+message(STATUS "Using pci.ids file: ${PCI_IDS_PATH}")
+set_source_files_properties(
+  src/os_driver.cpp
+  PROPERTIES
+    COMPILE_DEFINITIONS "PCI_IDS_PATH=\"${PCI_IDS_PATH}\""
+)
+
 find_package(amd_comgr REQUIRED CONFIG
   PATHS
     /opt/rocm/
@@ -246,7 +267,7 @@ endif()
 message("Using CPACK_DEBIAN_PACKAGE_RELEASE ${CPACK_DEBIAN_PACKAGE_RELEASE}")
 set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
 
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "comgr(>=1.2.0), rocm-core")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "comgr(>=1.2.0), rocm-core, pci.ids")
 
 if(DEFINED ENV{CPACK_RPM_PACKAGE_RELEASE})
   set(CPACK_RPM_PACKAGE_RELEASE $ENV{CPACK_RPM_PACKAGE_RELEASE})
@@ -266,7 +287,7 @@ if(PROC_RESULT EQUAL "0" AND NOT EVAL_RESULT STREQUAL "")
 endif()
 set(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
 
-set(CPACK_RPM_PACKAGE_REQUIRES "comgr >= 1.2.0")
+set(CPACK_RPM_PACKAGE_REQUIRES "comgr >= 1.2.0, hwdata")
 
 # Debian package specific variables
 #set(CPACK_DEBIAN_PACKAGE_HOMEPAGE

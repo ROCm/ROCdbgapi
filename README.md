@@ -31,7 +31,7 @@ Building the ROCdbgapi library has the following prerequisites:
 4. For Ubuntu 18.04 and Ubuntu 20.04 the following adds the needed packages:
 
    ````shell
-   apt install gcc g++ make cmake doxygen graphviz texlive-full
+   apt install gcc g++ make cmake doxygen graphviz texlive-full pci.ids
    ````
 
    NOTE: The ``doxygen`` 1.8.13 that is installed by Ubuntu 18.04 has a bug
@@ -43,7 +43,7 @@ Building the ROCdbgapi library has the following prerequisites:
    ````shell
    yum install -y gcc gcc-g++ make cmake doxygen graphviz texlive \
      texlive-xtab texlive-multirow texlive-sectsty texlive-tocloft \
-     texlive-tabu texlive-adjustbox
+     texlive-tabu texlive-adjustbox hwdata
    ````
 
    NOTE: The ``doxygen`` 1.8.14 that is installed by CentOS 8.1 and RHEL 8.1,
@@ -55,7 +55,7 @@ Building the ROCdbgapi library has the following prerequisites:
    ````shell
    zypper in gcc gcc-g++ make cmake doxygen graphviz texlive-scheme-medium \
      texlive-hanging texlive-stackengine texlive-tocloft texlive-etoc \
-     texlive-tabu
+     texlive-tabu hwdata
    ````
 
 An example command-line to build the ROCdbgapi library on Linux is:
