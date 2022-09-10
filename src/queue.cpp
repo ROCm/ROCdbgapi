@@ -114,21 +114,19 @@ private:
      instruction buffers.  Instruction buffers are lazily allocated from the
      reserved memory, and when freed, their index is returned to a free list.
      Each wave is guaranteed its own unique instruction buffer.  */
-  amd_dbgapi_global_address_t m_debugger_memory_base{};
+  std::optional<amd_dbgapi_global_address_t> m_debugger_memory_base{};
 
   uint16_t m_debugger_memory_chunk_count{ 0 };
   uint16_t m_debugger_memory_next_chunk{ 0 };
   std::vector<uint16_t> m_debugger_memory_free_chunks{};
 
-  displaced_instruction_ptr_t m_park_instruction_ptr{};
-  displaced_instruction_ptr_t m_terminating_instruction_ptr{};
+  std::optional<displaced_instruction_ptr_t> m_park_instruction_ptr{};
+  std::optional<displaced_instruction_ptr_t> m_terminating_instruction_ptr{};
 
   /* Value used to mark waves that are found in the context save area. When
      sweeping, any wave found with a mark less than the current mark will be
      deleted, as these waves are no longer active.  */
   monotonic_counter_t<epoch_t, 1> m_next_wave_mark{};
-
-  hsa_queue_t m_hsa_queue{};
 
   amd_dbgapi_os_queue_packet_id_t get_os_queue_packet_id (
     const architecture_t::cwsr_record_t &cwsr_record) const;
@@ -146,18 +144,29 @@ public:
   ~aql_queue_t () override;
 
   /* Return the queue type.  */
-  amd_dbgapi_os_queue_type_t type () const override;
+  amd_dbgapi_os_queue_type_t type () const override
+  {
+    return AMD_DBGAPI_OS_QUEUE_TYPE_HSA_AQL;
+  }
 
   /* Return the address of a park instruction.  */
   amd_dbgapi_global_address_t park_instruction_address () override
   {
-    return m_park_instruction_ptr.get ();
+    if (!m_park_instruction_ptr)
+      m_park_instruction_ptr.emplace (allocate_displaced_instruction (
+        architecture ().assert_instruction ()));
+
+    return m_park_instruction_ptr->get ();
   }
 
   /* Return the address of a terminating instruction.  */
   amd_dbgapi_global_address_t terminating_instruction_address () override
   {
-    return m_terminating_instruction_ptr.get ();
+    if (!m_terminating_instruction_ptr)
+      m_terminating_instruction_ptr.emplace (allocate_displaced_instruction (
+        architecture ().terminating_instruction ()));
+
+    return m_terminating_instruction_ptr->get ();
   }
 
   std::pair<amd_dbgapi_global_address_t /* address */,
@@ -328,74 +337,12 @@ aql_queue_t::aql_queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
                           const os_queue_snapshot_entry_t &os_queue_info)
   : compute_queue_t (queue_id, agent, os_queue_info)
 {
-  process_t &process = this->process ();
-
-  amd_dbgapi_global_address_t ctx_save_base
-    = m_os_queue_info.ctx_save_restore_address;
-
-  struct context_save_area_header_s header;
-  process.read_global_memory (ctx_save_base, &header);
-
-  if (!header.debugger_memory_offset || !header.debugger_memory_size)
-    fatal_error ("Per-queue memory reserved for the debugger is missing");
-
-  /* Make sure the debugger memory is aligned so that it can be used to store
-     displaced instructions, and that each chunk out of that memory register is
-     also aligned.  */
-  dbgapi_assert (
-    utils::is_aligned (debugger_memory_chunk_size,
-                       architecture ().minimum_instruction_alignment ()));
-
-  m_debugger_memory_base = utils::align_up (
-    ctx_save_base + header.debugger_memory_offset, debugger_memory_chunk_size);
-
-  auto chunk_count = (ctx_save_base + header.debugger_memory_size
-                      + header.debugger_memory_offset - m_debugger_memory_base)
-                     / debugger_memory_chunk_size;
-
-  /* Ensure that the number of chunks does not overflow the 16 bit index.  */
-  if (chunk_count
-      > std::numeric_limits<decltype (m_debugger_memory_chunk_count)>::max ())
-    fatal_error ("Increase the width of m_debugger_memory_chunk_count");
-
-  m_debugger_memory_chunk_count = chunk_count;
-
-  m_debugger_memory_free_chunks.reserve (m_debugger_memory_chunk_count);
-
-  /* Reserve 2 instruction buffers for parking, and terminating waves.  */
-  m_park_instruction_ptr
-    = allocate_displaced_instruction (architecture ().assert_instruction ());
-  m_terminating_instruction_ptr = allocate_displaced_instruction (
-    architecture ().terminating_instruction ());
-
-  /* Read the hsa_queue_t at the top of the amd_queue_t. Since the amd_queue_t
-    structure could change, it can only be accessed by calculating its address
-    from the address of the read_dispatch_id by subtracting
-    read_dispatch_id_field_base_byte_offset .  */
-
-  uint32_t read_dispatch_id_field_base_byte_offset;
-  process.read_global_memory (
-    m_os_queue_info.read_pointer_address
-      + offsetof (amd_queue_t, read_dispatch_id_field_base_byte_offset)
-      - offsetof (amd_queue_t, read_dispatch_id),
-    &read_dispatch_id_field_base_byte_offset);
-
-  amd_dbgapi_global_address_t hsa_queue_address
-    = m_os_queue_info.read_pointer_address
-      - read_dispatch_id_field_base_byte_offset;
-  process.read_global_memory (hsa_queue_address, &m_hsa_queue);
-
-  if (reinterpret_cast<uintptr_t> (m_hsa_queue.base_address) != address ())
-    fatal_error ("hsa_queue_t base address != kfd queue info base address");
-
-  if ((m_hsa_queue.size * aql_packet_size) != size ())
-    fatal_error ("hsa_queue_t size != kfd queue info ring size");
-
   /* The dispatch packet index is stored in a trap temporary register when a
      wave associated with that packet is initialized.  Make sure the field
      containing the packet index is large enough.  The ROCr should not create
      queues with more packets than the field can hold.  */
-  if (m_hsa_queue.size > architecture ().maximum_queue_packet_count ())
+  if ((size () / aql_packet_size)
+      > architecture ().maximum_queue_packet_count ())
     fatal_error ("queue ring size = %#lx is not supported", size ());
 }
 
@@ -447,6 +394,48 @@ aql_queue_t::~aql_queue_t ()
 compute_queue_t::displaced_instruction_ptr_t
 aql_queue_t::allocate_displaced_instruction (const instruction_t &instruction)
 {
+  dbgapi_assert (
+    state () == state_t::suspended
+    && "the queue must be suspended to read from its context save memory");
+
+  if (!m_debugger_memory_base)
+    {
+      amd_dbgapi_global_address_t ctx_save_base
+        = m_os_queue_info.ctx_save_restore_address;
+
+      struct context_save_area_header_s header;
+      process ().read_global_memory (ctx_save_base, &header);
+
+      if (!header.debugger_memory_offset || !header.debugger_memory_size)
+        fatal_error ("Per-queue memory reserved for the debugger is missing");
+
+      /* Make sure the debugger memory is aligned so that it can be used to
+         store displaced instructions, and that each chunk out of that memory
+         register is also aligned.  */
+      dbgapi_assert (
+        utils::is_aligned (debugger_memory_chunk_size,
+                           architecture ().minimum_instruction_alignment ()));
+
+      m_debugger_memory_base.emplace (
+        utils::align_up (ctx_save_base + header.debugger_memory_offset,
+                         debugger_memory_chunk_size));
+
+      auto chunk_count
+        = (ctx_save_base + header.debugger_memory_size
+           + header.debugger_memory_offset - *m_debugger_memory_base)
+          / debugger_memory_chunk_size;
+
+      /* Ensure that the number of chunks does not overflow the 16 bit index.
+       */
+      if (chunk_count > std::numeric_limits<
+            decltype (m_debugger_memory_chunk_count)>::max ())
+        fatal_error ("Increase the width of m_debugger_memory_chunk_count");
+
+      m_debugger_memory_chunk_count = chunk_count;
+
+      m_debugger_memory_free_chunks.reserve (m_debugger_memory_chunk_count);
+    }
+
   auto assert_instruction = architecture ().assert_instruction ();
   amd_dbgapi_global_address_t instruction_buffer_address;
 
@@ -456,12 +445,12 @@ aql_queue_t::allocate_displaced_instruction (const instruction_t &instruction)
       m_debugger_memory_free_chunks.pop_back ();
 
       instruction_buffer_address
-        = m_debugger_memory_base + index * debugger_memory_chunk_size;
+        = *m_debugger_memory_base + index * debugger_memory_chunk_size;
     }
   else if (m_debugger_memory_next_chunk < m_debugger_memory_chunk_count)
     {
       instruction_buffer_address
-        = m_debugger_memory_base
+        = *m_debugger_memory_base
           + m_debugger_memory_next_chunk++ * debugger_memory_chunk_size;
 
       /* An instruction buffer is always terminated by a 'guard' instruction
@@ -480,7 +469,8 @@ aql_queue_t::allocate_displaced_instruction (const instruction_t &instruction)
 
   auto deleter = [this] (amd_dbgapi_global_address_t ptr)
   {
-    size_t index = (ptr - m_debugger_memory_base) / debugger_memory_chunk_size;
+    size_t index
+      = (ptr - *m_debugger_memory_base) / debugger_memory_chunk_size;
 
     dbgapi_assert (index < m_debugger_memory_chunk_count);
     m_debugger_memory_free_chunks.emplace_back (index);
@@ -931,21 +921,6 @@ aql_queue_t::active_packets_bytes (
         address (), static_cast<char *> (memory) + first_part_size,
         second_part_size);
     }
-}
-
-amd_dbgapi_os_queue_type_t
-aql_queue_t::type () const
-{
-  switch (m_hsa_queue.type)
-    {
-    case HSA_QUEUE_TYPE_SINGLE:
-      return AMD_DBGAPI_OS_QUEUE_TYPE_HSA_KERNEL_DISPATCH_SINGLE_PRODUCER;
-    case HSA_QUEUE_TYPE_MULTI:
-      return AMD_DBGAPI_OS_QUEUE_TYPE_HSA_KERNEL_DISPATCH_MULTIPLE_PRODUCER;
-    case HSA_QUEUE_TYPE_COOPERATIVE:
-      return AMD_DBGAPI_OS_QUEUE_TYPE_HSA_KERNEL_DISPATCH_COOPERATIVE;
-    }
-  return AMD_DBGAPI_OS_QUEUE_TYPE_UNKNOWN;
 }
 
 class unsupported_queue_t : public queue_t
