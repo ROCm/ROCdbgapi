@@ -139,8 +139,13 @@ event_t::set_state (state_t state)
      which point the event may be destroyed.  */
   dbgapi_assert (state > m_state);
 
-  if (state == state_t::processed
-      && kind () == AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED)
+  if (state == state_t::processed && kind () == AMD_DBGAPI_EVENT_KIND_RUNTIME)
+    {
+      process ().send_exceptions (os_exception_mask_t::process_runtime,
+                                  &process ());
+    }
+  else if (state == state_t::processed
+           && kind () == AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED)
     {
       amd_dbgapi_event_id_t event_id
         = std::get<code_object_list_updated_event_t> (m_data)

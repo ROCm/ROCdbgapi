@@ -1778,9 +1778,10 @@ process_t::next_pending_event ()
           if ((exceptions & os_exception_mask_t::process_runtime)
               != os_exception_mask_t::none)
             {
-              /* Make sure the runtime receives the process_runtime_enable
-                 event even if an exception is thrown.  */
-              auto send_runtime_enable_event = utils::make_scope_exit (
+              /* Make sure the runtime is allowed to continue if an error is
+                 thrown.  The process_runtime exception is normally delivered
+                 when the event is marked as processed by the client.  */
+              auto send_runtime_enable_event = utils::make_scope_fail (
                 [this] () {
                   send_exceptions (os_exception_mask_t::process_runtime, this);
                 });
