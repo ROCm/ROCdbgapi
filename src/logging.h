@@ -557,7 +557,15 @@ to_string_helper (T &&first, Args &&...args)
 {
   std::string str = to_string (std::forward<T> (first));
   if constexpr (sizeof...(Args) != 0)
-    str += ", " + to_string_helper (std::forward<Args> (args)...);
+    {
+      std::string args_str = to_string_helper (std::forward<Args> (args)...);
+      if (!args_str.empty ())
+        {
+          if (!str.empty ())
+            str += ", ";
+          str += args_str;
+        }
+    }
   return str;
 }
 
