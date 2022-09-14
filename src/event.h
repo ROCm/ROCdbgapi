@@ -66,6 +66,7 @@ private:
   struct runtime_event_t
   {
     amd_dbgapi_runtime_state_t runtime_state;
+    bool runtime_enable_during_attach;
   };
 
   /* Wave stop / command terminated event .  */
