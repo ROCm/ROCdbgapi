@@ -219,6 +219,14 @@ process_t::detach ()
       log_info ("debugging is disabled for %s", to_cstring (id ()));
     }
 
+  for (const event_t &event : range<event_t> ())
+    {
+      /* Queued events not yet delivered are fine.  */
+      if (event.state () == event_t::state_t::reported)
+        warning ("Detaching with unprocessed event: %s",
+                 event.pretty_printer_string ().c_str ());
+    }
+
   /* Destruct the waves, workgroups, dispatches, queues, and agents, in this
      order.  */
   std::get<handle_object_set_t<watchpoint_t>> (m_handle_object_sets).clear ();
