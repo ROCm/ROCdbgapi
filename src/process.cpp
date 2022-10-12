@@ -149,8 +149,8 @@ process_t::detach ()
     {
       std::vector<queue_t *> queues;
 
-      /* We don't need to resume the queues until we are done changing the
-         state.  */
+      /* Keep the queues suspended, the OS driver will resume all queues after
+         disabling the debug mode.  */
       set_forward_progress_needed (false);
 
       /* Return precise memory reporting to its default off state.  */
@@ -200,8 +200,9 @@ process_t::detach ()
             }
         }
 
-      /* Resume all the queues.  */
-      set_forward_progress_needed (true);
+      /* Write back the entire memory cache to commit our changes to the waves'
+         context save area memory.  */
+      memory_cache ().write_back (0, -1);
     }
   catch (...)
     {
