@@ -211,6 +211,14 @@ process_t::detach ()
 
   if (os_driver ().is_debug_enabled ())
     {
+      /* FIXME: What happens to events that have not been reported to the
+         client yet? Seems they should be reported to the runtime before
+         disabling debugging.
+
+         What about events that KFD has received but have not been retrieved by
+         the Debugger API? Should KFD send them to the runtime after disabling
+         debug?  */
+
       amd_dbgapi_status_t status = os_driver ().disable_debug ();
       if (status != AMD_DBGAPI_STATUS_SUCCESS
           && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
@@ -1254,6 +1262,9 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
     return AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS;
   }();
 
+  enqueue_event (
+    create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME, m_runtime_state));
+
   if (m_runtime_state == AMD_DBGAPI_RUNTIME_STATE_UNLOADED)
     {
       /* From now on, and until the runtime is enabled again, only runtime
@@ -1455,9 +1466,6 @@ process_t::attach ()
 
       set_flag (flag_t::runtime_enable_during_attach);
       runtime_enable (runtime_info);
-
-      enqueue_event (create<event_t> (*this, AMD_DBGAPI_EVENT_KIND_RUNTIME,
-                                      m_runtime_state));
     }
 
   disable_debug.release ();
@@ -1816,8 +1824,6 @@ process_t::next_pending_event ()
                       runtime_info.runtime_state);
 
                   runtime_enable (runtime_info);
-                  enqueue_event (create<event_t> (
-                    *this, AMD_DBGAPI_EVENT_KIND_RUNTIME, m_runtime_state));
                 }
               else if (status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
                 fatal_error ("query_exception_info failed (%s)",
