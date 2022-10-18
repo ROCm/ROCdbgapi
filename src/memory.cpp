@@ -664,6 +664,10 @@ memory_cache_t::xfer_global_memory (amd_dbgapi_global_address_t address,
           auto xfer_size = xfer_global_memory (ptr, read, write, request_size);
 
           ptr += xfer_size;
+          if (read != nullptr)
+            read = static_cast<char *> (read) + xfer_size;
+          if (write != nullptr)
+            write = static_cast<const char *> (write) + xfer_size;
           size -= xfer_size;
 
           if (xfer_size != request_size)
