@@ -1595,8 +1595,14 @@ amdgcn_architecture_t::is_sopp_encoding (const instruction_t &instruction)
 std::string
 amdgcn_architecture_t::register_name (amdgpu_regnum_t regnum) const
 {
+  if (regnum >= amdgpu_regnum_t::first_shadow_sgpr
+      && regnum <= amdgpu_regnum_t::last_shadow_sgpr)
+    {
+      return string_printf ("s%ld",
+                            regnum - amdgpu_regnum_t::first_shadow_sgpr);
+    }
   if (regnum >= amdgpu_regnum_t::first_sgpr
-      && regnum < amdgpu_regnum_t::last_sgpr)
+      && regnum <= amdgpu_regnum_t::last_sgpr)
     {
       return string_printf ("s%ld", regnum - amdgpu_regnum_t::first_sgpr);
     }
@@ -1699,8 +1705,10 @@ amdgcn_architecture_t::register_type (amdgpu_regnum_t regnum) const
       return "int32_t[64]";
     }
   /* Scalar registers.  */
-  if (regnum >= amdgpu_regnum_t::first_sgpr
-      && regnum < amdgpu_regnum_t::last_sgpr)
+  if ((regnum >= amdgpu_regnum_t::first_shadow_sgpr
+       && regnum <= amdgpu_regnum_t::last_shadow_sgpr)
+      || (regnum >= amdgpu_regnum_t::first_sgpr
+          && regnum <= amdgpu_regnum_t::last_sgpr))
     {
       return "int32_t";
     }
@@ -1761,8 +1769,10 @@ amdgcn_architecture_t::register_size (amdgpu_regnum_t regnum) const
       return sizeof (int32_t) * 64;
     }
   /* Scalar registers.  */
-  if (regnum >= amdgpu_regnum_t::first_sgpr
-      && regnum < amdgpu_regnum_t::last_sgpr)
+  if ((regnum >= amdgpu_regnum_t::first_shadow_sgpr
+       && regnum <= amdgpu_regnum_t::last_shadow_sgpr)
+      || (regnum >= amdgpu_regnum_t::first_sgpr
+          && regnum <= amdgpu_regnum_t::last_sgpr))
     {
       return sizeof (int32_t);
     }
@@ -1858,6 +1868,16 @@ amdgcn_architecture_t::register_properties (amdgpu_regnum_t regnum) const
   /* Writing to the vcc register may change the status.vccz bit.  */
   if (regnum == amdgpu_regnum_t::pseudo_status)
     properties |= AMD_DBGAPI_REGISTER_PROPERTY_VOLATILE;
+
+  /* Writing the shadow sgprs or flat_scratch/xnack_mask/vcc should force the
+     client to reload the shadow sgprs or flat_scratch/xnack_mask/vcc.  */
+  if ((regnum >= amdgpu_regnum_t::first_shadow_sgpr
+       && regnum <= amdgpu_regnum_t::last_shadow_sgpr)
+      || regnum == amdgpu_regnum_t::flat_scratch
+      || regnum == amdgpu_regnum_t::xnack_mask_64
+      || regnum == amdgpu_regnum_t::pseudo_vcc_64)
+    properties |= AMD_DBGAPI_REGISTER_PROPERTY_VOLATILE
+                  | AMD_DBGAPI_REGISTER_PROPERTY_INVALIDATE_VOLATILE;
 
   /* Writing to the exec or vcc register may change the status.execz
      status.vccz bits respectively.  */
@@ -2280,6 +2300,10 @@ gfx9_architecture_t::gfx9_architecture_t (elf_amdgpu_machine_t e_machine,
     amdgpu_regnum_t::first_sgpr,
     amdgpu_regnum_t::first_sgpr + gfx9_architecture_t::scalar_register_count ()
       - 1);
+  scalar_registers.add_registers (
+    amdgpu_regnum_t::first_shadow_sgpr,
+    amdgpu_regnum_t::first_shadow_sgpr
+      + gfx9_architecture_t::scalar_register_count () - 1);
 
   /* Vector registers: [v0-v255]  */
   auto &vector_registers = create<register_class_t> (*this, "vector");
@@ -2906,6 +2930,23 @@ gfx9_architecture_t::cwsr_record_t::register_address (
       break;
     }
 
+  amdgpu_regnum_t shadow_sgpr_end
+    = aliased_sgpr_end
+      + (amdgpu_regnum_t::first_shadow_sgpr - amdgpu_regnum_t::first_sgpr);
+
+  /* Map the shadow sgprs onto the same slots as "regular" sgprs.  */
+  if (regnum >= (shadow_sgpr_end - architecture.scalar_alias_count ())
+      && regnum < shadow_sgpr_end)
+    {
+      /* The xnack_mask register (shadow_sgpr_end[-4:-3]) really is saved in
+         the hwreg block (hwreg[7:8]) by the CWSR handler.  */
+      if (regnum == (shadow_sgpr_end - 4) || regnum == (shadow_sgpr_end - 3))
+        return hwregs_addr + (11 - (shadow_sgpr_end - regnum)) * hwreg_size;
+
+      regnum = amdgpu_regnum_t::first_sgpr
+               + (regnum - amdgpu_regnum_t::first_shadow_sgpr);
+    }
+
   if (regnum >= amdgpu_regnum_t::first_sgpr && regnum < aliased_sgpr_end)
     {
       return sgprs_addr + (regnum - amdgpu_regnum_t::s0) * sgpr_size;
@@ -3508,6 +3549,12 @@ gfx10_architecture_t::gfx10_architecture_t (elf_amdgpu_machine_t e_machine,
     amdgpu_regnum_t::first_sgpr
       + gfx10_architecture_t::scalar_register_count () - 1);
 
+  scalar_registers->add_registers (
+    amdgpu_regnum_t::first_shadow_sgpr
+      + gfx9_architecture_t::scalar_register_count (),
+    amdgpu_regnum_t::first_shadow_sgpr
+      + gfx10_architecture_t::scalar_register_count () - 1);
+
   /* Vector registers: [v0_32-v255_32]  */
   register_class_t *vector_registers
     = find_if ([] (const register_class_t &register_class)
@@ -3732,6 +3779,13 @@ gfx10_architecture_t::register_properties (amdgpu_regnum_t regnum) const
 {
   amd_dbgapi_register_properties_t properties
     = gfx9_architecture_t::register_properties (regnum);
+
+  /* Writing the shadow sgprs or flat_scratch/xnack_mask/vcc should force the
+     client to reload the shadow sgprs or flat_scratch/xnack_mask/vcc.  */
+  if (regnum == amdgpu_regnum_t::xnack_mask_32
+      || regnum == amdgpu_regnum_t::pseudo_vcc_32)
+    properties |= AMD_DBGAPI_REGISTER_PROPERTY_VOLATILE
+                  | AMD_DBGAPI_REGISTER_PROPERTY_INVALIDATE_VOLATILE;
 
   /* Writing to the exec or vcc register may change the status.execz
      status.vccz bits respectively.  */

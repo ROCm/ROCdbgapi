@@ -83,7 +83,13 @@ enum class amdgpu_regnum_t : uint32_t
   s127 = s0 + 127,
 
   last_sgpr = s127,
-  first_hwreg = last_sgpr + 1,
+
+  /* Shadow Scalar registers.  The shadow sgprs are the scalar registers mapped
+     under flat_scratch, vcc, and xnack_mask.  */
+  first_shadow_sgpr = last_sgpr + 1,
+  last_shadow_sgpr = first_shadow_sgpr + 127,
+
+  first_hwreg = last_shadow_sgpr + 1,
 
   /* Hardware registers (hwregs).  */
 
