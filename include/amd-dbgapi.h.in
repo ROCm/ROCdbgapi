@@ -543,6 +543,12 @@ extern "C" {
  */
 #define AMD_DBGAPI_VERSION_0_68
 
+/**
+ * The function was introduced in version 0.69 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.69"``.
+ */
+#define AMD_DBGAPI_VERSION_0_69
+
 /** @} */
 
 /** \ingroup callbacks_group
@@ -934,6 +940,11 @@ typedef enum
    * The workgroup handle is invalid.
    */
   AMD_DBGAPI_STATUS_ERROR_INVALID_WORKGROUP_ID = -45,
+  /**
+   * The register handle is valid, but specifies a register that does not have
+   * a DWARF register number.
+   */
+  AMD_DBGAPI_STATUS_ERROR_DWARF_REGISTER_NOT_AVAILABLE = -46,
 } amd_dbgapi_status_t;
 
 /**
@@ -4825,7 +4836,9 @@ typedef enum
   AMD_DBGAPI_REGISTER_INFO_TYPE = 4,
   /**
    * Return the AMD GPU DWARF register number for the register's architecture.
-   * The type of this attribute is \p uint64_t.
+   * The type of this attribute is \p uint64_t.  ::amd_dbgapi_register_get_info
+   * returns ::AMD_DBGAPI_STATUS_ERROR_DWARF_REGISTER_NOT_AVAILABLE if the
+   * requested register has no associated DWARF register number.
    */
   AMD_DBGAPI_REGISTER_INFO_DWARF = 5,
   /**
@@ -4862,6 +4875,11 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID \p register_id is
  * invalid for \p architecture_id.  \p value is unaltered.
  *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_DWARF_REGISTER_NOT_AVAILABLE \p
+ * register_id is valid for \p architecture_id but has no associated DWARF
+ * register number for the ::AMD_DBGAPI_REGISTER_INFO_DWARF query.  \p value is
+ * unaltered.
+ *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p value is NULL, or \p
  * query is invalid or not supported for an architecture.  \p value is
  * unaltered.
@@ -4876,7 +4894,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_register_get_info (
     amd_dbgapi_register_id_t register_id, amd_dbgapi_register_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_58;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_69;
 
 /**
  * Indication of if a wave has a register.

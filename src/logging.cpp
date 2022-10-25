@@ -350,6 +350,7 @@ to_string (amd_dbgapi_status_t status)
       CASE (STATUS_ERROR_SYMBOL_NOT_FOUND);
       CASE (STATUS_ERROR_REGISTER_NOT_AVAILABLE);
       CASE (STATUS_ERROR_INVALID_WORKGROUP_ID);
+      CASE (STATUS_ERROR_DWARF_REGISTER_NOT_AVAILABLE);
     }
   return to_string (make_hex (status));
 }

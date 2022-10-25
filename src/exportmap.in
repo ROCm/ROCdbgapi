@@ -53,7 +53,6 @@ global: amd_dbgapi_process_attach;
 
 @AMD_DBGAPI_NAME@_0.58 {
 global: amd_dbgapi_classify_instruction;
-        amd_dbgapi_register_get_info;
         amd_dbgapi_wave_resume;
 } @AMD_DBGAPI_NAME@_0.56;
 
@@ -83,3 +82,7 @@ global: amd_dbgapi_agent_get_info;
 @AMD_DBGAPI_NAME@_0.68 {
 global: amd_dbgapi_queue_get_info;
 } @AMD_DBGAPI_NAME@_0.67;
+
+@AMD_DBGAPI_NAME@_0.69 {
+global: amd_dbgapi_register_get_info;
+} @AMD_DBGAPI_NAME@_0.68;

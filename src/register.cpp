@@ -380,7 +380,7 @@ amd_dbgapi_register_get_info (amd_dbgapi_register_id_t register_id,
           {
             auto dwarf_register = amdgpu_regnum_to_dwarf_register (*regnum);
             if (!dwarf_register)
-              THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID);
+              THROW (AMD_DBGAPI_STATUS_ERROR_DWARF_REGISTER_NOT_AVAILABLE);
 
             utils::get_info (value_size, value, *dwarf_register);
             return;
