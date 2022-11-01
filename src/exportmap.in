@@ -83,6 +83,6 @@ global: amd_dbgapi_agent_get_info;
 global: amd_dbgapi_queue_get_info;
 } @AMD_DBGAPI_NAME@_0.67;
 
-@AMD_DBGAPI_NAME@_0.69 {
+@AMD_DBGAPI_NAME@_0.70 {
 global: amd_dbgapi_register_get_info;
 } @AMD_DBGAPI_NAME@_0.68;

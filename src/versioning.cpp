@@ -211,10 +211,6 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
       case AMD_DBGAPI_STATUS_ERROR_INVALID_WORKGROUP_ID:
         string = "The workgroup handle is invalid";
         break;
-      case AMD_DBGAPI_STATUS_ERROR_DWARF_REGISTER_NOT_AVAILABLE:
-        string = "The register handle is valid, but specifies a register that "
-                 "does not have a DWARF register number.";
-        break;
         /* Don't add a default here, so that we can catch at compile time when
            an enum value is missing.  */
       }
