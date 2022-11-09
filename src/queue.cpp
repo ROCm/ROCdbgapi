@@ -394,10 +394,6 @@ aql_queue_t::~aql_queue_t ()
 compute_queue_t::displaced_instruction_ptr_t
 aql_queue_t::allocate_displaced_instruction (const instruction_t &instruction)
 {
-  dbgapi_assert (
-    state () == state_t::suspended
-    && "the queue must be suspended to read from its context save memory");
-
   if (!m_debugger_memory_base)
     {
       amd_dbgapi_global_address_t ctx_save_base
