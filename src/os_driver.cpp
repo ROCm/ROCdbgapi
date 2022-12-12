@@ -760,6 +760,8 @@ kfd_driver_t::enable_debug (os_exception_mask_t exceptions_reported,
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_ENABLE, &args);
   if (err == -ESRCH)
     return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err == -EALREADY)
+    return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
   else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
