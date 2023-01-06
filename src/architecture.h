@@ -312,6 +312,11 @@ public:
 
   virtual bool park_stopped_waves () const = 0;
 
+  virtual void save_pc_for_park (const wave_t &wave,
+                                 amd_dbgapi_global_address_t pc) const = 0;
+  virtual amd_dbgapi_global_address_t
+  saved_parked_pc (const wave_t &wave) const = 0;
+
   virtual bool has_architected_flat_scratch () const = 0;
 
   virtual amd_dbgapi_size_t

@@ -91,7 +91,6 @@ private:
   bool m_ttmps_initialized{ false };
   bool m_stop_requested{ false };
   amd_dbgapi_wave_stop_reasons_t m_stop_reason{};
-  mutable amd_dbgapi_global_address_t m_parked_pc{ 0 };
   amd_dbgapi_global_address_t m_last_stopped_pc{ 0 };
   epoch_t m_mark{ 0 };
 

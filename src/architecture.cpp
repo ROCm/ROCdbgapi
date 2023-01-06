@@ -361,6 +361,10 @@ protected:
 
   virtual bool can_halt_at_endpgm () const = 0;
   bool park_stopped_waves () const override { return !can_halt_at_endpgm (); }
+  void save_pc_for_park (const wave_t &wave,
+                         amd_dbgapi_global_address_t pc) const override;
+  amd_dbgapi_global_address_t
+  saved_parked_pc (const wave_t &wave) const override;
 
   bool has_architected_flat_scratch () const override { return false; };
 
@@ -1143,18 +1147,7 @@ amdgcn_architecture_t::simulate_trap_handler (
   /* Park the wave.  */
   if (park_stopped_waves ())
     {
-      uint32_t ttmp7, ttmp11;
-
-      /* The trap handler saves PC[31:0] in ttmp7[31:0] ...  */
-      ttmp7 = utils::bit_extract (pc, 0, 31);
-      wave.write_register (amdgpu_regnum_t::ttmp7, ttmp7);
-
-      /* ... and PC[47:32] in ttmp11[22:7].  */
-      wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
-      ttmp11 &= ~utils::bit_mask (7, 22);
-      ttmp11 |= (utils::bit_extract (pc, 32, 47) << 7);
-      wave.write_register (amdgpu_regnum_t::ttmp11, ttmp11);
-
+      save_pc_for_park (wave, pc);
       pc = wave.queue ().park_instruction_address ();
     }
 
@@ -1208,21 +1201,7 @@ amdgcn_architecture_t::wave_get_state (wave_t &wave) const
      enter the trap handler.  */
 
   if (park_stopped_waves ())
-    {
-      /* The trap handler "parked" the wave and saved the PC in ttmp11[22:7]
-         and ttmp7[31:0].  */
-
-      uint32_t ttmp7, ttmp11;
-      wave.read_register (amdgpu_regnum_t::ttmp7, &ttmp7);
-      wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
-
-      amd_dbgapi_global_address_t pc
-        = static_cast<amd_dbgapi_global_address_t> (ttmp7)
-          | static_cast<amd_dbgapi_global_address_t> (
-              utils::bit_extract (ttmp11, 7, 22))
-              << 32;
-      wave.write_register (amdgpu_regnum_t::pc, pc);
-    }
+    wave.write_register (amdgpu_regnum_t::pc, saved_parked_pc (wave));
 
   amd_dbgapi_wave_stop_reasons_t stop_reason
     = AMD_DBGAPI_WAVE_STOP_REASON_NONE;
@@ -2083,6 +2062,43 @@ amdgcn_architecture_t::write_pseudo_register (const wave_t &wave,
     }
 
   dbgapi_assert_not_reached ("Unhandled pseudo register");
+}
+
+void
+amdgcn_architecture_t::save_pc_for_park (const wave_t &wave,
+                                         amd_dbgapi_global_address_t pc) const
+{
+  dbgapi_assert (park_stopped_waves ());
+
+  uint32_t ttmp7, ttmp11;
+  /* The trap handler saves PC[31:0] in ttmp7[31:0] ...  */
+  ttmp7 = utils::bit_extract (pc, 0, 31);
+  wave.write_register (amdgpu_regnum_t::ttmp7, ttmp7);
+
+  /* ... and PC[47:32] in ttmp11[22:7].  */
+  wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
+  ttmp11 &= ~utils::bit_mask (7, 22);
+  ttmp11 |= (utils::bit_extract (pc, 32, 47) << 7);
+  wave.write_register (amdgpu_regnum_t::ttmp11, ttmp11);
+}
+
+amd_dbgapi_global_address_t
+amdgcn_architecture_t::saved_parked_pc (const wave_t &wave) const
+{
+  dbgapi_assert (park_stopped_waves ());
+  /* The trap handler "parked" the wave and saved the PC in ttmp11[22:7]
+     and ttmp7[31:0].  */
+
+  uint32_t ttmp7, ttmp11;
+  wave.read_register (amdgpu_regnum_t::ttmp7, &ttmp7);
+  wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
+
+  amd_dbgapi_global_address_t pc
+    = static_cast<amd_dbgapi_global_address_t> (ttmp7)
+      | static_cast<amd_dbgapi_global_address_t> (
+          utils::bit_extract (ttmp11, 7, 22))
+          << 32;
+  return pc;
 }
 
 /* Base class for all GFX9 architectures.  */

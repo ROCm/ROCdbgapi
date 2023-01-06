@@ -191,15 +191,17 @@ wave_t::park ()
      a wave is stopped, for example a terminating instruction, we change its pc
      to point to an immutable trap instruction.  This guarantees that the
      wave will never be halted at such instructions.  */
-  m_parked_pc = pc ();
+  architecture ().save_pc_for_park (*this, pc ());
 
   write_register (amdgpu_regnum_t::pc, queue ().park_instruction_address ());
 
   m_is_parked = true;
-  /* From now on, every read/write to the pc register will be from/to
-     m_parked_pc.  The real pc in the context save area will be untouched.  */
+  /* From now on, every read/write to the pc register will be done via
+     architecture_t::saved_parked_pc /architecture_t::.save_pc_for_park.  The
+     real pc in the context save area will be untouched.  */
 
-  log_verbose ("parked %s (pc=%#lx)", to_cstring (id ()), m_parked_pc);
+  log_verbose ("parked %s (pc=%#lx)", to_cstring (id ()),
+               architecture ().saved_parked_pc (*this));
 }
 
 void
@@ -637,8 +639,9 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
 
   if (m_is_parked && regnum == amdgpu_regnum_t::pc)
     {
-      memcpy (value,
-              reinterpret_cast<const std::byte *> (&m_parked_pc) + offset,
+      amd_dbgapi_global_address_t parked_pc
+        = architecture ().saved_parked_pc (*this);
+      memcpy (value, reinterpret_cast<const std::byte *> (&parked_pc) + offset,
               value_size);
       return;
     }
@@ -695,22 +698,25 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
 
   if (m_is_parked && regnum == amdgpu_regnum_t::pc)
     {
+      amd_dbgapi_global_address_t parked_pc
+        = architecture ().saved_parked_pc (*this);
       if (auto *read_only
           = architecture ().register_read_only_mask (amdgpu_regnum_t::pc);
           read_only != nullptr)
         {
-          amd_dbgapi_global_address_t pc = m_parked_pc;
+          amd_dbgapi_global_address_t pc = parked_pc;
           memcpy (reinterpret_cast<std::byte *> (&pc) + offset, value,
                   value_size);
 
           amd_dbgapi_global_address_t mask
             = *static_cast<const amd_dbgapi_global_address_t *> (read_only);
 
-          m_parked_pc = (pc & ~mask) | (m_parked_pc & mask);
+          architecture ().save_pc_for_park (*this,
+                                            (pc & ~mask) | (parked_pc & mask));
         }
       else
         {
-          memcpy (reinterpret_cast<std::byte *> (&m_parked_pc) + offset, value,
+          memcpy (reinterpret_cast<std::byte *> (&parked_pc) + offset, value,
                   value_size);
         }
 
