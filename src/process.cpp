@@ -86,21 +86,43 @@ process_t::process_t (amd_dbgapi_process_id_t process_id,
       }),
     m_dummy_agent (AMD_DBGAPI_AGENT_NONE, *this, nullptr, {})
 {
-  amd_dbgapi_os_process_id_t os_process_id;
-  amd_dbgapi_status_t status
-    = client_process_get_info (AMD_DBGAPI_CLIENT_PROCESS_INFO_OS_PID,
-                               sizeof (os_process_id), &os_process_id);
-  if (status == AMD_DBGAPI_STATUS_SUCCESS)
-    m_os_process_id.emplace (os_process_id);
-  else if (status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-    fatal_error ("get_os_pid () failed (%s)", to_cstring (status));
-
   /* Create the notifier pipe.  */
   m_client_notifier_pipe.open ();
   if (!m_client_notifier_pipe.is_valid ())
     fatal_error ("Could not create the client notifier pipe");
 
-  m_os_driver = os_driver_t::create_driver (m_os_process_id);
+  amd_dbgapi_os_process_id_t os_process_id;
+  amd_dbgapi_status_t status
+    = client_process_get_info (AMD_DBGAPI_CLIENT_PROCESS_INFO_OS_PID,
+                               sizeof (os_process_id), &os_process_id);
+  if (status == AMD_DBGAPI_STATUS_SUCCESS)
+    {
+      m_os_process_id.emplace (os_process_id);
+      m_os_driver = os_driver_t::create_driver (m_os_process_id);
+    }
+  else if (status == AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE)
+    {
+      /* Query the client for agents and queues snapshots.  Those are
+         provided if and only if we are debugging from a corefile.  */
+      amd_dbgapi_core_state_data_t core_state{};
+
+      auto agents_snapshot_cleaner = amd::dbgapi::utils::make_scope_exit (
+        [&core_state] ()
+        {
+          if (core_state.data != nullptr)
+            deallocate_memory (const_cast<void *> (core_state.data));
+        });
+      status
+        = client_process_get_info (AMD_DBGAPI_CLIENT_PROCESS_INFO_CORE_STATE,
+                                   sizeof (core_state), &core_state);
+      if (status == AMD_DBGAPI_STATUS_SUCCESS)
+        m_os_driver = os_driver_t::create_driver (core_state);
+      else
+        m_os_driver = os_driver_t::create_driver (std::nullopt);
+    }
+  else if (status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+    fatal_error ("get_os_pid () failed (%s)", to_cstring (status));
+
   if (!m_os_driver->is_valid ())
     fatal_error ("Could not create the OS driver");
 }
@@ -153,56 +175,60 @@ process_t::detach ()
 
   try
     {
-      std::vector<queue_t *> queues;
-
-      /* Keep the queues suspended, the OS driver will resume all queues after
-         disabling the debug mode.  */
-      set_forward_progress_needed (false);
-
-      /* Return precise memory reporting to its default off state.  */
-      set_precise_memory (false);
-
-      /* Resume all the waves halted at launch.  */
-      set_wave_launch_mode (os_wave_launch_mode_t::normal);
-
-      /* Refresh the queues.  New queues may have been created, and waves may
-         have hit breakpoints.  */
-      update_queues ();
-
-      /* Suspend the queues that weren't already suspended.  */
-      for (auto &&queue : range<queue_t> ())
-        if (!queue.is_suspended ())
-          queues.emplace_back (&queue);
-
-      suspend_queues (queues, "detach from process");
-
-      /* Remove the watchpoints that may still be inserted.  */
-      for (auto &&watchpoint : range<watchpoint_t> ())
-        remove_watchpoint (watchpoint);
-
-      for (auto &&wave : range<wave_t> ())
+      if (!from_core ())
         {
-          /* If the wave was displaced stepping, cancel the operation now while
-             the queue is suspended (it may write registers).  */
-          if (wave.displaced_stepping () != nullptr)
-            {
-              wave.set_state (AMD_DBGAPI_WAVE_STATE_STOP);
-              wave.displaced_stepping_complete ();
-            }
+          std::vector<queue_t *> queues;
 
-          /* Invalidate the wave_id.  */
-          wave.write_register (amdgpu_regnum_t::wave_id, wave_t::undefined);
+          /* Keep the queues suspended, the OS driver will resume all queues
+             after disabling the debug mode.  */
+          set_forward_progress_needed (false);
 
-          /* Resume the wave if it is single-stepping, or if it is stopped
-             because of a debug event (completed single-step, breakpoint,
-             watchpoint).  The wave is not resumed if it is halted because of
-             pending exceptions.  */
-          if ((wave.state () == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
-              || (wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
-                  && !(wave.stop_reason ()
-                       & ~wave_t::resumable_stop_reason_mask)))
+          /* Return precise memory reporting to its default off state.  */
+          set_precise_memory (false);
+
+          /* Resume all the waves halted at launch.  */
+          set_wave_launch_mode (os_wave_launch_mode_t::normal);
+
+          /* Refresh the queues.  New queues may have been created, and waves
+             may have hit breakpoints.  */
+          update_queues ();
+
+          /* Suspend the queues that weren't already suspended.  */
+          for (auto &&queue : range<queue_t> ())
+            if (!queue.is_suspended ())
+              queues.emplace_back (&queue);
+
+          suspend_queues (queues, "detach from process");
+
+          /* Remove the watchpoints that may still be inserted.  */
+          for (auto &&watchpoint : range<watchpoint_t> ())
+            remove_watchpoint (watchpoint);
+
+          for (auto &&wave : range<wave_t> ())
             {
-              wave.set_state (AMD_DBGAPI_WAVE_STATE_RUN);
+              /* If the wave was displaced stepping, cancel the operation now
+                 while the queue is suspended (it may write registers).  */
+              if (wave.displaced_stepping () != nullptr)
+                {
+                  wave.set_state (AMD_DBGAPI_WAVE_STATE_STOP);
+                  wave.displaced_stepping_complete ();
+                }
+
+              /* Invalidate the wave_id.  */
+              wave.write_register (amdgpu_regnum_t::wave_id,
+                                   wave_t::undefined);
+
+              /* Resume the wave if it is single-stepping, or if it is stopped
+                 because of a debug event (completed single-step, breakpoint,
+                 watchpoint).  The wave is not resumed if it is halted because
+                 of pending exceptions.  */
+              if ((wave.state () == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
+                  || (wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
+                      && !(wave.stop_reason ()
+                           & ~wave_t::resumable_stop_reason_mask)))
+                {
+                  wave.set_state (AMD_DBGAPI_WAVE_STATE_RUN);
+                }
             }
         }
 
@@ -1142,7 +1168,8 @@ process_t::update_queues ()
                                     *agent,      /* agent */
                                     queue_info); /* queue_info */
 
-          queue->set_state (queue_t::state_t::running);
+          queue->set_state (from_core () ? queue_t::state_t::suspended
+                                         : queue_t::state_t::running);
           queue->set_mark (queue_mark);
 
           log_info ("created new %s (os_queue_id=%d)",
@@ -1341,6 +1368,28 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
      runtime unloaded exception.  */
   if (m_runtime_state != AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS)
     return;
+
+  /* If we have opened a corefile, we just need to update queues.  */
+  if (from_core ())
+    {
+      update_queues ();
+      update_code_objects ();
+
+      /* Some waves can still be reported as running (i.e without the STOP
+         bit set).  This happens with core dumps generated by the runtime:
+         all queues are evicted, but the individual waves are not touched.
+         Make sure to mark each wave as stopped so its state can be accessed
+         by the debugger.  */
+      for (auto &&wave : range<wave_t> ())
+        {
+          if (wave.state () != AMD_DBGAPI_WAVE_STATE_STOP)
+            wave.set_state (AMD_DBGAPI_WAVE_STATE_STOP);
+        }
+
+      clear_flag (flag_t::runtime_enable_during_attach);
+
+      return;
+    }
 
   /* Early exits (exceptions and returns) result in restriction errors.  */
   auto restriction_error = utils::make_scope_exit (

@@ -410,7 +410,9 @@ wave_t::update (
       && m_state == AMD_DBGAPI_WAVE_STATE_STOP)
     {
       /* Park the wave if the architecture does not support halting at certain
-         instructions.  */
+         instructions.  If the wave is loaded from a core dump, we do not park
+         the wave as there is no trap instruction to park the wave to, and
+         there is no need to park the wave in the first place either.  */
       if (architecture.park_stopped_waves (process ().rocr_rdebug_version ()))
         park ();
 

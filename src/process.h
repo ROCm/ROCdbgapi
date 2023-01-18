@@ -165,6 +165,8 @@ public:
     return m_rocr_debug_version;
   }
 
+  bool from_core () const { return !m_os_process_id.has_value (); }
+
   /* Reset all the handle_object_sets IDs.  There should not be any attached
      processes left in the s_process_map. */
   static void reset_all_ids ();

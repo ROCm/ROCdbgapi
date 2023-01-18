@@ -1752,6 +1752,10 @@ typedef enum
    * ::amd_dbgapi_process_attach attached to the process, then
    * ::amd_dbgapi_process_get_info returns the
    * ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE error.
+   *
+   * If the process image was rebuilt using a core dump, then
+   * ::amd_dbgapi_process_get_info returns the
+   * ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE error.
    */
   AMD_DBGAPI_PROCESS_INFO_OS_ID = 5,
   /**

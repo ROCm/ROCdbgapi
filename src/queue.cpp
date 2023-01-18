@@ -154,6 +154,12 @@ public:
   /* Return the address of a park instruction.  */
   amd_dbgapi_global_address_t park_instruction_address () override
   {
+    /* When the queue is loaded from a core dump, there is no running wave, and
+       we cannot allocate nor initialize displaced instruction buffers. Setting
+       the PC to 0 is harmless for a stopped wave.  */
+    if (process ().from_core ())
+      return 0x0;
+
     if (!m_park_instruction_ptr)
       m_park_instruction_ptr.emplace (allocate_displaced_instruction (
         architecture ().assert_instruction ()));
@@ -164,6 +170,10 @@ public:
   /* Return the address of a terminating instruction.  */
   amd_dbgapi_global_address_t terminating_instruction_address () override
   {
+    /* See park_instruction_address.  */
+    if (process ().from_core ())
+      return 0x0;
+
     if (!m_terminating_instruction_ptr)
       m_terminating_instruction_ptr.emplace (allocate_displaced_instruction (
         architecture ().terminating_instruction ()));
@@ -398,6 +408,8 @@ aql_queue_t::~aql_queue_t ()
 compute_queue_t::displaced_instruction_ptr_t
 aql_queue_t::allocate_displaced_instruction (const instruction_t &instruction)
 {
+  dbgapi_assert (!process ().from_core ());
+
   if (!m_debugger_memory_base)
     {
       amd_dbgapi_global_address_t ctx_save_base
