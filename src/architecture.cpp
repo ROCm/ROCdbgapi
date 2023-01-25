@@ -3456,7 +3456,7 @@ protected:
   };
 
   virtual std::unique_ptr<architecture_t::cwsr_record_t>
-  make_gfx10_cwsr_record (
+  make_gfx1x_cwsr_record (
     compute_queue_t &queue, uint32_t compute_relaunch_wave,
     uint32_t compute_relaunch_state, uint32_t compute_relaunch2_state,
     amd_dbgapi_global_address_t context_save_address) const
@@ -4367,12 +4367,13 @@ gfx10_architecture_t::control_stack_iterate (
       else if (compute_relaunch_is_state (relaunch))
         {
           state0 = relaunch;
-          /* On gfx10, there are 2 COMPUTE_RELAUNCH registers for state.  */
+          /* On gfx10 and gfx11, there are 2 COMPUTE_RELAUNCH registers for
+             state.  */
           state1 = control_stack[++i];
         }
       else
         {
-          auto cwsr_record = make_gfx10_cwsr_record (queue, relaunch, state0,
+          auto cwsr_record = make_gfx1x_cwsr_record (queue, relaunch, state0,
                                                      state1, last_wave_area);
 
           last_wave_area = cwsr_record->begin ();
@@ -4483,6 +4484,13 @@ protected:
 
   class cwsr_record_t : public gfx10_architecture_t::cwsr_record_t
   {
+  protected:
+    static constexpr uint32_t
+    compute_relaunch_wave_payload_se_id (uint32_t relaunch_wave)
+    {
+      return utils::bit_extract (relaunch_wave, 24, 26);
+    }
+
   public:
     cwsr_record_t (compute_queue_t &queue, uint32_t compute_relaunch_wave,
                    uint32_t compute_relaunch_state,
@@ -4493,13 +4501,14 @@ protected:
         compute_relaunch2_state, context_save_address)
     {
     }
+
+    uint32_t shader_engine_id () const override;
   };
 
-  virtual std::unique_ptr<architecture_t::cwsr_record_t>
-  make_gfx11_cwsr_record (
+  std::unique_ptr<architecture_t::cwsr_record_t> make_gfx1x_cwsr_record (
     compute_queue_t &queue, uint32_t compute_relaunch_wave,
     uint32_t compute_relaunch_state, uint32_t compute_relaunch2_state,
-    amd_dbgapi_global_address_t context_save_address) const
+    amd_dbgapi_global_address_t context_save_address) const override
   {
     return std::make_unique<cwsr_record_t> (
       queue, compute_relaunch_wave, compute_relaunch_state,
@@ -4560,6 +4569,12 @@ public:
   bool can_halt_at_endpgm () const override { return true; }
   bool has_architected_flat_scratch () const override { return true; };
 };
+
+uint32_t
+gfx11_architecture_t::cwsr_record_t::shader_engine_id () const
+{
+  return compute_relaunch_wave_payload_se_id (m_compute_relaunch_wave);
+}
 
 std::pair<amd_dbgapi_wave_state_t, amd_dbgapi_wave_stop_reasons_t>
 gfx11_architecture_t::wave_get_state (wave_t &wave) const
