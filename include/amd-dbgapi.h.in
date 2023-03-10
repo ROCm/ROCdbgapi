@@ -281,9 +281,6 @@
  * - gfx1030 (Sienna Cichlid)
  * - gfx1031 (Navy Flounder)
  * - gfx1032 (Dimgrey Cavefish)
- * - gfx1100 (Plum Bonito)
- * - gfx1101 (Wheat Nas)
- * - gfx1102 (Hotpink Bonefish)
  *
  * For more information about the AMD ROCm ecosystem, please refer to:
  *
@@ -344,12 +341,6 @@
  * 8. The library does not support single root I/O virtualization (SR-IOV) on
  *    any AMD GPU architecture that supports it.  That includes gfx1030,
  *    gfx1031, and gfx1032.
- *
- * 9. The library does not support debugging programs that use cooperative
- *    groups or CU masking for gfx1100, gfx1101, and gfx11102.  A restriction
- *    will be reported when attaching to a process that has already created
- *    cooperative group queues or CU masked queues.  Any attempt by the process
- *    to create a cooperative queue or CU masked queue when attached will fail.
  *
  * \section references References
  *
