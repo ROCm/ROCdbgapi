@@ -1951,8 +1951,8 @@ process_t::send_exceptions (
   os_exception_mask_t exceptions,
   std::variant<process_t *, agent_t *, queue_t *> source) const
 {
-  os_agent_id_t agent_id = os_invalid_agentid;
-  os_queue_id_t queue_id = os_invalid_queueid;
+  std::optional<os_agent_id_t> agent_id;
+  std::optional<os_queue_id_t> queue_id;
 
   if (std::holds_alternative<queue_t *> (source))
     {

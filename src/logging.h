@@ -79,6 +79,15 @@ to_string (T v)
   return ss.str ();
 }
 
+template <typename T>
+inline std::string
+to_string (std::optional<T> v)
+{
+  if (v.has_value ())
+    return std::string ("{") + to_string (*v) + "}";
+  return "{}";
+}
+
 template <>
 inline std::string
 to_string (const char *v)
