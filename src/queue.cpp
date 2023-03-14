@@ -1024,7 +1024,10 @@ queue_t::create (std::optional<amd_dbgapi_queue_id_t> queue_id,
 os_queue_id_t
 queue_t::os_queue_id () const
 {
-  return is_valid () ? m_os_queue_info.queue_id : os_invalid_queueid;
+  if (is_valid ())
+    return m_os_queue_info.queue_id;
+  else
+    return m_os_queue_info.queue_id | os_queue_invalid_mask;
 }
 
 void
