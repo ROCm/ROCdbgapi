@@ -842,8 +842,8 @@ kfd_driver_t::send_exceptions (os_exception_mask_t exceptions,
 
   kfd_ioctl_dbg_trap_args args{};
   args.exception_mask = static_cast<uint64_t> (exceptions);
-  args.data1 = agent_id.has_value () ? *agent_id : os_invalid_agentid;
-  args.data2 = queue_id.has_value () ? *queue_id : os_invalid_queueid;
+  args.data1 = agent_id.has_value () ? *agent_id : KFD_INVALID_GPUID;
+  args.data2 = queue_id.has_value () ? *queue_id : KFD_INVALID_QUEUEID;
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SEND_RUNTIME_EVENT, &args);
   if (err == -ESRCH)

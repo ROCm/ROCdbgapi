@@ -60,8 +60,6 @@ enum elf_amdgpu_machine_t : uint32_t
 
 using os_agent_id_t = uint32_t;
 
-constexpr os_agent_id_t os_invalid_agentid = KFD_INVALID_GPUID;
-
 struct os_agent_info_t
 {
   /* Agent Id assigned by the driver.  */
@@ -325,7 +323,6 @@ os_queue_type (os_queue_snapshot_entry_t entry)
   return static_cast<os_queue_type_t> (entry.queue_type);
 }
 
-constexpr os_queue_id_t os_invalid_queueid = KFD_INVALID_QUEUEID;
 constexpr os_queue_id_t os_queue_error_mask = KFD_DBG_QUEUE_ERROR_MASK;
 constexpr os_queue_id_t os_queue_invalid_mask = KFD_DBG_QUEUE_INVALID_MASK;
 constexpr os_queue_id_t os_queue_id_mask
