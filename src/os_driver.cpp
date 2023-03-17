@@ -189,15 +189,15 @@ public:
   }
 
   amd_dbgapi_status_t
-    clear_address_watch (os_agent_id_t /* os_agent_id  */,
-                         os_watch_id_t /* os_watch_id  */) const override
+  clear_address_watch (os_agent_id_t /* os_agent_id  */,
+                       os_watch_id_t /* os_watch_id  */) const override
   {
     fatal_error (
       "should not call this, null_driver does not support watchpoints");
   }
 
   amd_dbgapi_status_t
-    set_wave_launch_mode (os_wave_launch_mode_t /* mode  */) const override
+  set_wave_launch_mode (os_wave_launch_mode_t /* mode  */) const override
   {
     return AMD_DBGAPI_STATUS_ERROR;
   }
