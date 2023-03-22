@@ -906,7 +906,7 @@ process_t::resume_queues (const std::vector<queue_t *> &queues,
   [[maybe_unused]] size_t num_invalid_queues = 0;
   for (os_queue_id_t mask : queue_ids)
     {
-      os_queue_id_t queue_id = mask & os_queue_id_mask;
+      os_queue_id_t queue_id = os_queue_id_unmask (mask);
 
       /* Some queues may have failed to resume because they are invalid, or
          no longer exist. Check the queue_ids returned by KFD and invalidate
@@ -1050,7 +1050,7 @@ process_t::update_queues ()
 
                   log_info ("destroyed stale %s (os_queue_id=%d)",
                             to_cstring (destroyed_queue_id),
-                            queue_info.queue_id);
+                            os_queue_id_unmask (queue_info.queue_id));
                 }
             }
           else if (is_flag_set (flag_t::runtime_enable_during_attach))
@@ -1116,7 +1116,8 @@ process_t::update_queues ()
           queue->set_mark (queue_mark);
 
           log_info ("created new %s (os_queue_id=%d)",
-                    to_cstring (queue->id ()), queue->os_queue_id ());
+                    to_cstring (queue->id ()),
+                    os_queue_id_unmask (queue->os_queue_id ()));
         }
     }
   while (queue_count > snapshot_count);
@@ -1129,7 +1130,7 @@ process_t::update_queues ()
     if (it->mark () < queue_mark)
       {
         amd_dbgapi_queue_id_t queue_id = it->id ();
-        os_queue_id_t os_queue_id = it->os_queue_id ();
+        os_queue_id_t os_queue_id = os_queue_id_unmask (it->os_queue_id ());
 
         it = destroy (it);
 
@@ -1640,7 +1641,8 @@ process_t::query_debug_event (os_exception_mask_t cleared_exceptions)
               queue = nullptr;
 
               log_info ("destroyed stale %s (os_queue_id=%d)",
-                        to_cstring (stale_queue_id), os_queue_id);
+                        to_cstring (stale_queue_id),
+                        os_queue_id_unmask (os_queue_id));
             }
 
           /* ABA handling: create a temporary, partially initialized, queue

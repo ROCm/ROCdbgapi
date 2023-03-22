@@ -328,6 +328,14 @@ constexpr os_queue_id_t os_queue_invalid_mask = KFD_DBG_QUEUE_INVALID_MASK;
 constexpr os_queue_id_t os_queue_id_mask
   = ~(os_queue_error_mask | os_queue_invalid_mask);
 
+/* Remove the error and invalid bits from OS_QUEUE_ID.  */
+
+inline constexpr os_queue_id_t
+os_queue_id_unmask (os_queue_id_t os_queue_id)
+{
+  return os_queue_id & os_queue_id_mask;
+}
+
 enum class os_wave_launch_mode_t : uint32_t
 {
   normal = 0,      /* Waves launch normally.  */
