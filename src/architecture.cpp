@@ -120,6 +120,7 @@ protected:
 
   static constexpr uint32_t ttmp11_wave_in_group_mask = utils::bit_mask (0, 5);
   static constexpr int ttmp11_wave_in_group_shift = 0;
+  static constexpr uint32_t ttmp6_spi_ttmps_setup_disabled_mask = 1 << 31;
   static constexpr uint32_t ttmp6_wave_stopped_mask = 1 << 30;
   static constexpr uint32_t ttmp6_saved_status_halt_mask = 1 << 29;
   static constexpr uint32_t ttmp6_saved_trap_id_mask
@@ -221,6 +222,16 @@ protected:
 
   class cwsr_record_t : public architecture_t::cwsr_record_t
   {
+  public:
+    bool spi_ttmps_setup_enabled () const override
+    {
+      uint32_t ttmp6;
+      const amd_dbgapi_global_address_t ttmp6_address
+        = register_address (amdgpu_regnum_t::ttmp6).value ();
+      process ().read_global_memory (ttmp6_address, &ttmp6);
+      return !(ttmp6 & ttmp6_spi_ttmps_setup_disabled_mask);
+    }
+
   protected:
     cwsr_record_t (compute_queue_t &queue, uint32_t xcc_id)
       : architecture_t::cwsr_record_t (queue, xcc_id)
@@ -310,8 +321,10 @@ public:
   virtual void set_exceptions (wave_t &, exception_mask_t,
                                exception_mask_t) const;
 
-  bool are_trap_handler_ttmps_initialized (const wave_t &wave) const override;
+  void record_spi_ttmps_setup (const wave_t &wave,
+                               bool enabled) const override;
   void initialize_spi_ttmps (const wave_t &wave) const override;
+  bool are_trap_handler_ttmps_initialized (const wave_t &wave) const override;
   void initialize_trap_handler_ttmps (const wave_t &wave) const override;
 
   std::pair<amd_dbgapi_wave_state_t, amd_dbgapi_wave_stop_reasons_t>
@@ -1307,6 +1320,18 @@ amdgcn_architecture_t::are_trap_handler_ttmps_initialized (
 {
   /* SPI already initializes all ttmps the trap handler depends on.  */
   return true;
+}
+
+void
+amdgcn_architecture_t::record_spi_ttmps_setup (const wave_t &wave,
+                                               bool enabled) const
+{
+  uint32_t ttmp6;
+  wave.read_register (amdgpu_regnum_t::ttmp6, &ttmp6);
+  ttmp6 &= ~ttmp6_spi_ttmps_setup_disabled_mask;
+  if (!enabled)
+    ttmp6 |= ttmp6_spi_ttmps_setup_disabled_mask;
+  wave.write_register (amdgpu_regnum_t::ttmp6, ttmp6);
 }
 
 void
@@ -2613,7 +2638,7 @@ gfx9_architecture_t::cwsr_record_t::id () const
 std::optional<std::array<uint32_t, 3>>
 gfx9_architecture_t::cwsr_record_t::group_ids () const
 {
-  if (!agent ().spi_ttmps_setup_enabled ())
+  if (!agent ().spi_ttmps_setup_enabled () || !spi_ttmps_setup_enabled ())
     return std::nullopt;
 
   const amd_dbgapi_global_address_t group_ids_address
@@ -2628,7 +2653,7 @@ gfx9_architecture_t::cwsr_record_t::group_ids () const
 std::optional<uint32_t>
 gfx9_architecture_t::cwsr_record_t::position_in_group () const
 {
-  if (!agent ().spi_ttmps_setup_enabled ())
+  if (!agent ().spi_ttmps_setup_enabled () || !spi_ttmps_setup_enabled ())
     return std::nullopt;
 
   const amd_dbgapi_global_address_t ttmp11_address
@@ -3218,7 +3243,8 @@ std::optional<amd_dbgapi_global_address_t>
 gfx9_architecture_t::dispatch_packet_address (
   const architecture_t::cwsr_record_t &cwsr_record) const
 {
-  if (!cwsr_record.agent ().spi_ttmps_setup_enabled ())
+  if (!cwsr_record.agent ().spi_ttmps_setup_enabled ()
+      || !cwsr_record.spi_ttmps_setup_enabled ())
     return std::nullopt;
 
   const amd_dbgapi_global_address_t ttmp6_address
@@ -3618,6 +3644,28 @@ protected:
     {
       return compute_relaunch_wave_payload_se_id (m_compute_relaunch_wave);
     }
+
+    bool spi_ttmps_setup_enabled () const override
+    {
+      /* Before ROCR ABI version 10, we have no way to record that dbgapi
+         cleared ttmp8 - ttmp11.  The bit recording this information
+         (ttmp6[31]) is uninitialized.  */
+      if (process ().rocr_rdebug_version () < 10)
+        return false;
+
+      uint32_t ttmp6, ttmp11;
+      const amd_dbgapi_global_address_t ttmp6_address
+        = register_address (amdgpu_regnum_t::ttmp6).value ();
+      const amd_dbgapi_global_address_t ttmp11_address
+        = register_address (amdgpu_regnum_t::ttmp11).value ();
+      process ().read_global_memory (ttmp6_address, &ttmp6);
+      process ().read_global_memory (ttmp11_address, &ttmp11);
+      /* Even if SPI initializes TTMP registers (8-11),  ttmp6 is only
+         initialized after we enter the trap handler (or dbgapi simulates
+         it).  */
+      return (ttmp11 & ttmp11_trap_hander_ttmps_setup_mask)
+             && !(ttmp6 & ttmp6_spi_ttmps_setup_disabled_mask);
+    }
   };
 
   std::unique_ptr<architecture_t::cwsr_record_t> make_gfx9_cwsr_record (
@@ -3748,8 +3796,9 @@ gfx940_t::are_trap_handler_ttmps_initialized (const wave_t &wave) const
 void
 gfx940_t::initialize_spi_ttmps (const wave_t &wave) const
 {
+  /* Those bits should have been initialized by SPI.  */
   for (amdgpu_regnum_t regnum = amdgpu_regnum_t::ttmp8;
-       regnum <= amdgpu_regnum_t::ttmp10; ++regnum)
+       regnum <= amdgpu_regnum_t::ttmp11; ++regnum)
     wave.write_register (regnum, uint32_t{ 0 });
 }
 
@@ -3996,7 +4045,8 @@ std::optional<amd_dbgapi_global_address_t>
 gfx940_t::dispatch_packet_address (
   const architecture_t::cwsr_record_t &cwsr_record) const
 {
-  if (!cwsr_record.agent ().spi_ttmps_setup_enabled ())
+  if (!cwsr_record.agent ().spi_ttmps_setup_enabled ()
+      || !cwsr_record.spi_ttmps_setup_enabled ())
     return std::nullopt;
 
   const compute_queue_t &queue = cwsr_record.queue ();
