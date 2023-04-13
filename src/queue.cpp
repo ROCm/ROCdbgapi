@@ -700,8 +700,11 @@ aql_queue_t::update_waves ()
             workgroup = &process.create<workgroup_t> (m_dummy_dispatch);
           }
 
-        wave = &process.create<wave_t> (*workgroup,
-                                        cwsr_record->position_in_group ());
+        std::optional<uint32_t> position_in_group;
+        if (agent ().spi_ttmps_setup_enabled ())
+          position_in_group = cwsr_record->position_in_group ();
+
+        wave = &process.create<wave_t> (*workgroup, position_in_group);
       }
 
     bool is_first_wave = cwsr_record->is_first_wave ();
