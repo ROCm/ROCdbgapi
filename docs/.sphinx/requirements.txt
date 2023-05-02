@@ -34,12 +34,8 @@ charset-normalizer==3.1.0
     # via requests
 click==8.1.3
     # via
-    #   click-log
-    #   doxysphinx
     #   jupyter-cache
     #   sphinx-external-toc
-click-log==0.4.0
-    # via doxysphinx
 comm==0.1.3
     # via ipykernel
 cryptography==40.0.2
@@ -55,10 +51,7 @@ docutils==0.19
     #   breathe
     #   myst-parser
     #   pydata-sphinx-theme
-    #   rocm-docs-core
     #   sphinx
-doxysphinx==3.2.3
-    # via rocm-docs-core
 executing==1.2.0
     # via stack-data
 fastjsonschema==2.16.3
@@ -73,7 +66,7 @@ idna==3.4
     # via requests
 imagesize==1.4.1
     # via sphinx
-importlib-metadata==6.1.0
+importlib-metadata==4.13.0
     # via
     #   jupyter-cache
     #   jupyter-client
@@ -95,8 +88,6 @@ jinja2==3.1.2
     # via
     #   myst-parser
     #   sphinx
-json5==0.9.11
-    # via doxysphinx
 jsonschema==4.17.3
     # via nbformat
 jupyter-cache==0.5.0
@@ -112,8 +103,6 @@ jupyter-core==5.3.0
     #   nbformat
 linkify-it-py==1.0.3
     # via myst-parser
-lxml==4.9.2
-    # via doxysphinx
 markdown-it-py==2.2.0
     # via
     #   mdit-py-plugins
@@ -188,8 +177,6 @@ pyjwt[crypto]==2.6.0
     # via pygithub
 pynacl==1.5.0
     # via pygithub
-pyparsing==3.0.9
-    # via doxysphinx
 pyrsistent==0.19.3
     # via jsonschema
 python-dateutil==2.8.2
@@ -210,7 +197,7 @@ requests==2.28.2
     # via
     #   pygithub
     #   sphinx
-rocm-docs-core[api_reference]==0.7.1
+rocm-docs-core==0.8.0
     # via -r .sphinx/requirements.in
 six==1.16.0
     # via
