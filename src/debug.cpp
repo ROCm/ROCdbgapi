@@ -28,11 +28,10 @@
 #include <sstream>
 #include <string>
 
+#if defined(ENABLE_BACKTRACE)
 #include <cxxabi.h>
-
-#if defined(HAVE_BACKTRACE_H)
 #include <backtrace.h>
-#endif /* defined (HAVE_BACKTRACE_H) */
+#endif /* defined (ENABLE_BACKTRACE) */
 
 namespace amd::dbgapi
 {
