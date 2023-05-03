@@ -36,8 +36,9 @@
 6: New trap handler ABI. ttmp6[25:0] contains dispatch index modulo queue size
 7: New trap handler ABI. Send interrupts as a bitmask, coalescing concurrent
    exceptions.
+8: New trap handler ABI for gfx940: Initialize ttmp[4:5] if ttmp11[31] == 0.
 */
 
-#define ROCR_RDEBUG_VERSION 7
+#define ROCR_RDEBUG_VERSION 8
 
 #endif /* ROCR_RDEBUG_H */
