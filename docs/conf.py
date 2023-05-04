@@ -4,7 +4,11 @@
 # list see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
+import os
+
 from rocm_docs import ROCmDocs
+
+os.system("cmake -P ../cmake/build-amd-dbgapi-h.cmake")
 
 docs_core = ROCmDocs("ROCdbgapi Documentation")
 docs_core.run_doxygen()
