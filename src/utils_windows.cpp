@@ -19,9 +19,13 @@
  THE SOFTWARE. */
 
 #include "utils.h"
+#include <io.h>
 #include <windows.h>
 
-namespace amd::dbgapi::utils
+namespace amd::dbgapi
+{
+
+namespace utils
 {
 
 const char *
@@ -37,6 +41,99 @@ get_self_name ()
     return path;
 
   return "";
+}
+
+} /* namespace amd::dbgapi::utils.  */
+
+class event_notifier_t : public notifier_t
+{
+public:
+  event_notifier_t ();
+  ~event_notifier_t () override;
+
+  void open () override;
+  void close () override;
+  bool is_valid () const override;
+
+  amd_dbgapi_notifier_t producer_end () const override;
+  amd_dbgapi_notifier_t consumer_end () const override;
+  bool mark () override;
+  bool clear () override;
+
+private:
+  HANDLE m_event = nullptr;
+};
+
+event_notifier_t::event_notifier_t () {}
+
+event_notifier_t::~event_notifier_t ()
+{
+  if (is_valid ())
+    close ();
+}
+
+void
+event_notifier_t::open ()
+{
+  m_event = ::CreateEvent (nullptr, true, false, nullptr);
+
+  if (m_event == nullptr)
+    warning ("notifier_t::notifier_t: CreateEvent failed: %ld",
+             ::GetLastError ());
+}
+
+void
+event_notifier_t::close ()
+{
+  if (!is_valid ())
+   return;
+
+  if (::CloseHandle (m_event) == 0)
+    warning ("notifier_t::~notifier_t: CloseHandle failed: %ld",
+             ::GetLastError ());
+
+  m_event = nullptr;
+}
+
+bool
+event_notifier_t::is_valid () const
+{
+  return m_event != nullptr;
+}
+
+amd_dbgapi_notifier_t
+event_notifier_t::producer_end () const
+{
+  return m_event;
+}
+
+amd_dbgapi_notifier_t
+event_notifier_t::consumer_end () const
+{
+  return m_event;
+}
+
+bool
+event_notifier_t::clear ()
+{
+  if (::ResetEvent (m_event) == 0)
+    fatal_error ("notifier_t::clear: ResetEvent failed: %ld",
+                 ::GetLastError ());
+  return true;
+}
+
+bool
+event_notifier_t::mark ()
+{
+  if (::SetEvent (m_event) == 0)
+    fatal_error ("notifier_t::mark: SetEvent failed: %ld", ::GetLastError ());
+  return true;
+}
+
+std::unique_ptr<notifier_t>
+notifier_t::create ()
+{
+  return std::make_unique<event_notifier_t> ();
 }
 
 } /* namespace amd::dbgapi */

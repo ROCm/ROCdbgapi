@@ -537,6 +537,10 @@ extern "C" {
 #include <sys/types.h>
 #endif /* __linux__ */
 
+#if defined(_WIN32)
+#include <windef.h>
+#endif /* _WIN32 */
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -701,9 +705,17 @@ typedef pid_t amd_dbgapi_os_process_id_t;
  * of the number of pending events as the file may become full and so no
  * further data will be added.  The file descriptor is simply a robust way to
  * determine if there may be some pending events.
+ *
+ * For Windows<sup>&reg;</sup> this is a HANDLE for an event object.  When the
+ * event object is marked, the client is expected to clear the event object
+ * (ResetEvent) and read the pending events until none are available.  If new
+ * pending events are added while reading the pending events, then the event
+ * object will be marked again.
  */
 #if defined(__linux__)
 typedef int amd_dbgapi_notifier_t;
+#elif defined(_WIN32)
+typedef HANDLE amd_dbgapi_notifier_t;
 #endif /* __linux__ */
 
 /**
