@@ -28,10 +28,6 @@
 #include <cstring>
 #include <string>
 
-#if !defined(_GNU_SOURCE) /* For poll.h. See feature_test_macros(7) */
-#error "_GNU_SOURCE must be defined"
-#endif /* !defined (_GNU_SOURCE) */
-
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>

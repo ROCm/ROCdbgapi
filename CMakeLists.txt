@@ -95,7 +95,7 @@ target_compile_options(amd-dbgapi PRIVATE
   -fno-rtti -Werror -Wall -Wextra -Wshadow -Wno-attributes) #-pedantic)
 
 target_compile_definitions(amd-dbgapi
-  PRIVATE _GNU_SOURCE __STDC_LIMIT_MACROS __STDC_CONSTANT_MACROS)
+  PRIVATE __STDC_LIMIT_MACROS __STDC_CONSTANT_MACROS)
 
 check_include_file(backtrace.h BACKTRACE_H)
 if(BACKTRACE_H)
