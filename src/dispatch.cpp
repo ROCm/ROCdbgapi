@@ -29,8 +29,6 @@
 #include "queue.h"
 #include "utils.h"
 
-#include <hsa/amd_hsa_kernel_code.h>
-
 #include <utility>
 #include <vector>
 

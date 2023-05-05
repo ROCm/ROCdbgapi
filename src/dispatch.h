@@ -28,8 +28,6 @@
 #include <cstddef>
 #include <cstdint>
 
-#include <hsa/hsa.h>
-
 namespace amd::dbgapi
 {
 
