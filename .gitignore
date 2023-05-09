@@ -7,3 +7,5 @@ _templates/
 _toc.yml
 docBin/
 _doxygen/
+docs/index.md
+include/amd-dbgapi/amd-dbgapi.h

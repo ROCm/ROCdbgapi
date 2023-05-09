@@ -1,3 +1,7 @@
 # Anywhere {branch} is used, the branch name will be substituted.
 # These comments will also be removed.
-root: .doxygen/docBin/html/index
+root: index
+subtrees:
+  - numbered: False
+    entries:
+    - file: .doxygen/docBin/html/index

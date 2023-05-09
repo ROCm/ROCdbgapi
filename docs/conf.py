@@ -9,6 +9,7 @@ import os
 from rocm_docs import ROCmDocs
 
 os.system("cmake -P ../cmake/build-amd-dbgapi-h.cmake")
+os.system("cp ../README.md index.md")
 
 docs_core = ROCmDocs("ROCdbgapi Documentation")
 docs_core.run_doxygen()
