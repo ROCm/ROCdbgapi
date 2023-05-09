@@ -8,6 +8,8 @@ import os
 
 from rocm_docs import ROCmDocs
 
+os.system("sudo apt update")
+os.system("sudo apt install cmake")
 os.system("cmake -P ../cmake/build-amd-dbgapi-h.cmake")
 os.system("cp ../README.md index.md")
 
