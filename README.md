@@ -18,8 +18,8 @@ Documentation
 Run the steps below to build documentation locally.
 
 ```
-cmake -P cmake/make-doc.cmake
 cd docs
+cmake -P ../cmake/make-doc.cmake
 pip3 install -r sphinx/requirements.txt
 python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
 ```
