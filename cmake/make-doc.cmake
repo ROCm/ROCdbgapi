@@ -1,3 +1,9 @@
+# set variables
+set(AMD_DBGAPI_NAME "AMD_DBGAPI")
+set(PROJECT_VERSION_MAJOR "0")
+set(PROJECT_VERSION_MINOR "68")
+set(PROJECT_VERSION_PATCH "0")
+
 # configure input header file
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/amd-dbgapi.h.in
