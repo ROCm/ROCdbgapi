@@ -1,0 +1,11 @@
+# configure input header file
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/amd-dbgapi.h.in
+  ${CMAKE_CURRENT_BINARY_DIR}/include/amd-dbgapi/amd-dbgapi.h @ONLY)
+
+# set input and output files
+set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/docs/doxygen/Doxyfile.in)
+set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/docs/doxygen/Doxyfile)
+
+# configure Doxyfile
+configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)

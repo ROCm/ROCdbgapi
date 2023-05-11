@@ -291,31 +291,31 @@ endif()
 find_package(Doxygen)
 if(DOXYGEN_FOUND)
   # set input and output files
-  set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/doc/Doxyfile.in)
-  set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
+  set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/docs/doxygen/Doxyfile.in)
+  set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/docs/doxygen/Doxyfile)
 
   # request to configure the file
   configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
 
   add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/doc/html/index.html ${CMAKE_CURRENT_BINARY_DIR}/doc/latex/refman.pdf
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/docs/html/index.html ${CMAKE_CURRENT_BINARY_DIR}/docs/latex/refman.pdf
     COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
-    COMMAND make -C ${CMAKE_CURRENT_BINARY_DIR}/doc/latex pdf
+    COMMAND make -C ${CMAKE_CURRENT_BINARY_DIR}/docs/latex pdf
     MAIN_DEPENDENCY ${DOXYGEN_OUT} ${DOXYGEN_IN}
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/include/amd-dbgapi.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/amd-dbgapi/amd-dbgapi.h
     COMMENT "Generating documentation")
 
-  add_custom_target(doc DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/doc/html/index.html
-    ${CMAKE_CURRENT_BINARY_DIR}/doc/latex/refman.pdf)
+  add_custom_target(doc DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/docs/html/index.html
+    ${CMAKE_CURRENT_BINARY_DIR}/docs/latex/refman.pdf)
 
   install(FILES
-    "${CMAKE_CURRENT_BINARY_DIR}/doc/latex/refman.pdf"
+    "${CMAKE_CURRENT_BINARY_DIR}/docs/latex/refman.pdf"
     DESTINATION ${CMAKE_INSTALL_DOCDIR}
     RENAME "amd-dbgapi.pdf"
     OPTIONAL)
 
   install(DIRECTORY
-    "${CMAKE_CURRENT_BINARY_DIR}/doc/html/"
+    "${CMAKE_CURRENT_BINARY_DIR}/docs/html/"
     DESTINATION ${CMAKE_INSTALL_DATADIR}/html/amd-dbgapi
     OPTIONAL)
 

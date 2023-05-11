@@ -4,4 +4,4 @@ root: index
 subtrees:
   - numbered: False
     entries:
-    - file: .doxygen/docBin/html/index
+    - file: doxygen/docBin/html/index

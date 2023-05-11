@@ -14,8 +14,8 @@ build:
 sphinx:
    configuration: docs/conf.py
 
-formats: [htmlzip]
+formats: []
 
 python:
    install:
-   - requirements: docs/.sphinx/requirements.txt
+   - requirements: docs/sphinx/requirements.txt

@@ -5,16 +5,25 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 import os
+import subprocess
 
 from rocm_docs import ROCmDocs
 
-# os.system("sudo apt update")
-# os.system("sudo apt install cmake")
-os.system("cmake -P ../cmake/build-amd-dbgapi-h.cmake")
+
+get_name = r'sed -n -e "s/^project(\([A-Za-z-]\+\).*/\1/p" ../CMakeLists.txt'
+get_version = r'sed -n -e "s/^project(.* \([0-9\.]\{1,\}\).*/\1/p" ../CMakeLists.txt'
+name = subprocess.getoutput(get_name)
+version = subprocess.getoutput(get_version)
+if len(version) > 0:
+    name = f"{name} {version} Documentation"
+
+os.system("cmake -P ../cmake/make-doc.cmake")
 os.system("cp ../README.md index.md")
 
-docs_core = ROCmDocs("ROCdbgapi Documentation")
-docs_core.run_doxygen()
+external_toc_path = "./sphinx/_toc.yml"
+
+docs_core = ROCmDocs(name)
+docs_core.run_doxygen(doxygen_root="doxygen", doxygen_path=".")
 docs_core.enable_api_reference()
 docs_core.setup()
 

@@ -12,6 +12,18 @@ For more information about the AMD ROCm ecosystem, see:
 
 - https://rocmdocs.amd.com/
 
+Documentation
+-------------
+
+Run the steps below to build documentation locally.
+
+```
+cmake -P cmake/make-doc.cmake
+cd docs
+pip3 install -r sphinx/requirements.txt
+python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
+```
+
 Build the AMD Debugger API Library
 ----------------------------------
 
@@ -111,19 +123,6 @@ to enable AMD GPU debugging.  This can be installed as part of the AMD ROCm
 release by the ``hsa-rocr-dev`` package:
 
 - ``libhsa-runtime64.so.1 ``
-
-Sphinx documentation
---------------------
-
-Run the steps below to build Sphinx documentation locally.
-
-```
-cd docs
-
-pip3 install -r .sphinx/requirements.txt
-
-python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
-```
 
 Known Limitations and Restrictions
 ----------------------------------
