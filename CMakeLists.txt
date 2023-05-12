@@ -1,4 +1,4 @@
-## Copyright (c) 2019-2022 Advanced Micro Devices, Inc.
+## Copyright (c) 2019-2023 Advanced Micro Devices, Inc.
 ##
 ## Permission is hereby granted, free of charge, to any person obtaining a copy
 ## of this software and associated documentation files (the "Software"), to
@@ -20,7 +20,7 @@
 
 cmake_minimum_required(VERSION 3.8)
 
-project(amd-dbgapi VERSION 0.68.0)
+project(amd-dbgapi VERSION 0.70.1)
 
 include(GNUInstallDirs)
 # Convert the project's name to uppercase and replace '-' with '_'.
@@ -95,7 +95,7 @@ target_compile_options(amd-dbgapi PRIVATE
   -fno-rtti -Werror -Wall -Wextra -Wshadow -Wno-attributes) #-pedantic)
 
 target_compile_definitions(amd-dbgapi
-  PRIVATE _GNU_SOURCE __STDC_LIMIT_MACROS __STDC_CONSTANT_MACROS)
+  PRIVATE __STDC_LIMIT_MACROS __STDC_CONSTANT_MACROS)
 
 check_include_file(backtrace.h BACKTRACE_H)
 if(BACKTRACE_H)
@@ -112,6 +112,27 @@ option(API_TRACING "Enable API tracing" ON)
 if(API_TRACING)
   target_compile_definitions(amd-dbgapi PRIVATE WITH_API_TRACING)
 endif()
+
+find_file(
+  PCI_IDS_PATH
+  NAMES
+    pci.ids
+  PATHS
+    /usr/share/misc
+    /usr/share/hwdata
+  NO_DEFAULT_PATH
+)
+# CMake-3.18 adds the REQUIRED parameter to find_file, but we cannot rely on it
+# yet.  Check manually the file is found until then.
+if("${PCI_IDS_PATH}" STREQUAL "PCI_IDS_PATH-NOTFOUND")
+  message(FATAL_ERROR "Cannot found the pci.ids file. Use PCI_IDS_PATH to specify known path.")
+endif()
+message(STATUS "Using pci.ids file: ${PCI_IDS_PATH}")
+set_source_files_properties(
+  src/os_driver.cpp
+  PROPERTIES
+    COMPILE_DEFINITIONS "PCI_IDS_PATH=\"${PCI_IDS_PATH}\""
+)
 
 find_package(amd_comgr REQUIRED CONFIG
   PATHS
@@ -246,7 +267,7 @@ endif()
 message("Using CPACK_DEBIAN_PACKAGE_RELEASE ${CPACK_DEBIAN_PACKAGE_RELEASE}")
 set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
 
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "comgr(>=1.2.0), rocm-core")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "comgr(>=1.2.0), rocm-core, pci.ids")
 
 if(DEFINED ENV{CPACK_RPM_PACKAGE_RELEASE})
   set(CPACK_RPM_PACKAGE_RELEASE $ENV{CPACK_RPM_PACKAGE_RELEASE})
@@ -266,7 +287,7 @@ if(PROC_RESULT EQUAL "0" AND NOT EVAL_RESULT STREQUAL "")
 endif()
 set(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
 
-set(CPACK_RPM_PACKAGE_REQUIRES "comgr >= 1.2.0")
+set(CPACK_RPM_PACKAGE_REQUIRES "comgr >= 1.2.0, hwdata")
 
 # Debian package specific variables
 #set(CPACK_DEBIAN_PACKAGE_HOMEPAGE
@@ -298,25 +319,13 @@ if(DOXYGEN_FOUND)
   configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
 
   add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/docs/html/index.html ${CMAKE_CURRENT_BINARY_DIR}/docs/latex/refman.pdf
-    COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
-    COMMAND make -C ${CMAKE_CURRENT_BINARY_DIR}/docs/latex pdf
-    MAIN_DEPENDENCY ${DOXYGEN_OUT} ${DOXYGEN_IN}
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/include/amd-dbgapi.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/amd-dbgapi/amd-dbgapi.h
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/docs/_build
+    COMMAND echo ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND echo ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMAND pip3 install -r docs/sphinx/requirements.txt
+    COMMAND python3 -m sphinx -T -E -b html -d docs/_build/doctrees -D language=en docs docs/_build/html
     COMMENT "Generating documentation")
 
-  add_custom_target(doc DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/docs/html/index.html
-    ${CMAKE_CURRENT_BINARY_DIR}/docs/latex/refman.pdf)
-
-  install(FILES
-    "${CMAKE_CURRENT_BINARY_DIR}/docs/latex/refman.pdf"
-    DESTINATION ${CMAKE_INSTALL_DOCDIR}
-    RENAME "amd-dbgapi.pdf"
-    OPTIONAL)
-
-  install(DIRECTORY
-    "${CMAKE_CURRENT_BINARY_DIR}/docs/html/"
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/html/amd-dbgapi
-    OPTIONAL)
+  add_custom_target(doc DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/docs/_build)
 
 endif()
