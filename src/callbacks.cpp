@@ -26,6 +26,7 @@
 #include "process.h"
 #include "utils.h"
 
+#include <cinttypes>
 #include <functional>
 
 namespace amd::dbgapi
@@ -44,7 +45,7 @@ breakpoint_t::breakpoint_t (amd_dbgapi_breakpoint_id_t breakpoint_id,
   m_inserted = (status == AMD_DBGAPI_STATUS_SUCCESS);
 
   if (!m_inserted)
-    warning ("Could not insert breakpoint at %#lx (%s)", address,
+    warning ("Could not insert breakpoint at %#" PRIx64 " (%s)", address,
              to_cstring (status));
 }
 

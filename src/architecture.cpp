@@ -31,6 +31,7 @@
 #include "wave.h"
 
 #include <algorithm>
+#include <cinttypes>
 #include <cstdint>
 #include <cstring>
 #include <optional>
@@ -1000,7 +1001,7 @@ amdgcn_architecture_t::simulate (wave_t &wave, amd_dbgapi_global_address_t pc,
        handler with no trap_id.  */
     simulate_trap_handler (wave, *new_pc);
 
-  log_info ("%s simulated \"%s\" (pc=%#lx)", to_cstring (wave.id ()),
+  log_info ("%s simulated \"%s\" (pc=%#" PRIx64 ")", to_cstring (wave.id ()),
             std::get<std::string> (
               wave.architecture ().disassemble_instruction (pc, instruction))
               .c_str (),
@@ -2410,7 +2411,7 @@ gfx9_architecture_t::wave_get_state (wave_t &wave) const
           /* Resume the wave in single-step mode.  */
           wave_set_state (wave, AMD_DBGAPI_WAVE_STATE_SINGLE_STEP);
 
-          log_info ("%s (pc=%#lx) ignore spurious single-step",
+          log_info ("%s (pc=%#" PRIx64 ") ignore spurious single-step",
                     to_cstring (wave.id ()), wave.pc ());
 
           return { AMD_DBGAPI_WAVE_STATE_SINGLE_STEP,
@@ -3053,7 +3054,7 @@ gfx9_architecture_t::dispatch_packet_address (
   const compute_queue_t &queue = cwsr_record.queue ();
 
   if ((dispatch_packet_index * queue.packet_size ()) >= queue.size ())
-    fatal_error ("dispatch_packet_index %#lx is out of bounds in %s",
+    fatal_error ("dispatch_packet_index %#" PRIx64 " is out of bounds in %s",
                  dispatch_packet_index, to_cstring (queue.id ()));
 
   return queue.address () + (dispatch_packet_index * queue.packet_size ());
@@ -5369,7 +5370,7 @@ amd_dbgapi_disassemble_instruction (
                   THROW (AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
               }
 
-            address_operands_str += string_printf ("%#lx", operand);
+            address_operands_str += string_printf ("%#" PRIx64, operand);
           }
 
         instruction_str += address_operands_str;

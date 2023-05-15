@@ -29,6 +29,7 @@
 #include "utils.h"
 #include "wave.h"
 
+#include <cinttypes>
 #include <string>
 #include <vector>
 
@@ -107,8 +108,8 @@ event_t::pretty_printer_string () const
           stop_reason_str = string_printf (", stop_reason=%s",
                                            to_cstring (wave->stop_reason ()));
 
-        return string_printf ("%s for %s on %s (pc=%#lx", to_cstring (kind ()),
-                              to_cstring (wave->id ()),
+        return string_printf ("%s for %s on %s (pc=%#" PRIx64,
+                              to_cstring (kind ()), to_cstring (wave->id ()),
                               to_cstring (wave->queue ().id ()), wave->pc ())
                + stop_reason_str + ")";
       }

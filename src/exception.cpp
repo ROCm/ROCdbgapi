@@ -22,6 +22,8 @@
 #include "logging.h"
 #include "memory.h"
 
+#include <cinttypes>
+
 namespace amd::dbgapi
 {
 
@@ -36,7 +38,7 @@ memory_access_error_t::memory_access_error_t (
   const address_space_t &address_space,
   amd_dbgapi_segment_address_t segment_address, std::string message)
   : api_error_t (AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS,
-                 string_printf ("Cannot access memory at %s#%#lx",
+                 string_printf ("Cannot access memory at %s#%#" PRIx64,
                                 address_space.name ().c_str (),
                                 segment_address)
                    + (message.empty () ? "" : (": " + message))),

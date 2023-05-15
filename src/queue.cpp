@@ -36,6 +36,7 @@
 #include <hsa/hsa.h>
 
 #include <array>
+#include <cinttypes>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -592,7 +593,8 @@ aql_queue_t::get_os_queue_packet_id (
      processor's read_id and write_id.  */
   if (os_queue_packet_id < *m_read_packet_id
       || os_queue_packet_id >= *m_write_packet_id)
-    fatal_error ("os_queue_packet_id %#lx is not within [%#lx..%#lx[ in %s",
+    fatal_error ("os_queue_packet_id %#" PRIx64 " is not within "
+                 "[%#" PRIx64 "..%#" PRIx64 "[ in %s",
                  os_queue_packet_id, *m_read_packet_id, *m_write_packet_id,
                  to_cstring (id ()));
 

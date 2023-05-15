@@ -25,6 +25,7 @@
 #include "utils.h"
 
 #include <algorithm>
+#include <cinttypes>
 #include <fstream>
 #include <iomanip>
 #include <limits>
@@ -1279,11 +1280,12 @@ to_string (os_agent_info_t os_agent_info)
     ".gfxip=[%d,%d,%d], .simd_count=%zd, .max_waves_per_simd=%zd, "
     ".shader_engine_count=%zd, .vendor_id=%#x, .device_id=%#x, "
     ".revision_id=%#x, .subsystem_vendor_id=%#x, .subsystem_device_id=%#x, "
-    ".fw_version=%d, .local_address_aperture_base=%#lx, "
-    ".local_address_aperture_limit=%#lx, .private_address_aperture_base=%#lx, "
-    ".private_address_aperture_limit=%#lx, .debugging_supported=%d, "
+    ".fw_version=%d, .local_address_aperture_base=%#" PRIx64 ", "
+    ".local_address_aperture_limit=%#" PRIx64 ", "
+    ".private_address_aperture_base=%#" PRIx64 ", "
+    ".private_address_aperture_limit=%#" PRIx64 ", .debugging_supported=%d, "
     ".address_watch_supported=%d, .address_watch_register_count=%zd, "
-    ".address_watch_mask_bits=%#lx, .watchpoint_exclusive=%d, "
+    ".address_watch_mask_bits=%#" PRIx64 ", .watchpoint_exclusive=%d, "
     ".precise_memory_supported=%d, .firmware_supported=%d, "
     "ttmps_always_initialized=%d }",
     os_agent_info.os_agent_id, os_agent_info.name.c_str (),

@@ -36,6 +36,7 @@
 #include "workgroup.h"
 
 #include <algorithm>
+#include <cinttypes>
 #include <cstring>
 #include <optional>
 #include <string>
@@ -200,7 +201,7 @@ wave_t::park ()
      architecture_t::saved_parked_pc /architecture_t::.save_pc_for_park.  The
      real pc in the context save area will be untouched.  */
 
-  log_verbose ("parked %s (pc=%#lx)", to_cstring (id ()),
+  log_verbose ("parked %s (pc=%#" PRIx64 ")", to_cstring (id ()),
                architecture ().saved_parked_pc (*this));
 }
 
@@ -220,7 +221,7 @@ wave_t::unpark ()
 
   write_register (amdgpu_regnum_t::pc, saved_pc);
 
-  log_verbose ("unparked %s (pc=%#lx)", to_cstring (id ()), pc ());
+  log_verbose ("unparked %s (pc=%#" PRIx64 ")", to_cstring (id ()), pc ());
 }
 
 void
@@ -312,10 +313,10 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
     {
       write_register (amdgpu_regnum_t::pc, *displaced_stepping->to ());
 
-      log_info ("changing %s's pc from %#lx to %#lx (started %s)",
-                to_cstring (id ()), displaced_stepping->from (),
-                *displaced_stepping->to (),
-                to_cstring (displaced_stepping->id ()));
+      log_info (
+        "changing %s's pc from %#" PRIx64 " to %#" PRIx64 " (started %s)",
+        to_cstring (id ()), displaced_stepping->from (),
+        *displaced_stepping->to (), to_cstring (displaced_stepping->id ()));
     }
 
   displaced_stepping_t::retain (displaced_stepping);
@@ -336,7 +337,7 @@ wave_t::displaced_stepping_complete ()
                                                 - *m_displaced_stepping->to ();
       write_register (amdgpu_regnum_t::pc, restored_pc);
 
-      log_info ("changing %s's pc from %#lx to %#lx (%s %s)",
+      log_info ("changing %s's pc from %#" PRIx64 " to %#" PRIx64 " (%s %s)",
                 to_cstring (id ()), displaced_pc, pc (),
                 displaced_pc == *m_displaced_stepping->to () ? "aborted"
                                                              : "completed",
@@ -360,7 +361,7 @@ wave_t::update (
   /* Check that the PC in the wave state save area is correctly aligned.  */
   if (!utils::is_aligned (pc (),
                           architecture.minimum_instruction_alignment ()))
-    fatal_error ("corrupted state for %s: misaligned pc: %#lx",
+    fatal_error ("corrupted state for %s: misaligned pc: %#" PRIx64,
                  to_cstring (id ()), pc ());
 
   if (!m_ttmps_initialized)
@@ -395,7 +396,8 @@ wave_t::update (
     return string;
   };
 
-  log_verbose ("%s%s in %s (pc=%#lx, state=%s) context_save:[%#lx..%#lx[",
+  log_verbose ("%s%s in %s (pc=%#" PRIx64 ", state=%s) context_save:[%#" PRIx64
+               "..%#" PRIx64 "[",
                visibility () != visibility_t::visible ? "invisible " : "",
                to_cstring (id ()), to_cstring (workgroup ().id ()), pc (),
                wave_state_to_string (m_state, m_stop_reason).c_str (),
@@ -463,7 +465,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
       return;
     }
 
-  log_info ("changing %s%s's state from %s to %s %s(pc=%#lx)",
+  log_info ("changing %s%s's state from %s to %s %s(pc=%#" PRIx64 ")",
             visibility () != visibility_t::visible ? "invisible " : "",
             to_cstring (id ()), to_cstring (prev_state), to_cstring (state),
             exceptions != AMD_DBGAPI_EXCEPTION_NONE

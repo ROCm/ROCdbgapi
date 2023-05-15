@@ -30,6 +30,7 @@
 #include "utils.h"
 #include "watchpoint.h"
 
+#include <cinttypes>
 #include <cstdint>
 #include <vector>
 
@@ -207,8 +208,8 @@ agent_t::insert_watchpoint (const watchpoint_t &watchpoint)
     fatal_error (
       "invalid os_watch_id returned by os_driver_t::set_address_watch ()");
 
-  log_info ("%s: set address_watch%d [%#lx-%#lx] (%s)", to_cstring (id ()),
-            os_watch_id, watchpoint.address (),
+  log_info ("%s: set address_watch%d [%#" PRIx64 "-%#" PRIx64 "] (%s)",
+            to_cstring (id ()), os_watch_id, watchpoint.address (),
             watchpoint.address () + watchpoint.size (),
             to_cstring (watchpoint.kind ()));
 
