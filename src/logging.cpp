@@ -81,7 +81,8 @@ to_string (amd_dbgapi_architecture_id_t architecture_id)
   if (architecture_id == AMD_DBGAPI_ARCHITECTURE_NONE)
     return "ARCHITECTURE_NONE";
 
-  std::string str = string_printf ("architecture_%ld", architecture_id.handle);
+  std::string str
+    = string_printf ("architecture_%" PRId64, architecture_id.handle);
 
   if (const architecture_t *architecture = find (architecture_id);
       architecture)
@@ -97,7 +98,7 @@ to_string (amd_dbgapi_process_id_t process_id)
   if (process_id == AMD_DBGAPI_PROCESS_NONE)
     return "PROCESS_NONE";
 
-  return string_printf ("process_%ld", process_id.handle);
+  return string_printf ("process_%" PRId64, process_id.handle);
 }
 
 template <>
@@ -107,7 +108,8 @@ to_string (amd_dbgapi_code_object_id_t code_object_id)
   if (code_object_id == AMD_DBGAPI_CODE_OBJECT_NONE)
     return "CODE_OBJECT_NONE";
 
-  std::string str = string_printf ("code_object_%ld", code_object_id.handle);
+  std::string str
+    = string_printf ("code_object_%" PRId64, code_object_id.handle);
 
   if (code_object_t *code_object = find (code_object_id); code_object)
     str += " <\"" + code_object->uri () + "\">";
@@ -122,7 +124,7 @@ to_string (amd_dbgapi_agent_id_t agent_id)
   if (agent_id == AMD_DBGAPI_AGENT_NONE)
     return "AGENT_NONE";
 
-  return string_printf ("agent_%ld", agent_id.handle);
+  return string_printf ("agent_%" PRId64, agent_id.handle);
 }
 
 template <>
@@ -132,7 +134,7 @@ to_string (amd_dbgapi_queue_id_t queue_id)
   if (queue_id == AMD_DBGAPI_QUEUE_NONE)
     return "QUEUE_NONE";
 
-  return string_printf ("queue_%ld", queue_id.handle);
+  return string_printf ("queue_%" PRId64, queue_id.handle);
 }
 
 template <>
@@ -142,7 +144,7 @@ to_string (amd_dbgapi_workgroup_id_t workgroup_id)
   if (workgroup_id == AMD_DBGAPI_WORKGROUP_NONE)
     return "WORKGROUP_NONE";
 
-  return string_printf ("workgroup_%ld", workgroup_id.handle);
+  return string_printf ("workgroup_%" PRId64, workgroup_id.handle);
 }
 
 template <>
@@ -152,7 +154,7 @@ to_string (amd_dbgapi_dispatch_id_t dispatch_id)
   if (dispatch_id == AMD_DBGAPI_DISPATCH_NONE)
     return "DISPATCH_NONE";
 
-  return string_printf ("dispatch_%ld", dispatch_id.handle);
+  return string_printf ("dispatch_%" PRId64, dispatch_id.handle);
 }
 
 template <>
@@ -162,7 +164,7 @@ to_string (amd_dbgapi_wave_id_t wave_id)
   if (wave_id == AMD_DBGAPI_WAVE_NONE)
     return "WAVE_NONE";
 
-  return string_printf ("wave_%ld", wave_id.handle);
+  return string_printf ("wave_%" PRId64, wave_id.handle);
 }
 
 template <>
@@ -172,7 +174,7 @@ to_string (amd_dbgapi_displaced_stepping_id_t displaced_stepping_id)
   if (displaced_stepping_id == AMD_DBGAPI_DISPLACED_STEPPING_NONE)
     return "DISPLACED_STEPPING_NONE";
 
-  return string_printf ("displaced_stepping_%ld",
+  return string_printf ("displaced_stepping_%" PRId64,
                         displaced_stepping_id.handle);
 }
 
@@ -184,7 +186,7 @@ to_string (amd_dbgapi_register_class_id_t register_class_id)
     return "REGISTER_CLASS_NONE";
 
   std::string str
-    = string_printf ("register_class_%ld", register_class_id.handle);
+    = string_printf ("register_class_%" PRId64, register_class_id.handle);
 
   if (const register_class_t *register_class = find (register_class_id);
       register_class)
@@ -206,7 +208,7 @@ to_string (amd_dbgapi_register_id_t register_id)
   const architecture_t *architecture
     = architecture_t::register_id_to_architecture (register_id);
 
-  std::string str = string_printf ("register_%ld", register_id.handle);
+  std::string str = string_printf ("register_%" PRId64, register_id.handle);
 
   if (architecture != nullptr && regnum
       && architecture->is_register_available (*regnum))
@@ -224,7 +226,7 @@ to_string (amd_dbgapi_address_class_id_t address_class_id)
     return "ADDRESS_CLASS_NONE";
 
   std::string str
-    = string_printf ("address_class_%ld", address_class_id.handle);
+    = string_printf ("address_class_%" PRId64, address_class_id.handle);
 
   if (const address_class_t *address_class = find (address_class_id);
       address_class)
@@ -241,7 +243,7 @@ to_string (amd_dbgapi_address_space_id_t address_space_id)
     return "ADDRESS_SPACE_NONE";
 
   std::string str
-    = string_printf ("address_space_%ld", address_space_id.handle);
+    = string_printf ("address_space_%" PRId64, address_space_id.handle);
 
   if (const address_space_t *address_space = find (address_space_id);
       address_space)
@@ -257,7 +259,7 @@ to_string (amd_dbgapi_event_id_t event_id)
   if (event_id == AMD_DBGAPI_EVENT_NONE)
     return "EVENT_NONE";
 
-  return string_printf ("event_%ld", event_id.handle);
+  return string_printf ("event_%" PRId64, event_id.handle);
 }
 
 template <>
@@ -267,7 +269,7 @@ to_string (amd_dbgapi_breakpoint_id_t breakpoint_id)
   if (breakpoint_id == AMD_DBGAPI_BREAKPOINT_NONE)
     return "BREAKPOINT_NONE";
 
-  return string_printf ("breakpoint_%ld", breakpoint_id.handle);
+  return string_printf ("breakpoint_%" PRId64, breakpoint_id.handle);
 }
 
 #define CASE(x)                                                               \
@@ -1215,7 +1217,7 @@ template <>
 std::string
 to_string (amd_dbgapi_watchpoint_id_t watchpoint_id)
 {
-  return string_printf ("watchpoint_%ld", watchpoint_id.handle);
+  return string_printf ("watchpoint_%" PRId64, watchpoint_id.handle);
 }
 
 template <>

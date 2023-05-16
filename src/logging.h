@@ -25,6 +25,7 @@
 #include "debug.h"
 #include "utils.h"
 
+#include <cinttypes>
 #include <cstdarg>
 #include <cstddef>
 #include <memory>
@@ -387,7 +388,7 @@ to_string (detail::ref<T> ref)
 
       if (i >= 16)
         {
-          str += string_printf ("... <%ld more elements>", *count - i);
+          str += string_printf ("... <%" PRId64 " more elements>", *count - i);
           break;
         }
 

@@ -213,7 +213,7 @@ std::string
 human_readable_size (size_t size)
 {
   if (size < KiB)
-    return string_printf ("%ld", size);
+    return string_printf ("%" PRId64, size);
   if (size < MiB)
     return string_printf ("%.1fK", (double)size / KiB);
   if (size < GiB)

@@ -1578,18 +1578,19 @@ amdgcn_architecture_t::register_name (amdgpu_regnum_t regnum) const
   if (regnum >= amdgpu_regnum_t::first_shadow_sgpr
       && regnum <= amdgpu_regnum_t::last_shadow_sgpr)
     {
-      return string_printf ("s%ld",
+      return string_printf ("s%" PRId64,
                             regnum - amdgpu_regnum_t::first_shadow_sgpr);
     }
   if (regnum >= amdgpu_regnum_t::first_sgpr
       && regnum <= amdgpu_regnum_t::last_sgpr)
     {
-      return string_printf ("s%ld", regnum - amdgpu_regnum_t::first_sgpr);
+      return string_printf ("s%" PRId64, regnum - amdgpu_regnum_t::first_sgpr);
     }
   if (regnum >= amdgpu_regnum_t::first_vgpr_64
       && regnum <= amdgpu_regnum_t::last_vgpr_64)
     {
-      return string_printf ("v%ld", regnum - amdgpu_regnum_t::first_vgpr_64);
+      return string_printf ("v%" PRId64,
+                            regnum - amdgpu_regnum_t::first_vgpr_64);
     }
   if (regnum >= amdgpu_regnum_t::first_ttmp
       && regnum <= amdgpu_regnum_t::last_ttmp)
@@ -1605,7 +1606,7 @@ amdgcn_architecture_t::register_name (amdgpu_regnum_t regnum) const
         case amdgpu_regnum_t::ttmp10:
         case amdgpu_regnum_t::ttmp11:
         case amdgpu_regnum_t::ttmp13:
-          return string_printf ("ttmp%ld",
+          return string_printf ("ttmp%" PRId64,
                                 regnum - amdgpu_regnum_t::first_ttmp);
         default:
           break;
@@ -1614,7 +1615,8 @@ amdgcn_architecture_t::register_name (amdgpu_regnum_t regnum) const
   if (regnum >= amdgpu_regnum_t::first_hwreg
       && regnum <= amdgpu_regnum_t::last_hwreg)
     {
-      return string_printf ("hwreg%ld", regnum - amdgpu_regnum_t::first_hwreg);
+      return string_printf ("hwreg%" PRId64,
+                            regnum - amdgpu_regnum_t::first_hwreg);
     }
 
   if (regnum == amdgpu_regnum_t::exec_64
@@ -3084,8 +3086,8 @@ gfx9_architecture_t::scratch_memory_region (
      inaccessible by returning a 0 size.  */
   if ((waves % shader_engine_count) != 0)
     {
-      warning ("compute_tmpring_size.waves (%ld) is not divisible by %d, "
-               "private memory access is disabled",
+      warning ("compute_tmpring_size.waves (%" PRId64 ") is not divisible by "
+               "%d, private memory access is disabled",
                waves, shader_engine_count);
       wavesize = 0;
     }
@@ -3183,7 +3185,7 @@ mi_architecture_t::register_name (amdgpu_regnum_t regnum) const
   if (regnum >= amdgpu_regnum_t::first_accvgpr_64
       && regnum <= amdgpu_regnum_t::last_accvgpr_64)
     {
-      return string_printf ("a%ld",
+      return string_printf ("a%" PRId64,
                             regnum - amdgpu_regnum_t::first_accvgpr_64);
     }
 
@@ -3622,7 +3624,8 @@ gfx10_architecture_t::register_name (amdgpu_regnum_t regnum) const
   if (regnum >= amdgpu_regnum_t::first_vgpr_32
       && regnum <= amdgpu_regnum_t::last_vgpr_32)
     {
-      return string_printf ("v%ld", regnum - amdgpu_regnum_t::first_vgpr_32);
+      return string_printf ("v%" PRId64,
+                            regnum - amdgpu_regnum_t::first_vgpr_32);
     }
   if (regnum == amdgpu_regnum_t::exec_32
       || regnum == amdgpu_regnum_t::pseudo_exec_32)
