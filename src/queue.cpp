@@ -472,7 +472,7 @@ aql_queue_t::allocate_displaced_instruction (const instruction_t &instruction)
       = (ptr - *m_debugger_memory_base) / debugger_memory_chunk_size;
 
     dbgapi_assert (index < m_debugger_memory_chunk_count);
-    m_debugger_memory_free_chunks.emplace_back (index);
+    m_debugger_memory_free_chunks.emplace_back (static_cast<uint16_t> (index));
   };
 
   dbgapi_assert (instruction.size () + assert_instruction.size ()
