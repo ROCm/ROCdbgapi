@@ -751,7 +751,7 @@ amdgcn_architecture_t::branch_target (wave_t &wave,
     {
       target
         = pc + instruction.size ()
-          + (static_cast<std::ptrdiff_t> (simm16_operand (instruction)) << 2);
+          + (static_cast<int64_t> (simm16_operand (instruction)) << 2);
     }
   else if (is_cbranch_g_fork (instruction))
     {
@@ -897,7 +897,7 @@ amdgcn_architecture_t::classify_instruction (
     {
       information.emplace_back (
         address + instruction.size ()
-        + (static_cast<std::ptrdiff_t> (simm16_operand (instruction)) << 2));
+        + (static_cast<int64_t> (simm16_operand (instruction)) << 2));
 
       if (sdst_regnum.has_value ())
         {
@@ -3953,7 +3953,7 @@ gfx10_architecture_t::branch_target (wave_t &wave,
       || is_subvector_loop_end (instruction))
     {
       return pc + instruction.size ()
-             + (static_cast<ssize_t> (simm16_operand (instruction)) << 2);
+             + (static_cast<int64_t> (simm16_operand (instruction)) << 2);
     }
 
   return gfx9_architecture_t::branch_target (wave, pc, instruction);
@@ -4342,7 +4342,7 @@ gfx10_architecture_t::classify_instruction (
         AMD_DBGAPI_INSTRUCTION_PROPERTY_NONE, instruction.size (),
         std::vector<uint64_t> (
           { address + instruction.size ()
-            + (static_cast<ssize_t> (simm16_operand (instruction)) << 2) })
+            + (static_cast<int64_t> (simm16_operand (instruction)) << 2) })
       };
     }
 
