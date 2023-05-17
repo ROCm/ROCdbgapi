@@ -1276,13 +1276,13 @@ to_string (os_agent_info_t os_agent_info)
 {
   return string_printf (
     "{ .os_agent_id=%d, .name=%s, .domain=%#x, .location_id=%#x, "
-    ".gfxip=[%d,%d,%d], .simd_count=%ld, .max_waves_per_simd=%ld, "
-    ".shader_engine_count=%ld, .vendor_id=%#x, .device_id=%#x, "
+    ".gfxip=[%d,%d,%d], .simd_count=%zd, .max_waves_per_simd=%zd, "
+    ".shader_engine_count=%zd, .vendor_id=%#x, .device_id=%#x, "
     ".revision_id=%#x, .subsystem_vendor_id=%#x, .subsystem_device_id=%#x, "
     ".fw_version=%d, .local_address_aperture_base=%#lx, "
     ".local_address_aperture_limit=%#lx, .private_address_aperture_base=%#lx, "
     ".private_address_aperture_limit=%#lx, .debugging_supported=%d, "
-    ".address_watch_supported=%d, .address_watch_register_count=%ld, "
+    ".address_watch_supported=%d, .address_watch_register_count=%zd, "
     ".address_watch_mask_bits=%#lx, .watchpoint_exclusive=%d, "
     ".precise_memory_supported=%d, .firmware_supported=%d, "
     "ttmps_always_initialized=%d }",

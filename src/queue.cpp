@@ -343,7 +343,7 @@ aql_queue_t::aql_queue_t (amd_dbgapi_queue_id_t queue_id, const agent_t &agent,
      queues with more packets than the field can hold.  */
   if ((size () / aql_packet_size)
       > architecture ().maximum_queue_packet_count ())
-    fatal_error ("queue ring size = %#lx is not supported", size ());
+    fatal_error ("queue ring size = %#zx is not supported", size ());
 }
 
 aql_queue_t::~aql_queue_t ()
