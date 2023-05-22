@@ -155,8 +155,7 @@ enum class os_exception_code_t : uint32_t
   = EC_QUEUE_PACKET_DISPATCH_WORK_GROUP_SIZE_INVALID,
   queue_packet_dispatch_register_invalid
   = EC_QUEUE_PACKET_DISPATCH_REGISTER_INVALID,
-  queue_packet_dispatch_vendor_unsupported
-  = EC_QUEUE_PACKET_VENDOR_UNSUPPORTED,
+  queue_packet_vendor_unsupported = EC_QUEUE_PACKET_VENDOR_UNSUPPORTED,
   queue_preemption_error = EC_QUEUE_PREEMPTION_ERROR,
   queue_new = EC_QUEUE_NEW,
 
@@ -232,7 +231,7 @@ enum class os_exception_mask_t : uint64_t
   = KFD_EC_MASK (EC_QUEUE_PACKET_DISPATCH_WORK_GROUP_SIZE_INVALID),
   queue_packet_dispatch_register_invalid
   = KFD_EC_MASK (EC_QUEUE_PACKET_DISPATCH_REGISTER_INVALID),
-  queue_packet_dispatch_vendor_unsupported
+  queue_packet_vendor_unsupported
   = KFD_EC_MASK (EC_QUEUE_PACKET_VENDOR_UNSUPPORTED),
   queue_preemption_error = KFD_EC_MASK (EC_QUEUE_PREEMPTION_ERROR),
   queue_new = KFD_EC_MASK (EC_QUEUE_NEW),

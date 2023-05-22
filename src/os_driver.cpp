@@ -1211,8 +1211,8 @@ one_os_exception_to_string (os_exception_mask_t exception_mask)
       return "QUEUE_PACKET_DISPATCH_WORKGROUP_SIZE_INVALID";
     case os_exception_mask_t::queue_packet_dispatch_register_invalid:
       return "QUEUE_PACKET_DISPATCH_REGISTER_INVALID";
-    case os_exception_mask_t::queue_packet_dispatch_vendor_unsupported:
-      return "QUEUE_PACKET_DISPATCH_VENDOR_UNSUPPORTED";
+    case os_exception_mask_t::queue_packet_vendor_unsupported:
+      return "QUEUE_PACKET_VENDOR_UNSUPPORTED";
     case os_exception_mask_t::queue_preemption_error:
       return "QUEUE_PREEMPTION_ERROR";
     case os_exception_mask_t::queue_new:
