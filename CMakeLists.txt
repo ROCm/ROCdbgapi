@@ -207,19 +207,32 @@ configure_file("cmake/${AMD_DBGAPI_CONFIG_NAME}.in"
 
 install(TARGETS amd-dbgapi
   EXPORT amd-dbgapi-export
-  DESTINATION ${CMAKE_INSTALL_LIBDIR})
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  COMPONENT dev)
+
+install(TARGETS amd-dbgapi
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  COMPONENT asan)
 
 install(FILES
   "${CMAKE_CURRENT_BINARY_DIR}/include/amd-dbgapi/amd-dbgapi.h"
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/amd-dbgapi)
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/amd-dbgapi
+  COMPONENT dev)
 
 install (FILES
   "${CMAKE_CURRENT_BINARY_DIR}/share/pkgconfig/amd-dbgapi.pc"
-  DESTINATION ${CMAKE_INSTALL_DATADIR}/pkgconfig)
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/pkgconfig
+  COMPONENT dev)
 
 install(FILES
   "LICENSE.txt"
-  DESTINATION ${CMAKE_INSTALL_DOCDIR})
+  DESTINATION ${CMAKE_INSTALL_DOCDIR}
+  COMPONENT dev)
+
+install(FILES
+  "LICENSE.txt"
+  DESTINATION ${CMAKE_INSTALL_DOCDIR}-asan
+  COMPONENT asan)
 
 # Generate the install-tree package.
 set(AMD_DBGAPI_PREFIX_CODE "
@@ -237,10 +250,12 @@ configure_file("cmake/${AMD_DBGAPI_CONFIG_NAME}.in"
 install(FILES
   "${CMAKE_CURRENT_BINARY_DIR}/${AMD_DBGAPI_CONFIG_NAME}.install"
   DESTINATION "${AMD_DBGAPI_PACKAGE_PREFIX}"
-  RENAME "${AMD_DBGAPI_CONFIG_NAME}")
+  RENAME "${AMD_DBGAPI_CONFIG_NAME}"
+  COMPONENT dev)
 install(EXPORT amd-dbgapi-export
   DESTINATION "${AMD_DBGAPI_PACKAGE_PREFIX}"
-  FILE "${AMD_DBGAPI_TARGETS_NAME}")
+  FILE "${AMD_DBGAPI_TARGETS_NAME}"
+  COMPONENT dev)
 
 # Add packaging directives for amd-dbgapi
 set(CPACK_PACKAGE_NAME rocm-dbgapi)
@@ -257,6 +272,20 @@ if(DEFINED ENV{ROCM_LIBPATCH_VERSION})
   set(CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION}.$ENV{ROCM_LIBPATCH_VERSION}")
   message("Using CPACK_PACKAGE_VERSION ${CPACK_PACKAGE_VERSION}")
 endif()
+
+## Enable Component Mode and set component specific flags
+set(CPACK_DEB_COMPONENT_INSTALL ON)
+set(CPACK_RPM_COMPONENT_INSTALL ON)
+set(CPACK_DEBIAN_DEV_PACKAGE_NAME "rocm-dbgapi")
+set(CPACK_RPM_DEV_PACKAGE_NAME "rocm-dbgapi")
+set(CPACK_RPM_DEV_PACKAGE_REQUIRES "rocm-core, comgr >= 1.2.0, hwdata")
+set(CPACK_DEBIAN_DEV_PACKAGE_DEPENDS "comgr(>=1.2.0), rocm-core, pci.ids")
+# Debian package specific variable for ASAN
+set(CPACK_DEBIAN_ASAN_PACKAGE_NAME "rocm-dbgapi-asan")
+set(CPACK_DEBIAN_ASAN_PACKAGE_DEPENDS "comgr-asan(>=1.2.0), rocm-core-asan, pci.ids")
+# RPM package specific variable for ASAN
+set(CPACK_RPM_ASAN_PACKAGE_NAME "rocm-dbgapi-asan" )
+set(CPACK_RPM_ASAN_PACKAGE_REQUIRES "rocm-core-asan, comgr-asan >= 1.2.0, hwdata")
 
 # Debian package specific variables
 if(DEFINED ENV{CPACK_DEBIAN_PACKAGE_RELEASE})
@@ -303,11 +332,35 @@ endif()
 if(NOT ROCM_DEP_ROCMCORE)
     string(REGEX REPLACE ",? ?rocm-core" "" CPACK_RPM_PACKAGE_REQUIRES ${CPACK_RPM_PACKAGE_REQUIRES})
     string(REGEX REPLACE ",? ?rocm-core" "" CPACK_DEBIAN_PACKAGE_DEPENDS ${CPACK_DEBIAN_PACKAGE_DEPENDS})
+    string(REGEX REPLACE ",? ?rocm-core" "" CPACK_RPM_DEV_PACKAGE_REQUIRES ${CPACK_RPM_DEV_PACKAGE_REQUIRES})
+    string(REGEX REPLACE ",? ?rocm-core" "" CPACK_DEBIAN_DEV_PACKAGE_DEPENDS ${CPACK_DEBIAN_DEV_PACKAGE_DEPENDS})
+    string(REGEX REPLACE ",? ?rocm-core-asan" "" CPACK_RPM_ASAN_PACKAGE_REQUIRES ${CPACK_RPM_ASAN_PACKAGE_REQUIRES})
+    string(REGEX REPLACE ",? ?rocm-core-asan" "" CPACK_DEBIAN_ASAN_PACKAGE_DEPENDS ${CPACK_DEBIAN_ASAN_PACKAGE_DEPENDS})
+endif()
+
+## set components
+if(ENABLE_ASAN_PACKAGING)
+  # ASAN Package requires only asan component with libraries and license file
+  set(CPACK_COMPONENTS_ALL asan)
+else()
+  set(CPACK_COMPONENTS_ALL dev)
 endif()
 
 if(NOT CPack_CMake_INCLUDED)
   include(CPack)
 endif()
+
+cpack_add_component(
+  dev
+  DISPLAY_NAME "DEV"
+  DESCRIPTION "Non ASAN libraries, include files for the ROCM-DBGAPI"
+  DEPENDS dev)
+
+cpack_add_component(
+  asan
+  DISPLAY_NAME "ASAN"
+  DESCRIPTION "ASAN libraries for the ROCM-DBGAPI"
+  DEPENDS asan)
 
 find_package(Doxygen)
 if(DOXYGEN_FOUND)
@@ -333,11 +386,13 @@ if(DOXYGEN_FOUND)
     "${CMAKE_CURRENT_BINARY_DIR}/doc/latex/refman.pdf"
     DESTINATION ${CMAKE_INSTALL_DOCDIR}
     RENAME "amd-dbgapi.pdf"
-    OPTIONAL)
+    OPTIONAL
+    COMPONENT dev)
 
   install(DIRECTORY
     "${CMAKE_CURRENT_BINARY_DIR}/doc/html/"
     DESTINATION ${CMAKE_INSTALL_DATADIR}/html/amd-dbgapi
-    OPTIONAL)
+    OPTIONAL
+    COMPONENT dev)
 
 endif()
