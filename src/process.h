@@ -109,6 +109,8 @@ private:
   os_wave_launch_mode_t m_wave_launch_mode{ os_wave_launch_mode_t::normal };
   os_wave_launch_trap_mask_t m_wave_trap_mask{};
 
+  bool m_frozen{ false };
+
   bool m_supports_precise_memory{ false };
   bool m_precise_memory{ false };
 
@@ -224,6 +226,8 @@ public:
   void set_wave_launch_trap_override (os_wave_launch_trap_mask_t value,
                                       os_wave_launch_trap_mask_t mask);
 
+  bool is_frozen () const { return m_frozen; }
+
   void set_precise_memory (bool enabled);
 
   /* Suspend/resume a list of queues.  Queues may become invalid as a result of
@@ -254,6 +258,9 @@ public:
 
   void attach ();
   void detach ();
+
+  void freeze ();
+  void unfreeze ();
 
   void enqueue_event (event_t &event);
   event_t *next_pending_event ();

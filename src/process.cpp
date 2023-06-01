@@ -846,6 +846,7 @@ size_t
 process_t::resume_queues (const std::vector<queue_t *> &queues,
                           const char *reason) const
 {
+  dbgapi_assert (!is_frozen ());
   if (queues.empty ())
     return 0;
 
@@ -1055,6 +1056,18 @@ process_t::update_queues ()
                   log_info ("destroyed stale %s (os_queue_id=%d)",
                             to_cstring (destroyed_queue_id),
                             os_queue_id_unmask (queue_info.queue_id));
+                }
+
+              if (is_frozen ())
+                {
+                  /* When the process is frozen, all host threads should be
+                     stopped by the client.  If we see a new queue, it means
+                     that at least one host thread is not stopped and has
+                     created the queue.  This is an error from the client, so
+                     we only issue a warning.  */
+                  warning ("new queue {os_queue_id=%d} detected while the "
+                           "process is frozen.  host threads not stopped?",
+                           queue_info.queue_id);
                 }
             }
           else if (is_flag_set (flag_t::runtime_enable_during_attach))
@@ -1494,6 +1507,35 @@ process_t::attach ()
 
   disable_debug.release ();
   log_info ("debugging is enabled for %s", to_cstring (id ()));
+}
+
+void
+process_t::freeze ()
+{
+  dbgapi_assert (!forward_progress_needed ());
+  dbgapi_assert (m_wave_launch_mode == os_wave_launch_mode_t::halt);
+
+  /* Suspend the queues that weren't already suspended.  */
+  update_queues ();
+  std::vector<queue_t *> queues;
+  queues.reserve (count<queue_t> ());
+  for (auto &&queue : range<queue_t> ())
+    if (!queue.is_suspended ())
+      queues.emplace_back (&queue);
+  suspend_queues (queues, "process freeze");
+
+  /* The freeze operation is used before creating a core dump of the current
+     process.  Ensure that any modification done to memory so far is flushed
+     to the inferior's memory so it can be captured in the core dump.  */
+  memory_cache ().write_back ();
+
+  m_frozen = true;
+}
+
+void
+process_t::unfreeze ()
+{
+  m_frozen = false;
 }
 
 void
@@ -2080,12 +2122,19 @@ amd_dbgapi_process_set_progress (amd_dbgapi_process_id_t process_id,
           THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
       }
 
+    for (const auto &process : processes)
+      {
+        if (process->is_frozen ())
+          THROW (AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN);
+      }
+
     for (auto &&process : processes)
       process->set_forward_progress_needed (forward_progress_needed);
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
-         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
+         AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN);
   TRACE_END ();
 }
 
@@ -2104,6 +2153,9 @@ amd_dbgapi_process_set_wave_creation (amd_dbgapi_process_id_t process_id,
     if (process == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
+    if (process->is_frozen ())
+      THROW (AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN);
+
     switch (creation)
       {
       case AMD_DBGAPI_WAVE_CREATION_NORMAL:
@@ -2118,7 +2170,65 @@ amd_dbgapi_process_set_wave_creation (amd_dbgapi_process_id_t process_id,
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
-         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
+         AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN);
+  TRACE_END ();
+}
+
+amd_dbgapi_status_t AMD_DBGAPI
+amd_dbgapi_process_freeze (amd_dbgapi_process_id_t process_id)
+{
+  TRACE_BEGIN (param_in (process_id));
+  TRY
+  {
+    if (!detail::is_initialized)
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
+
+    process_t *process = process_t::find (process_id);
+
+    if (process == nullptr)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
+
+    if (process->forward_progress_needed ()
+        || process->wave_launch_mode () != os_wave_launch_mode_t::halt)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INCOMPATIBLE_PROCESS_STATE);
+
+    if (process->is_frozen ())
+      THROW (AMD_DBGAPI_STATUS_ERROR_PROCESS_ALREADY_FROZEN);
+
+    process->freeze ();
+  }
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
+         AMD_DBGAPI_STATUS_ERROR_NOT_IMPLEMENTED,
+         AMD_DBGAPI_STATUS_ERROR_INCOMPATIBLE_PROCESS_STATE,
+         AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN);
+  TRACE_END ();
+}
+
+amd_dbgapi_status_t AMD_DBGAPI
+amd_dbgapi_process_unfreeze (amd_dbgapi_process_id_t process_id)
+{
+  TRACE_BEGIN (param_in (process_id));
+  TRY
+  {
+    if (!detail::is_initialized)
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
+
+    process_t *process = process_t::find (process_id);
+
+    if (process == nullptr)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
+
+    if (!process->is_frozen ())
+      THROW (AMD_DBGAPI_STATUS_ERROR_PROCESS_NOT_FROZEN);
+
+    process->unfreeze ();
+  }
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
+         AMD_DBGAPI_STATUS_ERROR_PROCESS_NOT_FROZEN,
+         AMD_DBGAPI_STATUS_ERROR_NOT_IMPLEMENTED);
   TRACE_END ();
 }
 
@@ -2202,6 +2312,9 @@ amd_dbgapi_process_detach (amd_dbgapi_process_id_t process_id)
 
     try
       {
+        if (process->is_frozen ())
+          process->unfreeze ();
+
         process->detach ();
       }
     catch (const process_exited_exception_t &)

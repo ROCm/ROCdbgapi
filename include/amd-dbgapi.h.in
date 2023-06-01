@@ -582,10 +582,10 @@ extern "C" {
 #define AMD_DBGAPI_VERSION_0_70
 
 /**
- * The function was introduced in version 0.72 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.72"``.
+ * The function was introduced in version 0.73 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.73"``.
  */
-#define AMD_DBGAPI_VERSION_0_72
+#define AMD_DBGAPI_VERSION_0_73
 
 /** @} */
 
@@ -978,6 +978,22 @@ typedef enum
    * The workgroup handle is invalid.
    */
   AMD_DBGAPI_STATUS_ERROR_INVALID_WORKGROUP_ID = -45,
+  /**
+   * The current process state is not compatible with the requested operation.
+   */
+  AMD_DBGAPI_STATUS_ERROR_INCOMPATIBLE_PROCESS_STATE = -46,
+  /**
+   * This operation is not allowed when the process is frozen.
+   */
+  AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN = -47,
+  /**
+   * The process is already frozen.
+   */
+  AMD_DBGAPI_STATUS_ERROR_PROCESS_ALREADY_FROZEN = -48,
+  /**
+   * This operation is not allowed when the process is not frozen.
+   */
+  AMD_DBGAPI_STATUS_ERROR_PROCESS_NOT_FROZEN = -49,
 } amd_dbgapi_status_t;
 
 /**
@@ -1104,7 +1120,7 @@ amd_dbgapi_get_build_name (void) AMD_DBGAPI_VERSION_0_54;
  * error.  The library remains uninitialized.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_initialize (
-    amd_dbgapi_callbacks_t *callbacks) AMD_DBGAPI_VERSION_0_72;
+    amd_dbgapi_callbacks_t *callbacks) AMD_DBGAPI_VERSION_0_73;
 
 /**
  * Finalize the library.
@@ -1860,7 +1876,8 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_attach (
  * ::AMD_DBGAPI_MEMORY_PRECISION_NONE.  Any waves in the stopped or single step
  * state are resumed in non-single step mode.  Any pending events for the
  * process are discarded, and no further events will be generated for the
- * process.
+ * process.  If the process is in the frozen state, it is unfrozen.  The wave
+ * creation mode is restored to ::AMD_DBGAPI_WAVE_CREATION_NORMAL.
  *
  * After detaching, the process handle, and all handles associated with
  * entities relating to the process, become invalid.
@@ -1964,10 +1981,14 @@ typedef enum
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p progress is invalid.
  * The progress setting is not changed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN The process is frozen.  The
+ * progress setting cannot be changed and must remain
+ * ::AMD_DBGAPI_PROGRESS_NO_FORWARD.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_set_progress (
     amd_dbgapi_process_id_t process_id,
-    amd_dbgapi_progress_t progress) AMD_DBGAPI_VERSION_0_54;
+    amd_dbgapi_progress_t progress) AMD_DBGAPI_VERSION_0_73;
 
 /**
  * The kinds of wave creation supported by the hardware.
@@ -2015,12 +2036,113 @@ typedef enum
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p creation is invalid.
  * The wave creation setting is not changed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN The process is frozen.
+ * The wave creation mode setting cannot be changed and must remain
+ * ::AMD_DBGAPI_WAVE_CREATION_STOP.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_set_wave_creation (
     amd_dbgapi_process_id_t process_id,
-    amd_dbgapi_wave_creation_t creation) AMD_DBGAPI_VERSION_0_54;
+    amd_dbgapi_wave_creation_t creation) AMD_DBGAPI_VERSION_0_73;
 
-/** @} */
+/** \defgroup coredump_support Generating a core dump of a process
+ *
+ * Operations related to generating and using core dumps.
+ *
+ * When the client needs to generate a core dump of a process, the following
+ * steps are followed:
+ *
+ * -# The client suspends the execution of all host threads.
+ * -# The client sets the progress mode for the process to
+ *    ::AMD_DBGAPI_PROGRESS_NO_FORWARD and stops wave creation.
+ * -# The client calls ::amd_dbgapi_process_freeze to suspend execution on
+ *    the agents.
+ * -# The client includes in the core dump all the information required to
+ *    form a core dump of the host process.
+ * -# The client unfreezes the process using ::amd_dbgapi_process_unfreeze.
+ * -# The client can set progress to ::AMD_DBGAPI_PROGRESS_NORMAL and resume
+ *    the execution of host threads as desired.
+ *
+ * @{
+ */
+
+/**
+ * Freeze the process identified by \p process_id.
+ *
+ * The library ensures that all queues belonging to process \p process_id are
+ * stopped.  All waves are stopped and left in a state suitable to be
+ * discovered by another instance of the library.  Any cached updates to
+ * memory or registers are flushed.
+ *
+ * It is required that the client sets the process's progress to
+ * ::AMD_DBGAPI_PROGRESS_NO_FORWARD and the wave creation mode to
+ * ::AMD_DBGAPI_WAVE_CREATION_STOP before calling this procedure.
+ *
+ * It is expected that all displaced stepping buffers are disabled before
+ * calling this operation.  If displaced stepping buffers are still enabled
+ * when performing this operation, then another instance of the library will
+ * see an invalid program counter for the associated wave(s).
+ *
+ * It is expected that all host threads are suspended by the client before
+ * calling this method as executing threads might create queues and submit
+ * dispatches.  If any thread is running on the host process, the behavior
+ * and state of the library are undefined.
+ *
+ * \param[in] process_id The client handle of the process to freeze.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
+ * successfully and the process is in the frozen state.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
+ * left uninitialized.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
+ * initialized.  The library is left uninitialized.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
+ * invalid.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INCOMPATIBLE_PROCESS_STATE if either progress
+ * mode for the process identified by \p process_id is not
+ * ::AMD_DBGAPI_PROGRESS_NO_FORWARD or if wave creation mode for the process
+ * identified by \p process_id is not ::AMD_DBGAPI_WAVE_CREATION_STOP.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_PROCESS_ALREADY_FROZEN The process \p
+ * process_id is already frozen.  The process is not changed.
+ *
+ */
+amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_freeze (
+    amd_dbgapi_process_id_t process_id) AMD_DBGAPI_VERSION_0_73;
+
+/**
+ * Unfreeze the process identified by \p process_id.
+ *
+ * After calling this, the library is allowed to keep writes to registers and
+ * memory in an internal cache until the effects are needed to resume
+ * execution.
+ *
+ * \param[in] process_id The client handle of the process to unfreeze.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
+ * successfully and the process is unfrozen.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
+ * left uninitialized.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
+ * initialized.  The library is left uninitialized.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
+ * invalid.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_PROCESS_NOT_FROZEN The process \p
+ * process_id is not frozen.  The process is not changed.
+ */
+amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_unfreeze (
+    amd_dbgapi_process_id_t process_id) AMD_DBGAPI_VERSION_0_73;
+
+/** @}
+  * @} */
 
 /** \defgroup code_object_group Code Objects
  *
@@ -3826,9 +3948,13 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_wave_list (
  * \retval ::AMD_DBGAPI_STATUS_ERROR_WAVE_OUTSTANDING_STOP The wave already
  * has an outstanding stop request.  This stop request is ignored and the
  * previous stop request continues to stop the wave.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN The process the wave
+ * belongs to is frozen.  The wave is already stopped.  The wave remains
+ * stopped.
  */
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_wave_stop (amd_dbgapi_wave_id_t wave_id) AMD_DBGAPI_VERSION_0_54;
+amd_dbgapi_wave_stop (amd_dbgapi_wave_id_t wave_id) AMD_DBGAPI_VERSION_0_73;
 
 /**
  * The mode in which to resuming the execution of a wave.
@@ -3995,10 +4121,13 @@ typedef enum
  * already been single stepped by one instruction and so
  * ::amd_dbgapi_displaced_stepping_complete must be used before the wave can be
  * resumed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN The process the wave
+ * belongs to is frozen.  No wave is resumed.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_resume (
   amd_dbgapi_wave_id_t wave_id, amd_dbgapi_resume_mode_t resume_mode,
-  amd_dbgapi_exceptions_t exceptions) AMD_DBGAPI_VERSION_0_58;
+  amd_dbgapi_exceptions_t exceptions) AMD_DBGAPI_VERSION_0_73;
 
 /** @} */
 
@@ -4252,11 +4381,15 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_get_info (
  * wave's program counter is not a legal instruction for the architecture.  No
  * displaced stepping buffer is allocated and \p displaced_stepping is
  * unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN The process is frozen.  No
+ * displaced stepping buffer is allocated and \p displaced_stepping is
+ * unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_start (
     amd_dbgapi_wave_id_t wave_id, const void *saved_instruction_bytes,
     amd_dbgapi_displaced_stepping_id_t *displaced_stepping)
-    AMD_DBGAPI_VERSION_0_54;
+    AMD_DBGAPI_VERSION_0_73;
 
 /**
  * Complete a displaced stepping buffer for a wave.
@@ -4305,13 +4438,16 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_start (
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p
  * displaced_stepping is not in use by \p wave_id (which includes that the wave
- * has already competed the displaced stepping buffer).  No displaced stepping
+ * has already completed the displaced stepping buffer).  No displaced stepping
  * buffer is completed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN The process is frozen.  No
+ * displaced stepping buffer is completed.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_complete (
     amd_dbgapi_wave_id_t wave_id,
     amd_dbgapi_displaced_stepping_id_t displaced_stepping)
-    AMD_DBGAPI_VERSION_0_54;
+    AMD_DBGAPI_VERSION_0_73;
 
 /** @} */
 
@@ -4557,11 +4693,15 @@ typedef struct
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p kind is invalid; \p
  * size is 0 or \p watchpoint_id is NULL.  No watchpoint is set and \p
  * watchpoint_id is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN This operation is not
+ * permitted when the process frozen.  No watchpoint is set and
+ * \p watchpoint_id is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_watchpoint (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_global_address_t address,
     amd_dbgapi_size_t size, amd_dbgapi_watchpoint_kind_t kind,
-    amd_dbgapi_watchpoint_id_t *watchpoint_id) AMD_DBGAPI_VERSION_0_62;
+    amd_dbgapi_watchpoint_id_t *watchpoint_id) AMD_DBGAPI_VERSION_0_73;
 
 /**
  * Remove a hardware data watchpoint previously set by
@@ -4581,9 +4721,12 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_watchpoint (
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID \p watchpoint_id is
  * invalid.  No watchpoint is removed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN This operation is not
+ * allowed when the process is frozen.  No watchpoint is removed.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_remove_watchpoint (
-    amd_dbgapi_watchpoint_id_t watchpoint_id) AMD_DBGAPI_VERSION_0_67;
+    amd_dbgapi_watchpoint_id_t watchpoint_id) AMD_DBGAPI_VERSION_0_73;
 
 /** @} */
 
@@ -5296,11 +5439,14 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
  *
  * \retval ::AMD_DBGAPI_STATUS_ERROR_REGISTER_NOT_AVAILABLE \p register_id is
  * not allocated for \p wave_id.  \p value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN \p the process the wave
+ * belongs to is frozen.  \p value is unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
     amd_dbgapi_size_t offset, amd_dbgapi_size_t value_size,
-    const void *value) AMD_DBGAPI_VERSION_0_62;
+    const void *value) AMD_DBGAPI_VERSION_0_73;
 
 /**
  * Prefetch register values.
@@ -6341,13 +6487,17 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_memory (
  * \retval ::AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS The input \p value_size was
  * greater than 0 and no bytes were successfully written.  The output \p
  * value_size is set to 0.  The memory and \p value_size are unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN This operation is not
+ * permitted because the process is frozen.  The memory and \p value_size are
+ * unaltered.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_memory (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
     amd_dbgapi_lane_id_t lane_id,
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_segment_address_t segment_address,
-    amd_dbgapi_size_t *value_size, const void *value) AMD_DBGAPI_VERSION_0_54;
+    amd_dbgapi_size_t *value_size, const void *value) AMD_DBGAPI_VERSION_0_73;
 
 /**
  * Memory access precision.

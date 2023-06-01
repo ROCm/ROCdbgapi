@@ -211,6 +211,19 @@ amd_dbgapi_get_status_string (amd_dbgapi_status_t status,
       case AMD_DBGAPI_STATUS_ERROR_INVALID_WORKGROUP_ID:
         string = "The workgroup handle is invalid";
         break;
+      case AMD_DBGAPI_STATUS_ERROR_INCOMPATIBLE_PROCESS_STATE:
+        string = "The process is in a state incompatible with the requested "
+                 "operation";
+        break;
+      case AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN:
+        string = "The process is in the frozen state";
+        break;
+      case AMD_DBGAPI_STATUS_ERROR_PROCESS_ALREADY_FROZEN:
+        string = "The process is already in the frozen state";
+        break;
+      case AMD_DBGAPI_STATUS_ERROR_PROCESS_NOT_FROZEN:
+        string = "The process is not in the frozen state";
+        break;
         /* Don't add a default here, so that we can catch at compile time when
            an enum value is missing.  */
       }

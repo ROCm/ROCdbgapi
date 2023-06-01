@@ -171,6 +171,9 @@ amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
     if (process == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
+    if (process->is_frozen ())
+      THROW (AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN);
+
     if (process->watchpoint_shared_kind ()
         == AMD_DBGAPI_WATCHPOINT_SHARE_KIND_UNSUPPORTED)
       THROW (AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED);
@@ -201,7 +204,8 @@ amd_dbgapi_set_watchpoint (amd_dbgapi_process_id_t process_id,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
          AMD_DBGAPI_STATUS_ERROR_NO_WATCHPOINT_AVAILABLE,
          AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED,
-         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
+         AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN);
   TRACE_END (make_ref (param_out (watchpoint_id)));
 }
 
@@ -220,11 +224,15 @@ amd_dbgapi_remove_watchpoint (amd_dbgapi_watchpoint_id_t watchpoint_id)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID);
 
     process_t &process = watchpoint->process ();
+    if (process.is_frozen ())
+      THROW (AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN);
+
     process.remove_watchpoint (*watchpoint);
     process.destroy (watchpoint);
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
-         AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID);
+         AMD_DBGAPI_STATUS_ERROR_INVALID_WATCHPOINT_ID,
+         AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN);
   TRACE_END ();
 }
 

@@ -1134,6 +1134,9 @@ xfer_memory (amd_dbgapi_process_id_t process_id, amd_dbgapi_wave_id_t wave_id,
   if ((read == nullptr) == (write == nullptr) || value_size == nullptr)
     THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
+  if (process->is_frozen () && write != nullptr)
+    THROW (AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN);
+
   const address_space_t *address_space = find (address_space_id);
 
   if (address_space == nullptr)
@@ -1260,7 +1263,8 @@ amd_dbgapi_write_memory (amd_dbgapi_process_id_t process_id,
          AMD_DBGAPI_STATUS_ERROR_WAVE_NOT_STOPPED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY,
-         AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS);
+         AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS,
+         AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN);
   TRACE_END (make_ref (param_out (value_size)));
 }
 

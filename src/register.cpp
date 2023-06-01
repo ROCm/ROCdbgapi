@@ -596,6 +596,9 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
     if (wave == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID);
 
+    if (wave->process ().is_frozen ())
+      THROW (AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN);
+
     auto regnum = architecture_t::register_id_to_regnum (register_id);
 
     const architecture_t *architecture
@@ -630,7 +633,8 @@ amd_dbgapi_write_register (amd_dbgapi_wave_id_t wave_id,
          AMD_DBGAPI_STATUS_ERROR_DISPLACED_STEPPING_ACTIVE,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY,
-         AMD_DBGAPI_STATUS_ERROR_REGISTER_NOT_AVAILABLE);
+         AMD_DBGAPI_STATUS_ERROR_REGISTER_NOT_AVAILABLE,
+         AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN);
   TRACE_END ();
 }
 
