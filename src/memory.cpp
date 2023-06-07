@@ -30,6 +30,7 @@
 #include "wave.h"
 
 #include <cstring>
+#include <exception>
 #include <optional>
 
 namespace amd::dbgapi
@@ -543,6 +544,7 @@ void
 memory_cache_t::write_back (amd_dbgapi_global_address_t address,
                             amd_dbgapi_size_t size)
 {
+  std::exception_ptr exception;
   if (policy != policy_t::write_back || size == 0)
     return;
 
@@ -606,7 +608,18 @@ memory_cache_t::write_back (amd_dbgapi_global_address_t address,
         {
           /* The process has exited, simply discard the dirty cached bytes.  */
         }
+      catch (const memory_access_error_t &e)
+        {
+          /* If we see memory errors, continue to try to write back all dirty
+             lines.  The first exception seen will be rethrown at the end of
+             the procedure.  */
+          if (!exception)
+            exception = std::current_exception ();
+        }
     }
+
+  if (exception)
+    std::rethrow_exception (exception);
 }
 
 void

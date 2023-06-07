@@ -206,9 +206,20 @@ process_t::detach ()
             }
         }
 
-      /* Write back the entire memory cache to commit our changes to the waves'
-         context save area memory.  */
-      memory_cache ().write_back (0, -1);
+      /* Write back the entire memory cache to commit our changes to the
+         waves' context save area memory.  */
+      try
+        {
+          memory_cache ().write_back (0, -1);
+        }
+      catch (const memory_access_error_t &)
+        {
+          /* If there is no real underlying process, writes can fail.  This
+             can happen when trying to write back to a read-only core dump
+             file.  */
+          if (m_os_process_id.has_value ())
+            throw;
+        }
     }
   catch (...)
     {
