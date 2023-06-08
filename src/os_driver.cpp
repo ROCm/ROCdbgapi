@@ -229,107 +229,13 @@ public:
   }
 };
 
-/* OS driver class that only implements memory accesses on Linux.  */
-
-class linux_driver_t : public null_driver_t
-{
-private:
-  std::optional<file_desc_t> m_proc_mem_fd{};
-
-  mutable size_t m_read_request_count{};
-  mutable size_t m_write_request_count{};
-  mutable size_t m_bytes_read{};
-  mutable size_t m_bytes_written{};
-
-public:
-  linux_driver_t (amd_dbgapi_os_process_id_t os_pid);
-  ~linux_driver_t () override;
-
-  /* Disable copies.  */
-  linux_driver_t (const linux_driver_t &) = delete;
-  linux_driver_t &operator= (const linux_driver_t &) = delete;
-
-  bool is_valid () const override { return m_proc_mem_fd.has_value (); }
-
-  amd_dbgapi_status_t
-  enable_debug (os_exception_mask_t /* exceptions_reported  */,
-                file_desc_t /* notifier  */,
-                os_runtime_info_t * /* runtime_info  */) override
-  {
-    return AMD_DBGAPI_STATUS_ERROR_RESTRICTION;
-  }
-
-  amd_dbgapi_status_t
-  xfer_global_memory_partial (amd_dbgapi_global_address_t address, void *read,
-                              const void *write, size_t *size) const override;
-};
-
-linux_driver_t::linux_driver_t (amd_dbgapi_os_process_id_t os_pid)
-  : null_driver_t (os_pid)
-{
-  /* Open the /proc/pid/mem file for this process.  */
-  std::string filename = string_printf ("/proc/%d/mem", os_pid);
-  int fd = ::open (filename.c_str (), O_RDWR | O_LARGEFILE | O_CLOEXEC, 0);
-  if (fd == -1)
-    {
-      warning ("Could not open `%s': %s", filename.c_str (), strerror (errno));
-      return;
-    }
-
-  m_proc_mem_fd.emplace (fd);
-
-  /* See is_valid() for information about how failing to open /proc/pid/mem
-     is handled.  */
-}
-
-linux_driver_t::~linux_driver_t ()
-{
-  log_info ("linux_driver_t statistics (pid %d): "
-            "%ld reads (%s), %ld writes (%s)",
-            m_os_pid.value (), m_read_request_count,
-            utils::human_readable_size (m_bytes_read).c_str (),
-            m_write_request_count,
-            utils::human_readable_size (m_bytes_written).c_str ());
-
-  if (m_proc_mem_fd)
-    ::close (*m_proc_mem_fd);
-}
-
-amd_dbgapi_status_t
-linux_driver_t::xfer_global_memory_partial (
-  amd_dbgapi_global_address_t address, void *read, const void *write,
-  size_t *size) const
-{
-  dbgapi_assert (!read != !write && "either read or write buffer");
-  dbgapi_assert (is_valid ());
-
-  ++(read != nullptr ? m_read_request_count : m_write_request_count);
-
-  ssize_t ret = read != nullptr
-                  ? pread (*m_proc_mem_fd, read, *size, address)
-                  : pwrite (*m_proc_mem_fd, write, *size, address);
-
-  if (ret < 0 && errno != EIO && errno != EINVAL)
-    warning ("linux_driver_t::xfer_memory failed: %s", strerror (errno));
-
-  if (ret == 0 && *size != 0)
-    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
-  else if (ret < 0)
-    return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
-
-  (read != nullptr ? m_bytes_read : m_bytes_written) += ret;
-
-  *size = ret;
-  return AMD_DBGAPI_STATUS_SUCCESS;
-}
-
 /* OS Driver implementation for the Linux ROCm stack using KFD.  */
 
-class kfd_driver_base_t : public linux_driver_t
+class kfd_driver_base_t : public null_driver_t
 {
 public:
-  explicit kfd_driver_base_t (amd_dbgapi_os_process_id_t os_pid)
-    : linux_driver_t{ os_pid }
+  explicit kfd_driver_base_t (std::optional<amd_dbgapi_os_process_id_t> os_pid)
+    : null_driver_t{ os_pid }
   {
   }
 
@@ -581,6 +487,13 @@ private:
   static size_t s_kfd_open_count;
   static std::optional<file_desc_t> s_kfd_fd;
 
+  std::optional<file_desc_t> m_proc_mem_fd{};
+
+  mutable size_t m_read_request_count{};
+  mutable size_t m_write_request_count{};
+  mutable size_t m_bytes_read{};
+  mutable size_t m_bytes_written{};
+
   static void open_kfd ();
   static void close_kfd ();
 
@@ -593,9 +506,19 @@ public:
   kfd_driver_t (amd_dbgapi_os_process_id_t os_pid) : kfd_driver_base_t (os_pid)
   {
     open_kfd ();
+    std::string filename = string_printf ("/proc/%d/mem", os_pid);
+    int fd = ::open (filename.c_str (), O_RDWR | O_LARGEFILE | O_CLOEXEC, 0);
+    if (fd == -1)
+      {
+        warning ("Could not open `%s': %s", filename.c_str (),
+                 strerror (errno));
+        return;
+      }
 
-    /* See is_valid() for information about how failing to open /dev/kfd is
-       handled.  */
+    m_proc_mem_fd.emplace (fd);
+
+    /* See is_valid() for information about how failing to open /proc/pid/mem
+       or /dev/kfd is handled.  */
   }
 
   ~kfd_driver_t () override
@@ -604,6 +527,16 @@ public:
       disable_debug ();
 
     close_kfd ();
+
+    log_info ("kfd_driver_t statistics (pid %d): "
+              "%ld reads (%s), %ld writes (%s)",
+              m_os_pid.value (), m_read_request_count,
+              utils::human_readable_size (m_bytes_read).c_str (),
+              m_write_request_count,
+              utils::human_readable_size (m_bytes_written).c_str ());
+
+    if (m_proc_mem_fd)
+      ::close (*m_proc_mem_fd);
   }
 
   /* Disable copies.  */
@@ -612,7 +545,7 @@ public:
 
   bool is_valid () const override
   {
-    return linux_driver_t::is_valid () && s_kfd_fd.has_value ();
+    return s_kfd_fd.has_value () && m_proc_mem_fd.has_value ();
   }
 
   kfd_driver_base_t::version_t get_kfd_version () const override final;
@@ -679,6 +612,10 @@ public:
     os_wave_launch_trap_mask_t *supported_mask) const override;
 
   amd_dbgapi_status_t set_precise_memory (bool enabled) const override;
+
+  amd_dbgapi_status_t
+  xfer_global_memory_partial (amd_dbgapi_global_address_t address, void *read,
+                              const void *write, size_t *size) const override;
 };
 
 size_t kfd_driver_t::s_kfd_open_count{ 0 };
@@ -1213,6 +1150,34 @@ kfd_driver_t::set_precise_memory (bool enabled) const
   return AMD_DBGAPI_STATUS_SUCCESS;
 
   TRACE_DRIVER_END ();
+}
+
+amd_dbgapi_status_t
+kfd_driver_t::xfer_global_memory_partial (amd_dbgapi_global_address_t address,
+                                          void *read, const void *write,
+                                          size_t *size) const
+{
+  dbgapi_assert (!read != !write && "either read or write buffer");
+  dbgapi_assert (is_valid ());
+
+  ++(read != nullptr ? m_read_request_count : m_write_request_count);
+
+  ssize_t ret = read != nullptr
+                  ? pread (*m_proc_mem_fd, read, *size, address)
+                  : pwrite (*m_proc_mem_fd, write, *size, address);
+
+  if (ret < 0 && errno != EIO && errno != EINVAL)
+    warning ("kfd_driver_t::xfer_memory failed: %s", strerror (errno));
+
+  if (ret == 0 && *size != 0)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (ret < 0)
+    return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
+
+  (read != nullptr ? m_bytes_read : m_bytes_written) += ret;
+
+  *size = ret;
+  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 std::unique_ptr<os_driver_t>
