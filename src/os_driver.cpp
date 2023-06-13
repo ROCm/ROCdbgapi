@@ -262,9 +262,6 @@ public:
   amd_dbgapi_status_t
   xfer_global_memory_partial (amd_dbgapi_global_address_t address, void *read,
                               const void *write, size_t *size) const override;
-
-protected:
-  static std::string pci_device_name (uint32_t vendor_id, uint32_t device_id);
 };
 
 linux_driver_t::linux_driver_t (amd_dbgapi_os_process_id_t os_pid)
@@ -326,6 +323,49 @@ linux_driver_t::xfer_global_memory_partial (
   return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
+/* OS Driver implementation for the Linux ROCm stack using KFD.  */
+
+class kfd_driver_base_t : public linux_driver_t
+{
+public:
+  explicit kfd_driver_base_t (amd_dbgapi_os_process_id_t os_pid)
+    : linux_driver_t{ os_pid }
+  {
+  }
+
+  amd_dbgapi_status_t check_version () const override final;
+
+  amd_dbgapi_status_t
+  agent_snapshot (os_agent_info_t *snapshots, size_t snapshot_count,
+                  size_t *agent_count,
+                  os_exception_mask_t exceptions_cleared) const override final;
+
+  amd_dbgapi_status_t
+  queue_snapshot (os_queue_snapshot_entry_t *snapshots, size_t snapshot_count,
+                  size_t *queue_count,
+                  os_exception_mask_t exceptions_cleared) const override final;
+
+protected:
+  using version_t = std::pair<uint32_t, uint32_t>;
+
+  /* Query KFD version.  */
+  virtual version_t get_kfd_version () const = 0;
+
+  /* Perform the ioctl call, or act as if using core file provided data.  */
+  virtual amd_dbgapi_status_t
+  kfd_agent_snapshot (kfd_dbg_device_info_entry *agents, size_t snapshot_count,
+                      size_t *agent_count,
+                      os_exception_mask_t exceptions_cleared) const = 0;
+
+  virtual amd_dbgapi_status_t
+  kfd_queue_snapshot (kfd_queue_snapshot_entry *queues, size_t snapshot_count,
+                      size_t *queue_cout,
+                      os_exception_mask_t exceptions_cleared) const = 0;
+
+private:
+  static std::string pci_device_name (uint32_t vendor_id, uint32_t device_id);
+};
+
 /* Find the marketing name for the PCI device VENDOR_ID:DEVICE_ID.
 
    The information is extracted from the pci.ids database[1] which might or
@@ -337,7 +377,7 @@ linux_driver_t::xfer_global_memory_partial (
    [1] https://pci-ids.ucw.cz/  */
 
 std::string
-linux_driver_t::pci_device_name (uint32_t vendor_id, uint32_t device_id)
+kfd_driver_base_t::pci_device_name (uint32_t vendor_id, uint32_t device_id)
 {
   auto fallback_name = [vendor_id, device_id] () -> std::string
   {
@@ -403,46 +443,6 @@ linux_driver_t::pci_device_name (uint32_t vendor_id, uint32_t device_id)
   /* We have not found the device.  */
   return fallback_name ();
 }
-
-/* OS Driver implementation for the Linux ROCm stack using KFD.  */
-
-class kfd_driver_base_t : public linux_driver_t
-{
-public:
-  explicit kfd_driver_base_t (amd_dbgapi_os_process_id_t os_pid)
-    : linux_driver_t{ os_pid }
-  {
-  }
-
-  amd_dbgapi_status_t check_version () const override final;
-
-  amd_dbgapi_status_t
-  agent_snapshot (os_agent_info_t *snapshots, size_t snapshot_count,
-                  size_t *agent_count,
-                  os_exception_mask_t exceptions_cleared) const override final;
-
-  amd_dbgapi_status_t
-  queue_snapshot (os_queue_snapshot_entry_t *snapshots, size_t snapshot_count,
-                  size_t *queue_count,
-                  os_exception_mask_t exceptions_cleared) const override final;
-
-protected:
-  using version_t = std::pair<uint32_t, uint32_t>;
-
-  /* Query KFD version.  */
-  virtual version_t get_kfd_version () const = 0;
-
-  /* Perform the ioctl call, or act as if using core file provided data.  */
-  virtual amd_dbgapi_status_t
-  kfd_agent_snapshot (kfd_dbg_device_info_entry *agents, size_t snapshot_count,
-                      size_t *agent_count,
-                      os_exception_mask_t exceptions_cleared) const = 0;
-
-  virtual amd_dbgapi_status_t
-  kfd_queue_snapshot (kfd_queue_snapshot_entry *queues, size_t snapshot_count,
-                      size_t *queue_cout,
-                      os_exception_mask_t exceptions_cleared) const = 0;
-};
 
 amd_dbgapi_status_t
 kfd_driver_base_t::check_version () const
