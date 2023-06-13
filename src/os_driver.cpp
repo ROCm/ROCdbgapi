@@ -1151,8 +1151,8 @@ os_driver_t::create_driver (std::optional<amd_dbgapi_os_process_id_t> os_pid)
     return os_driver;
 
   /* If we failed to create a kfd_driver_t (kfd is not installed?), then revert
-     to a a plain Linux driver.  */
-  return std::make_unique<linux_driver_t> (*os_pid);
+     to a plain null driver.  */
+  return std::make_unique<null_driver_t> (*os_pid);
 }
 
 template <>
