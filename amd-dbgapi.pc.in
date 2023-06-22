@@ -1,6 +1,6 @@
 prefix=${pcfiledir}/../..
 exec_prefix=${prefix}
-libdir=${prefix}/lib
+libdir=${prefix}/@CMAKE_INSTALL_LIBDIR@
 includedir=${prefix}/include
 
 Name: amd-dbgapi
