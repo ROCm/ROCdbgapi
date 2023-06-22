@@ -119,6 +119,10 @@ target_compile_options(amd-dbgapi PRIVATE
 target_compile_definitions(amd-dbgapi
   PRIVATE __STDC_LIMIT_MACROS __STDC_CONSTANT_MACROS __STDC_FORMAT_MACROS)
 
+if (MINGW)
+  target_link_options(amd-dbgapi PRIVATE -static-libgcc -static-libstdc++)
+endif()
+
 execute_process(
   COMMAND ${CMAKE_CXX_COMPILER} ${CMAKE_CXX_FLAGS} --print-file-name libbacktrace.a
   RESULT_VARIABLE libbacktrace_check
