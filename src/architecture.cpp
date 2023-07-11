@@ -4520,6 +4520,8 @@ protected:
   static constexpr uint32_t sq_wave_trapsts_perf_snapshot_mask = 1 << 19;
   static constexpr uint32_t sq_wave_trapsts_trap_after_inst_mask = 1 << 20;
 
+  static constexpr uint32_t sq_wave_status_no_vgprs_mask = 1 << 24;
+
   class cwsr_record_t : public gfx10_architecture_t::cwsr_record_t
   {
   protected:
@@ -4540,6 +4542,9 @@ protected:
     {
     }
 
+    std::optional<amd_dbgapi_global_address_t>
+    register_address (amdgpu_regnum_t regnum) const override;
+
     uint32_t shader_engine_id () const override;
   };
 
@@ -4558,6 +4563,9 @@ protected:
     : gfx10_architecture_t (e_machine, std::move (target_triple))
   {
   }
+
+  using sendmsg_message_type_t = uint8_t;
+  constexpr static sendmsg_message_type_t MSG_DEALLOC_VGPRS = 0x3;
 
 public:
   std::pair<amd_dbgapi_wave_state_t, amd_dbgapi_wave_stop_reasons_t>
@@ -4595,6 +4603,13 @@ public:
                 trap_id_t *trap_id = nullptr) const override;
   bool is_endpgm (const instruction_t &instruction) const override;
   bool is_sequential (const instruction_t &instruction) const override;
+  bool is_sendmsg (const instruction_t &instruction,
+                   sendmsg_message_type_t *message = nullptr) const;
+
+  bool can_execute_displaced (wave_t &wave,
+                              const instruction_t &instruction) const override;
+  bool can_simulate (wave_t &wave,
+                     const instruction_t &instruction) const override;
 
   const void *register_read_only_mask (amdgpu_regnum_t regnum) const override;
 
@@ -4640,6 +4655,27 @@ uint32_t
 gfx11_architecture_t::cwsr_record_t::shader_engine_id () const
 {
   return compute_relaunch_wave_payload_se_id (m_compute_relaunch_wave);
+}
+
+std::optional<amd_dbgapi_global_address_t>
+gfx11_architecture_t::cwsr_record_t::register_address (
+  amdgpu_regnum_t regnum) const
+{
+  if ((regnum >= amdgpu_regnum_t::first_vgpr_64
+       && regnum < amdgpu_regnum_t::last_vgpr_64)
+      || (regnum >= amdgpu_regnum_t::first_vgpr_32
+          && regnum < amdgpu_regnum_t::last_vgpr_32))
+    {
+      const amd_dbgapi_global_address_t status_reg_address
+        = register_address (amdgpu_regnum_t::status).value ();
+      uint32_t status_reg;
+      process ().read_global_memory (status_reg_address, &status_reg);
+
+      if (status_reg & sq_wave_status_no_vgprs_mask)
+        return std::nullopt;
+    }
+
+  return gfx10_architecture_t::cwsr_record_t::register_address (regnum);
 }
 
 std::pair<amd_dbgapi_wave_state_t, amd_dbgapi_wave_stop_reasons_t>
@@ -4704,8 +4740,20 @@ gfx11_architecture_t::simulate_instruction (
   wave_t &wave, amd_dbgapi_global_address_t pc,
   const instruction_t &instruction) const
 {
-  auto next_pc
-    = gfx10_architecture_t::simulate_instruction (wave, pc, instruction);
+  std::optional<amd_dbgapi_global_address_t> next_pc;
+  sendmsg_message_type_t msg;
+  if (is_sendmsg (instruction, &msg) && msg == MSG_DEALLOC_VGPRS)
+    {
+      uint32_t status_reg;
+      wave.read_register (amdgpu_regnum_t::status, &status_reg);
+      status_reg |= sq_wave_status_no_vgprs_mask;
+      wave.write_register (amdgpu_regnum_t::status, status_reg);
+
+      next_pc = pc + instruction.size ();
+    }
+  else
+    next_pc
+      = gfx10_architecture_t::simulate_instruction (wave, pc, instruction);
 
   if (next_pc)
     {
@@ -5038,6 +5086,52 @@ gfx11_architecture_t::is_sequential (const instruction_t &instruction) const
     && !is_sop1_encoding<72, 73> (instruction)
     /* s_call_b64/s_subvector_loop_begin/s_subvector_loop_end  */
     && !is_sopk_encoding<20, 22, 23> (instruction);
+}
+
+bool
+gfx11_architecture_t::is_sendmsg (const instruction_t &instruction,
+                                  sendmsg_message_type_t *message) const
+{
+  /* s_sendmsg: SOPP Opcode 54  */
+  /* MSG_DEALLOC_VGPRS message is 0x3.  */
+  if (!is_sopp_encoding<54> (instruction))
+    return false;
+
+  if (message != nullptr)
+    {
+      /* Message type is in SIMM16[7:0] */
+      *message = simm16_operand (instruction) & 0xff;
+    }
+
+  return true;
+}
+
+bool
+gfx11_architecture_t::can_execute_displaced (
+  wave_t &wave, const instruction_t &instruction) const
+{
+  if (!instruction.is_valid ())
+    return false;
+
+  sendmsg_message_type_t msg_type;
+  if (is_sendmsg (instruction, &msg_type) && msg_type == MSG_DEALLOC_VGPRS)
+    return false;
+
+  return gfx10_architecture_t::can_execute_displaced (wave, instruction);
+}
+
+bool
+gfx11_architecture_t::can_simulate (wave_t &wave,
+                                    const instruction_t &instruction) const
+{
+  if (!instruction.is_valid ())
+    return false;
+
+  sendmsg_message_type_t msg_type;
+  if (is_sendmsg (instruction, &msg_type) && msg_type == MSG_DEALLOC_VGPRS)
+    return true;
+
+  return gfx10_architecture_t::can_simulate (wave, instruction);
 }
 
 std::pair<amd_dbgapi_size_t /* offset  */, amd_dbgapi_size_t /* size  */>
