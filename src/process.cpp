@@ -1246,15 +1246,17 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
       return AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION;
 
     /* Check the r_version.  */
-    int r_version;
+    rocr_rdebug_version_t r_version;
     read_global_memory (
       runtime_info.r_debug + offsetof (struct r_debug, r_version), &r_version);
 
-    if (r_version != ROCR_RDEBUG_VERSION)
+    m_rocr_debug_version = r_version;
+    if (r_version < ROCR_RDEBUG_VERSION_MIN
+        || r_version > ROCR_RDEBUG_VERSION_MAX)
       {
         warning ("AMD GPU runtime's r_debug::r_version %d not supported "
-                 "(r_debug::r_version %d required)",
-                 r_version, ROCR_RDEBUG_VERSION);
+                 "(r_debug::r_version at in [%d..%d] required)",
+                 r_version, ROCR_RDEBUG_VERSION_MIN, ROCR_RDEBUG_VERSION_MAX);
         return AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION;
       }
 

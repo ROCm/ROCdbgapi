@@ -39,6 +39,10 @@
 8: New trap handler ABI for gfx940: Initialize ttmp[4:5] if ttmp11[31] == 0.
 */
 
-#define ROCR_RDEBUG_VERSION 8
+using rocr_rdebug_version_t = decltype (r_debug::r_version);
+
+constexpr rocr_rdebug_version_t ROCR_RDEBUG_VERSION_INVALID = 0;
+constexpr rocr_rdebug_version_t ROCR_RDEBUG_VERSION_MIN = 8;
+constexpr rocr_rdebug_version_t ROCR_RDEBUG_VERSION_MAX = 8;
 
 #endif /* ROCR_RDEBUG_H */

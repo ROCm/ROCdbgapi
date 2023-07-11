@@ -37,6 +37,7 @@
 #include "utils.h"
 #include "watchpoint.h"
 #include "wave.h"
+#include "rocr_rdebug.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -99,6 +100,7 @@ private:
   amd_dbgapi_runtime_state_t m_runtime_state{
     AMD_DBGAPI_RUNTIME_STATE_UNLOADED
   };
+  rocr_rdebug_version_t m_rocr_debug_version = ROCR_RDEBUG_VERSION_INVALID;
 
   mutable memory_cache_t m_memory_cache;
   std::unique_ptr<os_driver_t> m_os_driver{};
@@ -154,6 +156,11 @@ public:
   std::optional<amd_dbgapi_os_process_id_t> os_id () const
   {
     return m_os_process_id;
+  }
+
+  rocr_rdebug_version_t rocr_rdebug_version () const
+  {
+    return m_rocr_debug_version;
   }
 
   /* Reset all the handle_object_sets IDs.  There should not be any attached
