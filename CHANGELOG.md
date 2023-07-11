@@ -18,6 +18,12 @@ Full documentatino for AMD Debugger API is available at
   CU masked queues.  Any attempt by the process to create a cooperative queue
   or CU masked queue when attached will fail.
 
+- On gfx1100, gfx1101 and gfx1102, the library cannot debug a program past a
+  `s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)` instruction.  If an exception is
+  delivered to a wave in an attached process after the wave has executed this
+  instruction, the wave is killed and the exception is not reported in the
+  debugger.
+
 ## (Unreleased) rocm-dbgapi-0.68.0
 ### Added
 - Expose SGPRs mapped under `flat_scratch`/`xnack_mask`/`vcc`.

@@ -352,6 +352,11 @@
  *    process to create a cooperative queue or CU masked queue when attached
  *    will fail.
  *
+ * 10. On gfx1100, gfx1101 and gfx1102, the library cannot debug a program
+ *     past a "s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)" instruction.  If an
+ *     exception is delivered to a wave in an attached process after the
+ *     wave has executed this instruction, the wave is killed.
+ *
  * \section references References
  *
  * 1. Advanced Micro Devices: [www.amd.com] (https://www.amd.com/)

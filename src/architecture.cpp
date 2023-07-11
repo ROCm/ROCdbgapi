@@ -368,7 +368,10 @@ protected:
             && r_version <= ROCR_RDEBUG_VERSION_MAX);
   }
   virtual bool can_halt_at_endpgm () const = 0;
-  bool park_stopped_waves () const override { return !can_halt_at_endpgm (); }
+  bool park_stopped_waves (rocr_rdebug_version_t) const override
+  {
+    return !can_halt_at_endpgm ();
+  }
   void save_pc_for_park (const wave_t &wave,
                          amd_dbgapi_global_address_t pc) const override;
   amd_dbgapi_global_address_t
@@ -1153,7 +1156,7 @@ amdgcn_architecture_t::simulate_trap_handler (
   wave.write_register (amdgpu_regnum_t::ttmp6, ttmp6);
 
   /* Park the wave.  */
-  if (park_stopped_waves ())
+  if (park_stopped_waves (wave.process ().rocr_rdebug_version ()))
     {
       save_pc_for_park (wave, pc);
       pc = wave.queue ().park_instruction_address ();
@@ -1208,7 +1211,7 @@ amdgcn_architecture_t::wave_get_state (wave_t &wave) const
      fill the stop_reason with the exceptions that have caused the wave to
      enter the trap handler.  */
 
-  if (park_stopped_waves ())
+  if (park_stopped_waves (wave.process ().rocr_rdebug_version ()))
     wave.write_register (amdgpu_regnum_t::pc, saved_parked_pc (wave));
 
   amd_dbgapi_wave_stop_reasons_t stop_reason
@@ -2086,7 +2089,7 @@ void
 amdgcn_architecture_t::save_pc_for_park (const wave_t &wave,
                                          amd_dbgapi_global_address_t pc) const
 {
-  dbgapi_assert (park_stopped_waves ());
+  dbgapi_assert (park_stopped_waves (wave.process ().rocr_rdebug_version ()));
 
   uint32_t ttmp7, ttmp11;
   /* The trap handler saves PC[31:0] in ttmp7[31:0] ...  */
@@ -2103,7 +2106,7 @@ amdgcn_architecture_t::save_pc_for_park (const wave_t &wave,
 amd_dbgapi_global_address_t
 amdgcn_architecture_t::saved_parked_pc (const wave_t &wave) const
 {
-  dbgapi_assert (park_stopped_waves ());
+  dbgapi_assert (park_stopped_waves (wave.process ().rocr_rdebug_version ()));
   /* The trap handler "parked" the wave and saved the PC in ttmp11[22:7]
      and ttmp7[31:0].  */
 
@@ -4602,6 +4605,34 @@ public:
                          uint32_t scoreboard_id) const override;
 
   bool can_halt_at_endpgm () const override { return true; }
+  bool can_halt_at_sendmsg_dealloc_vgprs () const
+  {
+    /* If a wave is halted and is PC points to a `s_sendmsg
+       sendmsg(MSG_DEALLOC_VGPRS)` instruction, the device recognises that the
+       next instruction to execute will deallocate VGPRs and will consider that
+       VGPRs are gone already.  In this state, a context save cannot be done.
+       If one is requested, it will is ignored and the wave is killed.  */
+    return false;
+  }
+  bool
+  check_runtime_abi_version (rocr_rdebug_version_t r_version) const override
+  {
+    if (r_version == 8)
+      {
+        warning ("Architecture gfx11 has known limitations with ROCm "
+                 "runtime's r_debug::r_version 8.");
+        return true;
+      }
+    return gfx10_architecture_t::check_runtime_abi_version (r_version);
+  }
+  bool park_stopped_waves (rocr_rdebug_version_t r_version) const override
+  {
+    /* Starting ABI v9, waves are parked on gfx11 to work around the fact that
+       waves cannot be halted at a `s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)`
+       instruction.  */
+    return !(can_halt_at_endpgm () && can_halt_at_sendmsg_dealloc_vgprs ())
+           && r_version > 8;
+  }
   bool has_architected_flat_scratch () const override { return true; };
 };
 
