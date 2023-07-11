@@ -27,6 +27,7 @@
 #include "memory.h"
 #include "process.h"
 #include "register.h"
+#include "rocr_rdebug.h"
 #include "utils.h"
 #include "wave.h"
 
@@ -360,6 +361,12 @@ protected:
   bool
   is_terminating_instruction (const instruction_t &instruction) const override;
 
+  bool
+  check_runtime_abi_version (rocr_rdebug_version_t r_version) const override
+  {
+    return (r_version >= ROCR_RDEBUG_VERSION_MIN
+            && r_version <= ROCR_RDEBUG_VERSION_MAX);
+  }
   virtual bool can_halt_at_endpgm () const = 0;
   bool park_stopped_waves () const override { return !can_halt_at_endpgm (); }
   void save_pc_for_park (const wave_t &wave,
