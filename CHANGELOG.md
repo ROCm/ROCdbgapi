@@ -1,7 +1,7 @@
 # Changelog for AMD Debugger API (ROCdbgapi)
 
 Full documentatino for AMD Debugger API is available at
-[docs.amd.com](https://docs.amd.com/category/ROCDebugger%20API%20Guides).
+[rocm.docs.amd.com](https://rocm.docs.amd.com/projects/ROCdbgapi/en/latest/index.html).
 
 ## (Unreleased) rocm-dbgapi-0.70.0
 ### Changed

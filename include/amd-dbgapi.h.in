@@ -287,7 +287,7 @@
  *
  * For more information about the AMD ROCm ecosystem, please refer to:
  *
- * - https://docs.amd.com/
+ * - https://rocm.docs.amd.com/
  *
  * \section known_limitations Known Limitations and Restrictions
  *
@@ -360,7 +360,7 @@
  * \section references References
  *
  * 1. Advanced Micro Devices: [www.amd.com] (https://www.amd.com/)
- * 2. AMD ROCm Ecosystem: [docs.amd.com] (https://docs.amd.com/)
+ * 2. AMD ROCm Ecosystem: [rocm.docs.amd.com] (https://rocm.docs.amd.com/)
  * 3. Bus:Device.Function (BDF) Notation:
  *    [wiki.xen.org/wiki/Bus:Device.Function_(BDF)_Notation]
  *    (https://wiki.xen.org/wiki/Bus:Device.Function_(BDF)_Notation)
@@ -446,7 +446,7 @@
  * "User Guide for AMDGPU LLVM Backend"
  *
  * [rocm]:
- * https://docs.amd.com/
+ * https://rocm.docs.amd.com/
  * "AMD ROCm Ecosystem"
  *
  * [semver]:
