@@ -1264,7 +1264,12 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
     bool version_check_pass = true;
     std::unordered_set<const architecture_t *> present_archs;
     for (auto &&device : range<agent_t> ())
-      present_archs.insert (device.architecture ());
+      {
+        const architecture_t *arch = device.architecture ();
+        /* Unsupported devices can have a nullptr architecture.  */
+        if (arch != nullptr)
+          present_archs.insert (arch);
+      }
 
     for (auto &&arch : present_archs)
       {
