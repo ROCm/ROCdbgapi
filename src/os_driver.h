@@ -47,6 +47,9 @@ enum elf_amdgpu_machine_t : uint32_t
   EF_AMDGPU_MACH_AMDGCN_GFX906 = 0x02f,
   EF_AMDGPU_MACH_AMDGCN_GFX908 = 0x030,
   EF_AMDGPU_MACH_AMDGCN_GFX90A = 0x03f,
+  EF_AMDGPU_MACH_AMDGCN_GFX940 = 0x040,
+  EF_AMDGPU_MACH_AMDGCN_GFX941 = 0x04b,
+  EF_AMDGPU_MACH_AMDGCN_GFX942 = 0x04c,
   EF_AMDGPU_MACH_AMDGCN_GFX1010 = 0x033,
   EF_AMDGPU_MACH_AMDGCN_GFX1011 = 0x034,
   EF_AMDGPU_MACH_AMDGCN_GFX1012 = 0x035,
@@ -78,6 +81,8 @@ struct os_agent_info_t
   size_t max_waves_per_simd{ 0 };
   /* Number of shader engines.  */
   size_t shader_engine_count{ 0 };
+  /* Number of Compute Accelerator Chips.  */
+  uint32_t xcc_count{ 0 };
   /* PCI vendor id.  */
   uint32_t vendor_id{ 0 };
   /* PCI device id.  */

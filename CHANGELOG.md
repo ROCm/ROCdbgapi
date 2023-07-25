@@ -3,6 +3,10 @@
 Full documentatino for AMD Debugger API is available at
 [rocm.docs.amd.com](https://rocm.docs.amd.com/projects/ROCdbgapi/en/latest/index.html).
 
+## (Unreleased) rocm-dbgapi-0.71.0
+### Added
+- Add support for gfx940, gfx941 and gfx942 architectures.
+
 ## (Unreleased) rocm-dbgapi-0.70.0
 ### Changed
 - The name reported for each agent is now based on the information stored

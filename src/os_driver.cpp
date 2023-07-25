@@ -660,7 +660,7 @@ kfd_driver_t::agent_snapshot (os_agent_info_t *snapshots,
       agent_info.private_address_aperture_base = entry.scratch_base;
       agent_info.private_address_aperture_limit = entry.scratch_limit;
       agent_info.location_id = entry.location_id;
-      agent_info.simd_count = entry.simd_count;
+      agent_info.simd_count = entry.simd_count * entry.num_xcc;
       agent_info.max_waves_per_simd = entry.max_waves_per_simd;
       agent_info.vendor_id = entry.vendor_id;
       agent_info.device_id = entry.device_id;
@@ -692,13 +692,14 @@ kfd_driver_t::agent_snapshot (os_agent_info_t *snapshots,
         = entry.debug_prop & HSA_DBG_DISPATCH_INFO_ALWAYS_VALID;
       agent_info.watchpoint_exclusive
         = entry.debug_prop & HSA_DBG_WATCHPOINTS_EXCLUSIVE;
+      agent_info.xcc_count = entry.num_xcc;
 
       if (!agent_info.simd_count || !agent_info.max_waves_per_simd
           || !entry.array_count || !entry.simd_arrays_per_engine)
         fatal_error ("Invalid node properties");
 
       agent_info.shader_engine_count
-        = entry.array_count / entry.simd_arrays_per_engine;
+        = (entry.array_count * entry.num_xcc) / entry.simd_arrays_per_engine;
       agent_info.name
         = pci_device_name (agent_info.vendor_id, agent_info.device_id);
     }

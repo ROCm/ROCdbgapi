@@ -109,6 +109,7 @@ private:
   std::optional<amd_dbgapi_os_queue_packet_id_t> m_read_packet_id{};
   std::optional<amd_dbgapi_os_queue_packet_id_t> m_write_packet_id{};
   amd_dbgapi_global_address_t m_scratch_backing_memory_address{ 0 };
+  amd_dbgapi_size_t m_per_xcc_scratch_backing_memory_size{ 0 };
   uint32_t m_compute_tmpring_size{ 0 };
 
   /* The memory reserved by the thunk library for the debugger is used to store
@@ -172,7 +173,7 @@ public:
 
   std::pair<amd_dbgapi_global_address_t /* address */,
             amd_dbgapi_size_t /* size */>
-  scratch_memory_region (uint32_t shader_engine_id,
+  scratch_memory_region (uint32_t xcc_id, uint32_t shader_engine_id,
                          uint32_t scoreboard_id) const override;
 
   size_t packet_size () const override { return aql_packet_size; };
@@ -375,17 +376,19 @@ aql_queue_t::~aql_queue_t ()
      If the process is being detached, then there's really no need to discard
      since the process will be destructed and the cache destructed.  */
 
+  const auto xcc_count = agent ().os_info ().xcc_count;
+
   try
     {
       /* Need to write back only because discard requires no dirty data exists.
        */
       process.memory_cache ().write_back (
         m_os_queue_info.ctx_save_restore_address,
-        m_os_queue_info.ctx_save_restore_area_size);
+        xcc_count * m_os_queue_info.ctx_save_restore_area_size);
 
       process.memory_cache ().discard (
         m_os_queue_info.ctx_save_restore_address,
-        m_os_queue_info.ctx_save_restore_area_size);
+        xcc_count * m_os_queue_info.ctx_save_restore_area_size);
     }
   catch (const process_exited_exception_t &)
     {
@@ -495,6 +498,8 @@ aql_queue_t::allocate_displaced_instruction (const instruction_t &instruction)
 void
 aql_queue_t::queue_state_changed ()
 {
+  const auto xcc_count = agent ().os_info ().xcc_count;
+
   switch (state ())
     {
     case state_t::running:
@@ -512,7 +517,7 @@ aql_queue_t::queue_state_changed ()
          suspended again (see the 'case state_t::suspended:' below).  */
       process ().memory_cache ().write_back (
         m_os_queue_info.ctx_save_restore_address,
-        m_os_queue_info.ctx_save_restore_area_size);
+        xcc_count * m_os_queue_info.ctx_save_restore_area_size);
       break;
 
     case state_t::suspended:
@@ -521,7 +526,7 @@ aql_queue_t::queue_state_changed ()
          save.  */
       process ().memory_cache ().discard (
         m_os_queue_info.ctx_save_restore_address,
-        m_os_queue_info.ctx_save_restore_area_size);
+        xcc_count * m_os_queue_info.ctx_save_restore_area_size);
 
       /* Refresh the scratch_backing_memory_location and
          scratch_backing_memory_size everytime the queue is suspended.
@@ -539,6 +544,12 @@ aql_queue_t::queue_state_changed ()
           + offsetof (amd_queue_t, scratch_backing_memory_location)
           - offsetof (amd_queue_t, read_dispatch_id),
         &m_scratch_backing_memory_address);
+
+      process ().read_global_memory (
+        m_os_queue_info.read_pointer_address
+          + offsetof (amd_queue_t, scratch_backing_memory_byte_size)
+          - offsetof (amd_queue_t, read_dispatch_id),
+        &m_per_xcc_scratch_backing_memory_size);
 
       process ().read_global_memory (
         m_os_queue_info.read_pointer_address
@@ -764,50 +775,59 @@ aql_queue_t::update_waves ()
   };
 
   process_t &process = this->process ();
+  size_t wave_count = 0; /* Number of waves seen in the context save area.  */
 
-  auto ctx_save_address = m_os_queue_info.ctx_save_restore_address;
-
-  /* Retrieve the control stack and wave save area memory locations.  */
-  context_save_area_header_s header;
-  process.read_global_memory (ctx_save_address, &header);
-
-  auto control_stack_begin = ctx_save_address + header.control_stack_offset;
-  auto control_stack_end = control_stack_begin + header.control_stack_size;
-  auto wave_area_end = ctx_save_address + header.wave_state_offset;
-  auto wave_area_begin = wave_area_end - header.wave_state_size;
-
-  /* The control stack and the wave save area should be contiguous.  */
-  if (control_stack_end != wave_area_begin)
-    fatal_error ("corrupted context save area header");
-
-  /* Start with 0 running waves.  When iterating the control stack (below) each
-     discovered wave in the running state will increment this count.  */
+  /* Start with 0 running waves.  When iterating the control stack (below)
+     each discovered wave in the running state will increment this count.  */
   m_waves_running.emplace (0);
 
-  if (control_stack_begin != control_stack_end)
+  for (uint32_t xcc_id = 0; xcc_id < agent ().os_info ().xcc_count; ++xcc_id)
     {
-      log_info ("decoding %s's context save area: "
-                "ctrl_stk:[0x%llx..0x%llx[, wave_area:[0x%llx..0x%llx[",
-                to_cstring (id ()), control_stack_begin, control_stack_end,
-                wave_area_begin, wave_area_end);
+      auto ctx_save_address
+        = m_os_queue_info.ctx_save_restore_address
+          + xcc_id * m_os_queue_info.ctx_save_restore_area_size;
 
-      /* Read the entire control stack from the inferior in one go.  */
-      amd_dbgapi_size_t size = control_stack_end - control_stack_begin;
-      if (!utils::is_aligned (size, sizeof (uint32_t)))
-        fatal_error ("corrupted control stack");
+      /* Retrieve the control stack and wave save area memory locations.  */
+      context_save_area_header_s header;
+      process.read_global_memory (ctx_save_address, &header);
 
-      auto memory = std::make_unique<uint32_t[]> (size / sizeof (uint32_t));
-      process.read_global_memory (control_stack_begin, &memory[0], size);
+      auto control_stack_begin
+        = ctx_save_address + header.control_stack_offset;
+      auto control_stack_end = control_stack_begin + header.control_stack_size;
+      auto wave_area_end = ctx_save_address + header.wave_state_offset;
+      auto wave_area_begin = wave_area_end - header.wave_state_size;
 
-      /* Decode the control stack.  For each entry in the control stack,
-         the provided callback function is called with a CWSR record.  */
-      size_t wave_count = architecture ().control_stack_iterate (
-        *this, &memory[0], size / sizeof (uint32_t), wave_area_end,
-        wave_area_end - wave_area_begin, process_cwsr_record);
+      /* The control stack and the wave save area should be contiguous.  */
+      if (control_stack_end != wave_area_begin)
+        fatal_error ("corrupted context save area header");
 
-      log_info ("%zu out of %zu wave%s running on %s", *m_waves_running,
-                wave_count, wave_count > 1 ? "s" : "", to_cstring (id ()));
+      if (control_stack_begin != control_stack_end)
+        {
+          log_info ("decoding %s's context save area #%u: "
+                    "ctrl_stk:[0x%llx..0x%llx[, wave_area:[0x%llx..0x%llx[",
+                    to_cstring (id ()), xcc_id, control_stack_begin,
+                    control_stack_end, wave_area_begin, wave_area_end);
+
+          /* Read the entire control stack from the inferior in one go.  */
+          amd_dbgapi_size_t size = control_stack_end - control_stack_begin;
+          if (!utils::is_aligned (size, sizeof (uint32_t)))
+            fatal_error ("corrupted control stack");
+
+          auto memory
+            = std::make_unique<uint32_t[]> (size / sizeof (uint32_t));
+          process.read_global_memory (control_stack_begin, &memory[0], size);
+
+          /* Decode the control stack.  For each entry in the control stack,
+             the provided callback function is called with a CWSR record.  */
+          wave_count += architecture ().control_stack_iterate (
+            *this, xcc_id, &memory[0], size / sizeof (uint32_t), wave_area_end,
+            wave_area_end - wave_area_begin, process_cwsr_record);
+        }
     }
+
+  if (wave_count)
+    log_info ("%zu out of %zu wave%s running on %s", *m_waves_running,
+              wave_count, wave_count > 1 ? "s" : "", to_cstring (id ()));
 
   /* Iterate all waves, workgroups and dispatches belonging to this queue, and
      prune waves and workgroups with a mark older than the current mark, and
@@ -846,13 +866,21 @@ aql_queue_t::update_waves ()
 
 std::pair<amd_dbgapi_global_address_t /* address */,
           amd_dbgapi_size_t /* size */>
-aql_queue_t::scratch_memory_region (uint32_t shader_engine_id,
+aql_queue_t::scratch_memory_region (uint32_t xcc_id, uint32_t shader_engine_id,
                                     uint32_t scoreboard_id) const
 {
+  /* The scratch memory for this queue is evenly divided between all XCCs, so
+     each XCC has its own scratch base.  */
+  amd_dbgapi_global_address_t xcc_scratch_base
+    = m_scratch_backing_memory_address
+      + m_per_xcc_scratch_backing_memory_size * xcc_id;
+
   auto [offset, size] = architecture ().scratch_memory_region (
-    m_compute_tmpring_size, agent ().os_info ().shader_engine_count,
+    m_compute_tmpring_size,
+    agent ().os_info ().shader_engine_count / agent ().os_info ().xcc_count,
     shader_engine_id, scoreboard_id);
-  return { m_scratch_backing_memory_address + offset, size };
+
+  return { xcc_scratch_base + offset, size };
 }
 
 void

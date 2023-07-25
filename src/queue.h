@@ -205,7 +205,7 @@ public:
   /* Return the wave's scratch memory region (address and size).  */
   virtual std::pair<amd_dbgapi_global_address_t /* address */,
                     amd_dbgapi_size_t /* size */>
-  scratch_memory_region (uint32_t shader_engine_id,
+  scratch_memory_region (uint32_t xcc_id, uint32_t shader_engine_id,
                          uint32_t scoreboard_id) const = 0;
 
   /* Return a pointer to device accessible memory containing the given
