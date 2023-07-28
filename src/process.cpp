@@ -1245,18 +1245,39 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
     if (runtime_info.runtime_state != os_runtime_state_t::enabled)
       return AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION;
 
-    /* Check the r_version.  */
-    int r_version;
+    /* Check the r_version.  It should not be incompatible with any
+       architecture found in the system.  */
+    rocr_rdebug_version_t r_version;
     read_global_memory (
       runtime_info.r_debug + offsetof (struct r_debug, r_version), &r_version);
 
-    if (r_version != ROCR_RDEBUG_VERSION)
+    m_rocr_debug_version = r_version;
+    if (r_version < ROCR_RDEBUG_VERSION_MIN
+        || r_version > ROCR_RDEBUG_VERSION_MAX)
       {
         warning ("AMD GPU runtime's r_debug::r_version %d not supported "
-                 "(r_debug::r_version %d required)",
-                 r_version, ROCR_RDEBUG_VERSION);
-        return AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION;
+                 "(r_debug::r_version at in [%d..%d] required)",
+                 r_version, ROCR_RDEBUG_VERSION_MIN, ROCR_RDEBUG_VERSION_MAX);
+        return AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS;
       }
+
+    bool version_check_pass = true;
+    std::unordered_set<const architecture_t *> present_archs;
+    for (auto &&device : range<agent_t> ())
+      {
+        const architecture_t *arch = device.architecture ();
+        /* Unsupported devices can have a nullptr architecture.  */
+        if (arch != nullptr)
+          present_archs.insert (arch);
+      }
+
+    for (auto &&arch : present_archs)
+      {
+        if (!arch->check_runtime_abi_version (r_version))
+          version_check_pass = false;
+      }
+    if (!version_check_pass)
+      return AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION;
 
     return AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS;
   }();

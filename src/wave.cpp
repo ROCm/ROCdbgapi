@@ -409,7 +409,7 @@ wave_t::update (
     {
       /* Park the wave if the architecture does not support halting at certain
          instructions.  */
-      if (architecture.park_stopped_waves ())
+      if (architecture.park_stopped_waves (process ().rocr_rdebug_version ()))
         park ();
 
       if (visibility () == visibility_t::visible
@@ -477,7 +477,7 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
   m_state = state;
   queue ().wave_state_changed (*this);
 
-  if (architecture.park_stopped_waves ())
+  if (architecture.park_stopped_waves (process ().rocr_rdebug_version ()))
     {
       if (state == AMD_DBGAPI_WAVE_STATE_STOP)
         park ();

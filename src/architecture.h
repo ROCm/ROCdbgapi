@@ -28,6 +28,7 @@
 #include "memory.h"
 #include "os_driver.h"
 #include "register.h"
+#include "rocr_rdebug.h"
 #include "utils.h"
 
 #include <cstddef>
@@ -310,8 +311,12 @@ public:
   virtual bool simulate (wave_t &wave, amd_dbgapi_global_address_t pc,
                          const instruction_t &instruction) const = 0;
 
-  virtual bool park_stopped_waves () const = 0;
+  /* Report that a given ABI version is unreliable for the current
+     architecture.  */
+  virtual bool
+    check_runtime_abi_version (rocr_rdebug_version_t) const = 0;
 
+  virtual bool park_stopped_waves (rocr_rdebug_version_t) const = 0;
   virtual void save_pc_for_park (const wave_t &wave,
                                  amd_dbgapi_global_address_t pc) const = 0;
   virtual amd_dbgapi_global_address_t

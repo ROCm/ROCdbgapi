@@ -36,9 +36,15 @@
 6: New trap handler ABI. ttmp6[25:0] contains dispatch index modulo queue size
 7: New trap handler ABI. Send interrupts as a bitmask, coalescing concurrent
    exceptions.
-8: New trap handler ABI for gfx940: Initialize ttmp[4:5] if ttmp11[31] == 0.
+8: New trap handler ABI. For gfx940: Initialize ttmp[4:5] if ttmp11[31] == 0.
+9: New trap handler ABI. For gfx11: Save PC in ttmp11[22:7] ttmp6[31:0], and
+   park the wave if stopped.
 */
 
-#define ROCR_RDEBUG_VERSION 8
+using rocr_rdebug_version_t = decltype (r_debug::r_version);
+
+constexpr rocr_rdebug_version_t ROCR_RDEBUG_VERSION_INVALID = 0;
+constexpr rocr_rdebug_version_t ROCR_RDEBUG_VERSION_MIN = 8;
+constexpr rocr_rdebug_version_t ROCR_RDEBUG_VERSION_MAX = 9;
 
 #endif /* ROCR_RDEBUG_H */
