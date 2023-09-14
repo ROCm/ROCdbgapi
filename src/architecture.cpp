@@ -3795,7 +3795,7 @@ gfx940_t::dispatch_packet_address (
 
   if ((dispatch_packet_index * queue.packet_size ()) >= queue.size ())
     /* The dispatch_packet_index is out of bounds.  */
-    fatal_error ("dispatch_packet_index %#lx is out of bounds in %s",
+    fatal_error ("dispatch_packet_index %#" PRIx64 " is out of bounds in %s",
                  dispatch_packet_index, to_string (queue.id ()).c_str ());
 
   return queue.address () + (dispatch_packet_index * queue.packet_size ());
