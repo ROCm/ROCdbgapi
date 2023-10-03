@@ -1258,7 +1258,7 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
         warning ("AMD GPU runtime's r_debug::r_version %d not supported "
                  "(r_debug::r_version at in [%d..%d] required)",
                  r_version, ROCR_RDEBUG_VERSION_MIN, ROCR_RDEBUG_VERSION_MAX);
-        return AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS;
+        return AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION;
       }
 
     bool version_check_pass = true;
