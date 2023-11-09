@@ -1635,6 +1635,10 @@ one_launch_trap_mask_to_string (os_wave_launch_trap_mask_t value)
       return "int_divide_by_zero";
     case os_wave_launch_trap_mask_t::address_watch:
       return "address_watch";
+    case os_wave_launch_trap_mask_t::wave_start:
+      return "wave_start";
+    case os_wave_launch_trap_mask_t::wave_end:
+      return "wave_end";
     }
   return to_string (
     make_hex (static_cast<std::underlying_type_t<decltype (value)>> (value)));

@@ -308,6 +308,8 @@ enum class os_wave_launch_trap_mask_t : uint32_t
   fp_inexact = KFD_DBG_TRAP_MASK_FP_INEXACT,
   int_divide_by_zero = KFD_DBG_TRAP_MASK_INT_DIVIDE_BY_ZERO,
   address_watch = KFD_DBG_TRAP_MASK_DBG_ADDRESS_WATCH,
+  wave_start = KFD_DBG_TRAP_MASK_TRAP_ON_WAVE_START,
+  wave_end = static_cast<uint32_t> (KFD_DBG_TRAP_MASK_TRAP_ON_WAVE_END)
 };
 template <> struct is_flag<os_wave_launch_trap_mask_t> : std::true_type
 {
