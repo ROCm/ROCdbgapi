@@ -111,6 +111,10 @@ protected:
   static constexpr uint32_t sq_wave_status_execz_mask = 1 << 9;
   static constexpr uint32_t sq_wave_status_vccz_mask = 1 << 10;
   static constexpr uint32_t sq_wave_status_halt_mask = 1 << 13;
+  /* The skip_export bit is meaningless for compute and is always cleared.
+     The trap handler sets it so the debugger can know that the trap handler
+     was entered.  */
+  static constexpr uint32_t sq_wave_status_skip_export_mask = 1 << 18;
   static constexpr uint32_t sq_wave_status_cond_dbg_user_mask = 1 << 20;
   static constexpr uint32_t sq_wave_status_cond_dbg_sys_mask = 1 << 21;
 
@@ -1308,9 +1312,36 @@ amdgcn_architecture_t::are_trap_handler_ttmps_initialized (
 void
 amdgcn_architecture_t::initialize_spi_ttmps (const wave_t &wave) const
 {
-  for (amdgpu_regnum_t regnum = amdgpu_regnum_t::ttmp6;
-       regnum <= amdgpu_regnum_t::ttmp11; ++regnum)
+  uint32_t ttmp6, ttmp11, status;
+  wave.read_register (amdgpu_regnum_t::ttmp6, &ttmp6);
+  wave.read_register (amdgpu_regnum_t::ttmp11, &ttmp11);
+  wave.read_register (amdgpu_regnum_t::status, &status);
+
+  ttmp11 &= ~ttmp11_wave_in_group_mask;
+
+  /* TTMP6 is initialized by SPI, but the trap handler uses it to store
+     valuable information when executed.
+
+     Before rdebug version 10, we cannot know if the trap handler was entered
+     or not, so we need to to clear TTMP6 completely.
+
+     Starting rdebug version 10, the trap handler always sets mode.skip_export
+     when halting the wave, so we can be sure that it was executed.  If this
+     bit is set on a halted wave, make sure to not clear information saved by
+     the trap handler.  */
+  if (wave.process ().rocr_rdebug_version () >= 10
+      && (status & sq_wave_status_skip_export_mask) != 0)
+    ttmp6 &= (ttmp6_wave_stopped_mask | ttmp6_saved_status_halt_mask
+              | ttmp6_saved_trap_id_mask);
+  else
+    ttmp6 = 0;
+
+  for (amdgpu_regnum_t regnum = amdgpu_regnum_t::ttmp8;
+       regnum <= amdgpu_regnum_t::ttmp10; ++regnum)
     wave.write_register (regnum, uint32_t{ 0 });
+
+  wave.write_register (amdgpu_regnum_t::ttmp6, ttmp6);
+  wave.write_register (amdgpu_regnum_t::ttmp11, ttmp11);
 }
 
 void
@@ -1422,12 +1453,18 @@ amdgcn_architecture_t::wave_set_state (wave_t &wave,
       ttmp6 |= ttmp6_wave_stopped_mask;
 
       status_reg |= sq_wave_status_halt_mask;
+
+      /* For architectures which can guarantee that SPI initializes TTMPs,
+         we do not need the skip_export workaround.  */
+      if (!wave.agent ().os_info ().ttmps_always_initialized)
+        status_reg |= sq_wave_status_skip_export_mask;
       break;
 
     case AMD_DBGAPI_WAVE_STATE_RUN:
       /* Restore status.halt from ttmp6.saved_status_halt, put the wave in the
          run state (ttmp6.wave_stopped=0), and set mode.debug_en=0.  */
-      status_reg &= ~sq_wave_status_halt_mask;
+      status_reg
+        &= ~(sq_wave_status_halt_mask | sq_wave_status_skip_export_mask);
       if (ttmp6 & ttmp6_saved_status_halt_mask)
         status_reg |= sq_wave_status_halt_mask;
 
@@ -1439,7 +1476,8 @@ amdgcn_architecture_t::wave_set_state (wave_t &wave,
     case AMD_DBGAPI_WAVE_STATE_SINGLE_STEP:
       /* Restore status.halt from ttmp6.saved_status_halt, put the wave in the
          run state (ttmp6.wave_stopped=0), and set mode.debug_en=1.  */
-      status_reg &= ~sq_wave_status_halt_mask;
+      status_reg
+        &= ~(sq_wave_status_halt_mask | sq_wave_status_skip_export_mask);
       if (ttmp6 & ttmp6_saved_status_halt_mask)
         status_reg |= sq_wave_status_halt_mask;
 
@@ -1947,7 +1985,7 @@ amdgcn_architecture_t::register_read_only_mask (amdgpu_regnum_t regnum) const
           = utils::bit_mask (5, 7)      /* priv, trap_en, ttrace_en  */
             | utils::bit_mask (9, 12)   /* execz, vccz, in_tg, in_barrier  */
             | utils::bit_mask (14, 16)  /* trap, ttrace_cu_en, valid  */
-            | utils::bit_mask (19, 19)  /* perf_en  */
+            | utils::bit_mask (18, 19)  /* skip_export, perf_en  */
             | utils::bit_mask (22, 26)  /* allow_replay, fatal_halt, 0  */
             | utils::bit_mask (28, 31); /* 0  */
         return &status_read_only_bits;
@@ -2046,15 +2084,18 @@ amdgcn_architecture_t::read_pseudo_register (const wave_t &wave,
 
   if (regnum == amdgpu_regnum_t::pseudo_status)
     {
-      /* pseudo_status is a composite of: sq_wave_status[31:14], ttmp6[29]
-         (halt), sq_wave_status [12:6], 0[0] (priv), sq_wave_status [4:0].  */
+      /* pseudo_status is a composite of: sq_wave_status[31:19], 0[0]
+         (skip_export), sq_wave_status[17:14], ttmp6[29] (halt), sq_wave_status
+         [12:6], 0[0] (priv), sq_wave_status [4:0].  */
 
       uint32_t ttmp6, status_reg;
 
       wave.read_register (amdgpu_regnum_t::status, &status_reg);
       wave.read_register (amdgpu_regnum_t::ttmp6, &ttmp6);
 
-      status_reg &= ~(sq_wave_status_priv_mask | sq_wave_status_halt_mask);
+      status_reg &= ~(sq_wave_status_priv_mask | sq_wave_status_halt_mask
+                      | sq_wave_status_skip_export_mask);
+
       if (ttmp6 & ttmp6_saved_status_halt_mask)
         status_reg |= sq_wave_status_halt_mask;
 
@@ -2139,8 +2180,9 @@ amdgcn_architecture_t::write_pseudo_register (const wave_t &wave,
 
   if (regnum == amdgpu_regnum_t::pseudo_status)
     {
-      /* pseudo_status is a composite of: status[31:14], ttmp6[29] (halt),
-         status [12:6], 0[0] (priv), status [4:0].  */
+      /* pseudo_status is a composite of: status[31:19], 0[0] (skip_export),
+         status[17:14], ttmp6[29] (halt), status [12:6], 0[0] (priv),
+         status[4:0].  */
 
       uint32_t status_reg, ttmp6;
       wave.read_register (amdgpu_regnum_t::status, &status_reg);
@@ -3281,7 +3323,8 @@ protected:
   std::unique_ptr<architecture_t::cwsr_record_t> make_gfx9_cwsr_record (
     compute_queue_t &queue, uint32_t xcc_id, uint32_t compute_relaunch_wave,
     uint32_t compute_relaunch_state,
-    amd_dbgapi_global_address_t context_save_address) const override = 0;
+    amd_dbgapi_global_address_t context_save_address) const override
+    = 0;
 
   mi_architecture_t (elf_amdgpu_machine_t e_machine,
                      std::string target_triple);
@@ -3591,7 +3634,6 @@ protected:
     : gfx90a_t (e_machine, std::move (target_triple))
   {
   }
-public:
 
 public:
   gfx940_t ()
@@ -3720,8 +3762,20 @@ gfx940_t::initialize_trap_handler_ttmps (const wave_t &wave) const
   dbgapi_assert (!(ttmp11 & ttmp11_trap_hander_ttmps_setup_mask)
                  && "ttmps are already initialized");
 
+  uint32_t ttmp6, status;
+  wave.read_register (amdgpu_regnum_t::ttmp6, &ttmp6);
+  wave.read_register (amdgpu_regnum_t::status, &status);
+
+  /* See amdgcn_architecture_t::initialize_spi_ttmps.  */
+  if (wave.process ().rocr_rdebug_version () >= 10
+      && (status & sq_wave_status_skip_export_mask) != 0)
+    ttmp6 &= (ttmp6_wave_stopped_mask | ttmp6_saved_status_halt_mask
+              | ttmp6_saved_trap_id_mask);
+  else
+    ttmp6 = 0;
+
+  wave.write_register (amdgpu_regnum_t::ttmp6, ttmp6);
   ttmp11 |= ttmp11_trap_hander_ttmps_setup_mask;
-  wave.write_register (amdgpu_regnum_t::ttmp6, 0);
   wave.write_register (amdgpu_regnum_t::ttmp11, ttmp11);
 }
 
@@ -3928,7 +3982,7 @@ gfx940_t::register_read_only_mask (amdgpu_regnum_t regnum) const
         = utils::bit_mask (5, 7)      /* priv, trap_en, ttrace_en  */
           | utils::bit_mask (9, 12)   /* execz, vccz, in_tg, in_barrier  */
           | utils::bit_mask (14, 16)  /* trap, ttrace_cu_en, valid  */
-          | utils::bit_mask (19, 19)  /* perf_en  */
+          | utils::bit_mask (18, 19)  /* skip_export, perf_en  */
           | utils::bit_mask (22, 26)  /* allow_replay, fatal_halt, 0  */
           | utils::bit_mask (29, 30); /* 0  */
       return &status_read_only_bits;
@@ -3969,8 +4023,8 @@ class gfx941_t final : public gfx940_t
 public:
   gfx941_t ()
     : gfx940_t (EF_AMDGPU_MACH_AMDGCN_GFX941, "amdgcn-amd-amdhsa--gfx941")
-    {
-    }
+  {
+  }
 };
 
 class gfx942_t final : public gfx940_t
@@ -3978,8 +4032,8 @@ class gfx942_t final : public gfx940_t
 public:
   gfx942_t ()
     : gfx940_t (EF_AMDGPU_MACH_AMDGCN_GFX942, "amdgcn-amd-amdhsa--gfx942")
-    {
-    }
+  {
+  }
 };
 
 class gfx10_architecture_t : public gfx9_architecture_t
@@ -5122,8 +5176,7 @@ protected:
     uint32_t shader_engine_id () const override;
   };
 
-  std::unique_ptr<architecture_t::cwsr_record_t>
-  make_gfx1x_cwsr_record (
+  std::unique_ptr<architecture_t::cwsr_record_t> make_gfx1x_cwsr_record (
     compute_queue_t &queue, uint32_t xcc_id, uint32_t compute_relaunch_wave,
     uint32_t compute_relaunch_state, uint32_t compute_relaunch2_state,
     amd_dbgapi_global_address_t context_save_address) const override

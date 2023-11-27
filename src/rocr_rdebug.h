@@ -39,12 +39,14 @@
 8: New trap handler ABI. For gfx940: Initialize ttmp[4:5] if ttmp11[31] == 0.
 9: New trap handler ABI. For gfx11: Save PC in ttmp11[22:7] ttmp6[31:0], and
    park the wave if stopped.
+10: New trap handler ABI. Except for gfx940: set status.skip_export before
+   halting the wave.
 */
 
 using rocr_rdebug_version_t = decltype (r_debug::r_version);
 
 constexpr rocr_rdebug_version_t ROCR_RDEBUG_VERSION_INVALID = 0;
 constexpr rocr_rdebug_version_t ROCR_RDEBUG_VERSION_MIN = 8;
-constexpr rocr_rdebug_version_t ROCR_RDEBUG_VERSION_MAX = 9;
+constexpr rocr_rdebug_version_t ROCR_RDEBUG_VERSION_MAX = 10;
 
 #endif /* ROCR_RDEBUG_H */
