@@ -57,8 +57,8 @@ private:
 public:
   workgroup_t (amd_dbgapi_workgroup_id_t workgroup_id,
                const dispatch_t &dispatch,
-               std::optional<const std::array<uint32_t, 3>> group_ids = {},
-               amd_dbgapi_size_t local_memory_size = 0)
+               std::optional<const std::array<uint32_t, 3>> group_ids,
+               amd_dbgapi_size_t local_memory_size)
     : handle_object (workgroup_id), m_group_ids (group_ids),
       m_local_memory_size (local_memory_size), m_dispatch (dispatch)
   {

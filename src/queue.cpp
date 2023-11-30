@@ -665,7 +665,7 @@ aql_queue_t::update_waves ()
 
     if (!wave)
       {
-        workgroup_t *workgroup;
+        workgroup_t *workgroup = nullptr;
 
         if (group_leader)
           {
@@ -676,48 +676,48 @@ aql_queue_t::update_waves ()
             if (workgroup->group_ids () != cwsr_record->group_ids ())
               fatal_error ("not in the same workgroup as the group_leader");
           }
-        else if (agent ().spi_ttmps_setup_enabled ())
+        else
           {
             const auto packet_id = get_os_queue_packet_id (*cwsr_record);
-            dbgapi_assert (packet_id.has_value ());
-
-            /* Find the dispatch this wave is associated with using the
-               packet_id.  The packet_id is only unique for a given queue.  */
-            aql_dispatch_t *dispatch
-              = static_cast<aql_dispatch_t *> (process.find_if (
-                [this, i = *packet_id] (const dispatch_t &d) {
-                  return d.queue () == *this && d.os_queue_packet_id () == i;
-                }));
-
-            if (!dispatch)
-              dispatch = &process.create<aql_dispatch_t> (*this, *packet_id);
-
-            /* Find the workgroup this wave belongs to.  */
             const auto group_ids = cwsr_record->group_ids ();
-            if (group_ids)
-              workgroup = process.find_if (
-                [dispatch, i = *group_ids] (const workgroup_t &wg) {
-                  return wg.dispatch () == *dispatch && wg.group_ids () == i;
-                });
+
+            /* Find the dispatch this wave belongs to using the packet_id.  The
+               packet_id is only unique for a given queue.  */
+            dispatch_t *dispatch = process.find_if (
+              [this, packet_id] (const dispatch_t &d) {
+                return d.queue () == *this
+                       && d.os_queue_packet_id () == packet_id;
+              });
+
+            if (dispatch)
+              {
+                workgroup = process.find_if (
+                  [dispatch, group_ids] (const workgroup_t &w) {
+                    return w.dispatch () == *dispatch
+                           && w.group_ids () == group_ids;
+                  });
+              }
+            else if (packet_id)
+              {
+                dispatch = &process.create<aql_dispatch_t> (*this, *packet_id);
+              }
+            else
+              {
+                /* If this wave does not have a packet_id (ttmps are not setup
+                   or may be corrupted), then create a new workgroup associated
+                   with the dummy_dispatch.  All waves belonging to this
+                   workgroup will be associated with this instance.  */
+                dispatch = &m_dummy_dispatch;
+              }
 
             if (!workgroup)
               workgroup = &process.create<workgroup_t> (
                 *dispatch, group_ids, cwsr_record->lds_size ());
           }
-        else
-          {
-            /* If this wave does not have a packet_id (ttmps are not setup
-               or may be corrupted), then create a new workgroup associated
-               with the dummy_dispatch.  All waves belonging to this workgroup
-               will be associated with this instance.  */
-            workgroup = &process.create<workgroup_t> (m_dummy_dispatch);
-          }
 
-        std::optional<uint32_t> position_in_group;
-        if (agent ().spi_ttmps_setup_enabled ())
-          position_in_group = cwsr_record->position_in_group ();
-
-        wave = &process.create<wave_t> (*workgroup, position_in_group);
+        dbgapi_assert (workgroup != nullptr);
+        wave = &process.create<wave_t> (*workgroup,
+                                        cwsr_record->position_in_group ());
       }
 
     bool is_first_wave = cwsr_record->is_first_wave ();
