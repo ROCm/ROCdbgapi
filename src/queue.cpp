@@ -130,7 +130,7 @@ private:
      deleted, as these waves are no longer active.  */
   monotonic_counter_t<epoch_t, 1> m_next_wave_mark{};
 
-  amd_dbgapi_os_queue_packet_id_t get_os_queue_packet_id (
+  std::optional<amd_dbgapi_os_queue_packet_id_t> get_os_queue_packet_id (
     const architecture_t::cwsr_record_t &cwsr_record) const;
 
   displaced_instruction_ptr_t
@@ -576,12 +576,14 @@ aql_queue_t::queue_state_changed ()
     }
 }
 
-amd_dbgapi_os_queue_packet_id_t
+std::optional<amd_dbgapi_os_queue_packet_id_t>
 aql_queue_t::get_os_queue_packet_id (
   const architecture_t::cwsr_record_t &cwsr_record) const
 {
-  amd_dbgapi_global_address_t packet_address
-    = architecture ().dispatch_packet_address (cwsr_record);
+  auto packet_address = architecture ().dispatch_packet_address (cwsr_record);
+
+  if (!packet_address)
+    return std::nullopt;
 
   /* Calculate the monotonic dispatch id for this packet.  It is
      between read_packet_id and write_packet_id.  */
@@ -593,7 +595,7 @@ aql_queue_t::get_os_queue_packet_id (
   dbgapi_assert (m_read_packet_id && m_write_packet_id);
 
   amd_dbgapi_os_queue_packet_id_t os_queue_packet_id
-    = (packet_address - address ()) / aql_packet_size
+    = (*packet_address - address ()) / aql_packet_size
       + (*m_read_packet_id / ring_size) * ring_size;
 
   if (os_queue_packet_id < *m_read_packet_id
@@ -671,34 +673,32 @@ aql_queue_t::update_waves ()
                it is the same workgroup_t as the thread group leader's.  */
             workgroup = &group_leader->workgroup ();
 
-            if (workgroup->group_ids ()
-                && *workgroup->group_ids () != cwsr_record->group_ids ())
+            if (workgroup->group_ids () != cwsr_record->group_ids ())
               fatal_error ("not in the same workgroup as the group_leader");
           }
         else if (agent ().spi_ttmps_setup_enabled ())
           {
-            amd_dbgapi_os_queue_packet_id_t packet_id
-              = get_os_queue_packet_id (*cwsr_record);
+            const auto packet_id = get_os_queue_packet_id (*cwsr_record);
+            dbgapi_assert (packet_id.has_value ());
 
             /* Find the dispatch this wave is associated with using the
                packet_id.  The packet_id is only unique for a given queue.  */
             aql_dispatch_t *dispatch
               = static_cast<aql_dispatch_t *> (process.find_if (
-                [this, packet_id] (const dispatch_t &d) {
-                  return d.queue () == *this
-                         && d.os_queue_packet_id () == packet_id;
+                [this, i = *packet_id] (const dispatch_t &d) {
+                  return d.queue () == *this && d.os_queue_packet_id () == i;
                 }));
 
             if (!dispatch)
-              dispatch = &process.create<aql_dispatch_t> (*this, packet_id);
+              dispatch = &process.create<aql_dispatch_t> (*this, *packet_id);
 
             /* Find the workgroup this wave belongs to.  */
             const auto group_ids = cwsr_record->group_ids ();
-            workgroup = process.find_if (
-              [dispatch, &group_ids] (const workgroup_t &wg) {
-                return wg.dispatch () == *dispatch
-                       && wg.group_ids () == group_ids;
-              });
+            if (group_ids)
+              workgroup = process.find_if (
+                [dispatch, i = *group_ids] (const workgroup_t &wg) {
+                  return wg.dispatch () == *dispatch && wg.group_ids () == i;
+                });
 
             if (!workgroup)
               workgroup = &process.create<workgroup_t> (

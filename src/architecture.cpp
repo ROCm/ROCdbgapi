@@ -2193,8 +2193,8 @@ protected:
     }
 
     amd_dbgapi_wave_id_t id () const override;
-    std::array<uint32_t, 3> group_ids () const override;
-    uint32_t position_in_group () const override;
+    std::optional<std::array<uint32_t, 3>> group_ids () const override;
+    std::optional<uint32_t> position_in_group () const override;
 
     /* Number for vector registers.  */
     size_t vgpr_count () const override;
@@ -2287,7 +2287,7 @@ public:
       std::unique_ptr<const architecture_t::cwsr_record_t>)> &wave_callback)
     const override;
 
-  amd_dbgapi_global_address_t dispatch_packet_address (
+  std::optional<amd_dbgapi_global_address_t> dispatch_packet_address (
     const architecture_t::cwsr_record_t &cwsr_record) const override;
 
   size_t maximum_queue_packet_count () const override
@@ -2461,9 +2461,12 @@ gfx9_architecture_t::cwsr_record_t::id () const
   return wave_id;
 }
 
-std::array<uint32_t, 3>
+std::optional<std::array<uint32_t, 3>>
 gfx9_architecture_t::cwsr_record_t::group_ids () const
 {
+  if (!agent ().spi_ttmps_setup_enabled ())
+    return std::nullopt;
+
   const amd_dbgapi_global_address_t group_ids_address
     = register_address (amdgpu_regnum_t::ttmp8).value ();
 
@@ -2473,9 +2476,12 @@ gfx9_architecture_t::cwsr_record_t::group_ids () const
   return coordinates;
 }
 
-uint32_t
+std::optional<uint32_t>
 gfx9_architecture_t::cwsr_record_t::position_in_group () const
 {
+  if (!agent ().spi_ttmps_setup_enabled ())
+    return std::nullopt;
+
   const amd_dbgapi_global_address_t ttmp11_address
     = register_address (amdgpu_regnum_t::ttmp11).value ();
 
@@ -3059,10 +3065,13 @@ gfx9_architecture_t::control_stack_iterate (
   return wave_count;
 }
 
-amd_dbgapi_global_address_t
+std::optional<amd_dbgapi_global_address_t>
 gfx9_architecture_t::dispatch_packet_address (
   const architecture_t::cwsr_record_t &cwsr_record) const
 {
+  if (!cwsr_record.agent ().spi_ttmps_setup_enabled ())
+    return std::nullopt;
+
   const amd_dbgapi_global_address_t ttmp6_address
     = cwsr_record.register_address (amdgpu_regnum_t::ttmp6).value ();
 
@@ -3498,7 +3507,7 @@ public:
   std::string register_type (amdgpu_regnum_t regnum) const override;
   const void *register_read_only_mask (amdgpu_regnum_t regnum) const override;
 
-  amd_dbgapi_global_address_t dispatch_packet_address (
+  std::optional<amd_dbgapi_global_address_t> dispatch_packet_address (
     const architecture_t::cwsr_record_t &cwsr_record) const override;
 
   bool can_halt_at_endpgm () const override { return true; }
@@ -3778,10 +3787,13 @@ gfx940_t::register_read_only_mask (amdgpu_regnum_t regnum) const
     }
 }
 
-amd_dbgapi_global_address_t
+std::optional<amd_dbgapi_global_address_t>
 gfx940_t::dispatch_packet_address (
   const architecture_t::cwsr_record_t &cwsr_record) const
 {
+  if (!cwsr_record.agent ().spi_ttmps_setup_enabled ())
+    return std::nullopt;
+
   const compute_queue_t &queue = cwsr_record.queue ();
 
   const amd_dbgapi_global_address_t ttmp11_address

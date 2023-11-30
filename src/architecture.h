@@ -199,9 +199,9 @@ public:
     /* Return the globally unique wave identifier.  */
     virtual amd_dbgapi_wave_id_t id () const = 0;
     /* The 3-dimensional workgroup coordinates.  */
-    virtual std::array<uint32_t, 3> group_ids () const = 0;
+    virtual std::optional<std::array<uint32_t, 3>> group_ids () const = 0;
     /* Return the record's postion in the workgroup.  */
-    virtual uint32_t position_in_group () const = 0;
+    virtual std::optional<uint32_t> position_in_group () const = 0;
 
     /* Number of work-items in one wave.  */
     virtual size_t lane_count () const = 0;
@@ -259,7 +259,7 @@ public:
     const std::function<void (std::unique_ptr<const cwsr_record_t>)>
       &wave_callback) const = 0;
 
-  virtual amd_dbgapi_global_address_t dispatch_packet_address (
+  virtual std::optional<amd_dbgapi_global_address_t> dispatch_packet_address (
     const architecture_t::cwsr_record_t &cwsr_record) const = 0;
 
   /* Return true if the trap temporary registers used by the trap handler to
