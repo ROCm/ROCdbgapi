@@ -569,6 +569,46 @@ to_string (detail::query_ref<amd_dbgapi_instruction_kind_t> ref)
 
 template <>
 std::string
+to_string (amd_dbgapi_client_process_info_t client_process_info)
+{
+  switch (client_process_info)
+    {
+      CASE (CLIENT_PROCESS_INFO_OS_PID);
+      CASE (CLIENT_PROCESS_INFO_CORE_STATE);
+    }
+  return to_string (make_hex (client_process_info));
+}
+
+template <>
+std::string
+to_string (amd_dbgapi_core_state_data_t core_state)
+{
+  return string_printf (
+    "{endian %s, data %s}",
+    core_state.endianness == AMD_DBGAPI_ENDIAN_BIG ? "BIG" : "LITTLE",
+    to_cstring (make_hex (make_ref (core_state.data, core_state.size))));
+}
+
+template <>
+std::string
+to_string (detail::query_ref<amd_dbgapi_client_process_info_t> ref)
+{
+  auto [query, value] = ref;
+  switch (query)
+    {
+    case AMD_DBGAPI_CLIENT_PROCESS_INFO_OS_PID:
+      return to_string (
+        make_ref (static_cast<const amd_dbgapi_os_process_id_t *> (value)));
+    case AMD_DBGAPI_CLIENT_PROCESS_INFO_CORE_STATE:
+      return to_string (
+        make_ref (static_cast<const amd_dbgapi_core_state_data_t *> (value)));
+    }
+  fatal_error ("unhandled amd_dbgapi_client_process_info_t query (%s)",
+               to_cstring (query));
+}
+
+template <>
+std::string
 to_string (amd_dbgapi_process_info_t process_info)
 {
   switch (process_info)
@@ -578,6 +618,7 @@ to_string (amd_dbgapi_process_info_t process_info)
       CASE (PROCESS_INFO_WATCHPOINT_SHARE);
       CASE (PROCESS_INFO_PRECISE_MEMORY_SUPPORTED);
       CASE (PROCESS_INFO_OS_ID);
+      CASE (PROCESS_INFO_CORE_STATE);
     }
   return to_string (make_hex (process_info));
 }
@@ -603,6 +644,9 @@ to_string (detail::query_ref<amd_dbgapi_process_info_t> ref)
     case AMD_DBGAPI_PROCESS_INFO_OS_ID:
       return to_string (
         make_ref (static_cast<const amd_dbgapi_os_process_id_t *> (value)));
+    case AMD_DBGAPI_PROCESS_INFO_CORE_STATE:
+      return to_string (
+        make_ref (static_cast<const amd_dbgapi_core_state_data_t *> (value)));
     }
   fatal_error ("unhandled amd_dbgapi_process_info_t query (%s)",
                to_cstring (query));

@@ -76,7 +76,7 @@ global: amd_dbgapi_queue_get_info;
 global: amd_dbgapi_register_get_info;
 } @AMD_DBGAPI_NAME@_0.68;
 
-@AMD_DBGAPI_NAME@_0.73 {
+@AMD_DBGAPI_NAME@_0.74 {
 global: amd_dbgapi_displaced_stepping_complete;
         amd_dbgapi_displaced_stepping_start;
         amd_dbgapi_initialize;

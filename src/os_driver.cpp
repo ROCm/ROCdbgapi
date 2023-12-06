@@ -22,6 +22,7 @@
 #include "debug.h"
 #include "linux/kfd_sysfs.h"
 #include "logging.h"
+#include "process.h"
 #include "utils.h"
 
 #include <algorithm>
@@ -81,6 +82,14 @@ public:
   amd_dbgapi_status_t check_version () const override
   {
     return AMD_DBGAPI_STATUS_SUCCESS;
+  }
+
+  amd_dbgapi_status_t
+  create_core_state_note (const os_runtime_info_t & /* runtime_info  */,
+                          amd_dbgapi_core_state_data_t *data) const override
+  {
+    memset (data, 0, sizeof (amd_dbgapi_core_state_data_t));
+    return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
   }
 
   amd_dbgapi_status_t
@@ -481,6 +490,24 @@ kfd_driver_base_t::queue_snapshot (
     make_ref (param_out (queue_count)));
 }
 
+/* Data structures used for core dump genertation and loading.  */
+
+enum class amdgpu_core_note_version_t : uint64_t
+{
+  kfd_note = 1
+};
+
+struct kfd_note_header_t
+{
+  uint32_t kfd_version_major;
+  uint32_t kfd_version_minor;
+  uint64_t runtime_info_size;
+  uint32_t agent_entry_count;
+  uint32_t agent_entry_size;
+  uint32_t queue_entry_count;
+  uint32_t queue_entry_size;
+};
+
 class kfd_driver_t final : public kfd_driver_base_t
 {
 private:
@@ -549,6 +576,10 @@ public:
   }
 
   kfd_driver_base_t::version_t get_kfd_version () const override final;
+
+  amd_dbgapi_status_t
+  create_core_state_note (const os_runtime_info_t &runtime_info,
+                          amd_dbgapi_core_state_data_t *data) const override;
 
   amd_dbgapi_status_t
   kfd_agent_snapshot (kfd_dbg_device_info_entry *agents, size_t snapshot_count,
@@ -686,6 +717,188 @@ kfd_driver_t::get_kfd_version () const
     fatal_error ("AMDKFD_IOC_GET_VERSION failed");
 
   return { get_version_args.major_version, get_version_args.minor_version };
+}
+
+namespace
+{
+
+/* Helper structure for kfd_driver_t::create_core_state_note used to capture
+   a serializable snapshot of entities from KFD.  */
+
+struct kfd_snapshots
+{
+  template <typename T, typename F> amd_dbgapi_status_t fetch (F fetcher)
+  {
+    size_t n_ent = 1;
+    std::vector<T> entries (n_ent);
+
+    /* Do a first call to KFD to figure out the total number of entries
+       we should capture.  */
+    amd_dbgapi_status_t status
+      = fetcher (entries.data (), entries.size (), &n_ent);
+    if (status != AMD_DBGAPI_STATUS_SUCCESS)
+      return status;
+
+    /* Now we can fetch all the entries at once.  */
+    entries.resize (n_ent);
+    status = fetcher (entries.data (), entries.size (), &n_ent);
+    if (status != AMD_DBGAPI_STATUS_SUCCESS)
+      return status;
+
+    dbgapi_assert (n_ent == entries.size ());
+
+    n_entries = n_ent;
+    entry_size = sizeof (T);
+
+    /* The rest of the code assumes that a T is 64-bit aligned.  */
+    static_assert (sizeof (T) % 8 == 0);
+    snapshots.resize (n_entries * entry_size);
+    std::copy (entries.begin (), entries.end (),
+               reinterpret_cast<T *> (snapshots.data ()));
+
+    return AMD_DBGAPI_STATUS_SUCCESS;
+  }
+  uint32_t n_entries;
+  uint32_t entry_size;
+  std::vector<std::byte> snapshots;
+};
+
+class note_builder
+{
+public:
+  note_builder ()
+    : m_stream (std::stringstream::out | std::stringstream::binary)
+  {
+  }
+
+  template <typename T, std::enable_if_t<!std::is_pointer_v<T>, int> = 0>
+  void write (const T &v)
+  {
+    m_stream.write (reinterpret_cast<const std::byte *> (&v), sizeof (T));
+  }
+
+  void write (const std::vector<std::byte> &v)
+  {
+    m_stream.write (reinterpret_cast<const std::byte *> (v.data ()),
+                    v.size ());
+  }
+
+  size_t size () const { return m_stream.str ().size (); }
+
+  amd_dbgapi_core_state_data_t note () const
+  {
+    amd_dbgapi_core_state_data_t note;
+    note.endianness
+      = (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? AMD_DBGAPI_ENDIAN_LITTLE
+                                                   : AMD_DBGAPI_ENDIAN_BIG);
+
+    auto str = m_stream.str ();
+    note.size = str.size ();
+    auto buffer = amd::dbgapi::allocate_memory<std::byte> (note.size);
+    std::copy (str.begin (), str.end (), buffer.get ());
+    note.data = buffer.release ();
+
+    return note;
+  }
+
+private:
+  std::basic_ostringstream<std::byte> m_stream;
+};
+
+}; /* anonymous namespace.  */
+
+amd_dbgapi_status_t
+kfd_driver_t::create_core_state_note (const os_runtime_info_t &runtime_info,
+                                      amd_dbgapi_core_state_data_t *data) const
+{
+  /* The following assumes that the various structs extracted from KFD
+     are multiple of 64 bits in size.  */
+  static_assert (sizeof (os_runtime_info_t) % 8 == 0
+                   && sizeof (kfd_dbg_device_info_entry) % 8 == 0
+                   && sizeof (kfd_queue_snapshot_entry) % 8 == 0,
+                 "Incompatible struct size");
+
+  dbgapi_assert (is_debug_enabled () && "debug is not enabled");
+
+  /* In the note, store the lowest between the run-time version (reported by
+   * KFD) and the build-time one (from kfd_ioctl.h).  We do not support
+   * situations where the major component of the versions differ as they would
+   * be incompatible.
+   *
+   * If the run-time version is above the build-time version, we want to store
+   * the build-time version because the snapshot operations only extract the
+   * fields known at build-time.
+   *
+   * If the build-time version is above run-time version, KFD leave fields it
+   * does know about uninitialized.  Those uninitialized fields will be
+   * recorded in the note but will be ignored when reading the core dump based
+   * on the KFD version stored with it.  */
+
+  version_t kfd_version = get_kfd_version ();
+  if (kfd_version.first != KFD_IOCTL_MAJOR_VERSION)
+    {
+      warning ("Unable to encode core state from KFD version %d.x",
+               kfd_version.first);
+      return AMD_DBGAPI_STATUS_ERROR;
+    }
+
+  kfd_version = std::min (
+    kfd_version, { KFD_IOCTL_MAJOR_VERSION, KFD_IOCTL_MINOR_VERSION });
+
+  kfd_snapshots agent_snapshots;
+  kfd_snapshots queue_snapshots;
+
+  if (amd_dbgapi_status_t status
+      = agent_snapshots.fetch<kfd_dbg_device_info_entry> (
+        [this] (auto &&...args)
+        {
+          return this->kfd_agent_snapshot (
+            std::forward<decltype (args)> (args)...,
+            os_exception_mask_t::none);
+        });
+      status != AMD_DBGAPI_STATUS_SUCCESS)
+    return status;
+
+  if (amd_dbgapi_status_t status
+      = queue_snapshots.fetch<kfd_queue_snapshot_entry> (
+        [this] (auto &&...args)
+        {
+          return this->kfd_queue_snapshot (
+            std::forward<decltype (args)> (args)...,
+            os_exception_mask_t::none);
+        });
+      status != AMD_DBGAPI_STATUS_SUCCESS)
+    return status;
+
+  note_builder builder;
+
+  /*  Note header.  */
+  builder.write (amdgpu_core_note_version_t::kfd_note);
+  kfd_note_header_t header{};
+  header.kfd_version_major = kfd_version.first;
+  header.kfd_version_minor = kfd_version.second;
+  header.runtime_info_size = sizeof (runtime_info);
+  header.agent_entry_count = agent_snapshots.n_entries;
+  header.agent_entry_size = agent_snapshots.entry_size;
+  header.queue_entry_count = queue_snapshots.n_entries;
+  header.queue_entry_size = queue_snapshots.entry_size;
+  builder.write (header);
+
+  /* Runtime snapshot.  */
+  builder.write (runtime_info);
+  dbgapi_assert (builder.size () % 8 == 0 && "invalid alignment");
+
+  /* Agents snapshot.  */
+  builder.write (agent_snapshots.snapshots);
+  dbgapi_assert (builder.size () % 8 == 0 && "invalid alignment");
+
+  /* Queue snapshots.  */
+  builder.write (queue_snapshots.snapshots);
+  dbgapi_assert (builder.size () % 8 == 0 && "invalid alignment");
+
+  *data = builder.note ();
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
 }
 
 amd_dbgapi_status_t

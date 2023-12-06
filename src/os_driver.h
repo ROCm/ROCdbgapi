@@ -380,6 +380,10 @@ public:
   virtual amd_dbgapi_status_t check_version () const = 0;
 
   virtual amd_dbgapi_status_t
+  create_core_state_note (const os_runtime_info_t &runtime_info,
+                          amd_dbgapi_core_state_data_t *data) const = 0;
+
+  virtual amd_dbgapi_status_t
   agent_snapshot (os_agent_info_t *snapshots, size_t snapshot_count,
                   size_t *agent_count,
                   os_exception_mask_t exceptions_cleared) const = 0;

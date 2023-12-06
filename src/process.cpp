@@ -87,7 +87,9 @@ process_t::process_t (amd_dbgapi_process_id_t process_id,
     m_dummy_agent (AMD_DBGAPI_AGENT_NONE, *this, nullptr, {})
 {
   amd_dbgapi_os_process_id_t os_process_id;
-  amd_dbgapi_status_t status = get_os_pid (&os_process_id);
+  amd_dbgapi_status_t status
+    = client_process_get_info (AMD_DBGAPI_CLIENT_PROCESS_INFO_OS_PID,
+                               sizeof (os_process_id), &os_process_id);
   if (status == AMD_DBGAPI_STATUS_SUCCESS)
     m_os_process_id.emplace (os_process_id);
   else if (status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
@@ -1568,6 +1570,35 @@ process_t::get_info (amd_dbgapi_process_info_t query, size_t value_size,
         throw api_error_t (AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE);
       utils::get_info (value_size, value, *m_os_process_id);
       return;
+
+    case AMD_DBGAPI_PROCESS_INFO_CORE_STATE:
+      {
+        if (!m_os_process_id)
+          throw api_error_t (AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE);
+
+        if (!is_frozen ())
+          throw api_error_t (AMD_DBGAPI_STATUS_ERROR_PROCESS_NOT_FROZEN);
+
+        os_runtime_info_t runtime_info = m_runtime_info;
+        if (is_flag_set (process_t::flag_t::spi_ttmps_setup_enabled))
+          {
+            /* At this point, all TTMP registers have been initialized, either
+               by SPI or by DBGAPI.  Mark ttmp_setup as true in core state so
+               when dbgapi loads it back, it does not override TTMPs.
+               ttmp6[31:31] is set to indicate if TTMP initialization has been
+               done by DBGAPI or SPI.  */
+            runtime_info.ttmp_setup = true;
+          }
+
+        if (amd_dbgapi_status_t status = os_driver ().create_core_state_note (
+              runtime_info,
+              static_cast<amd_dbgapi_core_state_data_t *> (value));
+            status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+          throw api_error_t (AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED);
+        else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+          throw api_error_t (AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE);
+        return;
+      }
     }
 
   throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
@@ -2054,11 +2085,14 @@ process_t::send_exceptions (
 }
 
 amd_dbgapi_status_t
-process_t::get_os_pid (amd_dbgapi_os_process_id_t *pid) const
+process_t::client_process_get_info (amd_dbgapi_client_process_info_t query,
+                                    size_t value_size, void *value) const
 {
-  TRACE_CALLBACK_BEGIN (param_in (pid));
-  return detail::process_callbacks.get_os_pid (m_client_process_id, pid);
-  TRACE_CALLBACK_END (make_ref (param_out (pid)));
+  TRACE_CALLBACK_BEGIN (param_in (query), param_in (value_size),
+                        param_in (value));
+  return detail::process_callbacks.client_process_get_info (
+    m_client_process_id, query, value_size, value);
+  TRACE_CALLBACK_END (make_query_ref (query, param_out (value)));
 }
 
 amd_dbgapi_status_t

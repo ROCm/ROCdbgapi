@@ -583,9 +583,9 @@ extern "C" {
 
 /**
  * The function was introduced in version 0.73 of the interface and has the
- * symbol version string of ``"@AMD_DBGAPI_NAME@_0.73"``.
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.74"``.
  */
-#define AMD_DBGAPI_VERSION_0_73
+#define AMD_DBGAPI_VERSION_0_74
 
 /** @} */
 
@@ -1120,7 +1120,7 @@ amd_dbgapi_get_build_name (void) AMD_DBGAPI_VERSION_0_54;
  * error.  The library remains uninitialized.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_initialize (
-    amd_dbgapi_callbacks_t *callbacks) AMD_DBGAPI_VERSION_0_73;
+    amd_dbgapi_callbacks_t *callbacks) AMD_DBGAPI_VERSION_0_74;
 
 /**
  * Finalize the library.
@@ -1681,6 +1681,39 @@ typedef struct
     AMD_DBGAPI_HANDLE_LITERAL (amd_dbgapi_process_id_t, 0)
 
 /**
+ * Byte endianness encoding.
+ */
+typedef enum
+{
+  /** Encoding is done using big endian.  */
+  AMD_DBGAPI_ENDIAN_BIG = 0,
+
+  /** Encoding is done using little endian.  */
+  AMD_DBGAPI_ENDIAN_LITTLE = 1
+} amd_dbgapi_endianness_t;
+
+/**
+ * AMDGPU corefile state data for a process.
+ */
+typedef struct
+{
+  /** Endianness encoding of the core state.  */
+  amd_dbgapi_endianness_t endianness;
+  /** Size, in bytes, of the buffer pointed by
+   * ::amd_dbgapi_core_state_data_t::data.
+   */
+  size_t size;
+  /**
+   * Pointer to the buffer containing the core state data.
+   *
+   * The buffer is ::amd_dbgapi_core_state_data_t::size bytes long.  See
+   * [User Guide for AMDGPU Backend - Core file notes]
+   * (https://llvm.org/docs/AMDGPUUsage.html#amdgpu-corefile-note).
+   */
+  const void *data;
+} amd_dbgapi_core_state_data_t;
+
+/**
  * Process queries that are supported by ::amd_dbgapi_process_get_info.
  *
  * Each query specifies the type of data returned in the \p value argument to
@@ -1720,7 +1753,17 @@ typedef enum
    * ::amd_dbgapi_process_get_info returns the
    * ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE error.
    */
-  AMD_DBGAPI_PROCESS_INFO_OS_ID = 5
+  AMD_DBGAPI_PROCESS_INFO_OS_ID = 5,
+  /**
+   * Return a blob containing the content to put in the state note when
+   * generating a core dump.  The content of the note is allocated using the
+   * amd_dbgapi_callbacks_s::allocate_memory callback and is owned by the
+   * client.
+   *
+   * If allocation fails, then ::amd_dbgapi_process_get_info returns the
+   * ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK error.
+   */
+  AMD_DBGAPI_PROCESS_INFO_CORE_STATE = 6
 } amd_dbgapi_process_info_t;
 
 /**
@@ -1764,10 +1807,13 @@ typedef enum
  * \retval ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK This will be
  * reported if the amd_dbgapi_callbacks_s::allocate_memory callback used to
  * allocate \p value returns NULL.  \p value is unaltered.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_PROCESS_NOT_FROZEN The request is
+ * ::AMD_DBGAPI_PROCESS_INFO_CORE_STATE but the process is not frozen.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_process_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_56;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_74;
 
 /**
  * Attach to a process in order to provide debug control of the AMD GPUs it
@@ -1988,7 +2034,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_set_progress (
     amd_dbgapi_process_id_t process_id,
-    amd_dbgapi_progress_t progress) AMD_DBGAPI_VERSION_0_73;
+    amd_dbgapi_progress_t progress) AMD_DBGAPI_VERSION_0_74;
 
 /**
  * The kinds of wave creation supported by the hardware.
@@ -2043,7 +2089,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_set_wave_creation (
     amd_dbgapi_process_id_t process_id,
-    amd_dbgapi_wave_creation_t creation) AMD_DBGAPI_VERSION_0_73;
+    amd_dbgapi_wave_creation_t creation) AMD_DBGAPI_VERSION_0_74;
 
 /** \defgroup coredump_support Generating a core dump of a process
  *
@@ -2057,6 +2103,8 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_set_wave_creation (
  *    ::AMD_DBGAPI_PROGRESS_NO_FORWARD and stops wave creation.
  * -# The client calls ::amd_dbgapi_process_freeze to suspend execution on
  *    the agents.
+ * -# The client queries ::AMD_DBGAPI_PROCESS_INFO_CORE_STATE and stores
+ *    the content of the returned buffer in a note in the generated core file.
  * -# The client includes in the core dump all the information required to
  *    form a core dump of the host process.
  * -# The client unfreezes the process using ::amd_dbgapi_process_unfreeze.
@@ -2112,7 +2160,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_set_wave_creation (
  *
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_freeze (
-    amd_dbgapi_process_id_t process_id) AMD_DBGAPI_VERSION_0_73;
+    amd_dbgapi_process_id_t process_id) AMD_DBGAPI_VERSION_0_74;
 
 /**
  * Unfreeze the process identified by \p process_id.
@@ -2139,7 +2187,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_freeze (
  * process_id is not frozen.  The process is not changed.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_unfreeze (
-    amd_dbgapi_process_id_t process_id) AMD_DBGAPI_VERSION_0_73;
+    amd_dbgapi_process_id_t process_id) AMD_DBGAPI_VERSION_0_74;
 
 /** @}
   * @} */
@@ -3954,7 +4002,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_wave_list (
  * stopped.
  */
 amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_wave_stop (amd_dbgapi_wave_id_t wave_id) AMD_DBGAPI_VERSION_0_73;
+amd_dbgapi_wave_stop (amd_dbgapi_wave_id_t wave_id) AMD_DBGAPI_VERSION_0_74;
 
 /**
  * The mode in which to resuming the execution of a wave.
@@ -4127,7 +4175,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_wave_resume (
   amd_dbgapi_wave_id_t wave_id, amd_dbgapi_resume_mode_t resume_mode,
-  amd_dbgapi_exceptions_t exceptions) AMD_DBGAPI_VERSION_0_73;
+  amd_dbgapi_exceptions_t exceptions) AMD_DBGAPI_VERSION_0_74;
 
 /** @} */
 
@@ -4389,7 +4437,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_get_info (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_start (
     amd_dbgapi_wave_id_t wave_id, const void *saved_instruction_bytes,
     amd_dbgapi_displaced_stepping_id_t *displaced_stepping)
-    AMD_DBGAPI_VERSION_0_73;
+    AMD_DBGAPI_VERSION_0_74;
 
 /**
  * Complete a displaced stepping buffer for a wave.
@@ -4447,7 +4495,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_start (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_displaced_stepping_complete (
     amd_dbgapi_wave_id_t wave_id,
     amd_dbgapi_displaced_stepping_id_t displaced_stepping)
-    AMD_DBGAPI_VERSION_0_73;
+    AMD_DBGAPI_VERSION_0_74;
 
 /** @} */
 
@@ -4701,7 +4749,7 @@ typedef struct
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_watchpoint (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_global_address_t address,
     amd_dbgapi_size_t size, amd_dbgapi_watchpoint_kind_t kind,
-    amd_dbgapi_watchpoint_id_t *watchpoint_id) AMD_DBGAPI_VERSION_0_73;
+    amd_dbgapi_watchpoint_id_t *watchpoint_id) AMD_DBGAPI_VERSION_0_74;
 
 /**
  * Remove a hardware data watchpoint previously set by
@@ -4726,7 +4774,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_watchpoint (
  * allowed when the process is frozen.  No watchpoint is removed.
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_remove_watchpoint (
-    amd_dbgapi_watchpoint_id_t watchpoint_id) AMD_DBGAPI_VERSION_0_73;
+    amd_dbgapi_watchpoint_id_t watchpoint_id) AMD_DBGAPI_VERSION_0_74;
 
 /** @} */
 
@@ -5446,7 +5494,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_read_register (
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_register (
     amd_dbgapi_wave_id_t wave_id, amd_dbgapi_register_id_t register_id,
     amd_dbgapi_size_t offset, amd_dbgapi_size_t value_size,
-    const void *value) AMD_DBGAPI_VERSION_0_73;
+    const void *value) AMD_DBGAPI_VERSION_0_74;
 
 /**
  * Prefetch register values.
@@ -6497,7 +6545,7 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_memory (
     amd_dbgapi_lane_id_t lane_id,
     amd_dbgapi_address_space_id_t address_space_id,
     amd_dbgapi_segment_address_t segment_address,
-    amd_dbgapi_size_t *value_size, const void *value) AMD_DBGAPI_VERSION_0_73;
+    amd_dbgapi_size_t *value_size, const void *value) AMD_DBGAPI_VERSION_0_74;
 
 /**
  * Memory access precision.
@@ -7143,6 +7191,37 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_report_breakpoint_hit (
     amd_dbgapi_breakpoint_action_t *breakpoint_action) AMD_DBGAPI_VERSION_0_54;
 
 /**
+ * Client queries that are supported by the client_process_get_info callback.
+ *
+ * Each query specifies the type of data returned in the \p value argument to
+ * amd_dbgapi_callbacks_s::client_process_get_info.
+ */
+typedef enum
+{
+  /**
+   * Return the native operating system process handle.  This value is required
+   * to not change during the lifetime of the process associated with the
+   * client process handle.
+   *
+   * For Linux<sup>&reg;</sup> this is the \p pid_t from \p sys/types.h and the
+   * corresponding process is required to have already been \p ptrace enabled.
+   *
+   * The type of this attribute is ::amd_dbgapi_os_process_id_t.
+   */
+  AMD_DBGAPI_CLIENT_PROCESS_INFO_OS_PID = 1,
+  /**
+   * If the current process is created from a core file, return the content of
+   * the AMDGPU state note if present.  If the process image is not created
+   * from a core dump or if such state note is not present in the core dump,
+   * the client_process_get_info callback returns
+   * ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE.
+   *
+   * The type of this attribute is ::amd_dbgapi_core_state_note_data_t.
+   */
+  AMD_DBGAPI_CLIENT_PROCESS_INFO_CORE_STATE = 2,
+} amd_dbgapi_client_process_info_t;
+
+/**
  * Callbacks that the client of the library must provide.
  *
  * The client implementation of the callbacks must not invoke any operation of
@@ -7183,13 +7262,10 @@ struct amd_dbgapi_callbacks_s
   void (*deallocate_memory) (void *data);
 
   /**
-   * Return the native operating system process handle for the process
-   * identified by the client process handle.  This value is required to not
-   * change during the lifetime of the process associated with the client
-   * process handle.
+   * Query information about the client process.
    *
-   * For Linux<sup>&reg;</sup> this is the \p pid_t from \p sys/types.h and is
-   * required to have already been \p ptrace enabled.
+   * ::amd_dbgapi_client_process_info_t specifies the queries supported and the
+   * type returned using the \p value argument.
    *
    * \p client_process_id is the client handle of the process for which the
    * operating system process handle is being queried.
@@ -7209,9 +7285,10 @@ struct amd_dbgapi_callbacks_s
    *
    * Return ::AMD_DBGAPI_STATUS_ERROR if an error was encountered.
    */
-  amd_dbgapi_status_t (*get_os_pid) (
+  amd_dbgapi_status_t (*client_process_get_info) (
       amd_dbgapi_client_process_id_t client_process_id,
-      amd_dbgapi_os_process_id_t *os_pid);
+      amd_dbgapi_client_process_info_t query,
+      size_t value_size, void *value);
 
   /**
    * Insert a breakpoint in a shared library using a global address.

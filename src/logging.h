@@ -158,7 +158,7 @@ struct parameter_t
   }
 };
 
-} /* namespapce detail */
+} /* namespace detail */
 
 template <char const *name, detail::parameter_kind_t kind, typename T>
 constexpr auto
@@ -482,8 +482,10 @@ to_string (detail::parameter_t<detail::query_ref<T>, name, kind> param)
   F (amd_dbgapi_breakpoint_id_t)                                              \
   F (amd_dbgapi_breakpoint_info_t)                                            \
   F (amd_dbgapi_changed_t)                                                    \
+  F (amd_dbgapi_client_process_info_t)                                        \
   F (amd_dbgapi_code_object_id_t)                                             \
   F (amd_dbgapi_code_object_info_t)                                           \
+  F (amd_dbgapi_core_state_data_t)                                            \
   F (amd_dbgapi_direct_call_register_pair_information_t)                      \
   F (amd_dbgapi_dispatch_barrier_t)                                           \
   F (amd_dbgapi_dispatch_fence_scope_t)                                       \
@@ -532,6 +534,7 @@ to_string (detail::parameter_t<detail::query_ref<T>, name, kind> param)
   F (detail::query_ref<amd_dbgapi_address_space_info_t>)                      \
   F (detail::query_ref<amd_dbgapi_architecture_info_t>)                       \
   F (detail::query_ref<amd_dbgapi_breakpoint_info_t>)                         \
+  F (detail::query_ref<amd_dbgapi_client_process_info_t>)                     \
   F (detail::query_ref<amd_dbgapi_code_object_info_t>)                        \
   F (detail::query_ref<amd_dbgapi_dispatch_info_t>)                           \
   F (detail::query_ref<amd_dbgapi_displaced_stepping_info_t>)                 \

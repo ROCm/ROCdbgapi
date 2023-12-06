@@ -289,7 +289,9 @@ public:
   void get_info (amd_dbgapi_process_info_t query, size_t value_size,
                  void *value) const;
 
-  amd_dbgapi_status_t get_os_pid (amd_dbgapi_os_process_id_t *pid) const;
+  amd_dbgapi_status_t
+  client_process_get_info (amd_dbgapi_client_process_info_t query,
+                           size_t value_size, void *value) const;
   amd_dbgapi_status_t
   insert_breakpoint (amd_dbgapi_global_address_t address,
                      amd_dbgapi_breakpoint_id_t breakpoint_id);
