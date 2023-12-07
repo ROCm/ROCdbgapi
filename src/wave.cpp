@@ -377,7 +377,8 @@ wave_t::update (
       if (!architecture.are_trap_handler_ttmps_initialized (*this))
         architecture.initialize_trap_handler_ttmps (*this);
 
-      architecture.record_spi_ttmps_setup (*this, false);
+      architecture.record_spi_ttmps_setup (
+        *this, agent ().spi_ttmps_setup_enabled ());
 
       write_register (amdgpu_regnum_t::wave_id, id ());
       m_ttmps_initialized = true;
