@@ -705,12 +705,17 @@ kfd_core_driver_t::kfd_queue_snapshot (
 }
 
 amd_dbgapi_status_t
-kfd_core_driver_t::enable_debug (os_exception_mask_t /* exceptions_reported */,
-                                 file_desc_t /* notifier */,
+kfd_core_driver_t::enable_debug (os_exception_mask_t exceptions_reported,
+                                 file_desc_t notifier,
                                  os_runtime_info_t *runtime_info)
 {
+  TRACE_DRIVER_BEGIN (param_in (exceptions_reported), param_in (notifier),
+                      param_in (runtime_info));
+
   *runtime_info = m_state->runtime_info;
   return AMD_DBGAPI_STATUS_SUCCESS;
+
+  TRACE_DRIVER_END (make_ref (param_out (runtime_info)));
 }
 
 class kfd_driver_t final : public kfd_driver_base_t
