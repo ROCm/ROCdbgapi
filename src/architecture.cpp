@@ -3689,9 +3689,9 @@ public:
   {
   }
 
-  virtual exception_mask_t signaled_exceptions (const wave_t &) const;
-  virtual void set_exceptions (wave_t &, exception_mask_t,
-                               exception_mask_t) const;
+  exception_mask_t signaled_exceptions (const wave_t &) const override;
+  void set_exceptions (wave_t &, exception_mask_t,
+                       exception_mask_t) const override;
 
   bool are_trap_handler_ttmps_initialized (const wave_t &wave) const override;
   void initialize_spi_ttmps (const wave_t &wave) const override;
