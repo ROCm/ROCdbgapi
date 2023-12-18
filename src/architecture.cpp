@@ -225,6 +225,15 @@ protected:
   public:
     bool spi_ttmps_setup_enabled () const override
     {
+      dbgapi_assert (agent ().spi_ttmps_setup_enabled ());
+      /* Before ROCr ABI version 10, the is no way to record that a single
+         wave has no meaningful data in SPI initialized registers.  If SPI
+         TTMP registers are reported as initialized on a per agent/process
+         basis (which is a pre-condition for this method to be called), assume
+         that TTMP registers are enabled for every waves.  */
+      if (process ().rocr_rdebug_version () < 10)
+        return true;
+
       uint32_t ttmp6;
       const amd_dbgapi_global_address_t ttmp6_address
         = register_address (amdgpu_regnum_t::ttmp6).value ();
@@ -1326,6 +1335,11 @@ void
 amdgcn_architecture_t::record_spi_ttmps_setup (const wave_t &wave,
                                                bool enabled) const
 {
+  /* The bit to store that SPI TTMPS do not contain meaningful data on a
+     per-wave basis have only been introduced in ROCr ABI version 10.  */
+  if (wave.process ().rocr_rdebug_version () < 10)
+    return;
+
   uint32_t ttmp6;
   wave.read_register (amdgpu_regnum_t::ttmp6, &ttmp6);
   ttmp6 &= ~ttmp6_spi_ttmps_setup_disabled_mask;
@@ -3647,11 +3661,14 @@ protected:
 
     bool spi_ttmps_setup_enabled () const override
     {
-      /* Before ROCR ABI version 10, we have no way to record that dbgapi
-         cleared ttmp8 - ttmp11.  The bit recording this information
-         (ttmp6[31]) is uninitialized.  */
+      dbgapi_assert (agent ().spi_ttmps_setup_enabled ());
+      /* Before ROCr ABI version 10, the is no way to record that a single
+         wave has no meaningful data in SPI initialized registers.  If SPI
+         TTMP registers are reported as initialized on a per agent/process
+         basis (which is a pre-condition for this method to be called), assume
+         that TTMP registers are enabled for every waves.  */
       if (process ().rocr_rdebug_version () < 10)
-        return false;
+        return true;
 
       uint32_t ttmp6, ttmp11;
       const amd_dbgapi_global_address_t ttmp6_address
@@ -3660,11 +3677,13 @@ protected:
         = register_address (amdgpu_regnum_t::ttmp11).value ();
       process ().read_global_memory (ttmp6_address, &ttmp6);
       process ().read_global_memory (ttmp11_address, &ttmp11);
-      /* Even if SPI initializes TTMP registers (8-11),  ttmp6 is only
-         initialized after we enter the trap handler (or dbgapi simulates
-         it).  */
-      return (ttmp11 & ttmp11_trap_hander_ttmps_setup_mask)
-             && !(ttmp6 & ttmp6_spi_ttmps_setup_disabled_mask);
+      /* SPI initialized TTMP registers can only be invalidated by dbgapi
+         by setting ttmp6[31].  This can only be done after trap handler
+         initialized TTMP registers have been initialized (marked by ttmp11[31]
+         being set).  This means that SPI TTMP registers are disabled for a
+         given wave iff ttmp11[31] == 1 and ttmp6[11] == 1.  */
+      return !((ttmp11 & ttmp11_trap_hander_ttmps_setup_mask)
+               && (ttmp6 & ttmp6_spi_ttmps_setup_disabled_mask));
     }
   };
 
