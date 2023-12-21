@@ -1441,6 +1441,12 @@ amdgcn_architecture_t::wave_get_state (wave_t &wave) const
           | exception_mask_t::addr_watch2 | exception_mask_t::addr_watch3))
       != 0)
     stop_reason |= AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT;
+  if ((exceptions & exception_mask_t::trap_after_inst) != 0)
+    stop_reason |= AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP;
+  if ((exceptions
+       & (exception_mask_t::wave_begin | exception_mask_t::wave_end))
+      != 0)
+    stop_reason |= AMD_DBGAPI_WAVE_STOP_REASON_TRAP;
 
   /* Check for traps caused by an s_trap instruction.  */
   if (auto trap_id = ttmp6_saved_trap_id (ttmp6); trap_id)
@@ -3749,6 +3755,8 @@ gfx940_t::signaled_exceptions (const wave_t &wave) const
     exceptions |= exception_mask_t::wave_end;
   if (trapsts & sq_wave_trapsts_host_trap_mask)
     exceptions |= exception_mask_t::host_trap;
+  if (trapsts & sq_wave_trapsts_trap_after_inst_mask)
+    exceptions |= exception_mask_t::trap_after_inst;
 
   return exceptions | gfx90a_t::signaled_exceptions (wave);
 }
@@ -3768,6 +3776,8 @@ gfx940_t::set_exceptions (wave_t &wave, exception_mask_t mask,
       trapsts_mask |= sq_wave_trapsts_wave_end_mask;
     if ((m & exception_mask_t::host_trap) != 0)
       trapsts_mask |= sq_wave_trapsts_host_trap_mask;
+    if ((m & exception_mask_t::trap_after_inst) != 0)
+      trapsts_mask |= sq_wave_trapsts_trap_after_inst_mask;
     return trapsts_mask;
   };
 
@@ -3850,25 +3860,7 @@ gfx940_t::initialize_trap_handler_ttmps (const wave_t &wave) const
 std::pair<amd_dbgapi_wave_state_t, amd_dbgapi_wave_stop_reasons_t>
 gfx940_t::wave_get_state (wave_t &wave) const
 {
-  auto [state, stop_reason] = amdgcn_architecture_t::wave_get_state (wave);
-
-  /* gfx940 precisely reports single-step exception by setting a bit in the
-    trapsts register.  */
-
-  if (wave.state () != AMD_DBGAPI_WAVE_STATE_STOP
-      && state == AMD_DBGAPI_WAVE_STATE_STOP)
-    {
-      uint32_t trapsts;
-      wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
-
-      if (trapsts & sq_wave_trapsts_trap_after_inst_mask)
-        stop_reason |= AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP;
-      if (trapsts
-          & (sq_wave_trapsts_wave_begin_mask | sq_wave_trapsts_wave_end_mask))
-        stop_reason |= AMD_DBGAPI_WAVE_STOP_REASON_TRAP;
-    }
-
-  return { state, stop_reason };
+  return amdgcn_architecture_t::wave_get_state (wave);
 }
 
 void
@@ -5366,6 +5358,8 @@ gfx11_architecture_t::signaled_exceptions (const wave_t &wave) const
     exceptions |= exception_mask_t::wave_end;
   if (trapsts & sq_wave_trapsts_host_trap_mask)
     exceptions |= exception_mask_t::host_trap;
+  if (trapsts & sq_wave_trapsts_trap_after_inst_mask)
+    exceptions |= exception_mask_t::trap_after_inst;
 
   return exceptions | gfx10_architecture_t::signaled_exceptions (wave);
 }
@@ -5384,6 +5378,8 @@ gfx11_architecture_t::set_exceptions (wave_t &wave, exception_mask_t mask,
       trapsts_mask |= sq_wave_trapsts_wave_end_mask;
     if ((m & exception_mask_t::host_trap) != 0)
       trapsts_mask |= sq_wave_trapsts_host_trap_mask;
+    if ((m & exception_mask_t::trap_after_inst) != 0)
+      trapsts_mask |= sq_wave_trapsts_trap_after_inst_mask;
     return trapsts_mask;
   };
 
@@ -5429,25 +5425,7 @@ gfx11_architecture_t::wave_get_state (wave_t &wave) const
      single-stepping from the absence of any other reason for the exception.
      Instead, call amdgcn_architecture_t::wave_get_state as it is the base for
      all GCN/RDNA/CDNA architectures.  */
-  auto [state, stop_reason] = amdgcn_architecture_t::wave_get_state (wave);
-
-  /* gfx11 precisely reports single-step exception by setting a bit in the
-     trapsts register.  */
-
-  if (wave.state () != AMD_DBGAPI_WAVE_STATE_STOP
-      && state == AMD_DBGAPI_WAVE_STATE_STOP)
-    {
-      uint32_t trapsts;
-      wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
-
-      if (trapsts & sq_wave_trapsts_trap_after_inst_mask)
-        stop_reason |= AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP;
-      if (trapsts
-          & (sq_wave_trapsts_wave_begin_mask | sq_wave_trapsts_wave_end_mask))
-        stop_reason |= AMD_DBGAPI_WAVE_STOP_REASON_TRAP;
-    }
-
-  return { state, stop_reason };
+  return amdgcn_architecture_t::wave_get_state (wave);
 }
 
 void
