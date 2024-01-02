@@ -5247,6 +5247,9 @@ protected:
       compute_relaunch2_state, context_save_address);
   }
 
+  std::optional<amdgpu_regnum_t>
+  scalar_operand_to_regnum (int operand, bool priv = false) const override;
+
   gfx11_architecture_t (elf_amdgpu_machine_t e_machine,
                         std::string target_triple)
     : gfx10_architecture_t (e_machine, std::move (target_triple))
@@ -5586,6 +5589,21 @@ gfx11_architecture_t::register_type (amdgpu_regnum_t regnum) const
 
     default:
       return gfx10_architecture_t::register_type (regnum);
+    }
+}
+
+std::optional<amdgpu_regnum_t>
+gfx11_architecture_t::scalar_operand_to_regnum (int operand, bool priv) const
+{
+  /* For gfx11, m0 & null enums are reversed (null is now 124, m0 is 125).  */
+  switch (operand)
+    {
+    case 124:
+      return amdgpu_regnum_t::null;
+    case 125:
+      return amdgpu_regnum_t::m0;
+    default:
+      return gfx10_architecture_t::scalar_operand_to_regnum (operand, priv);
     }
 }
 
