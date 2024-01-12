@@ -507,6 +507,12 @@
 #define AMD_DBGAPI_HANDLE_LITERAL(type, value) {value}
 #endif /* !__STDC_VERSION__ >= 199901L */
 
+#if defined(__cplusplus) && __cplusplus >= 201402L
+#define DEPRECATED [[deprecated]]
+#else
+#define DEPRECATED
+#endif
+
 #if defined(__cplusplus)
 extern "C" {
 #endif /* defined (__cplusplus) */
@@ -2839,10 +2845,17 @@ typedef enum
    */
   AMD_DBGAPI_EXCEPTION_WAVE_MEMORY_VIOLATION = (1 << 4),
   /**
-   * A wave on the queue had an aperture violation.  This happens when
-   * accessing a memory address outside the virtual memory address range.
+   * A wave on the queue had an exception due to accessing an invalid memory
+   * address.  This includes an address that is not suitably aligned (for
+   * example, a non-naturally aligned atomic), or is outside the supported
+   * address range for global or flat address apertures.
    */
-  AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION = (1 << 5),
+  AMD_DBGAPI_EXCEPTION_WAVE_ADDRESS_ERROR = (1 << 5),
+  /** Old deprecated name kept for backward compatibility.  Will be removed in
+    * a future release.
+    */
+  AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION DEPRECATED
+    = AMD_DBGAPI_EXCEPTION_WAVE_ADDRESS_ERROR,
   /**
    * A dispatch packet on the queue has an invalid dimension.
    */
@@ -3837,10 +3850,15 @@ typedef enum
    * but may significantly reduce performance.
    *
    * This stop reason would normally put the wave's queue into the queue error
-   * state and include the ::AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION
+   * state and include the ::AMD_DBGAPI_EXCEPTION_WAVE_ADDRESS_ERROR
    * queue error reason.
    */
-  AMD_DBGAPI_WAVE_STOP_REASON_APERTURE_VIOLATION = (1 << 14),
+  AMD_DBGAPI_WAVE_STOP_REASON_ADDRESS_ERROR = (1 << 14),
+  /** Old deprecated name kept for backward compatibility.  Will be removed in
+    * a future release.
+    */
+  AMD_DBGAPI_WAVE_STOP_REASON_APERTURE_VIOLATION DEPRECATED
+    = AMD_DBGAPI_WAVE_STOP_REASON_ADDRESS_ERROR,
   /**
    * The wave stopped due to executing an illegal instruction.  The program
    * counter is left positioned at the illegal instruction.

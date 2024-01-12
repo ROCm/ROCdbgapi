@@ -3,6 +3,12 @@
 Full documentatino for AMD Debugger API is available at
 [rocm.docs.amd.com](https://rocm.docs.amd.com/projects/ROCdbgapi/en/latest/index.html).
 
+## rocm-dbgapi-0.75.0
+### Changed
+- Rename (AMD_DBGAPI_EXCEPTION_WAVE,AMD_DBGAPI_WAVE_STOP_REASON)_APERTURE_VIOLATION
+  -> (AMD_DBGAPI_EXCEPTION_WAVE,AMD_DBGAPI_WAVE_STOP_REASON)_ADDRESS_ERROR.
+  Old names are still available but deprecated.
+
 ## rocm-dbgapi-0.74.0
 ### Added
 - Added support to create and open core dumps.

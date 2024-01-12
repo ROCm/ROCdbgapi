@@ -1438,7 +1438,7 @@ amdgcn_architecture_t::wave_get_state (wave_t &wave) const
   if ((exceptions & exception_mask_t::xnack_error) != 0)
     stop_reason |= AMD_DBGAPI_WAVE_STOP_REASON_MEMORY_VIOLATION;
   else if ((exceptions & exception_mask_t::mem_viol) != 0)
-    stop_reason |= AMD_DBGAPI_WAVE_STOP_REASON_APERTURE_VIOLATION;
+    stop_reason |= AMD_DBGAPI_WAVE_STOP_REASON_ADDRESS_ERROR;
   if ((exceptions & exception_mask_t::illegal_inst) != 0)
     stop_reason |= AMD_DBGAPI_WAVE_STOP_REASON_ILLEGAL_INSTRUCTION;
   if ((exceptions
@@ -1556,7 +1556,7 @@ amdgcn_architecture_t::wave_set_state (wave_t &wave,
       if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_MEMORY_VIOLATION)
         exceptions
           |= exception_mask_t::mem_viol | exception_mask_t::xnack_error;
-      if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_APERTURE_VIOLATION)
+      if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_ADDRESS_ERROR)
         exceptions |= exception_mask_t::mem_viol;
       if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_ILLEGAL_INSTRUCTION)
         exceptions |= exception_mask_t::illegal_inst;

@@ -578,8 +578,8 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
                  | (agent ().exceptions ()
                     & os_exception_mask_t::device_memory_violation);
 
-        if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION)
-          return os_exception_mask_t::queue_wave_aperture_violation;
+        if (one_exception == AMD_DBGAPI_EXCEPTION_WAVE_ADDRESS_ERROR)
+          return os_exception_mask_t::queue_wave_address_error;
 
         dbgapi_assert_not_reached ("not a valid exception");
       };
@@ -1117,7 +1117,7 @@ amd_dbgapi_wave_resume (amd_dbgapi_wave_id_t wave_id,
              | AMD_DBGAPI_EXCEPTION_WAVE_MATH_ERROR
              | AMD_DBGAPI_EXCEPTION_WAVE_ILLEGAL_INSTRUCTION
              | AMD_DBGAPI_EXCEPTION_WAVE_MEMORY_VIOLATION
-             | AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION))
+             | AMD_DBGAPI_EXCEPTION_WAVE_ADDRESS_ERROR))
         != AMD_DBGAPI_EXCEPTION_NONE)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 

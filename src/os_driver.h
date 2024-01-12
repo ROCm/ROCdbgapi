@@ -150,7 +150,9 @@ enum class os_exception_code_t : uint32_t
   queue_wave_math_error = EC_QUEUE_WAVE_MATH_ERROR,
   queue_wave_illegal_instruction = EC_QUEUE_WAVE_ILLEGAL_INSTRUCTION,
   queue_wave_memory_violation = EC_QUEUE_WAVE_MEMORY_VIOLATION,
-  queue_wave_aperture_violation = EC_QUEUE_WAVE_APERTURE_VIOLATION,
+  queue_wave_address_error = /* FIXME: a future change to the ioctl will rename
+                                APERTURE_VIOLATION -> ADDRESS_ERROR.  */
+  EC_QUEUE_WAVE_APERTURE_VIOLATION,
   queue_packet_dispatch_dim_invalid = EC_QUEUE_PACKET_DISPATCH_DIM_INVALID,
   queue_packet_dispatch_group_segment_size_invalid
   = EC_QUEUE_PACKET_DISPATCH_GROUP_SEGMENT_SIZE_INVALID,
@@ -223,8 +225,10 @@ enum class os_exception_mask_t : uint64_t
   queue_wave_illegal_instruction
   = KFD_EC_MASK (EC_QUEUE_WAVE_ILLEGAL_INSTRUCTION),
   queue_wave_memory_violation = KFD_EC_MASK (EC_QUEUE_WAVE_MEMORY_VIOLATION),
-  queue_wave_aperture_violation
-  = KFD_EC_MASK (EC_QUEUE_WAVE_APERTURE_VIOLATION),
+  queue_wave_address_error
+  = KFD_EC_MASK (/* FIXME: a future change to the ioctl will rename
+       APERTURE_VIOLATION -> ADDRESS_ERROR.  */
+                 EC_QUEUE_WAVE_APERTURE_VIOLATION),
   queue_packet_dispatch_dim_invalid
   = KFD_EC_MASK (EC_QUEUE_PACKET_DISPATCH_DIM_INVALID),
   queue_packet_dispatch_group_segment_size_invalid

@@ -1690,8 +1690,8 @@ one_os_exception_to_string (os_exception_mask_t exception_mask)
       return "QUEUE_WAVE_ILLEGAL_INSTRUCTION";
     case os_exception_mask_t::queue_wave_memory_violation:
       return "QUEUE_WAVE_MEMORY_VIOLATION";
-    case os_exception_mask_t::queue_wave_aperture_violation:
-      return "QUEUE_WAVE_APERTURE_VIOLATION";
+    case os_exception_mask_t::queue_wave_address_error:
+      return "QUEUE_WAVE_ADDRESS_ERROR";
     case os_exception_mask_t::queue_packet_dispatch_dim_invalid:
       return "QUEUE_PACKET_DISPATCH_DIM_INVALID";
     case os_exception_mask_t::queue_packet_dispatch_group_segment_size_invalid:
