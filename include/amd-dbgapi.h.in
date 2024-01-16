@@ -287,6 +287,8 @@
  * - gfx1100 (Plum Bonito)
  * - gfx1101 (Wheat Nas)
  * - gfx1102 (Hotpink Bonefish)
+ * - gfx1200
+ * - gfx1201
  *
  * For more information about the AMD ROCm ecosystem, please refer to:
  *

@@ -122,8 +122,14 @@ enum class amdgpu_regnum_t : uint32_t
   m0 = first_aliased, /* Memory Descriptor.  */
   pc,                 /* Program counter.  */
   status,             /* Status register.  */
+  state_priv,         /* Status register, writable only by trap handler
+                         (gfx12+).  */
   mode,               /* Mode register.  */
   trapsts,            /* Exception status registers.  */
+  trap_ctrl,          /* Mask of which exceptions cause trap (gfx12+).  */
+  excp_flag_priv,     /* Mask exceptions which have occured (gfx12+). */
+  excp_flag_user,     /* User writable mask of which exceptions have occured
+                         (gfx12+).  */
   exec_32,            /* Execution mask for wave32 wavefronts.  */
   exec_64,            /* Execution mask for wave64 wavefronts.  */
   vcc_32,             /* Vector Condition Code for wave32 wavefronts.  */
@@ -131,18 +137,25 @@ enum class amdgpu_regnum_t : uint32_t
   xnack_mask_32,      /* XNACK mask for wave32 wavefronts.  */
   xnack_mask_64,      /* XNACK mask for wave64 wavefronts.  */
   flat_scratch,       /* Flat scratch.  */
+  scratch_base = flat_scratch,
+
+  /* SHADER_CYCLES_LO / SHADER_CYCLES_HI / DVGPR_ALLOC_LO / DVGPR_ALLOC_HI ?*/
 
   /* Align the base of the following register pairs.  */
   aligned_block = utils::align_up (flat_scratch + 1, 2),
 
-  flat_scratch_lo = aligned_block, /* Flat scratch lower 32 bits.  */
-  flat_scratch_hi,                 /* Flat scratch lower 32 bits.  */
-  exec_lo,                         /* Execution mask lower 32bits.  */
-  exec_hi,                         /* Execution mask lower 32bits.  */
-  vcc_lo,                          /* Vector Condition Code lower 32 bits.  */
-  vcc_hi,                          /* Vector Condition Code higher 32 bits.  */
-  xnack_mask_lo,                   /* XNACK mask lower 32 bits.  */
-  xnack_mask_hi,                   /* XNACK mask higher 32 bits.  */
+  flat_scratch_lo = aligned_block,   /* Flat scratch lower 32 bits.  */
+  scratch_base_lo = flat_scratch_lo, /* Alias in gfx12.  */
+  flat_scratch_hi,                   /* Flat scratch lower 32 bits.  */
+  scratch_base_hi = flat_scratch_hi, /* alias in gfx12. */
+  exec_lo,                           /* Execution mask lower 32bits.  */
+  exec_hi,                           /* Execution mask lower 32bits.  */
+  vcc_lo,                            /* Vector Condition Code lower 32
+                                        bits.  */
+  vcc_hi,                            /* Vector Condition Code higher 32
+                                        bits.  */
+  xnack_mask_lo,                     /* XNACK mask lower 32 bits.  */
+  xnack_mask_hi,                     /* XNACK mask higher 32 bits.  */
 
   last_aliased = xnack_mask_hi,
   first_pseudo = last_aliased + 1,
@@ -153,6 +166,7 @@ enum class amdgpu_regnum_t : uint32_t
      written, status.vccz is set to 1 if vcc == 0, and 0 otherwise).  */
 
   pseudo_status = first_pseudo, /* The client visible status register.  */
+  pseudo_state_priv,
 
   pseudo_exec_32, /* Read from exec_32, write to exec_32 and status.execz.  */
   pseudo_exec_64, /* Read from exec_64, write to exec_64 and status.execz.  */
