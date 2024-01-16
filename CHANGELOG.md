@@ -3,11 +3,11 @@
 Full documentatino for AMD Debugger API is available at
 [rocm.docs.amd.com](https://rocm.docs.amd.com/projects/ROCdbgapi/en/latest/index.html).
 
-## (Unreleased) rocm-dbgapi-0.71.0
+## rocm-dbgapi-0.71.0
 ### Added
 - Add support for gfx940, gfx941 and gfx942 architectures.
 
-## (Unreleased) rocm-dbgapi-0.70.0
+## rocm-dbgapi-0.70.0
 ### Changed
 - The name reported for each agent is now based on the information stored
   in the [`pci.ids`](https://pci-ids.ucw.cz/) database.
@@ -28,6 +28,6 @@ Full documentatino for AMD Debugger API is available at
   instruction, the wave is killed and the exception is not reported in the
   debugger.
 
-## (Unreleased) rocm-dbgapi-0.68.0
+## rocm-dbgapi-0.68.0
 ### Added
 - Expose SGPRs mapped under `flat_scratch`/`xnack_mask`/`vcc`.
