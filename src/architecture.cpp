@@ -625,20 +625,14 @@ amdgcn_architecture_t::triggered_watchpoints (const wave_t &wave) const
       || !(wave.stop_reason () & AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT))
     return {};
 
-  /* We don't have to suspend the queue because trapsts is a cached hwreg.  */
-  dbgapi_assert (wave.process ().memory_cache ().contains_all (
-    *wave.register_address (amdgpu_regnum_t::trapsts), sizeof (uint32_t)));
-
-  uint32_t trapsts;
-  wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
-
-  if (trapsts & sq_wave_trapsts_excp_addr_watch0_mask)
+  const exception_mask_t exceptions = signaled_exceptions (wave);
+  if ((exceptions & exception_mask_t::addr_watch0) != 0)
     watchpoints.emplace_back (0);
-  if (trapsts & sq_wave_trapsts_excp_hi_addr_watch1_mask)
+  if ((exceptions & exception_mask_t::addr_watch1) != 0)
     watchpoints.emplace_back (1);
-  if (trapsts & sq_wave_trapsts_excp_hi_addr_watch2_mask)
+  if ((exceptions & exception_mask_t::addr_watch2) != 0)
     watchpoints.emplace_back (2);
-  if (trapsts & sq_wave_trapsts_excp_hi_addr_watch3_mask)
+  if ((exceptions & exception_mask_t::addr_watch3) != 0)
     watchpoints.emplace_back (3);
 
   return watchpoints;
