@@ -334,6 +334,7 @@ public:
   virtual exception_mask_t signaled_exceptions (const wave_t &) const;
   virtual void set_exceptions (wave_t &, exception_mask_t,
                                exception_mask_t) const;
+  void clear_stop_reasons (wave_t &) const;
 
   void record_spi_ttmps_setup (const wave_t &wave,
                                bool enabled) const override;
@@ -1322,6 +1323,43 @@ amdgcn_architecture_t::set_exceptions (wave_t &wave, exception_mask_t mask,
   wave.write_register (amdgpu_regnum_t::trapsts, trapsts);
 }
 
+void
+amdgcn_architecture_t::clear_stop_reasons (wave_t &wave) const
+{
+  amd_dbgapi_wave_stop_reasons_t stop_reason = wave.stop_reason ();
+  exception_mask_t exceptions
+    = exception_mask_t::wave_begin | exception_mask_t::wave_end;
+
+  if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_MEMORY_VIOLATION)
+    exceptions |= exception_mask_t::mem_viol | exception_mask_t::xnack_error;
+  if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_ADDRESS_ERROR)
+    exceptions |= exception_mask_t::mem_viol;
+  if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_ILLEGAL_INSTRUCTION)
+    exceptions |= exception_mask_t::illegal_inst;
+  if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_FP_INVALID_OPERATION)
+    exceptions |= exception_mask_t::invalid;
+  if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_FP_INPUT_DENORMAL)
+    exceptions |= exception_mask_t::input_denorm;
+  if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_FP_DIVIDE_BY_0)
+    exceptions |= exception_mask_t::float_div0;
+  if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_FP_OVERFLOW)
+    exceptions |= exception_mask_t::overflow;
+  if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_FP_UNDERFLOW)
+    exceptions |= exception_mask_t::underflow;
+  if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_FP_INEXACT)
+    exceptions |= exception_mask_t::inexact;
+  if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_INT_DIVIDE_BY_0)
+    exceptions |= exception_mask_t::int_div0;
+  if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT)
+    exceptions |= exception_mask_t::addr_watch0 | exception_mask_t::addr_watch1
+                  | exception_mask_t::addr_watch2
+                  | exception_mask_t::addr_watch3;
+  if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP)
+    exceptions |= exception_mask_t::trap_after_inst;
+
+  set_exceptions (wave, exceptions, {});
+}
+
 bool
 amdgcn_architecture_t::are_trap_handler_ttmps_initialized (
   const wave_t & /* wave  */) const
@@ -1538,43 +1576,13 @@ amdgcn_architecture_t::wave_set_state (wave_t &wave,
   wave.write_register (amdgpu_regnum_t::mode, mode_reg);
   wave.write_register (amdgpu_regnum_t::ttmp6, ttmp6);
 
-  /* When resuming a wave, clear the exceptions in the trapsts register that
-     have already been reported by a stop event (stop_reason != 0).  */
+  /* When resuming a wave, clear the exceptions in the hardware exceptions
+     register that have already been reported by a stop event
+     (stop_reason != 0).  */
   if (state != AMD_DBGAPI_WAVE_STATE_STOP
       && wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
       && wave.stop_reason () != AMD_DBGAPI_WAVE_STOP_REASON_NONE)
-    {
-      amd_dbgapi_wave_stop_reasons_t stop_reason = wave.stop_reason ();
-      exception_mask_t exceptions{};
-
-      if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_MEMORY_VIOLATION)
-        exceptions
-          |= exception_mask_t::mem_viol | exception_mask_t::xnack_error;
-      if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_ADDRESS_ERROR)
-        exceptions |= exception_mask_t::mem_viol;
-      if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_ILLEGAL_INSTRUCTION)
-        exceptions |= exception_mask_t::illegal_inst;
-      if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_FP_INVALID_OPERATION)
-        exceptions |= exception_mask_t::invalid;
-      if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_FP_INPUT_DENORMAL)
-        exceptions |= exception_mask_t::input_denorm;
-      if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_FP_DIVIDE_BY_0)
-        exceptions |= exception_mask_t::float_div0;
-      if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_FP_OVERFLOW)
-        exceptions |= exception_mask_t::overflow;
-      if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_FP_UNDERFLOW)
-        exceptions |= exception_mask_t::underflow;
-      if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_FP_INEXACT)
-        exceptions |= exception_mask_t::inexact;
-      if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_INT_DIVIDE_BY_0)
-        exceptions |= exception_mask_t::int_div0;
-      if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT)
-        exceptions
-          |= exception_mask_t::addr_watch0 | exception_mask_t::addr_watch1
-             | exception_mask_t::addr_watch2 | exception_mask_t::addr_watch3;
-
-      set_exceptions (wave, exceptions, {});
-    }
+    clear_stop_reasons (wave);
 }
 
 bool
@@ -3723,8 +3731,6 @@ public:
 
   std::pair<amd_dbgapi_wave_state_t, amd_dbgapi_wave_stop_reasons_t>
   wave_get_state (wave_t &wave) const override;
-  void wave_set_state (wave_t &wave,
-                       amd_dbgapi_wave_state_t state) const override;
 
   std::optional<amd_dbgapi_global_address_t>
   simulate_instruction (wave_t &wave, amd_dbgapi_global_address_t pc,
@@ -3860,28 +3866,6 @@ std::pair<amd_dbgapi_wave_state_t, amd_dbgapi_wave_stop_reasons_t>
 gfx940_t::wave_get_state (wave_t &wave) const
 {
   return amdgcn_architecture_t::wave_get_state (wave);
-}
-
-void
-gfx940_t::wave_set_state (wave_t &wave, amd_dbgapi_wave_state_t state) const
-{
-  amdgcn_architecture_t::wave_set_state (wave, state);
-
-  /* When resuming a wave, clear the exceptions in the trapsts register that
-     have already been reported by a stop event (stop_reason != 0).  */
-  if (state != AMD_DBGAPI_WAVE_STATE_STOP
-      && wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
-      && wave.stop_reason () != AMD_DBGAPI_WAVE_STOP_REASON_NONE)
-    {
-      amd_dbgapi_wave_stop_reasons_t stop_reason = wave.stop_reason ();
-      exception_mask_t exceptions
-        = exception_mask_t::wave_begin | exception_mask_t::wave_end;
-
-      if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP)
-        exceptions |= exception_mask_t::trap_after_inst;
-
-      set_exceptions (wave, exceptions, {});
-    }
 }
 
 std::optional<amd_dbgapi_global_address_t>
@@ -5263,9 +5247,6 @@ public:
   void set_exceptions (wave_t &, exception_mask_t,
                        exception_mask_t) const override;
 
-  void wave_set_state (wave_t &wave,
-                       amd_dbgapi_wave_state_t state) const override;
-
   std::optional<amd_dbgapi_global_address_t>
   simulate_instruction (wave_t &wave, amd_dbgapi_global_address_t pc,
                         const instruction_t &instruction) const override;
@@ -5416,29 +5397,6 @@ gfx11_architecture_t::cwsr_record_t::register_address (
     }
 
   return gfx10_architecture_t::cwsr_record_t::register_address (regnum);
-}
-
-void
-gfx11_architecture_t::wave_set_state (wave_t &wave,
-                                      amd_dbgapi_wave_state_t state) const
-{
-  gfx10_architecture_t::wave_set_state (wave, state);
-
-  /* When resuming a wave, clear the exceptions in the trapsts register that
-     have already been reported by a stop event (stop_reason != 0).  */
-  if (state != AMD_DBGAPI_WAVE_STATE_STOP
-      && wave.state () == AMD_DBGAPI_WAVE_STATE_STOP
-      && wave.stop_reason () != AMD_DBGAPI_WAVE_STOP_REASON_NONE)
-    {
-      amd_dbgapi_wave_stop_reasons_t stop_reason = wave.stop_reason ();
-      exception_mask_t exceptions
-        = exception_mask_t::wave_begin | exception_mask_t::wave_end;
-
-      if (stop_reason & AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP)
-        exceptions |= exception_mask_t::trap_after_inst;
-
-      set_exceptions (wave, exceptions, {});
-    }
 }
 
 std::optional<amd_dbgapi_global_address_t>
