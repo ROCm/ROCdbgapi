@@ -1642,6 +1642,37 @@ process_t::get_info (amd_dbgapi_process_info_t query, size_t value_size,
         os_runtime_info_t runtime_info = m_runtime_info;
         if (is_flag_set (process_t::flag_t::spi_ttmps_setup_enabled))
           {
+            if (m_rocr_debug_version < 10 && m_runtime_info.ttmp_setup == false
+                &&
+                [this] ()
+                {
+                  for (auto &&device : range<agent_t> ())
+                    if (device.os_info ().ttmps_always_initialized == false)
+                      return true;
+                  return false;
+                }())
+              {
+                /* Before ROCr ABI version 10, we cannot differentiate waves
+                   with TTMP registers initialized by dbgapi from waves with
+                   TTMP registers initialized by hardware.  Trying to reload
+                   a wave with TTMP registers initialized by dbgapi would cause
+                   dbgapi to try to access the dispatch packet at index 0. Then
+                   2 things can happen:
+                   - either a valid dispatch packet exist at index 0 and we
+                     [probably] associate the wave to the wrong dispatch, or
+                   - there is no valid dispatch packet at index 0, causing an
+                     error.
+
+                   In both cases, it would be invalid to try to load the core
+                   dump, so instead we refuse to create it to avoid future
+                   problems.  */
+                warning ("Cannot create an AMDGPU core dump for ROCr ABI "
+                         "version < 10 without debugger support enabled at "
+                         "process startup.  Use HSA_ENABLE_DEBUG=1 before "
+                         "starting the process.");
+                throw api_error_t (AMD_DBGAPI_STATUS_ERROR_RESTRICTION);
+              }
+
             /* At this point, all TTMP registers have been initialized, either
                by SPI or by DBGAPI.  Mark ttmp_setup as true in core state so
                when dbgapi loads it back, it does not override TTMPs.
@@ -2453,6 +2484,7 @@ amd_dbgapi_process_get_info (amd_dbgapi_process_id_t process_id,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY,
          AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE,
-         AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
+         AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK,
+         AMD_DBGAPI_STATUS_ERROR_RESTRICTION);
   TRACE_END (make_query_ref (query, param_out (value)));
 }

@@ -20,7 +20,7 @@
 
 cmake_minimum_required(VERSION 3.8)
 
-project(amd-dbgapi VERSION 0.75.1)
+project(amd-dbgapi VERSION 0.76.0)
 
 include(CheckIncludeFile)
 include(GNUInstallDirs)
