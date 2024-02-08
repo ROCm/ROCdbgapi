@@ -1197,7 +1197,10 @@ kfd_driver_t::disable_debug ()
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_DISABLE, &args);
   if (err == -ESRCH)
-    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+    {
+      m_is_debug_enabled = false;
+      return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+    }
   else if (err < 0)
     return AMD_DBGAPI_STATUS_ERROR;
 
