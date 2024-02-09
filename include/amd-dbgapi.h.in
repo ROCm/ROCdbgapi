@@ -368,11 +368,11 @@
  *    [wiki.xen.org/wiki/Bus:Device.Function_(BDF)_Notation]
  *    (https://wiki.xen.org/wiki/Bus:Device.Function_(BDF)_Notation)
  * 4. HSA Platform System Architecture Specification:
- *    [www.hsafoundation.com/html_spec111/HSA_Library.htm#SysArch/Topics/SysArch_title_page.htm]
- *    (http://www.hsafoundation.com/html_spec111/HSA_Library.htm#SysArch/Topics/SysArch_title_page.htm)
+ *    [https://hsafoundation.com/wp-content/uploads/2021/02/HSA-SysArch-1.2.pdf]
+ *    (https://hsafoundation.com/wp-content/uploads/2021/02/HSA-SysArch-1.2.pdf)
  * 5. HSA Programmer's Reference Manual:
- *    [www.hsafoundation.com/html_spec111/HSA_Library.htm#PRM/Topics/PRM_title_page.htm]
- *    (http://www.hsafoundation.com/html_spec111/HSA_Library.htm#PRM/Topics/PRM_title_page.htm)
+ *    [https://hsafoundation.com/wp-content/uploads/2021/02/HSA-PRM-1.2.pdf]
+ *    (https://hsafoundation.com/wp-content/uploads/2021/02/HSA-PRM-1.2.pdf)
  * 6. Semantic Versioning: [semver.org] (https://semver.org)
  * 7. The LLVM Compiler Infrastructure: [llvm.org] (https://llvm.org/)
  * 8. User Guide for AMDGPU LLVM Backend: [llvm.org/docs/AMDGPUUsage.html]
@@ -433,11 +433,11 @@
  * "[Bus:Device.Function (BDF) Notation]"
  *
  * [hsa-prm]:
- * http://www.hsafoundation.com/html_spec111/HSA_Library.htm#PRM/Topics/PRM_title_page.htm
+ * https://hsafoundation.com/wp-content/uploads/2021/02/HSA-PRM-1.2.pdf
  * "HSA Programmer's Reference Manual"
  *
  * [hsa-sysarch]:
- * http://www.hsafoundation.com/html_spec111/HSA_Library.htm#SysArch/Topics/SysArch_title_page.htm
+ * https://hsafoundation.com/wp-content/uploads/2021/02/HSA-SysArch-1.2.pdf
  * "HSA Platform System Architecture Specification"
  *
  * [llvm]:
