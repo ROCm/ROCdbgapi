@@ -619,6 +619,7 @@ to_string (amd_dbgapi_process_info_t process_info)
       CASE (PROCESS_INFO_PRECISE_MEMORY_SUPPORTED);
       CASE (PROCESS_INFO_OS_ID);
       CASE (PROCESS_INFO_CORE_STATE);
+      CASE (PROCESS_INFO_PRECISE_ALU_EXCEPTIONS_SUPPORTED);
     }
   return to_string (make_hex (process_info));
 }
@@ -647,6 +648,9 @@ to_string (detail::query_ref<amd_dbgapi_process_info_t> ref)
     case AMD_DBGAPI_PROCESS_INFO_CORE_STATE:
       return to_string (
         make_ref (static_cast<const amd_dbgapi_core_state_data_t *> (value)));
+    case AMD_DBGAPI_PROCESS_INFO_PRECISE_ALU_EXCEPTIONS_SUPPORTED:
+      return to_string (make_ref (
+        static_cast<const amd_dbgapi_alu_exceptions_precision_t *> (value)));
     }
   fatal_error ("unhandled amd_dbgapi_process_info_t query (%s)",
                to_cstring (query));
@@ -1497,6 +1501,18 @@ to_string (amd_dbgapi_memory_precision_t memory_precision)
       CASE (MEMORY_PRECISION_PRECISE);
     }
   return to_string (make_hex (memory_precision));
+}
+
+template <>
+std::string
+to_string (amd_dbgapi_alu_exceptions_precision_t alu_exceptions_precision)
+{
+  switch (alu_exceptions_precision)
+    {
+      CASE (ALU_EXCEPTIONS_PRECISION_NONE);
+      CASE (ALU_EXCEPTIONS_PRECISION_PRECISE);
+    }
+  return to_string (make_hex (alu_exceptions_precision));
 }
 
 template <>

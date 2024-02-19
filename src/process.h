@@ -114,6 +114,9 @@ private:
   bool m_supports_precise_memory{ false };
   bool m_precise_memory{ false };
 
+  bool m_supports_precise_alu_exceptions{ false };
+  bool m_precise_alu_exceptions{ false };
+
   bool m_forward_progress_needed{ true };
 
   pipe_t m_client_notifier_pipe{};
@@ -231,6 +234,8 @@ public:
   bool is_frozen () const { return m_frozen; }
 
   void set_precise_memory (bool enabled);
+
+  void set_precise_alu_exceptions (bool enabled);
 
   /* Suspend/resume a list of queues.  Queues may become invalid as a result of
      suspension/resumption, but not destroyed.  Queues made invalid will

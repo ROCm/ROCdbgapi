@@ -186,6 +186,10 @@ process_t::detach ()
           /* Return precise memory reporting to its default off state.  */
           set_precise_memory (false);
 
+          /* Return precise ALU exceptions reporting to its default off
+             state.  */
+          set_precise_alu_exceptions (false);
+
           /* Resume all the waves halted at launch.  */
           set_wave_launch_mode (os_wave_launch_mode_t::normal);
 
@@ -501,6 +505,34 @@ process_t::set_precise_memory (bool enabled)
                  to_cstring (status));
 }
 
+void
+process_t::set_precise_alu_exceptions (bool enabled)
+{
+  if (m_precise_alu_exceptions == enabled)
+    return;
+
+  if (!m_supports_precise_alu_exceptions)
+    throw api_error_t (AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED);
+
+  auto set_precise_alu_exceptions = utils::make_scope_success (
+    [=] () { m_precise_alu_exceptions = enabled; });
+
+  /* If this is called before the runtime is loaded (or after the runtime is
+     unloaded), only record the setting in the process_t instance. The actual
+     change to the configuration will be done when the runtime is loaded and
+     the debug mode is activated.  */
+  if (m_runtime_state != AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS)
+    return;
+
+  amd_dbgapi_status_t status
+    = os_driver ().set_precise_alu_exceptions (enabled);
+
+  if (status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED
+      && status != AMD_DBGAPI_STATUS_SUCCESS)
+    fatal_error ("os_driver::set_precise_alu_exceptions failed (%s)",
+                 to_cstring (status));
+}
+
 std::vector<process_t *>
 process_t::match (amd_dbgapi_process_id_t process_id)
 {
@@ -587,6 +619,7 @@ process_t::update_agents ()
   agent_infos.resize (agent_count);
 
   std::optional<bool> precise_memory_supported;
+  std::optional<bool> precise_alu_exceptions_supported;
 
   /* Add new agents to the process.  */
   for (auto &&agent_info : agent_infos)
@@ -620,8 +653,13 @@ process_t::update_agents ()
       agent->set_mark (agent_mark);
 
       if (agent->supports_debugging ())
-        precise_memory_supported = precise_memory_supported.value_or (true)
-                                   && agent_info.precise_memory_supported;
+        {
+          precise_memory_supported = precise_memory_supported.value_or (true)
+                                     && agent_info.precise_memory_supported;
+          precise_alu_exceptions_supported
+            = precise_alu_exceptions_supported.value_or (true)
+              && agent_info.precise_alu_exceptions_supported;
+        }
     }
 
   /* Remove agents that are no longer online.  */
@@ -641,6 +679,8 @@ process_t::update_agents ()
       ++it;
 
   m_supports_precise_memory = precise_memory_supported.value_or (false);
+  m_supports_precise_alu_exceptions
+    = precise_alu_exceptions_supported.value_or (false);
 }
 
 void
@@ -1519,6 +1559,16 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
                      to_cstring (id ()), to_cstring (status));
     }
 
+  if (m_supports_precise_alu_exceptions)
+    {
+      status
+        = os_driver ().set_precise_alu_exceptions (m_precise_alu_exceptions);
+      if (status != AMD_DBGAPI_STATUS_SUCCESS
+          && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
+        fatal_error ("Could not set precise ALU exceptions for %s (%s).",
+                     to_cstring (id ()), to_cstring (status));
+    }
+
   std::vector<queue_t *> queues;
   for (auto &&queue : range<queue_t> ())
     queues.emplace_back (&queue);
@@ -1703,6 +1753,13 @@ process_t::get_info (amd_dbgapi_process_info_t query, size_t value_size,
           throw api_error_t (AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE);
         return;
       }
+
+    case AMD_DBGAPI_PROCESS_INFO_PRECISE_ALU_EXCEPTIONS_SUPPORTED:
+      utils::get_info (value_size, value,
+                       m_supports_precise_alu_exceptions
+                         ? AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_PRECISE
+                         : AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_NONE);
+      return;
     }
 
   throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
@@ -2500,4 +2557,35 @@ amd_dbgapi_process_get_info (amd_dbgapi_process_id_t process_id,
          AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK,
          AMD_DBGAPI_STATUS_ERROR_RESTRICTION);
   TRACE_END (make_query_ref (query, param_out (value)));
+}
+
+amd_dbgapi_status_t AMD_DBGAPI
+amd_dbgapi_set_alu_exceptions_precision (
+  amd_dbgapi_process_id_t process_id,
+  amd_dbgapi_alu_exceptions_precision_t alu_exceptions_precision)
+{
+  TRACE_BEGIN (param_in (process_id), param_in (alu_exceptions_precision));
+  TRY
+  {
+    if (!detail::is_initialized)
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
+
+    process_t *process = process_t::find (process_id);
+
+    if (process == nullptr)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
+
+    if (alu_exceptions_precision != AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_NONE
+        && alu_exceptions_precision
+             != AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_PRECISE)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
+
+    process->set_precise_alu_exceptions (
+      alu_exceptions_precision == AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_PRECISE);
+  }
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
+         AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED);
+  TRACE_END ();
 }

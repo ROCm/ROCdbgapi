@@ -501,6 +501,7 @@ to_string (detail::parameter_t<detail::query_ref<T>, name, kind> param)
   F (amd_dbgapi_instruction_properties_t)                                     \
   F (amd_dbgapi_log_level_t)                                                  \
   F (amd_dbgapi_memory_precision_t)                                           \
+  F (amd_dbgapi_alu_exceptions_precision_t)                                   \
   F (amd_dbgapi_os_queue_type_t)                                              \
   F (amd_dbgapi_process_id_t)                                                 \
   F (amd_dbgapi_process_info_t)                                               \

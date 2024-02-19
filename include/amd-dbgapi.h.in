@@ -595,6 +595,12 @@ extern "C" {
  */
 #define AMD_DBGAPI_VERSION_0_76
 
+/**
+ * The function was introduced in version 0.77 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.77"``.
+ */
+#define AMD_DBGAPI_VERSION_0_77
+
 /** @} */
 
 /** \ingroup callbacks_group
@@ -1757,6 +1763,13 @@ typedef enum
    */
   AMD_DBGAPI_PROCESS_INFO_PRECISE_MEMORY_SUPPORTED = 4,
   /**
+   * Return if the architectures of all the agents of a process support
+   * controlling ALU exceptions reporting precision.  The type of this
+   * attribute is \p uint32_t with the values defined by
+   * ::amd_dbgapi_alu_exceptions_precision_t.
+   */
+  AMD_DBGAPI_PROCESS_INFO_PRECISE_ALU_EXCEPTIONS_SUPPORTED = 5,
+  /**
    * Native operating system process ID.  The type of this attribute is
    * ::amd_dbgapi_os_process_id_t.
    *
@@ -1769,7 +1782,7 @@ typedef enum
    * ::amd_dbgapi_process_get_info returns the
    * ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE error.
    */
-  AMD_DBGAPI_PROCESS_INFO_OS_ID = 5,
+  AMD_DBGAPI_PROCESS_INFO_OS_ID = 6,
   /**
    * Return a blob containing the content to put in the state note when
    * generating a core dump.  The content of the note is allocated using the
@@ -1779,7 +1792,7 @@ typedef enum
    * If allocation fails, then ::amd_dbgapi_process_get_info returns the
    * ::AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK error.
    */
-  AMD_DBGAPI_PROCESS_INFO_CORE_STATE = 6
+  AMD_DBGAPI_PROCESS_INFO_CORE_STATE = 7,
 } amd_dbgapi_process_info_t;
 
 /**
@@ -1833,7 +1846,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_process_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_76;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_77;
 
 /**
  * Attach to a process in order to provide debug control of the AMD GPUs it
@@ -1844,7 +1857,8 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
  *
  * The process progress is initialized to ::AMD_DBGAPI_PROGRESS_NORMAL.  All
  * agents accessed by the process are configured to
- * ::AMD_DBGAPI_MEMORY_PRECISION_NONE.
+ * ::AMD_DBGAPI_MEMORY_PRECISION_NONE and
+ * ::AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_NONE.
  *
  * The client process handle must have been associated with a native operating
  * system process, and the amd_dbgapi_callbacks_s::get_os_pid callback is used
@@ -1939,11 +1953,12 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_attach (
  * system process to continue unaffected by the library.  Any waves with a
  * displaced stepping buffer are stopped and the displaced stepping buffer
  * completed.  Any data watchpoints are removed.  All agents are configured to
- * ::AMD_DBGAPI_MEMORY_PRECISION_NONE.  Any waves in the stopped or single step
- * state are resumed in non-single step mode.  Any pending events for the
- * process are discarded, and no further events will be generated for the
- * process.  If the process is in the frozen state, it is unfrozen.  The wave
- * creation mode is restored to ::AMD_DBGAPI_WAVE_CREATION_NORMAL.
+ * ::AMD_DBGAPI_MEMORY_PRECISION_NONE and
+ * ::AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_NONE.  Any waves in the stopped or
+ * single step state are resumed in non-single step mode.  Any pending events
+ * for the process are discarded, and no further events will be generated for
+ * the process.  If the process is in the frozen state, it is unfrozen.  The
+ * wave creation mode is restored to ::AMD_DBGAPI_WAVE_CREATION_NORMAL.
  *
  * After detaching, the process handle, and all handles associated with
  * entities relating to the process, become invalid.
@@ -2537,6 +2552,8 @@ typedef enum
    *
    *   - ::AMD_DBGAPI_PROCESS_INFO_PRECISE_MEMORY_SUPPORTED is conservatively
    *     treated as ::AMD_DBGAPI_MEMORY_PRECISION_NONE.
+   *   - ::AMD_DBGAPI_PROCESS_INFO_PRECISE_ALU_EXCEPTIONS_SUPPORTED is
+   *     conservatively treated as ::AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_NONE.
    *   - ::AMD_DBGAPI_PROCESS_INFO_WATCHPOINT_COUNT is conservatively treated
    *     as 0.
    *
@@ -6652,6 +6669,83 @@ typedef enum
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_memory_precision (
     amd_dbgapi_process_id_t process_id,
     amd_dbgapi_memory_precision_t memory_precision) AMD_DBGAPI_VERSION_0_54;
+
+/**
+ * ALU exceptions reporting precision.
+ *
+ * Waves may issue multiple instructions and advance the program counter
+ * before a previous ALU instruction has executed and reported exceptions.
+ * This can result in a wave stopping due to an ALU exception beyond the
+ * instruction that caused the wave to stop.
+ *
+ * Some architectures allow hardware to be configured to always wait for ALU
+ * instructions to complete before issuing to the next instruction.  If an
+ * exception is raised by the instruction, the wave will stop at the
+ * instruction immediately following it.  Enabling this mode can make
+ * execution of waves slower.
+ *
+ * The ::AMD_DBGAPI_PROCESS_INFO_PRECISE_ALU_EXCEPTIONS_SUPPORTED query can be
+ * used to determine if the architectures of all the agents of a process support
+ * controlling precise ALU exceptions reporting.
+ */
+typedef enum
+{
+  /**
+   * ALU exceptions delivery might be reported at any time after the
+   * instructions causing them have executed.
+   */
+  AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_NONE = 0,
+  /**
+   * When an ALU exception is delivered to the waves, the wave's PC is at the
+   * instruction following the one causing the exception to be raised.  This
+   * can cause waves to execute slower.
+   */
+  AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_PRECISE = 1
+} amd_dbgapi_alu_exceptions_precision_t;
+
+/**
+ * Control precision of ALU exceptions reporting.
+ *
+ * A process can set ::AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_NONE to disable
+ * precise ALU exception reporting.  Use the
+ * ::AMD_DBGAPI_PROCESS_INFO_PRECISE_ALU_EXCEPTIONS_SUPPORTED query to determine
+ * if the architecture of all agents of the process support another ALU
+ * precision mode.
+ *
+ * The ALU exceptions precision is set independently for each process, and only
+ * affects the waves executing on the agents of that process.  The setting may
+ * be changed at any time, including when waves are executing, and takes effect
+ * immediately.
+ *
+ * \param[in] process_id The process being configured.
+ *
+ * \param[in] alu_exceptions_precision The ALU exception precision mode to set.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
+ * successfully and the agents of the process have been configured.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
+ * left uninitialized.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
+ * initialized.  The library is left uninitialized and no configuration is
+ * changed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
+ * invalid.  No configuration is changed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT
+ * \p alu_exceptions_precision is an invalid value.  No configuration is
+ * changed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED The requested \p
+ * alu_exceptions_precision is not supported by the architecture of all the
+ * agents of \p process_id.  No configuration is changed.
+ */
+amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_alu_exceptions_precision (
+    amd_dbgapi_process_id_t process_id,
+    amd_dbgapi_alu_exceptions_precision_t alu_exceptions_precision)
+     AMD_DBGAPI_VERSION_0_77;
 
 /** @} */
 
