@@ -226,6 +226,12 @@ public:
   }
 
   amd_dbgapi_status_t
+  set_precise_alu_exceptions (bool /* enabled  */) const override
+  {
+    return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
+  }
+
+  amd_dbgapi_status_t
   xfer_global_memory_partial (amd_dbgapi_global_address_t /* address  */,
                               void *read, const void *write,
                               size_t * /* size  */) const override
@@ -443,6 +449,9 @@ kfd_driver_base_t::agent_snapshot (
       agent_info.precise_memory_supported
         = (entry.capability
            & HSA_CAP_TRAP_DEBUG_PRECISE_MEMORY_OPERATIONS_SUPPORTED);
+      agent_info.precise_alu_exceptions_supported
+        = (entry.capability
+           & HSA_CAP_TRAP_DEBUG_PRECISE_ALU_OPERATIONS_SUPPORTED);
       agent_info.firmware_supported
         = entry.capability & HSA_CAP_TRAP_DEBUG_FIRMWARE_SUPPORTED;
       agent_info.address_watch_mask_bits = utils::bit_mask (
@@ -854,6 +863,8 @@ public:
     os_wave_launch_trap_mask_t *supported_mask) const override;
 
   amd_dbgapi_status_t set_precise_memory (bool enabled) const override;
+
+  amd_dbgapi_status_t set_precise_alu_exceptions (bool enabled) const override;
 
   amd_dbgapi_status_t
   xfer_global_memory_partial (amd_dbgapi_global_address_t address, void *read,
@@ -1596,6 +1607,26 @@ kfd_driver_t::set_precise_memory (bool enabled) const
 }
 
 amd_dbgapi_status_t
+kfd_driver_t::set_precise_alu_exceptions (bool enabled) const
+{
+  TRACE_DRIVER_BEGIN (param_in (enabled));
+
+  kfd_ioctl_dbg_trap_args args{};
+  args.set_flags.flags = enabled ? KFD_DBG_TRAP_FLAG_SINGLE_ALU_OP /* enable */
+                                 : 0 /* disable  */;
+
+  int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_FLAGS, &args);
+  if (err == -ESRCH)
+    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
+  else if (err < 0)
+    return AMD_DBGAPI_STATUS_ERROR;
+
+  return AMD_DBGAPI_STATUS_SUCCESS;
+
+  TRACE_DRIVER_END ();
+}
+
+amd_dbgapi_status_t
 kfd_driver_t::xfer_global_memory_partial (amd_dbgapi_global_address_t address,
                                           void *read, const void *write,
                                           size_t *size) const
@@ -1799,8 +1830,8 @@ to_string (os_agent_info_t os_agent_info)
     ".private_address_aperture_limit=%#" PRIx64 ", .debugging_supported=%d, "
     ".address_watch_supported=%d, .address_watch_register_count=%zd, "
     ".address_watch_mask_bits=%#" PRIx64 ", .watchpoint_exclusive=%d, "
-    ".precise_memory_supported=%d, .firmware_supported=%d, "
-    "ttmps_always_initialized=%d }",
+    ".precise_memory_supported=%d, .precise_alu_exceptions_supported=%d,"
+    ".firmware_supported=%d, ttmps_always_initialized=%d }",
     os_agent_info.os_agent_id, os_agent_info.name.c_str (),
     os_agent_info.domain, os_agent_info.location_id, os_agent_info.gfxip[0],
     os_agent_info.gfxip[1], os_agent_info.gfxip[2], os_agent_info.simd_count,
@@ -1815,8 +1846,9 @@ to_string (os_agent_info_t os_agent_info)
     os_agent_info.debugging_supported, os_agent_info.address_watch_supported,
     os_agent_info.address_watch_register_count,
     os_agent_info.address_watch_mask_bits, os_agent_info.watchpoint_exclusive,
-    os_agent_info.precise_memory_supported, os_agent_info.firmware_supported,
-    os_agent_info.ttmps_always_initialized);
+    os_agent_info.precise_memory_supported,
+    os_agent_info.precise_alu_exceptions_supported,
+    os_agent_info.firmware_supported, os_agent_info.ttmps_always_initialized);
 }
 
 template <>

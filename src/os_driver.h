@@ -115,6 +115,8 @@ struct os_agent_info_t
   bool watchpoint_exclusive{ false };
   /* indicates if precise memory operations reporting is supported.  */
   bool precise_memory_supported{ false };
+  /* indicates if precise ALU operations reporting is supported.  */
+  bool precise_alu_exceptions_supported{ false };
   /* indicates that the command process firmware is supported.  */
   bool firmware_supported{ false };
   /* indicates that the trap temporaries are always set up.  */
@@ -454,6 +456,9 @@ public:
     os_wave_launch_trap_mask_t *supported_mask = nullptr) const = 0;
 
   virtual amd_dbgapi_status_t set_precise_memory (bool enabled) const = 0;
+
+  virtual amd_dbgapi_status_t
+  set_precise_alu_exceptions (bool enabled) const = 0;
 
   virtual amd_dbgapi_status_t
   xfer_global_memory_partial (amd_dbgapi_global_address_t address, void *read,
