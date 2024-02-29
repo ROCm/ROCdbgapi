@@ -736,6 +736,7 @@ private:
 
   bool m_is_debug_enabled{ false };
 
+  int kfd_ioctl (unsigned long request, void *args) const;
   int kfd_dbg_trap_ioctl (uint32_t action,
                           kfd_ioctl_dbg_trap_args *args) const;
 
@@ -899,31 +900,47 @@ kfd_driver_t::close_kfd ()
 }
 
 int
+kfd_driver_t::kfd_ioctl (unsigned long request, void *args) const
+{
+  dbgapi_assert (is_valid ());
+
+  int ret;
+  do
+    {
+      /* Retry ioctl call if it's interrupted by a signal.  */
+      ret = ::ioctl (*s_kfd_fd, request, args);
+    }
+  while (ret < 0 && errno == EINTR);
+
+  return ret < 0 ? -errno : ret;
+}
+
+int
 kfd_driver_t::kfd_dbg_trap_ioctl (uint32_t action,
                                   kfd_ioctl_dbg_trap_args *args) const
 {
-  dbgapi_assert (is_valid ());
   dbgapi_assert (m_os_pid);
 
   args->pid = *m_os_pid;
   args->op = action;
 
-  int ret = ::ioctl (*s_kfd_fd, AMDKFD_IOC_DBG_TRAP, args);
-  if (ret < 0 && errno == ESRCH)
+  int ret = kfd_ioctl (AMDKFD_IOC_DBG_TRAP, args);
+  if (ret == -ESRCH)
     {
       /* TODO: Should we tear down the process now, so that any operation
          executed after this point returns an error?  */
       return -ESRCH;
     }
 
-  return ret < 0 ? -errno : ret;
+  return ret;
 }
 
 kfd_driver_base_t::version_t
 kfd_driver_t::get_kfd_version () const
 {
   kfd_ioctl_get_version_args get_version_args{};
-  if (::ioctl (*s_kfd_fd, AMDKFD_IOC_GET_VERSION, &get_version_args))
+
+  if (kfd_ioctl (AMDKFD_IOC_GET_VERSION, &get_version_args))
     fatal_error ("AMDKFD_IOC_GET_VERSION failed");
 
   return { get_version_args.major_version, get_version_args.minor_version };
