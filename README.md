@@ -31,7 +31,7 @@ Building the ROCdbgapi library has the following prerequisites:
 4. For Ubuntu 18.04 and Ubuntu 20.04 the following adds the needed packages:
 
    ````shell
-   apt install gcc g++ make cmake doxygen graphviz texlive-full
+   apt install gcc g++ make cmake doxygen graphviz texlive-full libhsa-runtime-dev
    ````
 
    NOTE: The ``doxygen`` 1.8.13 that is installed by Ubuntu 18.04 has a bug
