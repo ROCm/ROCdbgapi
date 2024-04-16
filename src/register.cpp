@@ -399,6 +399,7 @@ amd_dbgapi_register_get_info (amd_dbgapi_register_id_t register_id,
          AMD_DBGAPI_STATUS_ERROR_INVALID_REGISTER_ID,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY,
+         AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE,
          AMD_DBGAPI_STATUS_ERROR_CLIENT_CALLBACK);
   TRACE_END (make_query_ref (query, param_out (value)));
 }
