@@ -1111,10 +1111,23 @@ process_t::update_queues ()
             }
           else if (is_flag_set (flag_t::runtime_enable_during_attach))
             {
+              if (queue != nullptr)
+                {
+                  /* It is possible that a first call to "os_driver
+                     ().queue_snapshot ()" did not return all the available
+                     queues for the process.  In such case, queue_snapshot is
+                     called a second time to fetch any missing queue.  At this
+                     point, all queues which were retured by the first call
+                     are also returned by the second call, but have their
+                     queue_new flag cleared.  Mark such queue as still valid,
+                     and continue to the next entry.  */
+                  queue->set_mark (queue_mark);
+                  continue;
+                }
+
               /* When attaching to a process with an already enabled runtime,
                  active queues may not report the queue_new exception as it may
                  have been cleared by another debugger session.  */
-              dbgapi_assert (!queue && "no queue should exists before attach");
             }
           else
             {
