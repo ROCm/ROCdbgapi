@@ -494,7 +494,7 @@ struct doubly_linked_entry_t : private not_copyable_t
     m_next = rhs.m_next;
     m_prev = rhs.m_prev;
     m_next->m_prev = this;
-    m_prev->n_next = this;
+    m_prev->m_next = this;
     rhs.m_next = rhs.m_prev = nullptr;
   }
   doubly_linked_entry_t &operator= (doubly_linked_entry_t &&rhs) noexcept
@@ -502,7 +502,7 @@ struct doubly_linked_entry_t : private not_copyable_t
     m_next = rhs.m_next;
     m_prev = rhs.m_prev;
     m_next->m_prev = this;
-    m_prev->n_next = this;
+    m_prev->m_next = this;
     rhs.m_next = rhs.m_prev = nullptr;
   }
 
