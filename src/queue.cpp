@@ -388,21 +388,9 @@ aql_queue_t::~aql_queue_t ()
 
   const auto xcc_count = agent ().os_info ().xcc_count;
 
-  try
-    {
-      /* Need to write back only because discard requires no dirty data exists.
-       */
-      process.memory_cache ().write_back (
-        m_os_queue_info.ctx_save_restore_address,
-        xcc_count * m_os_queue_info.ctx_save_restore_area_size);
-
-      process.memory_cache ().discard (
-        m_os_queue_info.ctx_save_restore_address,
-        xcc_count * m_os_queue_info.ctx_save_restore_area_size);
-    }
-  catch (const process_exited_exception_t &)
-    {
-    }
+  process.memory_cache ().discard (
+    m_os_queue_info.ctx_save_restore_address,
+    xcc_count * m_os_queue_info.ctx_save_restore_area_size, true);
 }
 
 compute_queue_t::displaced_instruction_ptr_t

@@ -396,10 +396,11 @@ public:
   /* Create cache lines if not already valid, and immediately fill them in.  */
   void prefetch (amd_dbgapi_global_address_t address, amd_dbgapi_size_t size);
 
-  /* Discard all cache lines in the specified range.  The discarded cache lines
-     must not be dirty.  */
+  /* Discard all cache lines in the specified range.  If FORCE_DISCARD
+     is true, dirty lines are silently dropped.  Otherwise it is an error to
+     discarded dirty cache lines.  */
   void discard (amd_dbgapi_global_address_t address = 0,
-                amd_dbgapi_size_t size = -1);
+                amd_dbgapi_size_t size = -1, bool force_discard = false);
 
   /* Write dirty lines back to memory.  */
   void write_back (amd_dbgapi_global_address_t address = 0,

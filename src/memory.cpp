@@ -624,7 +624,8 @@ memory_cache_t::write_back (amd_dbgapi_global_address_t address,
 
 void
 memory_cache_t::discard (amd_dbgapi_global_address_t address,
-                         amd_dbgapi_size_t size)
+                         amd_dbgapi_size_t size,
+                         [[maybe_unused]] bool force_discard)
 {
   if (size == 0)
     return;
@@ -638,7 +639,8 @@ memory_cache_t::discard (amd_dbgapi_global_address_t address,
 
   while (it != limit)
     {
-      dbgapi_assert (!it->second.m_dirty && "discarding a dirty cache line");
+      dbgapi_assert ((force_discard || !it->second.m_dirty)
+                     && "discarding a dirty cache line");
       it = m_cache_line_map.erase (it);
     }
 }
