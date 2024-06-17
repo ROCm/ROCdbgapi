@@ -6024,7 +6024,7 @@ protected:
 
   size_t largest_instruction_size () const override { return 24; }
   void simulate_trap_handler (wave_t &wave, amd_dbgapi_global_address_t pc,
-                              std::optional<trap_id_t> trap_id) const;
+                              std::optional<trap_id_t> trap_id) const override;
 
   std::optional<amd_dbgapi_global_address_t>
   simulate_instruction (wave_t &wave, amd_dbgapi_global_address_t pc,
