@@ -7248,7 +7248,7 @@ typedef enum
    * the client_process_get_info callback returns
    * ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE.
    *
-   * The type of this attribute is ::amd_dbgapi_core_state_note_data_t.
+   * The type of this attribute is ::amd_dbgapi_core_state_data_t.
    */
   AMD_DBGAPI_CLIENT_PROCESS_INFO_CORE_STATE = 2,
 } amd_dbgapi_client_process_info_t;
