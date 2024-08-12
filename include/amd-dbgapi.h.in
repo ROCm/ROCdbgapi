@@ -1860,9 +1860,15 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
  * ::AMD_DBGAPI_MEMORY_PRECISION_NONE and
  * ::AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_NONE.
  *
- * The client process handle must have been associated with a native operating
- * system process, and the amd_dbgapi_callbacks_s::get_os_pid callback is used
- * to obtain it.
+ * When attaching to a live process, the client process handle must have been
+ * associated with a native operating system process, and the
+ * amd_dbgapi_callbacks_s::client_process_get_info callback with the
+ * ::AMD_DBGAPI_CLIENT_PROCESS_INFO_OS_PID request is used to obtain it.
+ *
+ * When attaching to a process image (core dump), the client process handle
+ * has not been associated with a native operating system, and the
+ * amd_dbgapi_callbacks_s::client_process_get_info request must return
+ * ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE.
  *
  * It is the client's responsibility to fetch the current code object list
  * using ::amd_dbgapi_process_code_object_list as the
@@ -7390,15 +7396,18 @@ struct amd_dbgapi_callbacks_s
   /**
    * Query information about the client process.
    *
-   * ::amd_dbgapi_client_process_info_t specifies the queries supported and the
-   * type returned using the \p value argument.
-   *
    * \p client_process_id is the client handle of the process for which the
    * operating system process handle is being queried.
    *
-   * \p os_pid must be set to the native operating system process handle.
+   * \p query identifies the client process information queried by the
+   * library.
    *
-   * Return ::AMD_DBGAPI_STATUS_SUCCESS if successful and \p os_pid is updated.
+   * \p value_size is the size in bytes of the buffer \p value points to.
+   *
+   * \p value points to a buffer of size  \p value_size where the client should
+   * copy the value requested by the library.
+   *
+   * Return ::AMD_DBGAPI_STATUS_SUCCESS if successful and \p value is updated.
    *
    * Return ::AMD_DBGAPI_STATUS_ERROR_INVALID_CLIENT_PROCESS_ID if the \p
    * client_process_id handle is invalid.
@@ -7407,7 +7416,14 @@ struct amd_dbgapi_callbacks_s
    * client_process_id handle is associated with a native operating system
    * process that has already exited.
    *
-   * Return ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT if \p os_pid is NULL.
+   * Return ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT if \p value is NULL.
+   *
+   * Return ::AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE if the requested
+   * information is not available for the process referenced by \p
+   * client_process_id.
+   *
+   * Return ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY if \p
+   * value_size does not match the size of the data requested by the library.
    *
    * Return ::AMD_DBGAPI_STATUS_ERROR if an error was encountered.
    */
