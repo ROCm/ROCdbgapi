@@ -805,8 +805,11 @@ aql_queue_t::update_waves ()
         {
           log_info ("decoding %s's context save area #%u: "
                     "ctrl_stk:[0x%llx..0x%llx[, wave_area:[0x%llx..0x%llx[",
-                    to_cstring (id ()), xcc_id, control_stack_begin,
-                    control_stack_end, wave_area_begin, wave_area_end);
+                    to_cstring (id ()), xcc_id,
+		     (unsigned long long) control_stack_begin,
+                    (unsigned long long) control_stack_end,
+		     (unsigned long long) wave_area_begin,
+		     (unsigned long long) wave_area_end);
 
           /* Read the entire control stack from the inferior in one go.  */
           amd_dbgapi_size_t size = control_stack_end - control_stack_begin;

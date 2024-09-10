@@ -1862,9 +1862,14 @@ to_string (kfd_dbg_device_info_entry entry)
     ".device_id=%#x, .fw_version=%d, .gfx_target_version=%#x, "
     ".simd_count=%d, .max_waves_per_simd=%d, .array_count=%d, "
     ".simd_arrays_per_engine=%d, .capability=%#x, .debug_prop=%#x }",
-    entry.exception_status, entry.lds_base, entry.lds_limit,
-    entry.scratch_base, entry.scratch_limit, entry.gpuvm_base,
-    entry.gpuvm_limit, entry.gpu_id, entry.location_id, entry.vendor_id,
+    (unsigned long long) entry.exception_status,
+    (unsigned long long) entry.lds_base,
+    (unsigned long long) entry.lds_limit,
+    (unsigned long long) entry.scratch_base,
+    (unsigned long long) entry.scratch_limit,
+    (unsigned long long) entry.gpuvm_base,
+    (unsigned long long) entry.gpuvm_limit,
+    entry.gpu_id, entry.location_id, entry.vendor_id,
     entry.device_id, entry.fw_version, entry.gfx_target_version,
     entry.simd_count, entry.max_waves_per_simd, entry.array_count,
     entry.simd_arrays_per_engine, entry.capability, entry.debug_prop);
@@ -1896,7 +1901,7 @@ to_string (os_runtime_info_t runtime_info)
 {
   return string_printf (
     "{ .r_debug=%#llx, .runtime_state=%s, .ttmp_setup=%d }",
-    runtime_info.r_debug,
+    (unsigned long long) runtime_info.r_debug,
     to_cstring (static_cast<os_runtime_state_t> (runtime_info.runtime_state)),
     runtime_info.ttmp_setup);
 }
@@ -1932,9 +1937,12 @@ to_string (os_queue_snapshot_entry_t snapshot)
     ".write_pointer_address=%#llx, .read_pointer_address=%#llx, "
     ".ctx_save_restore_address=%#llx, .queue_id=%d, .gpu_id=%d, "
     ".ring_size=%d, .queue_type=%d }",
-    snapshot.exception_status, snapshot.ring_base_address,
-    snapshot.write_pointer_address, snapshot.read_pointer_address,
-    snapshot.ctx_save_restore_address, snapshot.queue_id, snapshot.gpu_id,
+    (unsigned long long) snapshot.exception_status,
+    (unsigned long long) snapshot.ring_base_address,
+    (unsigned long long) snapshot.write_pointer_address,
+    (unsigned long long) snapshot.read_pointer_address,
+    (unsigned long long) snapshot.ctx_save_restore_address,
+    snapshot.queue_id, snapshot.gpu_id,
     snapshot.ring_size, snapshot.queue_type);
 }
 
