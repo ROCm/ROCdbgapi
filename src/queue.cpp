@@ -804,7 +804,7 @@ aql_queue_t::update_waves ()
       if (control_stack_begin != control_stack_end)
         {
           log_info ("decoding %s's context save area #%u: "
-                    "ctrl_stk:[0x%llx..0x%llx[, wave_area:[0x%llx..0x%llx[",
+                    "ctrl_stk:[0x%" PRIx64 "..0x%" PRIx64 "[, wave_area:[0x%" PRIx64 "..0x%" PRIx64 "[",
                     to_cstring (id ()), xcc_id, control_stack_begin,
                     control_stack_end, wave_area_begin, wave_area_end);
 

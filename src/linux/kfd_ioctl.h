@@ -23,8 +23,10 @@
 #ifndef KFD_IOCTL_H_INCLUDED
 #define KFD_IOCTL_H_INCLUDED
 
-#include <linux/types.h>
-#include <linux/ioctl.h>
+#include <stdint.h>
+typedef int32_t __s32;
+typedef uint32_t __u32;
+typedef uint64_t __u64;
 
 /*
  * - 1.1 - initial version
