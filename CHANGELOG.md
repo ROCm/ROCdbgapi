@@ -5,12 +5,10 @@ Full documentatino for AMD Debugger API is available at
 
 ## rocm-dbgapi-0.77.0
 ### Added
+- Added support for gfx1200 and gfx1201 architectures.
 - Add support for setting precise ALU exception reporting.
 
 ## rocm-dbgapi-0.76.0
-### Added
-- Added support for gfx1200 and gfx1201 architectures.
-
 ### Resolved issues
 - Before ROCr ABI version 10, there where configurations where a debugger
   would generate unreliable core dumps.  If such configuration is detected
