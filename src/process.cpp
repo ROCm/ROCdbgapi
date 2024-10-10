@@ -481,14 +481,20 @@ process_t::set_wave_launch_trap_override (os_wave_launch_trap_mask_t value,
 void
 process_t::set_precise_memory (bool enabled)
 {
-  if (m_precise_memory == enabled)
+  if (!!(m_process_flags & os_process_flags_t::precise_memory) == enabled)
     return;
 
   if (!m_supports_precise_memory)
     throw api_error_t (AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED);
 
+  auto new_flags = m_process_flags;
+  if (enabled)
+    new_flags = new_flags | os_process_flags_t::precise_memory;
+  else
+    new_flags = new_flags & ~os_process_flags_t::precise_memory;
+
   auto set_precise_memory
-    = utils::make_scope_success ([=] () { m_precise_memory = enabled; });
+    = utils::make_scope_success ([=] () { m_process_flags = new_flags; });
 
   /* If this is called before the runtime is loaded (or after the runtime is
      unloaded), only record the setting in the process_t instance. The actual
@@ -497,7 +503,8 @@ process_t::set_precise_memory (bool enabled)
   if (m_runtime_state != AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS)
     return;
 
-  amd_dbgapi_status_t status = os_driver ().set_precise_memory (enabled);
+  amd_dbgapi_status_t status
+    = os_driver ().set_process_flags (new_flags);
 
   if (status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED
       && status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -508,14 +515,21 @@ process_t::set_precise_memory (bool enabled)
 void
 process_t::set_precise_alu_exceptions (bool enabled)
 {
-  if (m_precise_alu_exceptions == enabled)
+  if (!!(m_process_flags & os_process_flags_t::precise_alu_exceptions)
+      == enabled)
     return;
 
   if (!m_supports_precise_alu_exceptions)
     throw api_error_t (AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED);
 
-  auto set_precise_alu_exceptions = utils::make_scope_success (
-    [=] () { m_precise_alu_exceptions = enabled; });
+  auto new_flags = m_process_flags;
+  if (enabled)
+    new_flags = new_flags | os_process_flags_t::precise_alu_exceptions;
+  else
+    new_flags = new_flags & ~os_process_flags_t::precise_alu_exceptions;
+
+  auto set_precise_alu_exceptions
+    = utils::make_scope_success ([=] () { m_process_flags = new_flags; });
 
   /* If this is called before the runtime is loaded (or after the runtime is
      unloaded), only record the setting in the process_t instance. The actual
@@ -524,8 +538,7 @@ process_t::set_precise_alu_exceptions (bool enabled)
   if (m_runtime_state != AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS)
     return;
 
-  amd_dbgapi_status_t status
-    = os_driver ().set_precise_alu_exceptions (enabled);
+  amd_dbgapi_status_t status = os_driver ().set_process_flags (new_flags);
 
   if (status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED
       && status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -1550,22 +1563,13 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
     fatal_error ("Could not set the wave launch trap override for %s (%s).",
                  to_cstring (id ()), to_cstring (status));
 
-  if (m_supports_precise_memory)
+  if (!!(m_process_flags))
     {
-      status = os_driver ().set_precise_memory (m_precise_memory);
+      status = os_driver ().set_process_flags (m_process_flags);
       if (status != AMD_DBGAPI_STATUS_SUCCESS
           && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-        fatal_error ("Could not set precise memory for %s (%s).",
-                     to_cstring (id ()), to_cstring (status));
-    }
-
-  if (m_supports_precise_alu_exceptions)
-    {
-      status
-        = os_driver ().set_precise_alu_exceptions (m_precise_alu_exceptions);
-      if (status != AMD_DBGAPI_STATUS_SUCCESS
-          && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-        fatal_error ("Could not set precise ALU exceptions for %s (%s).",
+        fatal_error ("Could not set precise memory or precise ALU exceptions "
+                     "for %s (%s).",
                      to_cstring (id ()), to_cstring (status));
     }
 

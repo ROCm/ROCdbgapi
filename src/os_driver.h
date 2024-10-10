@@ -365,6 +365,15 @@ enum class os_wave_launch_mode_t : uint32_t
   disable = 4,     /* Disable launching any new waves.  */
 };
 
+enum class os_process_flags_t : uint32_t
+{
+  precise_memory = 1 << 0,
+  precise_alu_exceptions = 1 << 1
+};
+template <> struct is_flag<os_process_flags_t> : std::true_type
+{
+};
+
 class os_driver_t
 {
 protected:
@@ -459,10 +468,8 @@ public:
     os_wave_launch_trap_mask_t *previous_value = nullptr,
     os_wave_launch_trap_mask_t *supported_mask = nullptr) const = 0;
 
-  virtual amd_dbgapi_status_t set_precise_memory (bool enabled) const = 0;
-
   virtual amd_dbgapi_status_t
-  set_precise_alu_exceptions (bool enabled) const = 0;
+  set_process_flags (os_process_flags_t flags) const = 0;
 
   virtual amd_dbgapi_status_t
   xfer_global_memory_partial (amd_dbgapi_global_address_t address, void *read,
@@ -473,6 +480,7 @@ template <> std::string to_string (os_agent_info_t os_agent_info);
 template <> std::string to_string (kfd_dbg_device_info_entry);
 template <> std::string to_string (os_exception_code_t exception_code);
 template <> std::string to_string (os_exception_mask_t exception_mask);
+template <> std::string to_string (os_process_flags_t flags);
 template <> std::string to_string (os_queue_snapshot_entry_t snapshot);
 template <> std::string to_string (os_runtime_info_t runtime_info);
 template <> std::string to_string (os_runtime_state_t runtime_state);

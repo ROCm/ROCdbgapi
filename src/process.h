@@ -112,10 +112,10 @@ private:
   bool m_frozen{ false };
 
   bool m_supports_precise_memory{ false };
-  bool m_precise_memory{ false };
 
   bool m_supports_precise_alu_exceptions{ false };
-  bool m_precise_alu_exceptions{ false };
+
+  os_process_flags_t m_process_flags{};
 
   bool m_forward_progress_needed{ true };
 

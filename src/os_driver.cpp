@@ -220,13 +220,8 @@ public:
     return AMD_DBGAPI_STATUS_ERROR;
   }
 
-  amd_dbgapi_status_t set_precise_memory (bool /* enabled  */) const override
-  {
-    return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
-  }
-
   amd_dbgapi_status_t
-  set_precise_alu_exceptions (bool /* enabled  */) const override
+  set_process_flags (os_process_flags_t /* flags  */) const override
   {
     return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
   }
@@ -862,9 +857,8 @@ public:
     os_wave_launch_trap_mask_t *previous_mask,
     os_wave_launch_trap_mask_t *supported_mask) const override;
 
-  amd_dbgapi_status_t set_precise_memory (bool enabled) const override;
-
-  amd_dbgapi_status_t set_precise_alu_exceptions (bool enabled) const override;
+  amd_dbgapi_status_t
+  set_process_flags (os_process_flags_t flags) const override;
 
   amd_dbgapi_status_t
   xfer_global_memory_partial (amd_dbgapi_global_address_t address, void *read,
@@ -1587,33 +1581,16 @@ kfd_driver_t::set_wave_launch_trap_override (
 }
 
 amd_dbgapi_status_t
-kfd_driver_t::set_precise_memory (bool enabled) const
+kfd_driver_t::set_process_flags (os_process_flags_t flags) const
 {
-  TRACE_DRIVER_BEGIN (param_in (enabled));
+  TRACE_DRIVER_BEGIN (param_in (flags));
 
   kfd_ioctl_dbg_trap_args args{};
-  args.set_flags.flags = enabled ? KFD_DBG_TRAP_FLAG_SINGLE_MEM_OP /* enable */
-                                 : 0 /* disable  */;
 
-  int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_FLAGS, &args);
-  if (err == -ESRCH)
-    return AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED;
-  else if (err < 0)
-    return AMD_DBGAPI_STATUS_ERROR;
-
-  return AMD_DBGAPI_STATUS_SUCCESS;
-
-  TRACE_DRIVER_END ();
-}
-
-amd_dbgapi_status_t
-kfd_driver_t::set_precise_alu_exceptions (bool enabled) const
-{
-  TRACE_DRIVER_BEGIN (param_in (enabled));
-
-  kfd_ioctl_dbg_trap_args args{};
-  args.set_flags.flags = enabled ? KFD_DBG_TRAP_FLAG_SINGLE_ALU_OP /* enable */
-                                 : 0 /* disable  */;
+  if (!!(flags & os_process_flags_t::precise_memory))
+    args.set_flags.flags |= KFD_DBG_TRAP_FLAG_SINGLE_MEM_OP;
+  if (!!(flags & os_process_flags_t::precise_alu_exceptions))
+    args.set_flags.flags |= KFD_DBG_TRAP_FLAG_SINGLE_ALU_OP;
 
   int err = kfd_dbg_trap_ioctl (KFD_IOC_DBG_TRAP_SET_FLAGS, &args);
   if (err == -ESRCH)
@@ -1721,6 +1698,23 @@ to_string (os_wave_launch_mode_t mode)
 
 namespace
 {
+
+inline std::string
+one_os_process_flag_to_string (os_process_flags_t flag)
+{
+  dbgapi_assert (!(flag & (flag - 1)) && "only 1 bit");
+
+  switch (flag)
+    {
+    case os_process_flags_t::precise_memory:
+      return "PRECISE_MEMORY";
+    case os_process_flags_t::precise_alu_exceptions:
+      return "PRECISE_ALU_EXCEPTIONS";
+    }
+
+  return to_string (
+    make_hex (static_cast<std::underlying_type_t<decltype (flag)>> (flag)));
+}
 
 inline std::string
 one_os_exception_to_string (os_exception_mask_t exception_mask)
@@ -1968,6 +1962,29 @@ to_string (detail::query_ref<os_exception_code_t> ref)
       make_ref (static_cast<const os_runtime_info_t *> (value)));
 
   return {};
+}
+
+template <>
+std::string
+to_string (os_process_flags_t flags)
+{
+  std::string str;
+
+  if (!flags)
+    return one_os_process_flag_to_string (flags);
+
+  while (!!flags)
+    {
+      os_process_flags_t one_flag = flags ^ (flags & (flags - 1));
+
+      if (!str.empty ())
+        str += " | ";
+      str += one_os_process_flag_to_string (one_flag);
+
+      flags ^= one_flag;
+    }
+
+  return str;
 }
 
 } /* namespace amd::dbgapi */
