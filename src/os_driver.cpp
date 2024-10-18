@@ -1850,9 +1850,9 @@ std::string
 to_string (kfd_dbg_device_info_entry entry)
 {
   return string_printf (
-    "{ .exception_status=%#llx, .lds_base=%#llx, .lds_limit=%#llx, "
-    ".scratch_base=%#llx, .scratch_limit=%#llx, .gpuvm_base=%#llx, "
-    ".gpuvm_limit=%#llx, .gpu_id=%d, .location_id=%#x, .vendor_id=%#x, "
+    "{ .exception_status=%#" PRIx64 ", .lds_base=%#" PRIx64 ", .lds_limit=%#" PRIx64 ", "
+    ".scratch_base=%#" PRIx64 ", .scratch_limit=%#" PRIx64 ", .gpuvm_base=%#" PRIx64 ", "
+    ".gpuvm_limit=%#" PRIx64 ", .gpu_id=%d, .location_id=%#x, .vendor_id=%#x, "
     ".device_id=%#x, .fw_version=%d, .gfx_target_version=%#x, "
     ".simd_count=%d, .max_waves_per_simd=%d, .array_count=%d, "
     ".simd_arrays_per_engine=%d, .capability=%#x, .debug_prop=%#x }",
@@ -1889,7 +1889,7 @@ std::string
 to_string (os_runtime_info_t runtime_info)
 {
   return string_printf (
-    "{ .r_debug=%#llx, .runtime_state=%s, .ttmp_setup=%d }",
+    "{ .r_debug=%#" PRIx64 ", .runtime_state=%s, .ttmp_setup=%d }",
     runtime_info.r_debug,
     to_cstring (static_cast<os_runtime_state_t> (runtime_info.runtime_state)),
     runtime_info.ttmp_setup);
@@ -1922,10 +1922,10 @@ std::string
 to_string (os_queue_snapshot_entry_t snapshot)
 {
   return string_printf (
-    "{ .exception_status=%#llx, .ring_base_address=%#llx, "
-    ".write_pointer_address=%#llx, .read_pointer_address=%#llx, "
-    ".ctx_save_restore_address=%#llx, .queue_id=%d, .gpu_id=%d, "
-    ".ring_size=%d, .queue_type=%d }",
+    "{ .exception_status=%#" PRIx64 ", .ring_base_address=%#" PRIx64 ", "
+    ".write_pointer_address=%#" PRIx64 ", .read_pointer_address=%#" PRIx64 ", "
+    ".ctx_save_restore_address=%#" PRIx64 ", .queue_id=%" PRId32 ", .gpu_id=%" PRId32 ", "
+    ".ring_size=%" PRId32 ", .queue_type=%" PRId32 " }",
     snapshot.exception_status, snapshot.ring_base_address,
     snapshot.write_pointer_address, snapshot.read_pointer_address,
     snapshot.ctx_save_restore_address, snapshot.queue_id, snapshot.gpu_id,
