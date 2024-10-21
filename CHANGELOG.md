@@ -1,12 +1,13 @@
 # Changelog for AMD Debugger API (ROCdbgapi)
 
-Full documentatino for AMD Debugger API is available at
-[rocm.docs.amd.com](https://rocm.docs.amd.com/projects/ROCdbgapi/en/latest/index.html).
+Full documentation for AMD Debugger API is available at
+[rocm.docs.amd.com/rocdbgapi](https://rocm.docs.amd.com/projects/ROCdbgapi/en/latest/index.html).
 
 ## rocm-dbgapi-0.77.0
+
 ### Added
-- Added support for gfx1200 and gfx1201 architectures.
-- Add support for setting precise ALU exception reporting.
+- Support for gfx1200 and gfx1201 architectures
+- Support for setting precise ALU exception reporting
 
 ## rocm-dbgapi-0.76.0
 ### Resolved issues
