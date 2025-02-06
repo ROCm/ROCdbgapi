@@ -3,7 +3,11 @@
 Full documentation for AMD Debugger API is available at
 [rocm.docs.amd.com/rocdbgapi](https://rocm.docs.amd.com/projects/ROCdbgapi/en/latest/index.html).
 
-## rocm-dbgapi-0.78 for ROCm-X
+## rocm-dbgapi-0.79 for ROCm-X
+### Changed
+- Add a `wave_id` argument to `amd_dbgapi_address_dependency`.
+
+## rocm-dbgapi-0.78
 
 ### Added
 - Initial support to debug HIP applications on Windows OS.  Windows is
