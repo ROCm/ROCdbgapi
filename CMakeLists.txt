@@ -81,7 +81,7 @@ file(GLOB SOURCES "src/*.cpp")
 add_library(amd-dbgapi SHARED ${SOURCES})
 
 set_target_properties(amd-dbgapi PROPERTIES
-  CXX_STANDARD 17
+  CXX_STANDARD 20
   CXX_STANDARD_REQUIRED ON
   CXX_EXTENSIONS ON
   CXX_VISIBILITY_PRESET hidden

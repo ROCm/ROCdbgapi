@@ -20,7 +20,7 @@ RHEL 8.1, and SLES 15 Service Pack 1.
 
 Building the ROCdbgapi library has the following prerequisites:
 
-1. A C++17 compiler such as GCC 7 or Clang 5.
+1. A C++20 compiler such as GCC 11 or Clang 14.
 
 2. AMD Code Object Manager Library (ROCcomgr) which can be installed as part of
    the AMD ROCm release by the ``comgr`` package.

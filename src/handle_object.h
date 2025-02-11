@@ -212,8 +212,8 @@ public:
     }
     reference operator* () { return *m_it->second; }
     pointer operator-> () { return m_it->second.get (); }
-    bool operator== (const self_type &rhs) { return m_it == rhs.m_it; }
-    bool operator!= (const self_type &rhs) { return m_it != rhs.m_it; }
+    bool operator== (const self_type &rhs) const { return m_it == rhs.m_it; }
+    bool operator!= (const self_type &rhs) const { return m_it != rhs.m_it; }
   };
 
   class const_iterator

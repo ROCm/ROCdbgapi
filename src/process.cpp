@@ -394,7 +394,7 @@ process_t::set_wave_launch_mode (os_wave_launch_mode_t wave_launch_mode)
     return;
 
   auto set_wave_launch_mode = utils::make_scope_success (
-    [=] () { m_wave_launch_mode = wave_launch_mode; });
+    [=,this] () { m_wave_launch_mode = wave_launch_mode; });
 
   /* If this is called before the runtime is loaded (or after the runtime is
      unloaded), only record the setting in the process_t instance. The actual
@@ -460,7 +460,7 @@ process_t::set_wave_launch_trap_override (os_wave_launch_trap_mask_t value,
     return;
 
   auto set_wave_trap_mask = utils::make_scope_success (
-    [=] () { m_wave_trap_mask = wave_trap_mask; });
+    [=,this] () { m_wave_trap_mask = wave_trap_mask; });
 
   /* If this is called before the runtime is loaded (or after the runtime is
      unloaded), only record the setting in the process_t instance. The actual
@@ -494,7 +494,7 @@ process_t::set_precise_memory (bool enabled)
     new_flags = new_flags & ~os_process_flags_t::precise_memory;
 
   auto set_precise_memory
-    = utils::make_scope_success ([=] () { m_process_flags = new_flags; });
+    = utils::make_scope_success ([=,this] () { m_process_flags = new_flags; });
 
   /* If this is called before the runtime is loaded (or after the runtime is
      unloaded), only record the setting in the process_t instance. The actual
@@ -529,7 +529,7 @@ process_t::set_precise_alu_exceptions (bool enabled)
     new_flags = new_flags & ~os_process_flags_t::precise_alu_exceptions;
 
   auto set_precise_alu_exceptions
-    = utils::make_scope_success ([=] () { m_process_flags = new_flags; });
+    = utils::make_scope_success ([=,this] () { m_process_flags = new_flags; });
 
   /* If this is called before the runtime is loaded (or after the runtime is
      unloaded), only record the setting in the process_t instance. The actual

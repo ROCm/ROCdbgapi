@@ -217,7 +217,7 @@ aql_queue_t::aql_dispatch_t::grid_dimensions () const
 {
   return static_cast<uint32_t> (utils::bit_extract (
     m_packet.setup, HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS,
-    HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS
+    static_cast<uint32_t> (HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS)
       + HSA_KERNEL_DISPATCH_PACKET_SETUP_WIDTH_DIMENSIONS - 1));
 }
 
@@ -284,7 +284,7 @@ aql_queue_t::aql_dispatch_t::get_info (amd_dbgapi_dispatch_info_t query,
         value_size, value,
         static_cast<amd_dbgapi_dispatch_fence_scope_t> (utils::bit_extract (
           m_packet.header, HSA_PACKET_HEADER_SCACQUIRE_FENCE_SCOPE,
-          HSA_PACKET_HEADER_SCACQUIRE_FENCE_SCOPE
+          static_cast<uint32_t> (HSA_PACKET_HEADER_SCACQUIRE_FENCE_SCOPE)
             + HSA_PACKET_HEADER_WIDTH_SCACQUIRE_FENCE_SCOPE - 1)));
       return;
 
@@ -293,7 +293,7 @@ aql_queue_t::aql_dispatch_t::get_info (amd_dbgapi_dispatch_info_t query,
         value_size, value,
         static_cast<amd_dbgapi_dispatch_fence_scope_t> (utils::bit_extract (
           m_packet.header, HSA_PACKET_HEADER_SCRELEASE_FENCE_SCOPE,
-          HSA_PACKET_HEADER_SCRELEASE_FENCE_SCOPE
+          static_cast<uint32_t> (HSA_PACKET_HEADER_SCRELEASE_FENCE_SCOPE)
             + HSA_PACKET_HEADER_WIDTH_SCRELEASE_FENCE_SCOPE - 1)));
       return;
 
