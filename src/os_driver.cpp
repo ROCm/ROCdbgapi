@@ -277,81 +277,88 @@ protected:
                       os_exception_mask_t exceptions_cleared) const = 0;
 
 private:
-  static std::string pci_device_name (uint32_t vendor_id, uint32_t device_id);
+  static std::string marketing_name (uint32_t vendor_id, uint32_t device_id,
+                                     uint32_t revision_id);
 };
 
-/* Find the marketing name for the PCI device VENDOR_ID:DEVICE_ID.
+/* Find the marketing name for the PCI device VENDOR_ID:DEVICE_ID.REV_ID.
 
-   The information is extracted from the pci.ids database[1] which might or
-   might not be up to date, so the result might change from host to host.  The
-   location of the pci.ids file is resolved by CMake and available via the
-   PCI_IDS_PATH macro.  The file can usually be updated using the update-pciids
-   command.
-
-   [1] https://pci-ids.ucw.cz/  */
+   The information is extracted from the amdgpu.ids database shipped with
+   libdrm.  */
 
 std::string
-kfd_driver_base_t::pci_device_name (uint32_t vendor_id, uint32_t device_id)
+kfd_driver_base_t::marketing_name (uint32_t vendor_id, uint32_t device_id,
+                                   uint32_t revision_id)
 {
-  auto fallback_name = [vendor_id, device_id] () -> std::string
+  auto fallback_name = [vendor_id, device_id, revision_id] () -> std::string
   {
     std::stringstream name;
     name << "Device " << std::hex << std::setfill ('0') << std::setw (4)
-         << vendor_id << ':' << std::setw (4) << device_id;
+         << vendor_id << ':' << std::setw (4) << device_id << '.'
+         << std::setw (2) << revision_id;
     return name.str ();
   };
 
-  const char *pciids_file_path = PCI_IDS_PATH;
-  std::ifstream pci_ids (pciids_file_path);
-  if (!pci_ids.is_open ())
+  auto amdgpu_ids = [] () -> std::optional<std::ifstream>
+  {
+    static const std::array paths{ "/opt/amdgpu/share/libdrm/amdgpu.ids",
+                                   "/usr/share/libdrm/amdgpu.ids" };
+    for (auto p : paths)
+      {
+        std::ifstream st (p);
+        if (st.is_open ())
+          return { std::move (st) };
+      }
+    return {};
+  }();
+
+  if (!amdgpu_ids.has_value ())
     {
-      warning ("Could not open '%s'", pciids_file_path);
+      static bool warned = false;
+      if (!warned)
+        {
+          warning ("Cannot locate the amdgpu.ids file.");
+          warned = true;
+        }
       return fallback_name ();
     }
 
-  unsigned int curr_vendor_id = 0, curr_device_id = 0;
-  std::string curr_device_name;
-  for (std::string line; pci_ids.good (); std::getline (pci_ids, line))
+  /* Skip over the beginning of the file.  */
+  for (std::string line; std::getline (*amdgpu_ids, line);)
     {
-      std::stringstream line_st (line);
-      int nextchar = line_st.peek ();
-      if (nextchar == std::char_traits<char>::eof () || nextchar == '#')
+      /* Ignore empty lines and comments.  */
+      if (line == "" || line[0] == '#')
         continue;
-      if (nextchar != '\t')
+
+      if (line != "1.0.0")
         {
-          /* Format: "vendor_id vendor_name".  */
-          line_st >> std::hex >> curr_vendor_id;
-          curr_device_id = 0;
-          curr_device_name = "";
-
-          /* We reached the end of the list of vendors and did not find
-             the one we are looking for.  Break here as the end of the
-             file has a different format.  */
-          if (curr_vendor_id == 0xffff)
-            break;
+          warning ("Unsupported amdgpu.ids file version: '%s'", line.c_str ());
+          return fallback_name ();
         }
-      else
+
+      break;
+    }
+
+  /* From now on, each line has the following format:
+     DEV_ID,\tREV_ID,\tDEVICE NAME\n  */
+  uint32_t did, rid;
+  char comma;
+  std::string name, delim;
+  while (*amdgpu_ids)
+    {
+      if (!(*amdgpu_ids >> std::hex >> did >> comma >> std::ws)
+          || !(*amdgpu_ids >> std::hex >> rid >> comma >> std::ws))
         {
-          /* Skip decoding of the current line if the vendor_id does not match
-             the one we are looking for.  */
-          if (curr_vendor_id != vendor_id)
-            continue;
-
-          /* Consume the leading \t.  */
-          line_st.get ();
-          nextchar = line_st.peek ();
-          if (nextchar != '\t')
-            {
-              /* Format: "TAB device_id device_name".  */
-              line_st >> std::hex >> curr_device_id;
-              std::getline (line_st >> std::ws, curr_device_name);
-            }
-
-          /* There is a "TAB TAB subvendor subdevice  subsystem_name" format
-             we do not care about.  */
+          /* Can't parse the did / rid, skip the rest of the line.  */
+          amdgpu_ids->clear ();
+          amdgpu_ids->ignore (std::numeric_limits<std::streamsize>::max (),
+                              '\n');
+          continue;
         }
-      if (curr_vendor_id == vendor_id && curr_device_id == device_id)
-        return curr_device_name;
+      std::getline (*amdgpu_ids, name);
+
+      if (did == device_id && rid == revision_id)
+        return name;
     }
 
   /* We have not found the device.  */
@@ -465,8 +472,8 @@ kfd_driver_base_t::agent_snapshot (
 
       agent_info.shader_engine_count
         = (entry.array_count * entry.num_xcc) / entry.simd_arrays_per_engine;
-      agent_info.name
-        = pci_device_name (agent_info.vendor_id, agent_info.device_id);
+      agent_info.name = marketing_name (
+        agent_info.vendor_id, agent_info.device_id, agent_info.revision_id);
     }
 
   return AMD_DBGAPI_STATUS_SUCCESS;

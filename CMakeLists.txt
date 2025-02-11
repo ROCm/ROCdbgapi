@@ -20,7 +20,7 @@
 
 cmake_minimum_required(VERSION 3.8)
 
-project(amd-dbgapi VERSION 0.77.1)
+project(amd-dbgapi VERSION 0.77.2)
 
 include(CheckIncludeFile)
 include(GNUInstallDirs)
@@ -112,27 +112,6 @@ option(API_TRACING "Enable API tracing" ON)
 if(API_TRACING)
   target_compile_definitions(amd-dbgapi PRIVATE WITH_API_TRACING)
 endif()
-
-find_file(
-  PCI_IDS_PATH
-  NAMES
-    pci.ids
-  PATHS
-    /usr/share/misc
-    /usr/share/hwdata
-  NO_DEFAULT_PATH
-)
-# CMake-3.18 adds the REQUIRED parameter to find_file, but we cannot rely on it
-# yet.  Check manually the file is found until then.
-if("${PCI_IDS_PATH}" STREQUAL "PCI_IDS_PATH-NOTFOUND")
-  message(FATAL_ERROR "Cannot found the pci.ids file. Use PCI_IDS_PATH to specify known path.")
-endif()
-message(STATUS "Using pci.ids file: ${PCI_IDS_PATH}")
-set_source_files_properties(
-  src/os_driver.cpp
-  PROPERTIES
-    COMPILE_DEFINITIONS "PCI_IDS_PATH=\"${PCI_IDS_PATH}\""
-)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   set(CMAKE_REQUIRED_FLAGS_BKP "${CMAKE_REQUIRED_FLAGS}")
@@ -307,14 +286,14 @@ set(CPACK_DEB_COMPONENT_INSTALL ON)
 set(CPACK_RPM_COMPONENT_INSTALL ON)
 set(CPACK_DEBIAN_DEV_PACKAGE_NAME "rocm-dbgapi")
 set(CPACK_RPM_DEV_PACKAGE_NAME "rocm-dbgapi")
-set(CPACK_RPM_DEV_PACKAGE_REQUIRES "rocm-core, comgr >= 1.2.0, hwdata")
-set(CPACK_DEBIAN_DEV_PACKAGE_DEPENDS "comgr(>=1.2.0), rocm-core, pci.ids")
+set(CPACK_RPM_DEV_PACKAGE_REQUIRES "rocm-core, comgr >= 1.2.0")
+set(CPACK_DEBIAN_DEV_PACKAGE_DEPENDS "comgr(>=1.2.0), rocm-core")
 # Debian package specific variable for ASAN
 set(CPACK_DEBIAN_ASAN_PACKAGE_NAME "rocm-dbgapi-asan")
-set(CPACK_DEBIAN_ASAN_PACKAGE_DEPENDS "comgr-asan(>=1.2.0), rocm-core-asan, pci.ids")
+set(CPACK_DEBIAN_ASAN_PACKAGE_DEPENDS "comgr-asan(>=1.2.0), rocm-core-asan, libdrm-amdgpu-common | libdrm-common")
 # RPM package specific variable for ASAN
 set(CPACK_RPM_ASAN_PACKAGE_NAME "rocm-dbgapi-asan" )
-set(CPACK_RPM_ASAN_PACKAGE_REQUIRES "rocm-core-asan, comgr-asan >= 1.2.0, hwdata")
+set(CPACK_RPM_ASAN_PACKAGE_REQUIRES "rocm-core-asan, comgr-asan >= 1.2.0, libdrm-amdgpu-common")
 
 # Debian package specific variables
 if(DEFINED ENV{CPACK_DEBIAN_PACKAGE_RELEASE})
@@ -325,7 +304,7 @@ endif()
 message("Using CPACK_DEBIAN_PACKAGE_RELEASE ${CPACK_DEBIAN_PACKAGE_RELEASE}")
 set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
 
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "comgr(>=1.2.0), rocm-core, pci.ids")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "comgr(>=1.2.0), rocm-core, libdrm-amdgpu-common | libdrm-common")
 
 if(DEFINED ENV{CPACK_RPM_PACKAGE_RELEASE})
   set(CPACK_RPM_PACKAGE_RELEASE $ENV{CPACK_RPM_PACKAGE_RELEASE})
@@ -345,7 +324,7 @@ if(PROC_RESULT EQUAL "0" AND NOT EVAL_RESULT STREQUAL "")
 endif()
 set(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
 
-set(CPACK_RPM_PACKAGE_REQUIRES "comgr >= 1.2.0, hwdata")
+set(CPACK_RPM_PACKAGE_REQUIRES "comgr >= 1.2.0, libdrm-amdgpu-common")
 
 # Debian package specific variables
 #set(CPACK_DEBIAN_PACKAGE_HOMEPAGE

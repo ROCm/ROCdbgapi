@@ -31,7 +31,7 @@ Building the ROCdbgapi library has the following prerequisites:
 4. For Ubuntu 18.04 and Ubuntu 20.04 the following adds the needed packages:
 
    ````shell
-   apt install gcc g++ make cmake doxygen graphviz texlive-full pci.ids
+   apt install gcc g++ make cmake doxygen graphviz texlive-full
    ````
 
    NOTE: The ``doxygen`` 1.8.13 that is installed by Ubuntu 18.04 has a bug
@@ -43,7 +43,7 @@ Building the ROCdbgapi library has the following prerequisites:
    ````shell
    yum install -y gcc gcc-g++ make cmake doxygen graphviz texlive \
      texlive-xtab texlive-multirow texlive-sectsty texlive-tocloft \
-     texlive-tabu texlive-adjustbox hwdata
+     texlive-tabu texlive-adjustbox
    ````
 
    NOTE: The ``doxygen`` 1.8.14 that is installed by CentOS 8.1 and RHEL 8.1,
@@ -55,7 +55,7 @@ Building the ROCdbgapi library has the following prerequisites:
    ````shell
    zypper in gcc gcc-g++ make cmake doxygen graphviz texlive-scheme-medium \
      texlive-hanging texlive-stackengine texlive-tocloft texlive-etoc \
-     texlive-tabu hwdata
+     texlive-tabu
    ````
 
 An example command-line to build the ROCdbgapi library on Linux is:
@@ -111,6 +111,21 @@ to enable AMD GPU debugging.  This can be installed as part of the AMD ROCm
 release by the ``hsa-rocr-dev`` package:
 
 - ``libhsa-runtime64.so.1 ``
+
+Running the AMD Debugger API Library
+------------------------------------
+
+The AMD Debugger API library has an optional runtime dependency to the
+`amdgpu.ids` database file, located in `/opt/amdgpu/share/libdrm/amdgpu.ids`
+or `/usr/share/libdrm/amdgpu.ids`.
+
+The `/opt/amdgpu/share/libdrm/amdgpu.ids` database is provided by the
+`libdrm-amdgpu-common` ROCm package on all distributions.
+
+The `/usr/share/libdrm/amdgpu.ids` is provided by the following packages:
+- SLES: `libdrm-amdgpu`
+- RHEL: `libdrm`
+- Debian and Ubuntu: `libdrm-common`
 
 Known Limitations and Restrictions
 ----------------------------------
