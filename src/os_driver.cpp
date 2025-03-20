@@ -344,7 +344,7 @@ kfd_driver_base_t::marketing_name (uint32_t vendor_id, uint32_t device_id,
   uint32_t did, rid;
   char comma;
   std::string name, delim;
-  while (*amdgpu_ids)
+  while (*amdgpu_ids && !amdgpu_ids->eof ())
     {
       if (!(*amdgpu_ids >> std::hex >> did >> comma >> std::ws)
           || !(*amdgpu_ids >> std::hex >> rid >> comma >> std::ws))
