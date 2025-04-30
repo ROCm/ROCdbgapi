@@ -73,9 +73,15 @@ if(NOT CPACK_PACKAGING_INSTALL_PREFIX)
   set(CPACK_PACKAGING_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 endif()
 
-configure_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/amd-dbgapi.pc.in
-  ${CMAKE_CURRENT_BINARY_DIR}/share/pkgconfig/amd-dbgapi.pc @ONLY)
+if(ENABLE_ASAN_PACKAGING)
+  configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/amd-dbgapi.pc.in
+    ${CMAKE_CURRENT_BINARY_DIR}/share/asan/pkgconfig/amd-dbgapi.pc @ONLY)
+else()
+  configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/amd-dbgapi.pc.in
+    ${CMAKE_CURRENT_BINARY_DIR}/share/pkgconfig/amd-dbgapi.pc @ONLY)
+endif()
 
 file(GLOB SOURCES "src/*.cpp")
 add_library(amd-dbgapi SHARED ${SOURCES})
@@ -227,10 +233,17 @@ install(FILES
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/amd-dbgapi
   COMPONENT dev)
 
-install (FILES
-  "${CMAKE_CURRENT_BINARY_DIR}/share/pkgconfig/amd-dbgapi.pc"
-  DESTINATION ${CMAKE_INSTALL_DATADIR}/pkgconfig
-  COMPONENT dev)
+if(ENABLE_ASAN_PACKAGING)
+  install (FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/share/asan/pkgconfig/amd-dbgapi.pc"
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/asan/pkgconfig
+    COMPONENT dev)
+else()
+  install (FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/share/pkgconfig/amd-dbgapi.pc"
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/pkgconfig
+    COMPONENT dev)
+endif()
 
 install(FILES
   "LICENSE.txt"
