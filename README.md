@@ -1,6 +1,9 @@
 AMD Debugger API (ROCdbgapi)
 ============================
 
+> [!NOTE]
+> The published documentation is available at [ROCdbgapi documentation](https://rocm.docs.amd.com/projects/ROCdbgapi/en/latest/index.html) in an organized, easy-to-read format, with search and a table of contents.
+
 Introduction
 ------------
 
