@@ -794,9 +794,8 @@ std::pair<amd_dbgapi_global_address_t /* address */,
           amd_dbgapi_size_t /* size */>
 wave_t::scratch_memory_region () const
 {
-  auto [address, size] = queue ().scratch_memory_region (
-    m_cwsr_record->xcc_id (), m_cwsr_record->shader_engine_id (),
-    m_cwsr_record->scratch_scoreboard_id ());
+  auto [address, size]
+    = queue ().scratch_memory_region (*m_cwsr_record.get ());
 
   /* On architectures with an architected flat_scratch register, check that the
      computed slot scratch address matches the content of the register.  */

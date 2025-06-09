@@ -289,9 +289,7 @@ public:
                     amd_dbgapi_size_t /* size  */>
   scratch_memory_region (const agent_t &,
                          uint32_t compute_tmpring_size_register,
-                         uint32_t xcc_id, uint32_t shader_engine_id,
-                         uint32_t scoreboard_id) const
-    = 0;
+                         const cwsr_record_t &cwsr_record) const = 0;
 
   virtual bool
   is_address_space_supported (const address_space_t &address_space) const = 0;
