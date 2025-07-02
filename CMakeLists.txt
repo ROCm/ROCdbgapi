@@ -26,6 +26,8 @@ include(CheckIncludeFile)
 include(GNUInstallDirs)
 include(CheckCXXSourceCompiles)
 
+set(CPACK_PACKAGE_NAME rocm-dbgapi)
+
 # Convert the project's name to uppercase and replace '-' with '_'.
 string(TOUPPER "${PROJECT_NAME}" AMD_DBGAPI_NAME)
 string(REPLACE "-" "_" AMD_DBGAPI_NAME ${AMD_DBGAPI_NAME})
@@ -258,12 +260,12 @@ install (FILES
 
 install(FILES
   "LICENSE.txt"
-  DESTINATION ${CMAKE_INSTALL_DOCDIR}
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/${CPACK_PACKAGE_NAME}
   COMPONENT dev)
 
 install(FILES
   "LICENSE.txt"
-  DESTINATION ${CMAKE_INSTALL_DOCDIR}-asan
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/${CPACK_PACKAGE_NAME}-asan
   COMPONENT asan)
 
 # Generate the install-tree package.
@@ -290,7 +292,6 @@ install(EXPORT amd-dbgapi-export
   COMPONENT dev)
 
 # Add packaging directives for amd-dbgapi
-set(CPACK_PACKAGE_NAME rocm-dbgapi)
 set(CPACK_PACKAGE_VENDOR "Advanced Micro Devices, Inc.")
 set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
 set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
@@ -416,7 +417,7 @@ if(DOXYGEN_FOUND)
 
   install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/doc/latex/refman.pdf"
-    DESTINATION ${CMAKE_INSTALL_DOCDIR}
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/${CPACK_PACKAGE_NAME}
     RENAME "amd-dbgapi.pdf"
     OPTIONAL
     COMPONENT dev)
