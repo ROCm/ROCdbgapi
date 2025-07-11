@@ -34,7 +34,7 @@ namespace amd::dbgapi
 
 watchpoint_t::watchpoint_t (amd_dbgapi_watchpoint_id_t watchpoint_id,
                             process_t &process,
-                            amd_dbgapi_global_address_t requested_address,
+                            agent_address_t requested_address,
                             amd_dbgapi_size_t requested_size,
                             amd_dbgapi_watchpoint_kind_t kind)
   : handle_object (watchpoint_id), m_requested_address (requested_address),
@@ -89,25 +89,24 @@ watchpoint_t::watchpoint_t (amd_dbgapi_watchpoint_id_t watchpoint_id,
      aAddr:  01111111 11111110 11100111 00000100 00000000 01000000
    */
 
-  amd_dbgapi_global_address_t first_address = requested_address;
-  amd_dbgapi_global_address_t last_address
-    = first_address + requested_size - 1;
+  uint64_t first_address = requested_address;
+  uint64_t last_address = first_address + requested_size - 1;
 
-  amd_dbgapi_global_address_t stable_bits
+  uint64_t stable_bits
     = -utils::next_power_of_two ((first_address ^ last_address) + 1);
 
   /* programmable_mask_bits is the intersection of all the process' agents
      capabilities.  architecture_t::watchpoint_mask_bits returns a mask
      with 1 bits in the positions that can be programmed (x`s).  */
-  amd_dbgapi_global_address_t programmable_mask_bits{
+  uint64_t programmable_mask_bits{
     std::numeric_limits<decltype (programmable_mask_bits)>::max ()
   };
   for (auto &&agent : process.range<agent_t> ())
     programmable_mask_bits &= agent.os_info ().address_watch_mask_bits;
 
-  amd_dbgapi_global_address_t field_B = programmable_mask_bits;
-  amd_dbgapi_global_address_t field_A = ~(field_B | (field_B - 1));
-  amd_dbgapi_global_address_t field_C = ~(field_A | field_B);
+  uint64_t field_B = programmable_mask_bits;
+  uint64_t field_A = ~(field_B | (field_B - 1));
+  uint64_t field_C = ~(field_A | field_B);
 
   /* Check that the required mask is within the agents capabilities.  */
   if (stable_bits < field_A)

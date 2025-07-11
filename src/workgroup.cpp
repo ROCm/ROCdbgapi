@@ -53,7 +53,7 @@ workgroup_t::architecture () const
 }
 
 void
-workgroup_t::update (amd_dbgapi_global_address_t local_memory_base_address)
+workgroup_t::update (agent_address_t local_memory_base_address)
 {
   m_local_memory_base_address.emplace (local_memory_base_address);
 }
@@ -96,13 +96,11 @@ workgroup_t::xfer_local_memory (const address_space_t &address_space,
       size = max_size;
     }
 
-  amd_dbgapi_global_address_t global_address
-    = *m_local_memory_base_address + offset;
+  agent_address_t address = *m_local_memory_base_address + offset;
 
   return read != nullptr
-           ? process ().read_global_memory_partial (global_address, read, size)
-           : process ().write_global_memory_partial (global_address, write,
-                                                     size);
+           ? agent ().read_agent_memory_partial (address, read, size)
+           : agent ().write_agent_memory_partial (address, write, size);
 }
 
 size_t

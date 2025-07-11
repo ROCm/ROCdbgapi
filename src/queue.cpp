@@ -115,7 +115,7 @@ private:
      instruction buffers.  Instruction buffers are lazily allocated from the
      reserved memory, and when freed, their index is returned to a free list.
      Each wave is guaranteed its own unique instruction buffer.  */
-  std::optional<amd_dbgapi_global_address_t> m_debugger_memory_base{};
+  std::optional<agent_address_t> m_debugger_memory_base{};
 
   uint16_t m_debugger_memory_chunk_count{ 0 };
   uint16_t m_debugger_memory_next_chunk{ 0 };
@@ -151,13 +151,13 @@ public:
   }
 
   /* Return the address of a park instruction.  */
-  amd_dbgapi_global_address_t park_instruction_address () override
+  agent_address_t park_instruction_address () override
   {
     /* When the queue is loaded from a core dump, there is no running wave, and
        we cannot allocate nor initialize displaced instruction buffers. Setting
        the PC to 0 is harmless for a stopped wave.  */
     if (process ().from_core ())
-      return 0x0;
+      return {};
 
     if (!m_park_instruction_ptr)
       m_park_instruction_ptr.emplace (allocate_displaced_instruction (
@@ -167,11 +167,11 @@ public:
   }
 
   /* Return the address of a terminating instruction.  */
-  amd_dbgapi_global_address_t terminating_instruction_address () override
+  agent_address_t terminating_instruction_address () override
   {
     /* See park_instruction_address.  */
     if (process ().from_core ())
-      return 0x0;
+      return {};
 
     if (!m_terminating_instruction_ptr)
       m_terminating_instruction_ptr.emplace (allocate_displaced_instruction (
@@ -180,8 +180,7 @@ public:
     return m_terminating_instruction_ptr->get ();
   }
 
-  std::pair<amd_dbgapi_global_address_t /* address */,
-            amd_dbgapi_size_t /* size */>
+  std::pair<agent_address_t /* address */, amd_dbgapi_size_t /* size */>
   scratch_memory_region (
     const architecture_t::cwsr_record_t &cwsr_record) const override;
 
@@ -387,7 +386,7 @@ aql_queue_t::~aql_queue_t ()
 
   const auto xcc_count = agent ().os_info ().xcc_count;
 
-  process.memory_cache ().discard (
+  agent ().memory_cache ().discard (
     m_os_queue_info.ctx_save_restore_address,
     xcc_count * m_os_queue_info.ctx_save_restore_area_size, true);
 }
@@ -399,11 +398,10 @@ aql_queue_t::allocate_displaced_instruction (const instruction_t &instruction)
 
   if (!m_debugger_memory_base)
     {
-      amd_dbgapi_global_address_t ctx_save_base
-        = m_os_queue_info.ctx_save_restore_address;
+      auto ctx_save_base = m_os_queue_info.ctx_save_restore_address;
 
       struct context_save_area_header_s header;
-      process ().read_global_memory (ctx_save_base, &header);
+      agent ().read_agent_memory (ctx_save_base, &header);
 
       if (!header.debugger_memory_offset || !header.debugger_memory_size)
         fatal_error ("Per-queue memory reserved for the debugger is missing");
@@ -415,14 +413,14 @@ aql_queue_t::allocate_displaced_instruction (const instruction_t &instruction)
         utils::is_aligned (debugger_memory_chunk_size,
                            architecture ().minimum_instruction_alignment ()));
 
-      m_debugger_memory_base.emplace (
+      m_debugger_memory_base.emplace (agent_address_t{
         utils::align_up (ctx_save_base + header.debugger_memory_offset,
-                         debugger_memory_chunk_size));
+                         debugger_memory_chunk_size) });
 
-      auto chunk_count
-        = (ctx_save_base + header.debugger_memory_size
-           + header.debugger_memory_offset - *m_debugger_memory_base)
-          / debugger_memory_chunk_size;
+      auto chunk_count = ((ctx_save_base + header.debugger_memory_size
+                           + header.debugger_memory_offset)
+                          - *m_debugger_memory_base)
+                         / debugger_memory_chunk_size;
 
       /* Ensure that the number of chunks does not overflow the 16 bit index.
        */
@@ -436,7 +434,7 @@ aql_queue_t::allocate_displaced_instruction (const instruction_t &instruction)
     }
 
   auto assert_instruction = architecture ().assert_instruction ();
-  amd_dbgapi_global_address_t instruction_buffer_address;
+  agent_address_t instruction_buffer_address;
 
   if (!m_debugger_memory_free_chunks.empty ())
     {
@@ -458,7 +456,7 @@ aql_queue_t::allocate_displaced_instruction (const instruction_t &instruction)
          instruction to prevent runaway waves from executing from unmapped
          memory.  */
 
-      process ().write_global_memory (
+      agent ().write_agent_memory (
         instruction_buffer_address + debugger_memory_chunk_size
           - assert_instruction.size (),
         assert_instruction.data (), assert_instruction.size ());
@@ -466,7 +464,7 @@ aql_queue_t::allocate_displaced_instruction (const instruction_t &instruction)
   else
     fatal_error ("could not allocate debugger memory");
 
-  auto deleter = [this] (amd_dbgapi_global_address_t ptr)
+  auto deleter = [this] (agent_address_t ptr)
   {
     size_t index
       = (ptr - *m_debugger_memory_base) / debugger_memory_chunk_size;
@@ -478,7 +476,7 @@ aql_queue_t::allocate_displaced_instruction (const instruction_t &instruction)
   dbgapi_assert (instruction.size () + assert_instruction.size ()
                  <= debugger_memory_chunk_size);
 
-  amd_dbgapi_global_address_t displaced_instruction_address
+  auto displaced_instruction_address
     = instruction_buffer_address + debugger_memory_chunk_size
       - assert_instruction.size () - instruction.size ();
 
@@ -488,8 +486,8 @@ aql_queue_t::allocate_displaced_instruction (const instruction_t &instruction)
     utils::is_aligned (displaced_instruction_address,
                        architecture ().minimum_instruction_alignment ()));
 
-  process ().write_global_memory (displaced_instruction_address,
-                                  instruction.data (), instruction.size ());
+  agent ().write_agent_memory (displaced_instruction_address,
+                               instruction.data (), instruction.size ());
 
   return { displaced_instruction_address, deleter };
 }
@@ -514,7 +512,7 @@ aql_queue_t::queue_state_changed ()
          waves' cached registers does not require a queue suspend/resume.  The
          saved state cache lines will be discarded when this queue is next
          suspended again (see the 'case state_t::suspended:' below).  */
-      process ().memory_cache ().write_back (
+      agent ().memory_cache ().write_back (
         m_os_queue_info.ctx_save_restore_address,
         xcc_count * m_os_queue_info.ctx_save_restore_area_size);
       break;
@@ -523,7 +521,7 @@ aql_queue_t::queue_state_changed ()
       /* Discard the previously cached wave saved state lines.  The saved state
          areas may be mapped to a different address in this new context wave
          save.  */
-      process ().memory_cache ().discard (
+      agent ().memory_cache ().discard (
         m_os_queue_info.ctx_save_restore_address,
         xcc_count * m_os_queue_info.ctx_save_restore_area_size);
 
@@ -579,7 +577,7 @@ aql_queue_t::get_os_queue_packet_id (
     return std::nullopt;
 
   /* Calculate the monotonic dispatch id for this packet.  It is
-     between read_packet_id and write_packet_id.  */
+       between read_packet_id and write_packet_id.  */
 
   const size_t ring_size = size () / aql_packet_size;
 
@@ -629,8 +627,8 @@ aql_queue_t::update_waves ()
         + architecture ().register_size (amdgpu_regnum_t::last_ttmp);
 
     dbgapi_assert (prefetch_end > prefetch_begin);
-    process.memory_cache ().prefetch (prefetch_begin,
-                                      prefetch_end - prefetch_begin);
+    cwsr_record->agent ().memory_cache ().prefetch (
+      prefetch_begin, prefetch_end - prefetch_begin);
 
     wave_t *wave = nullptr;
 
@@ -782,7 +780,7 @@ aql_queue_t::update_waves ()
 
       /* Retrieve the control stack and wave save area memory locations.  */
       context_save_area_header_s header;
-      process.read_global_memory (ctx_save_address, &header);
+      agent ().read_agent_memory (ctx_save_address, &header);
 
       auto control_stack_begin
         = ctx_save_address + header.control_stack_offset;
@@ -797,10 +795,11 @@ aql_queue_t::update_waves ()
       if (control_stack_begin != control_stack_end)
         {
           log_info ("decoding %s's context save area #%u: "
-                    "ctrl_stk:[%#" PRIx64 "..%#" PRIx64 "[, "
-                    "wave_area:[%#" PRIx64 "..%#" PRIx64 "[",
-                    to_cstring (id ()), xcc_id, control_stack_begin,
-                    control_stack_end, wave_area_begin, wave_area_end);
+                    "ctrl_stk:[%s..%s[, wave_area:[%s..%s[",
+                    to_cstring (id ()), xcc_id,
+                    to_cstring (control_stack_begin),
+                    to_cstring (control_stack_end),
+                    to_cstring (wave_area_begin), to_cstring (wave_area_end));
 
           /* Read the entire control stack from the inferior in one go.  */
           amd_dbgapi_size_t size = control_stack_end - control_stack_begin;
@@ -809,7 +808,7 @@ aql_queue_t::update_waves ()
 
           auto memory
             = std::make_unique<uint32_t[]> (size / sizeof (uint32_t));
-          process.read_global_memory (control_stack_begin, &memory[0], size);
+          agent ().read_agent_memory (control_stack_begin, &memory[0], size);
 
           /* Decode the control stack.  For each entry in the control stack,
              the provided callback function is called with a CWSR record.  */
@@ -858,8 +857,7 @@ aql_queue_t::update_waves ()
       ++it;
 }
 
-std::pair<amd_dbgapi_global_address_t /* address */,
-          amd_dbgapi_size_t /* size */>
+std::pair<agent_address_t /* address */, amd_dbgapi_size_t /* size */>
 aql_queue_t::scratch_memory_region (
   const architecture_t::cwsr_record_t &cwsr_record) const
 {
@@ -916,9 +914,9 @@ aql_queue_t::active_packets_bytes (
 
   const uint64_t id_mask = size () / aql_packet_size - 1;
 
-  amd_dbgapi_global_address_t read_packet_ptr
+  host_address_t read_packet_ptr
     = address () + (read_packet_id & id_mask) * aql_packet_size;
-  amd_dbgapi_global_address_t write_packet_ptr
+  host_address_t write_packet_ptr
     = address () + (write_packet_id & id_mask) * aql_packet_size;
 
   if (read_packet_ptr < write_packet_ptr)
@@ -1076,7 +1074,7 @@ queue_t::set_state (state_t state)
     log_info ("invalidated %s", to_cstring (id ()));
 }
 
-amd_dbgapi_global_address_t
+host_address_t
 queue_t::address () const
 {
   return m_os_queue_info.ring_base_address;

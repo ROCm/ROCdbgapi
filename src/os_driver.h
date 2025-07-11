@@ -23,6 +23,7 @@
 
 #include "amd-dbgapi.h"
 #include "logging.h"
+#include "memory.h"
 #include "utils.h"
 
 #include <cstddef>
@@ -104,13 +105,13 @@ struct os_agent_info_t
   /* ucode version.  */
   uint32_t fw_version{ 0 };
   /* local/shared address aperture base.  */
-  amd_dbgapi_global_address_t local_address_aperture_base{ 0 };
+  agent_address_t local_address_aperture_base{ 0 };
   /* local/shared address aperture limit.  */
-  amd_dbgapi_global_address_t local_address_aperture_limit{ 0 };
+  agent_address_t local_address_aperture_limit{ 0 };
   /* private/scratch address aperture base.  */
-  amd_dbgapi_global_address_t private_address_aperture_base{ 0 };
+  agent_address_t private_address_aperture_base{ 0 };
   /* private/scratch address aperture limit.  */
-  amd_dbgapi_global_address_t private_address_aperture_limit{ 0 };
+  agent_address_t private_address_aperture_limit{ 0 };
   /* indicates if this agent's debugging capabilities are sufficient.  */
   bool debugging_supported{ false };
   /* indicates if address watch is supported.  */
@@ -118,7 +119,7 @@ struct os_agent_info_t
   /* number of address watch registers.  */
   size_t address_watch_register_count{ 0 };
   /* bits that can be programmed in the address watch mask.  */
-  amd_dbgapi_global_address_t address_watch_mask_bits{ 0 };
+  uint64_t address_watch_mask_bits{ 0 };
   /* whether the address watch registers are shared between processes.  */
   bool watchpoint_exclusive{ false };
   /* indicates if precise memory operations reporting is supported.  */
@@ -203,7 +204,7 @@ enum class os_runtime_state_t : uint32_t
 
 struct os_runtime_info_t
 {
-  amd_dbgapi_global_address_t r_debug;
+  uintptr_t r_debug;
   os_runtime_state_t runtime_state;
   bool ttmp_setup;
 };
@@ -399,11 +400,11 @@ struct os_queue_snapshot_entry_t
   os_agent_id_t gpu_id;
   os_queue_type_t queue_type{ os_queue_type_t::unknown };
   os_exception_mask_t exception_status;
-  amd_dbgapi_global_address_t ring_base_address;
+  host_address_t ring_base_address;
   amd_dbgapi_size_t ring_size;
-  amd_dbgapi_global_address_t write_pointer_address;
-  amd_dbgapi_global_address_t read_pointer_address;
-  amd_dbgapi_global_address_t ctx_save_restore_address;
+  host_address_t write_pointer_address;
+  host_address_t read_pointer_address;
+  agent_address_t ctx_save_restore_address;
   amd_dbgapi_size_t ctx_save_restore_area_size;
 };
 
@@ -514,10 +515,10 @@ public:
                   os_exception_mask_t exceptions_cleared) const
     = 0;
 
-  virtual amd_dbgapi_status_t set_address_watch (
-    os_agent_id_t os_agent_id, amd_dbgapi_global_address_t address,
-    amd_dbgapi_global_address_t mask, os_watch_mode_t os_watch_mode,
-    os_watch_id_t *os_watch_id) const
+  virtual amd_dbgapi_status_t
+  set_address_watch (os_agent_id_t os_agent_id, agent_address_t address,
+                     agent_address_t mask, os_watch_mode_t os_watch_mode,
+                     os_watch_id_t *os_watch_id) const
     = 0;
 
   virtual amd_dbgapi_status_t
@@ -541,7 +542,7 @@ public:
     = 0;
 
   virtual amd_dbgapi_status_t
-  xfer_global_memory_partial (amd_dbgapi_global_address_t address, void *read,
+  xfer_global_memory_partial (agent_address_t address, void *read,
                               const void *write, size_t *size) const
     = 0;
 };
@@ -675,12 +676,10 @@ public:
     return AMD_DBGAPI_STATUS_SUCCESS;
   }
 
-  amd_dbgapi_status_t
-  set_address_watch (os_agent_id_t /* os_agent_id  */,
-                     amd_dbgapi_global_address_t /* address  */,
-                     amd_dbgapi_global_address_t /* mask  */,
-                     os_watch_mode_t /* os_watch_mode  */,
-                     os_watch_id_t * /* os_watch_id  */) const override
+  amd_dbgapi_status_t set_address_watch (
+    os_agent_id_t /* os_agent_id  */, agent_address_t /* address  */,
+    agent_address_t /* mask  */, os_watch_mode_t /* os_watch_mode  */,
+    os_watch_id_t * /* os_watch_id  */) const override
   {
     return AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED;
   }
@@ -716,8 +715,8 @@ public:
   }
 
   amd_dbgapi_status_t
-  xfer_global_memory_partial (amd_dbgapi_global_address_t /* address  */,
-                              void *read, const void *write,
+  xfer_global_memory_partial (agent_address_t /* address  */, void *read,
+                              const void *write,
                               size_t * /* size  */) const override
   {
     dbgapi_assert (!read != !write && "either read or write buffer");

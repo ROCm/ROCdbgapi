@@ -1093,10 +1093,10 @@ public:
                       size_t snapshot_count, size_t *queue_count,
                       os_exception_mask_t exceptions_cleared) const override;
 
-  amd_dbgapi_status_t set_address_watch (
-    os_agent_id_t os_agent_id, amd_dbgapi_global_address_t address,
-    amd_dbgapi_global_address_t mask, os_watch_mode_t os_watch_mode,
-    os_watch_id_t *os_watch_id) const override;
+  amd_dbgapi_status_t
+  set_address_watch (os_agent_id_t os_agent_id, agent_address_t address,
+                     agent_address_t mask, os_watch_mode_t os_watch_mode,
+                     os_watch_id_t *os_watch_id) const override;
 
   amd_dbgapi_status_t
   clear_address_watch (os_agent_id_t os_agent_id,
@@ -1115,9 +1115,10 @@ public:
   amd_dbgapi_status_t
   set_process_flags (os_process_flags_t flags) const override;
 
-  amd_dbgapi_status_t
-  xfer_global_memory_partial (amd_dbgapi_global_address_t address, void *read,
-                              const void *write, size_t *size) const override;
+  amd_dbgapi_status_t xfer_global_memory_partial (agent_address_t address,
+                                                  void *read,
+                                                  const void *write,
+                                                  size_t *size) const override;
 };
 
 size_t kfd_driver_t::s_kfd_open_count{ 0 };
@@ -1765,8 +1766,7 @@ kfd_driver_t::kfd_queue_snapshot (kfd_queue_snapshot_entry *snapshots,
 
 amd_dbgapi_status_t
 kfd_driver_t::set_address_watch (os_agent_id_t os_agent_id,
-                                 amd_dbgapi_global_address_t address,
-                                 amd_dbgapi_global_address_t mask,
+                                 agent_address_t address, agent_address_t mask,
                                  os_watch_mode_t os_watch_mode,
                                  os_watch_id_t *os_watch_id) const
 {
@@ -1899,8 +1899,8 @@ kfd_driver_t::set_process_flags (os_process_flags_t flags) const
 }
 
 amd_dbgapi_status_t
-kfd_driver_t::xfer_global_memory_partial (amd_dbgapi_global_address_t address,
-                                          void *read, const void *write,
+kfd_driver_t::xfer_global_memory_partial (agent_address_t address, void *read,
+                                          const void *write,
                                           size_t *size) const
 {
   dbgapi_assert (!read != !write && "either read or write buffer");

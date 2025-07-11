@@ -173,10 +173,9 @@ to_string (os_agent_info_t os_agent_info)
     ".gfxip=[%d,%d,%d], .simd_count=%zd, .max_waves_per_simd=%zd, "
     ".shader_engine_count=%zd, .vendor_id=%#x, .device_id=%#x, "
     ".revision_id=%#x, .subsystem_vendor_id=%#x, .subsystem_device_id=%#x, "
-    ".fw_version=%d, .local_address_aperture_base=%#" PRIx64 ", "
-    ".local_address_aperture_limit=%#" PRIx64 ", "
-    ".private_address_aperture_base=%#" PRIx64 ", "
-    ".private_address_aperture_limit=%#" PRIx64 ", .debugging_supported=%d, "
+    ".fw_version=%d, .local_address_aperture_base=%s, "
+    ".local_address_aperture_limit=%s, .private_address_aperture_base=%s, "
+    ".private_address_aperture_limit=%s, .debugging_supported=%d, "
     ".address_watch_supported=%d, .address_watch_register_count=%zd, "
     ".address_watch_mask_bits=%#" PRIx64 ", .watchpoint_exclusive=%d, "
     ".precise_memory_supported=%d, .precise_alu_exceptions_supported=%d,"
@@ -188,10 +187,10 @@ to_string (os_agent_info_t os_agent_info)
     os_agent_info.vendor_id, os_agent_info.device_id,
     os_agent_info.revision_id, os_agent_info.subsystem_vendor_id,
     os_agent_info.subsystem_device_id, os_agent_info.fw_version,
-    os_agent_info.local_address_aperture_base,
-    os_agent_info.local_address_aperture_limit,
-    os_agent_info.private_address_aperture_base,
-    os_agent_info.private_address_aperture_limit,
+    to_cstring (os_agent_info.local_address_aperture_base),
+    to_cstring (os_agent_info.local_address_aperture_limit),
+    to_cstring (os_agent_info.private_address_aperture_base),
+    to_cstring (os_agent_info.private_address_aperture_limit),
     os_agent_info.debugging_supported, os_agent_info.address_watch_supported,
     os_agent_info.address_watch_register_count,
     os_agent_info.address_watch_mask_bits, os_agent_info.watchpoint_exclusive,
@@ -224,10 +223,10 @@ template <>
 std::string
 to_string (os_runtime_info_t runtime_info)
 {
-  return string_printf (
-    "{ .r_debug=%#" PRIx64 ", .runtime_state=%s, .ttmp_setup=%d }",
-    runtime_info.r_debug, to_cstring (runtime_info.runtime_state),
-    runtime_info.ttmp_setup);
+  return string_printf ("{ .r_debug=%s, .runtime_state=%s, .ttmp_setup=%d }",
+                        to_cstring (runtime_info.r_debug),
+                        to_cstring (runtime_info.runtime_state),
+                        runtime_info.ttmp_setup);
 }
 
 template <>
@@ -302,13 +301,15 @@ std::string
 to_string (os_queue_snapshot_entry_t snapshot)
 {
   return string_printf (
-    "{ .exception_status=%s, .ring_base_address=%#" PRIx64 ", "
-    ".write_pointer_address=%#" PRIx64 ", .read_pointer_address=%#" PRIx64 ", "
-    ".ctx_save_restore_address=%#" PRIx64 ", .queue_id=%d, .state=%s, "
+    "{ .exception_status=%s, .ring_base_address=%s, "
+    ".write_pointer_address=%s, .read_pointer_address=%s, "
+    ".ctx_save_restore_address=%s, .queue_id=%d, .state=%s, "
     ".gpu_id=%d, .ring_size=%" PRId64 ", .queue_type=%s }",
-    to_string (snapshot.exception_status).c_str (), snapshot.ring_base_address,
-    snapshot.write_pointer_address, snapshot.read_pointer_address,
-    snapshot.ctx_save_restore_address, snapshot.queue_id,
+    to_string (snapshot.exception_status).c_str (),
+    to_cstring (snapshot.ring_base_address),
+    to_cstring (snapshot.write_pointer_address),
+    to_cstring (snapshot.read_pointer_address),
+    to_cstring (snapshot.ctx_save_restore_address), snapshot.queue_id,
     to_string (snapshot.state).c_str (), snapshot.gpu_id, snapshot.ring_size,
     to_string (snapshot.queue_type).c_str ());
 }

@@ -43,7 +43,7 @@ private:
   size_t m_reference_count{ 0 };
 
   instruction_t const m_original_instruction;
-  amd_dbgapi_global_address_t const m_from;
+  agent_address_t const m_from;
   std::optional<compute_queue_t::displaced_instruction_ptr_t> m_to;
 
   queue_t &m_queue;
@@ -51,7 +51,7 @@ private:
 public:
   displaced_stepping_t (
     amd_dbgapi_displaced_stepping_id_t displaced_stepping_id, queue_t &queue,
-    instruction_t original_instruction, amd_dbgapi_global_address_t from,
+    instruction_t original_instruction, agent_address_t from,
     std::optional<compute_queue_t::displaced_instruction_ptr_t> to);
 
   ~displaced_stepping_t ();
@@ -62,12 +62,12 @@ public:
   }
 
   /* The original pc where this displaced instruction was copied from.  */
-  amd_dbgapi_global_address_t from () const { return m_from; }
+  agent_address_t from () const { return m_from; }
 
   /* The address where this instruction is to be single-stepped.  If the
      original instruction cannot be executed displaced, and instead must be
      simulated, return std::nullopt.  */
-  std::optional<amd_dbgapi_global_address_t> to () const
+  std::optional<agent_address_t> to () const
   {
     return m_to ? std::make_optional (m_to->get ()) : std::nullopt;
   }

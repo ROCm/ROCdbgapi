@@ -102,7 +102,7 @@ private:
   };
   rocr_rdebug_version_t m_rocr_debug_version = ROCR_RDEBUG_VERSION_INVALID;
 
-  mutable memory_cache_t m_memory_cache;
+  mutable memory_cache_t<host_address_t> m_memory_cache;
   std::unique_ptr<os_driver_t> m_os_driver{};
   flag_t m_flags{};
 
@@ -174,30 +174,30 @@ public:
      processes left in the s_process_map. */
   static void reset_all_ids ();
 
-  memory_cache_t &memory_cache () { return m_memory_cache; }
+  auto &memory_cache () const { return m_memory_cache; }
   os_driver_t &os_driver () const { return *m_os_driver; }
 
   inline void set_flag (flag_t flags);
   inline void clear_flag (flag_t flags);
   inline bool is_flag_set (flag_t flags) const;
 
-  [[nodiscard]] size_t
-  read_global_memory_partial (amd_dbgapi_global_address_t address,
-                              void *buffer, size_t size) const
+  [[nodiscard]] size_t read_global_memory_partial (host_address_t address,
+                                                   void *buffer,
+                                                   size_t size) const
   {
     return m_memory_cache.read_global_memory (address, buffer, size);
   }
 
-  [[nodiscard]] size_t
-  write_global_memory_partial (amd_dbgapi_global_address_t address,
-                               const void *buffer, size_t size) const
+  [[nodiscard]] size_t write_global_memory_partial (host_address_t address,
+                                                    const void *buffer,
+                                                    size_t size) const
   {
     return m_memory_cache.write_global_memory (address, buffer, size);
   }
 
-  [[nodiscard]] size_t
-  xfer_global_memory (amd_dbgapi_segment_address_t global_address, void *read,
-                      const void *write, size_t size) const
+  [[nodiscard]] size_t xfer_global_memory (host_address_t global_address,
+                                           void *read, const void *write,
+                                           size_t size) const
   {
     return read != nullptr
              ? read_global_memory_partial (global_address, read, size)
@@ -205,13 +205,13 @@ public:
   }
 
   template <typename T>
-  void read_global_memory (amd_dbgapi_global_address_t address, T *ptr,
+  void read_global_memory (host_address_t address, T *ptr,
                            size_t size = sizeof (T)) const;
   template <typename T>
-  void write_global_memory (amd_dbgapi_global_address_t address, const T *ptr,
+  void write_global_memory (host_address_t address, const T *ptr,
                             size_t size = sizeof (T)) const;
 
-  void read_string (amd_dbgapi_global_address_t address, std::string *string,
+  void read_string (host_address_t address, std::string *string,
                     size_t size) const;
 
   [[nodiscard]] size_t
@@ -300,7 +300,7 @@ public:
   client_process_get_info (amd_dbgapi_client_process_info_t query,
                            size_t value_size, void *value) const;
   amd_dbgapi_status_t
-  insert_breakpoint (amd_dbgapi_global_address_t address,
+  insert_breakpoint (host_address_t address,
                      amd_dbgapi_breakpoint_id_t breakpoint_id);
   amd_dbgapi_status_t
   remove_breakpoint (amd_dbgapi_breakpoint_id_t breakpoint_id);
@@ -426,7 +426,7 @@ public:
 
 template <typename T>
 void
-process_t::read_global_memory (amd_dbgapi_global_address_t address, T *ptr,
+process_t::read_global_memory (host_address_t address, T *ptr,
                                size_t size) const
 {
   try
@@ -444,8 +444,8 @@ process_t::read_global_memory (amd_dbgapi_global_address_t address, T *ptr,
 
 template <typename T>
 void
-process_t::write_global_memory (amd_dbgapi_global_address_t address,
-                                const T *ptr, size_t size) const
+process_t::write_global_memory (host_address_t address, const T *ptr,
+                                size_t size) const
 {
   try
     {

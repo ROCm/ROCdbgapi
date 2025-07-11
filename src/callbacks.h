@@ -23,6 +23,7 @@
 
 #include "amd-dbgapi.h"
 #include "handle_object.h"
+#include "memory.h"
 
 #include <cstddef>
 #include <functional>
@@ -41,20 +42,20 @@ private:
 
   bool m_inserted{ false };
 
-  amd_dbgapi_global_address_t const m_address;
+  host_address_t const m_address;
   action_callback_t const m_action;
 
   process_t &m_process;
 
 public:
   breakpoint_t (amd_dbgapi_breakpoint_id_t breakpoint_id, process_t &process,
-                amd_dbgapi_global_address_t address, action_callback_t action);
+                host_address_t address, action_callback_t action);
 
   ~breakpoint_t ();
 
   bool is_inserted () const { return m_inserted; }
 
-  amd_dbgapi_global_address_t address () const { return m_address; }
+  host_address_t address () const { return m_address; }
   action_callback_t action () const { return m_action; }
 
   void get_info (amd_dbgapi_breakpoint_info_t query, size_t value_size,

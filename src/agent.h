@@ -24,6 +24,7 @@
 #include "amd-dbgapi.h"
 #include "debug.h"
 #include "handle_object.h"
+#include "memory.h"
 #include "os_driver.h"
 
 #include <cstddef>
@@ -49,10 +50,13 @@ private:
   const architecture_t *const m_architecture;
   process_t &m_process;
 
+  mutable memory_cache_t<agent_address_t> m_memory_cache;
+
 public:
   agent_t (amd_dbgapi_agent_id_t agent_id, process_t &process,
            const architecture_t *architecture,
            const os_agent_info_t &os_agent_info);
+  ~agent_t ();
 
   os_agent_id_t os_agent_id () const { return m_os_agent_info.os_agent_id; }
   const os_agent_info_t &os_info () const { return m_os_agent_info; }
@@ -89,6 +93,29 @@ public:
     return m_watchpoints[os_watch_id];
   }
 
+  auto &memory_cache () const { return m_memory_cache; }
+
+  [[nodiscard]] size_t read_agent_memory_partial (agent_address_t address,
+                                                  void *buffer,
+                                                  size_t size) const
+  {
+    return m_memory_cache.read_global_memory (address, buffer, size);
+  }
+
+  [[nodiscard]] size_t write_agent_memory_partial (agent_address_t address,
+                                                   const void *buffer,
+                                                   size_t size) const
+  {
+    return m_memory_cache.write_global_memory (address, buffer, size);
+  }
+
+  template <typename T>
+  void read_agent_memory (agent_address_t address, T *ptr,
+                          size_t size = sizeof (T)) const;
+  template <typename T>
+  void write_agent_memory (agent_address_t address, const T *ptr,
+                           size_t size = sizeof (T)) const;
+
   void get_info (amd_dbgapi_agent_info_t query, size_t value_size,
                  void *value) const;
 
@@ -96,6 +123,44 @@ public:
 
   process_t &process () const { return m_process; }
 };
+
+template <typename T>
+void
+agent_t::read_agent_memory (agent_address_t address, T *ptr, size_t size) const
+{
+  try
+    {
+
+      if (size_t xfer_size = read_agent_memory_partial (address, ptr, size);
+          xfer_size != size)
+        throw memory_access_error_t (
+          address_space_t::global () /* FIXME: agent address space */,
+          address + xfer_size);
+    }
+  catch (const memory_access_error_t &e)
+    {
+      fatal_error ("process_t::read_agent_memory failed: %s", e.what ());
+    }
+}
+
+template <typename T>
+void
+agent_t::write_agent_memory (agent_address_t address, const T *ptr,
+                             size_t size) const
+{
+  try
+    {
+      if (size_t xfer_size = write_agent_memory_partial (address, ptr, size);
+          xfer_size != size)
+        throw memory_access_error_t (
+          address_space_t::global () /* FIXME: agent address space */,
+          address + xfer_size);
+    }
+  catch (const memory_access_error_t &e)
+    {
+      fatal_error ("process_t::write_agent_memory failed: %s", e.what ());
+    }
+}
 
 } /* namespace amd::dbgapi */
 

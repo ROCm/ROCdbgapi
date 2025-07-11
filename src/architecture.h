@@ -165,21 +165,20 @@ public:
   class kernel_descriptor_t
   {
   private:
-    amd_dbgapi_global_address_t const m_address;
+    global_address_t const m_address;
     process_t &m_process;
 
   public:
-    kernel_descriptor_t (process_t &process,
-                         amd_dbgapi_global_address_t address)
+    kernel_descriptor_t (process_t &process, global_address_t address)
       : m_address (address), m_process (process)
     {
     }
     virtual ~kernel_descriptor_t () = default;
 
-    virtual amd_dbgapi_global_address_t entry_address () const = 0;
-    virtual bool is_at_kernel_entry (amd_dbgapi_global_address_t pc) const = 0;
+    virtual global_address_t entry_address () const = 0;
+    virtual bool is_at_kernel_entry (agent_address_t pc) const = 0;
 
-    amd_dbgapi_global_address_t address () const { return m_address; }
+    global_address_t address () const { return m_address; }
     process_t &process () const { return m_process; }
   };
 
@@ -217,7 +216,7 @@ public:
     /* Size of the local data share.  */
     virtual size_t lds_size () const = 0;
 
-    virtual std::optional<amd_dbgapi_global_address_t>
+    virtual std::optional<agent_address_t>
     register_address (amdgpu_regnum_t regnum) const = 0;
 
     /* Return true if a scratch slot is allocated for this record.  */
@@ -229,9 +228,9 @@ public:
     virtual uint32_t scratch_scoreboard_id () const = 0;
 
     /* The address of the first byte in the wave's context save.  */
-    virtual amd_dbgapi_global_address_t begin () const = 0;
+    virtual agent_address_t begin () const = 0;
     /* The address of the byte following the last byte in the context save. */
-    virtual amd_dbgapi_global_address_t end () const = 0;
+    virtual agent_address_t end () const = 0;
 
     uint32_t xcc_id () const { return m_xcc_id; }
 
@@ -258,7 +257,7 @@ public:
 
   virtual size_t control_stack_iterate (
     compute_queue_t &queue, uint32_t xcc_id, const uint32_t *control_stack,
-    size_t control_stack_words, amd_dbgapi_global_address_t wave_area_address,
+    size_t control_stack_words, agent_address_t wave_area_address,
     amd_dbgapi_size_t wave_area_size,
     const std::function<void (std::unique_ptr<const cwsr_record_t>)>
       &wave_callback) const
@@ -285,9 +284,9 @@ public:
 
   virtual size_t maximum_queue_packet_count () const = 0;
 
-  virtual std::unique_ptr<const kernel_descriptor_t> make_kernel_descriptor (
-    process_t &process,
-    amd_dbgapi_global_address_t kernel_descriptor_address) const
+  virtual std::unique_ptr<const kernel_descriptor_t>
+  make_kernel_descriptor (process_t &process,
+                          global_address_t kernel_descriptor_address) const
     = 0;
 
   virtual std::pair<amd_dbgapi_size_t /* offset  */,
@@ -329,7 +328,7 @@ public:
                              const instruction_t &instruction) const
     = 0;
 
-  virtual bool simulate (wave_t &wave, amd_dbgapi_global_address_t pc,
+  virtual bool simulate (wave_t &wave, agent_address_t pc,
                          const instruction_t &instruction) const
     = 0;
 
@@ -338,12 +337,9 @@ public:
   virtual bool check_runtime_abi_version (rocr_rdebug_version_t) const = 0;
 
   virtual bool park_stopped_waves (rocr_rdebug_version_t) const = 0;
-  virtual void save_pc_for_park (const wave_t &wave,
-                                 amd_dbgapi_global_address_t pc) const
+  virtual void save_pc_for_park (const wave_t &wave, agent_address_t pc) const
     = 0;
-  virtual amd_dbgapi_global_address_t
-  saved_parked_pc (const wave_t &wave) const
-    = 0;
+  virtual agent_address_t saved_parked_pc (const wave_t &wave) const = 0;
 
   virtual bool has_architected_flat_scratch () const = 0;
 
@@ -355,15 +351,14 @@ public:
                      amd_dbgapi_instruction_properties_t /* properties  */,
                      size_t /* instruction_size  */,
                      std::vector<uint64_t> /* information  */>
-  classify_instruction (amd_dbgapi_global_address_t address,
+  classify_instruction (agent_address_t address,
                         const instruction_t &instruction) const
     = 0;
 
-  virtual std::tuple<
-    amd_dbgapi_size_t /* instruction_size  */,
-    std::string /* instruction_text  */,
-    std::vector<amd_dbgapi_global_address_t> /* address_operands  */>
-  disassemble_instruction (amd_dbgapi_global_address_t address,
+  virtual std::tuple<amd_dbgapi_size_t /* instruction_size  */,
+                     std::string /* instruction_text  */,
+                     std::vector<uint64_t> /* address_operands  */>
+  disassemble_instruction (agent_address_t address,
                            const instruction_t &instruction) const
     = 0;
 

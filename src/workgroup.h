@@ -23,6 +23,7 @@
 
 #include "amd-dbgapi.h"
 #include "handle_object.h"
+#include "memory.h"
 
 #include <optional>
 
@@ -44,7 +45,7 @@ private:
   std::optional<const std::array<uint32_t, 3>> m_group_ids;
   epoch_t m_mark{ 0 };
 
-  std::optional<amd_dbgapi_global_address_t> m_local_memory_base_address;
+  std::optional<agent_address_t> m_local_memory_base_address;
   amd_dbgapi_size_t const m_local_memory_size;
 
   const dispatch_t &m_dispatch;
@@ -69,7 +70,7 @@ public:
   epoch_t mark () const { return m_mark; }
   void set_mark (epoch_t mark) { m_mark = mark; }
 
-  void update (amd_dbgapi_global_address_t local_memory_base_address);
+  void update (agent_address_t local_memory_base_address);
 
   [[nodiscard]] size_t
   xfer_segment_memory (const address_space_t &address_space,

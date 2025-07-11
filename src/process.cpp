@@ -64,11 +64,11 @@ process_t::process_t (amd_dbgapi_process_id_t process_id,
                       amd_dbgapi_client_process_id_t client_process_id)
   : handle_object (process_id), m_client_process_id (client_process_id),
     m_memory_cache (
-      [this] (amd_dbgapi_global_address_t address, void *read,
-              const void *write, size_t size)
+      [this] (host_address_t address, void *read, const void *write,
+              size_t size)
       {
         amd_dbgapi_status_t status = os_driver ().xfer_global_memory_partial (
-          address, read, write, &size);
+          global_address_t {address}, read, write, &size);
 
         if (status == AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS)
           status = detail::process_callbacks.xfer_global_memory (
@@ -240,7 +240,9 @@ process_t::detach ()
          waves' context save area memory.  */
       try
         {
-          memory_cache ().write_back (0, -1);
+          memory_cache ().write_back ();
+          for (auto &&agent : range<agent_t> ())
+            agent.memory_cache ().write_back ();
         }
       catch (const memory_access_error_t &)
         {
@@ -304,10 +306,10 @@ process_t::detach ()
 }
 
 void
-process_t::read_string (amd_dbgapi_global_address_t address,
-                        std::string *string, size_t size) const
+process_t::read_string (host_address_t address, std::string *string,
+                        size_t size) const
 {
-  constexpr size_t chunk_size = memory_cache_t::cache_line_size;
+  constexpr size_t chunk_size = decltype (m_memory_cache)::cache_line_size;
   static_assert (!(chunk_size & (chunk_size - 1)), "must be a power of 2");
 
   dbgapi_assert (string && "invalid argument");
@@ -360,7 +362,8 @@ process_t::xfer_segment_memory (const address_space_t &address_space,
     = address_space.lower (segment_address);
 
   if (lowered_address_space.kind () == address_space_t::kind_t::global)
-    return xfer_global_memory (lowered_address, read, write, size);
+    return xfer_global_memory (global_address_t{ lowered_address }, read,
+                               write, size);
   else
     throw memory_access_error_t (address_space, segment_address,
                                  "address is not supported");
@@ -1303,17 +1306,17 @@ process_t::update_code_objects ()
       if (state != r_debug::RT_CONSISTENT)
         return;
 
-      amd_dbgapi_global_address_t link_map_address;
+      host_address_t link_map_address;
       read_global_memory (m_runtime_info.r_debug + offsetof (r_debug, r_map),
                           &link_map_address);
 
-      while (link_map_address)
+      while (link_map_address != 0)
         {
-          amd_dbgapi_global_address_t load_address;
+          global_address_t load_address;
           read_global_memory (link_map_address + offsetof (link_map, l_addr),
                               &load_address);
 
-          amd_dbgapi_global_address_t l_name_address;
+          host_address_t l_name_address;
           read_global_memory (link_map_address + offsetof (link_map, l_name),
                               &l_name_address);
 
@@ -1531,7 +1534,7 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
     *action = AMD_DBGAPI_BREAKPOINT_ACTION_HALT;
   };
 
-  amd_dbgapi_global_address_t r_brk_address;
+  host_address_t r_brk_address;
   read_global_memory (m_runtime_info.r_debug + offsetof (r_debug, r_brk),
                       &r_brk_address);
 
@@ -1668,6 +1671,8 @@ process_t::freeze ()
      process.  Ensure that any modification done to memory so far is flushed
      to the inferior's memory so it can be captured in the core dump.  */
   memory_cache ().write_back ();
+  for (auto &&agent : range<agent_t> ())
+    agent.memory_cache ().write_back ();
 
   m_frozen = true;
 }
@@ -2274,7 +2279,7 @@ process_t::client_process_get_info (amd_dbgapi_client_process_info_t query,
 }
 
 amd_dbgapi_status_t
-process_t::insert_breakpoint (amd_dbgapi_global_address_t address,
+process_t::insert_breakpoint (host_address_t address,
                               amd_dbgapi_breakpoint_id_t breakpoint_id)
 {
   TRACE_CALLBACK_BEGIN (make_hex (param_in (address)),

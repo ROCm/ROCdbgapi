@@ -36,6 +36,27 @@
 namespace amd::dbgapi
 {
 
+template <>
+std::string
+to_string (agent_address_t address)
+{
+  return string_printf ("agent#%#" PRIx64, static_cast<uint64_t> (address));
+}
+
+template <>
+std::string
+to_string (global_address_t address)
+{
+  return string_printf ("global#%#" PRIx64, static_cast<uint64_t> (address));
+}
+
+template <>
+std::string
+to_string (host_address_t address)
+{
+  return string_printf ("host#%#" PRIx64, static_cast<uint64_t> (address));
+}
+
 void
 address_class_t::get_info (amd_dbgapi_address_class_info_t query,
                            size_t value_size, void *value) const
@@ -434,9 +455,10 @@ generic_address_space_t::convert (
            lowered_address_space.last_address () - lowered_address + 1 };
 }
 
+template <typename AddressType>
 void
-memory_cache_t::fetch_cache_line (cache_line_t &cache_line,
-                                  amd_dbgapi_global_address_t address) const
+memory_cache_t<AddressType>::fetch_cache_line (cache_line_t &cache_line,
+                                               AddressType address) const
 {
   dbgapi_assert (!cache_line.m_dirty);
 
@@ -444,15 +466,17 @@ memory_cache_t::fetch_cache_line (cache_line_t &cache_line,
                                            nullptr, cache_line.m_data.size ());
 
   if (xfer_size != cache_line.m_data.size ())
-    throw memory_access_error_t (address_space_t::global (),
-                                 address + cache_line_size);
+    throw memory_access_error_t (
+      /* FIXME_lmoriche:  */
+      address_space_t::global (), address + cache_line_size);
 
   cache_line.m_dirty = false;
 }
 
+template <typename AddressType>
 void
-memory_cache_t::commit_cache_line (cache_line_t &cache_line,
-                                   amd_dbgapi_global_address_t address) const
+memory_cache_t<AddressType>::commit_cache_line (cache_line_t &cache_line,
+                                                AddressType address) const
 {
   if (!cache_line.m_dirty)
     return;
@@ -461,13 +485,17 @@ memory_cache_t::commit_cache_line (cache_line_t &cache_line,
     address, nullptr, &cache_line.m_data[0], cache_line.m_data.size ());
 
   if (xfer_size != cache_line.m_data.size ())
-    throw memory_access_error_t (address_space_t::global (),
-                                 address + xfer_size);
+    throw memory_access_error_t (
+      /* FIXME_lmoriche:  */
+      address_space_t::global (), address + xfer_size);
 
   cache_line.m_dirty = false;
 }
+
+template <typename AddressType>
 void
-memory_cache_t::allocate_0_cache_line (cache_line_t &cache_line) const
+memory_cache_t<AddressType>::allocate_0_cache_line (
+  cache_line_t &cache_line) const
 {
   dbgapi_assert (!cache_line.m_dirty);
 
@@ -476,9 +504,10 @@ memory_cache_t::allocate_0_cache_line (cache_line_t &cache_line) const
   cache_line.m_dirty = false;
 }
 
+template <typename AddressType>
 bool
-memory_cache_t::contains_all (amd_dbgapi_global_address_t address,
-                              amd_dbgapi_size_t size) const
+memory_cache_t<AddressType>::contains_all (AddressType address,
+                                           amd_dbgapi_size_t size) const
 {
   dbgapi_assert (address < (address + size) && "invalid size");
   auto cache_line_begin = utils::align_down (address, cache_line_size);
@@ -493,9 +522,10 @@ memory_cache_t::contains_all (amd_dbgapi_global_address_t address,
   return true;
 }
 
+template <typename AddressType>
 void
-memory_cache_t::prefetch (amd_dbgapi_global_address_t address,
-                          amd_dbgapi_size_t size)
+memory_cache_t<AddressType>::prefetch (AddressType address,
+                                       amd_dbgapi_size_t size)
 {
   if (policy == policy_t::uncached || size == 0)
     return;
@@ -540,9 +570,10 @@ memory_cache_t::prefetch (amd_dbgapi_global_address_t address,
     }
 }
 
+template <typename AddressType>
 void
-memory_cache_t::write_back (amd_dbgapi_global_address_t address,
-                            amd_dbgapi_size_t size)
+memory_cache_t<AddressType>::write_back (AddressType address,
+                                         amd_dbgapi_size_t size)
 {
   std::exception_ptr exception;
   if (policy != policy_t::write_back || size == 0)
@@ -589,7 +620,7 @@ memory_cache_t::write_back (amd_dbgapi_global_address_t address,
 
       while (it != next)
         {
-          memcpy (&staging_buffer[0] + it->first - cache_line_address,
+          memcpy (&staging_buffer[0] + (it->first - cache_line_address),
                   &it->second.m_data[0], cache_line_size);
           it->second.m_dirty = false;
           std::advance (it, 1);
@@ -601,8 +632,9 @@ memory_cache_t::write_back (amd_dbgapi_global_address_t address,
             cache_line_address, nullptr, &staging_buffer[0], request_size);
 
           if (xfer_size != request_size)
-            throw memory_access_error_t (address_space_t::global (),
-                                         cache_line_address + xfer_size);
+            throw memory_access_error_t (
+              /* FIXME_lmoriche:  */
+              address_space_t::global (), cache_line_address + xfer_size);
         }
       catch (const process_exited_exception_t &)
         {
@@ -622,10 +654,11 @@ memory_cache_t::write_back (amd_dbgapi_global_address_t address,
     std::rethrow_exception (exception);
 }
 
+template <typename AddressType>
 void
-memory_cache_t::discard (amd_dbgapi_global_address_t address,
-                         amd_dbgapi_size_t size,
-                         [[maybe_unused]] bool force_discard)
+memory_cache_t<AddressType>::discard (AddressType address,
+                                      amd_dbgapi_size_t size,
+                                      [[maybe_unused]] bool force_discard)
 {
   if (size == 0)
     return;
@@ -645,16 +678,18 @@ memory_cache_t::discard (amd_dbgapi_global_address_t address,
     }
 }
 
+template <typename AddressType>
 size_t
-memory_cache_t::xfer_global_memory (amd_dbgapi_global_address_t address,
-                                    void *read, const void *write, size_t size)
+memory_cache_t<AddressType>::xfer_global_memory (AddressType address,
+                                                 void *read, const void *write,
+                                                 size_t size)
 {
   if (size == 0)
     return 0;
 
   /* Clamp to the end of the global address space.  */
   if (address > (address + size))
-    size = -address;
+    size = AddressType{} - address;
 
   auto first_line = utils::align_down (address, cache_line_size);
   auto last_line = utils::align_down (address + size - 1, cache_line_size);
@@ -711,6 +746,9 @@ memory_cache_t::xfer_global_memory (amd_dbgapi_global_address_t address,
 
   return size;
 }
+
+template class memory_cache_t<agent_address_t>;
+template class memory_cache_t<host_address_t>;
 
 } /* namespace amd::dbgapi */
 

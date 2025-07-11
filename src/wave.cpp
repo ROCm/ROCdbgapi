@@ -146,10 +146,10 @@ wave_t::exec_mask () const
   fatal_error ("Not a valid lane_count for EXEC mask: %zu", lane_count ());
 }
 
-amd_dbgapi_global_address_t
+agent_address_t
 wave_t::pc () const
 {
-  amd_dbgapi_global_address_t pc;
+  uint64_t pc;
   read_register (amdgpu_regnum_t::pc, &pc);
   return pc;
 }
@@ -160,13 +160,13 @@ wave_t::instruction_at_pc (size_t pc_adjust) const
   size_t instruction_size = architecture ().largest_instruction_size ();
   std::vector<std::byte> instruction_bytes (instruction_size);
 
-  amd_dbgapi_global_address_t instruction_pc = pc () + pc_adjust;
+  agent_address_t instruction_pc = pc () + pc_adjust;
   dbgapi_assert (utils::is_aligned (
     instruction_pc, architecture ().minimum_instruction_alignment ()));
 
   try
     {
-      instruction_size = process ().read_global_memory_partial (
+      instruction_size = agent ().read_agent_memory_partial (
         instruction_pc, instruction_bytes.data (), instruction_size);
     }
   catch (...)
@@ -201,8 +201,8 @@ wave_t::park ()
      architecture_t::saved_parked_pc /architecture_t::.save_pc_for_park.  The
      real pc in the context save area will be untouched.  */
 
-  log_verbose ("parked %s (pc=%#" PRIx64 ")", to_cstring (id ()),
-               architecture ().saved_parked_pc (*this));
+  log_verbose ("parked %s (pc=%s)", to_cstring (id ()),
+               to_cstring (architecture ().saved_parked_pc (*this)));
 }
 
 void
@@ -213,7 +213,7 @@ wave_t::unpark ()
 
   dbgapi_assert (m_is_parked && "not parked");
 
-  amd_dbgapi_global_address_t saved_pc = pc ();
+  agent_address_t saved_pc = pc ();
 
   m_is_parked = false;
   /* From now on, every read/write to the pc register will be from/to the
@@ -221,7 +221,7 @@ wave_t::unpark ()
 
   write_register (amdgpu_regnum_t::pc, saved_pc);
 
-  log_verbose ("unparked %s (pc=%#" PRIx64 ")", to_cstring (id ()), pc ());
+  log_verbose ("unparked %s (pc=%s)", to_cstring (id ()), to_cstring (pc ()));
 }
 
 void
@@ -274,7 +274,7 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
       size_t offset = architecture ().breakpoint_instruction ().size ();
       size_t remaining = original_instruction_bytes.size () - offset;
 
-      remaining = process ().read_global_memory_partial (
+      remaining = agent ().read_agent_memory_partial (
         pc () + offset, &original_instruction_bytes[offset], remaining);
 
       /* Trim partial/unread bytes.  */
@@ -313,10 +313,10 @@ wave_t::displaced_stepping_start (const void *saved_instruction_bytes)
     {
       write_register (amdgpu_regnum_t::pc, *displaced_stepping->to ());
 
-      log_info (
-        "changing %s's pc from %#" PRIx64 " to %#" PRIx64 " (started %s)",
-        to_cstring (id ()), displaced_stepping->from (),
-        *displaced_stepping->to (), to_cstring (displaced_stepping->id ()));
+      log_info ("changing %s's pc from %s to %s (started %s)",
+                to_cstring (id ()), to_cstring (displaced_stepping->from ()),
+                to_cstring (displaced_stepping->to ()),
+                to_cstring (displaced_stepping->id ()));
     }
 
   displaced_stepping_t::retain (displaced_stepping);
@@ -331,14 +331,14 @@ wave_t::displaced_stepping_complete ()
 
   if (m_displaced_stepping->to ())
     {
-      amd_dbgapi_global_address_t displaced_pc = pc ();
-      amd_dbgapi_global_address_t restored_pc = displaced_pc
-                                                + m_displaced_stepping->from ()
-                                                - *m_displaced_stepping->to ();
+      agent_address_t displaced_pc = pc ();
+      agent_address_t restored_pc
+        = displaced_pc
+          + (m_displaced_stepping->from () - *m_displaced_stepping->to ());
       write_register (amdgpu_regnum_t::pc, restored_pc);
 
-      log_info ("changing %s's pc from %#" PRIx64 " to %#" PRIx64 " (%s %s)",
-                to_cstring (id ()), displaced_pc, pc (),
+      log_info ("changing %s's pc from %s to %s (%s %s)", to_cstring (id ()),
+                to_cstring (displaced_pc), to_cstring (pc ()),
                 displaced_pc == *m_displaced_stepping->to () ? "aborted"
                                                              : "completed",
                 to_cstring (m_displaced_stepping->id ()));
@@ -361,8 +361,8 @@ wave_t::update (
   /* Check that the PC in the wave state save area is correctly aligned.  */
   if (!utils::is_aligned (pc (),
                           architecture.minimum_instruction_alignment ()))
-    fatal_error ("corrupted state for %s: misaligned pc: %#" PRIx64,
-                 to_cstring (id ()), pc ());
+    fatal_error ("corrupted state for %s: misaligned pc: %s",
+                 to_cstring (id ()), to_cstring (pc ()));
 
   if (!m_ttmps_initialized)
     {
@@ -399,12 +399,12 @@ wave_t::update (
     return string;
   };
 
-  log_verbose ("%s%s in %s (pc=%#" PRIx64 ", state=%s) context_save:[%#" PRIx64
-               "..%#" PRIx64 "[",
-               visibility () != visibility_t::visible ? "invisible " : "",
-               to_cstring (id ()), to_cstring (workgroup ().id ()), pc (),
-               wave_state_to_string (m_state, m_stop_reason).c_str (),
-               m_cwsr_record->begin (), m_cwsr_record->end ());
+  log_verbose (
+    "%s%s in %s (pc=%s, state=%s) context_save:[%s..%s[",
+    visibility () != visibility_t::visible ? "invisible " : "",
+    to_cstring (id ()), to_cstring (workgroup ().id ()), to_cstring (pc ()),
+    wave_state_to_string (m_state, m_stop_reason).c_str (),
+    to_cstring (m_cwsr_record->begin ()), to_cstring (m_cwsr_record->end ()));
 
   /* The wave was running, and it is now stopped.  */
   if (prev_state != AMD_DBGAPI_WAVE_STATE_STOP
@@ -470,13 +470,13 @@ wave_t::set_state (amd_dbgapi_wave_state_t state,
       return;
     }
 
-  log_info ("changing %s%s's state from %s to %s %s(pc=%#" PRIx64 ")",
+  log_info ("changing %s%s's state from %s to %s %s(pc=%s)",
             visibility () != visibility_t::visible ? "invisible " : "",
             to_cstring (id ()), to_cstring (prev_state), to_cstring (state),
             exceptions != AMD_DBGAPI_EXCEPTION_NONE
               ? ("with " + to_string (exceptions) + " ").c_str ()
               : "",
-            pc ());
+            to_cstring (pc ()));
 
   architecture.wave_set_state (*this, state);
   m_state = state;
@@ -646,8 +646,7 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
 
   if (m_is_parked && regnum == amdgpu_regnum_t::pc)
     {
-      amd_dbgapi_global_address_t parked_pc
-        = architecture ().saved_parked_pc (*this);
+      agent_address_t parked_pc = architecture ().saved_parked_pc (*this);
       memcpy (value, reinterpret_cast<const std::byte *> (&parked_pc) + offset,
               value_size);
       return;
@@ -655,8 +654,8 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
 
   std::optional<scoped_queue_suspend_t> suspend;
   if (!queue ().is_suspended ()
-      && !process ().memory_cache ().contains_all (*reg_addr + offset,
-                                                   value_size))
+      && !agent ().memory_cache ().contains_all (*reg_addr + offset,
+                                                 value_size))
     {
       /* Get the wave_id before suspending the queue, as this wave could have
          exited, and queue_t::update_waves may destroy this wave_t.  */
@@ -675,7 +674,7 @@ wave_t::read_register (amdgpu_regnum_t regnum, size_t offset,
       reg_addr = register_address (regnum);
     }
 
-  process ().read_global_memory (*reg_addr + offset, value, value_size);
+  agent ().read_agent_memory (*reg_addr + offset, value, value_size);
 }
 
 void
@@ -705,18 +704,16 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
 
   if (m_is_parked && regnum == amdgpu_regnum_t::pc)
     {
-      amd_dbgapi_global_address_t parked_pc
-        = architecture ().saved_parked_pc (*this);
+      agent_address_t parked_pc = architecture ().saved_parked_pc (*this);
       if (auto *read_only
           = architecture ().register_read_only_mask (amdgpu_regnum_t::pc);
           read_only != nullptr)
         {
-          amd_dbgapi_global_address_t pc = parked_pc;
+          agent_address_t pc = parked_pc;
           memcpy (reinterpret_cast<std::byte *> (&pc) + offset, value,
                   value_size);
 
-          amd_dbgapi_global_address_t mask
-            = *static_cast<const amd_dbgapi_global_address_t *> (read_only);
+          uint64_t mask = *static_cast<const uint64_t *> (read_only);
 
           architecture ().save_pc_for_park (*this,
                                             (pc & ~mask) | (parked_pc & mask));
@@ -756,8 +753,8 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
       read_only != nullptr)
     {
       void *masked_value = alloca (value_size);
-      process ().read_global_memory (*reg_addr + offset, masked_value,
-                                     value_size);
+      agent ().read_agent_memory (*reg_addr + offset, masked_value,
+                                  value_size);
 
       if (offset == 0 && value_size == 8)
         {
@@ -786,12 +783,11 @@ wave_t::write_register (amdgpu_regnum_t regnum, size_t offset,
       value = masked_value;
     }
 
-  process ().write_global_memory (*reg_addr + offset, value, value_size);
+  agent ().write_agent_memory (*reg_addr + offset, value, value_size);
 }
 
 /* Return the wave's scratch memory region (address and size).  */
-std::pair<amd_dbgapi_global_address_t /* address */,
-          amd_dbgapi_size_t /* size */>
+std::pair<agent_address_t /* address */, amd_dbgapi_size_t /* size */>
 wave_t::scratch_memory_region () const
 {
   auto [address, size]
@@ -801,7 +797,7 @@ wave_t::scratch_memory_region () const
      computed slot scratch address matches the content of the register.  */
   if (architecture ().has_architected_flat_scratch ())
     {
-      amd_dbgapi_global_address_t flat_scratch;
+      agent_address_t flat_scratch;
       read_register (amdgpu_regnum_t::flat_scratch, &flat_scratch);
 
       if (address != flat_scratch && size != 0)
@@ -833,7 +829,7 @@ wave_t::xfer_private_memory (const address_space_t &address_space,
   size_t xfer_bytes = 0;
   while (size > 0)
     {
-      amd_dbgapi_global_address_t global_address;
+      global_address_t global_address;
       size_t contiguous_bytes;
 
       try

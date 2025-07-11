@@ -36,7 +36,7 @@ namespace amd::dbgapi
 
 displaced_stepping_t::displaced_stepping_t (
   amd_dbgapi_displaced_stepping_id_t displaced_stepping_id, queue_t &queue,
-  instruction_t original_instruction, amd_dbgapi_global_address_t from,
+  instruction_t original_instruction, agent_address_t from,
   std::optional<compute_queue_t::displaced_instruction_ptr_t> to)
   : handle_object (displaced_stepping_id),
     m_original_instruction (std::move (original_instruction)), m_from (from),
@@ -44,9 +44,9 @@ displaced_stepping_t::displaced_stepping_t (
 {
   dbgapi_assert (m_original_instruction.is_valid ());
 
-  log_info ("created new %s (from=%#" PRIx64 "%s)", to_cstring (id ()), m_from,
-            m_to ? string_printf (", to=%#" PRIx64, m_to->get ()).c_str ()
-                 : "");
+  log_info (
+    "created new %s (from=%s%s)", to_cstring (id ()), to_cstring (m_from),
+    m_to ? string_printf (", to=%s", to_cstring (m_to->get ())).c_str () : "");
 }
 
 displaced_stepping_t::~displaced_stepping_t ()

@@ -33,8 +33,7 @@ namespace amd::dbgapi
 {
 
 breakpoint_t::breakpoint_t (amd_dbgapi_breakpoint_id_t breakpoint_id,
-                            process_t &process,
-                            amd_dbgapi_global_address_t address,
+                            process_t &process, host_address_t address,
                             action_callback_t action)
   : handle_object (breakpoint_id), m_address (address), m_action (action),
     m_process (process)
@@ -45,7 +44,7 @@ breakpoint_t::breakpoint_t (amd_dbgapi_breakpoint_id_t breakpoint_id,
   m_inserted = (status == AMD_DBGAPI_STATUS_SUCCESS);
 
   if (!m_inserted)
-    warning ("Could not insert breakpoint at %#" PRIx64 " (%s)", address,
+    warning ("Could not insert breakpoint at %s (%s)", to_cstring (address),
              to_cstring (status));
 }
 

@@ -91,7 +91,7 @@ private:
   bool m_ttmps_initialized{ false };
   bool m_stop_requested{ false };
   amd_dbgapi_wave_stop_reasons_t m_stop_reason{};
-  amd_dbgapi_global_address_t m_last_stopped_pc{ 0 };
+  agent_address_t m_last_stopped_pc{ 0 };
   epoch_t m_mark{ 0 };
 
   amd_dbgapi_event_id_t m_last_stop_event_id{ AMD_DBGAPI_EVENT_NONE };
@@ -139,8 +139,8 @@ public:
   size_t lane_count () const { return m_cwsr_record->lane_count (); }
 
   uint64_t exec_mask () const;
-  amd_dbgapi_global_address_t pc () const;
-  amd_dbgapi_global_address_t last_stopped_pc () const
+  agent_address_t pc () const;
+  agent_address_t last_stopped_pc () const
   {
     /* Return the last known pc before the wave was resumed. It is only valid
        while the wave is running.  */
@@ -184,7 +184,7 @@ public:
 
   bool is_register_available (amdgpu_regnum_t regnum) const;
 
-  std::optional<amd_dbgapi_global_address_t>
+  std::optional<agent_address_t>
   register_address (amdgpu_regnum_t regnum) const
   {
     return m_cwsr_record->register_address (regnum);
@@ -228,8 +228,7 @@ public:
   }
 
   /* Return the wave's scratch memory region (address and size).  */
-  std::pair<amd_dbgapi_global_address_t /* address */,
-            amd_dbgapi_size_t /* size */>
+  std::pair<agent_address_t /* address */, amd_dbgapi_size_t /* size */>
   scratch_memory_region () const;
 
   [[nodiscard]] size_t

@@ -108,9 +108,10 @@ event_t::pretty_printer_string () const
           stop_reason_str = string_printf (", stop_reason=%s",
                                            to_cstring (wave->stop_reason ()));
 
-        return string_printf ("%s for %s on %s (pc=%#" PRIx64,
-                              to_cstring (kind ()), to_cstring (wave->id ()),
-                              to_cstring (wave->queue ().id ()), wave->pc ())
+        return string_printf ("%s for %s on %s (pc=%s", to_cstring (kind ()),
+                              to_cstring (wave->id ()),
+                              to_cstring (wave->queue ().id ()),
+                              to_cstring (wave->pc ()))
                + stop_reason_str + ")";
       }
 
