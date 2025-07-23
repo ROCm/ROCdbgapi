@@ -3,9 +3,15 @@
 Full documentation for AMD Debugger API is available at
 [rocm.docs.amd.com/rocdbgapi](https://rocm.docs.amd.com/projects/ROCdbgapi/en/latest/index.html).
 
-## rocm-dbgapi-0.77.3 for ROCm-6.5
+## rocm-dbgapi-0.77.4 for ROCm-7.0
+### Added
+- Support for the following architectures:
+ - `gfx950`
+
 ### Removed
-- Removed support for the gfx940 and gfx941 architectures.
+- Support for the following architectures:
+ - `gfx940`
+ - `gfx941`
 
 ## rocm-dbgapi-0.77.2 for ROCm-6.4
 ### Added
