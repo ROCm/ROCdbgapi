@@ -20,13 +20,11 @@
 
 cmake_minimum_required(VERSION 3.8)
 
-project(amd-dbgapi VERSION 0.77.4)
+project(rocm-dbgapi VERSION 0.77.4)
 
 include(CheckIncludeFile)
 include(GNUInstallDirs)
 include(CheckCXXSourceCompiles)
-
-set(CPACK_PACKAGE_NAME rocm-dbgapi)
 
 # Convert the project's name to uppercase and replace '-' with '_'.
 string(TOUPPER "${PROJECT_NAME}" AMD_DBGAPI_NAME)
@@ -107,7 +105,7 @@ set_target_properties(amd-dbgapi PROPERTIES
   CXX_STANDARD_REQUIRED ON
   CXX_EXTENSIONS ON
   CXX_VISIBILITY_PRESET hidden
-  OUTPUT_NAME "${CPACK_PACKAGE_NAME}"
+  OUTPUT_NAME "rocm-dbgapi"
   LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib
   DEFINE_SYMBOL "AMD_DBGAPI_EXPORTS"
   VERSION ${PROJECT_VERSION}
@@ -260,12 +258,12 @@ install (FILES
 
 install(FILES
   "LICENSE.txt"
-  DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/${CPACK_PACKAGE_NAME}
+  DESTINATION ${CMAKE_INSTALL_DOCDIR}
   COMPONENT dev)
 
 install(FILES
   "LICENSE.txt"
-  DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/${CPACK_PACKAGE_NAME}-asan
+  DESTINATION ${CMAKE_INSTALL_DOCDIR}-asan
   COMPONENT asan)
 
 # Generate the install-tree package.
@@ -309,15 +307,15 @@ endif()
 ## Enable Component Mode and set component specific flags
 set(CPACK_DEB_COMPONENT_INSTALL ON)
 set(CPACK_RPM_COMPONENT_INSTALL ON)
-set(CPACK_DEBIAN_DEV_PACKAGE_NAME "${CPACK_PACKAGE_NAME}")
-set(CPACK_RPM_DEV_PACKAGE_NAME "${CPACK_PACKAGE_NAME}")
+set(CPACK_DEBIAN_DEV_PACKAGE_NAME "rocm-dbgapi")
+set(CPACK_RPM_DEV_PACKAGE_NAME "rocm-dbgapi")
 set(CPACK_RPM_DEV_PACKAGE_REQUIRES "rocm-core, comgr >= 1.2.0")
 set(CPACK_DEBIAN_DEV_PACKAGE_DEPENDS "comgr(>=1.2.0), rocm-core")
 # Debian package specific variable for ASAN
-set(CPACK_DEBIAN_ASAN_PACKAGE_NAME "${CPACK_PACKAGE_NAME}-asan")
+set(CPACK_DEBIAN_ASAN_PACKAGE_NAME "rocm-dbgapi-asan")
 set(CPACK_DEBIAN_ASAN_PACKAGE_DEPENDS "comgr-asan(>=1.2.0), rocm-core-asan, libdrm-amdgpu-common | libdrm-common")
 # RPM package specific variable for ASAN
-set(CPACK_RPM_ASAN_PACKAGE_NAME "${CPACK_PACKAGE_NAME}-asan" )
+set(CPACK_RPM_ASAN_PACKAGE_NAME "rocm-dbgapi-asan" )
 set(CPACK_RPM_ASAN_PACKAGE_REQUIRES "rocm-core-asan, comgr-asan >= 1.2.0, libdrm-amdgpu-common")
 
 # Debian package specific variables
@@ -417,7 +415,7 @@ if(DOXYGEN_FOUND)
 
   install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/doc/latex/refman.pdf"
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/${CPACK_PACKAGE_NAME}
+    DESTINATION ${CMAKE_INSTALL_DOCDIR}
     RENAME "amd-dbgapi.pdf"
     OPTIONAL
     COMPONENT dev)
