@@ -86,7 +86,7 @@ void
 event_notifier_t::close ()
 {
   if (!is_valid ())
-   return;
+    return;
 
   if (::CloseHandle (m_event) == 0)
     warning ("notifier_t::~notifier_t: CloseHandle failed: %ld",

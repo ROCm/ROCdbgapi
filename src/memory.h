@@ -123,7 +123,8 @@ public:
                                const address_class_t &address_class) const;
 
   virtual amd_dbgapi_segment_address_dependency_t
-  address_dependency (amd_dbgapi_segment_address_t address) const = 0;
+  address_dependency (amd_dbgapi_segment_address_t address) const
+    = 0;
 
   /* Lower an address in this address space to an address in a base address
      space in the same architecture.  The base address spaces kinds are global,
@@ -141,7 +142,8 @@ public:
                     amd_dbgapi_size_t /* to_contiguous_bytes  */>
   convert (const wave_t &wave, amd_dbgapi_lane_id_t lane_id,
            const address_space_t &from_address_space,
-           amd_dbgapi_segment_address_t from_address) const = 0;
+           amd_dbgapi_segment_address_t from_address) const
+    = 0;
 
   void get_info (amd_dbgapi_address_space_info_t query, size_t value_size,
                  void *value) const;

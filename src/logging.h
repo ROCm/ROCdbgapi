@@ -592,8 +592,7 @@ to_string (std::tuple<Args...> &&t)
 {
   return std::apply (
     [] (auto &&...ts)
-    { return detail::to_string_helper (std::forward<Args> (ts)...); },
-    t);
+    { return detail::to_string_helper (std::forward<Args> (ts)...); }, t);
 }
 
 /* Construct a temporary std::string in the caller's frame to hold the result

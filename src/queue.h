@@ -120,12 +120,14 @@ public:
   virtual void
   active_packets_info (amd_dbgapi_os_queue_packet_id_t *read_packet_id_p,
                        amd_dbgapi_os_queue_packet_id_t *write_packet_id_p,
-                       size_t *packets_byte_size_p) const = 0;
+                       size_t *packets_byte_size_p) const
+    = 0;
 
   virtual void
   active_packets_bytes (amd_dbgapi_os_queue_packet_id_t read_packet_id,
                         amd_dbgapi_os_queue_packet_id_t write_packet_id,
-                        void *memory, size_t memory_size) const = 0;
+                        void *memory, size_t memory_size) const
+    = 0;
 
   void get_info (amd_dbgapi_queue_info_t query, size_t value_size,
                  void *value) const;
@@ -159,7 +161,8 @@ protected:
       {
       }
       amd_dbgapi_global_address_t entry_address () const override { return 0; }
-      bool is_at_kernel_entry (amd_dbgapi_global_address_t /* pc  */) const override
+      bool
+      is_at_kernel_entry (amd_dbgapi_global_address_t /* pc  */) const override
       {
         return false;
       }
@@ -210,7 +213,8 @@ public:
   virtual std::pair<amd_dbgapi_global_address_t /* address */,
                     amd_dbgapi_size_t /* size */>
   scratch_memory_region (
-    const architecture_t::cwsr_record_t &cwsr_record) const = 0;
+    const architecture_t::cwsr_record_t &cwsr_record) const
+    = 0;
 
   /* Return a pointer to device accessible memory containing the given
      instruction bytes.  */

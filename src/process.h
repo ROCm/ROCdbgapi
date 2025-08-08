@@ -34,10 +34,10 @@
 #include "logging.h"
 #include "os_driver.h"
 #include "queue.h"
+#include "rocr_rdebug.h"
 #include "utils.h"
 #include "watchpoint.h"
 #include "wave.h"
-#include "rocr_rdebug.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -368,7 +368,8 @@ public:
   template <typename Handle,
             std::enable_if_t<!std::is_void_v<object_type_from_handle_t<
                                Handle, decltype (m_handle_object_sets)>>,
-                             int> = 0>
+                             int>
+            = 0>
   auto *find (Handle id, bool all = false)
   {
     using object_type
@@ -381,7 +382,8 @@ public:
   template <typename Handle,
             std::enable_if_t<!std::is_void_v<object_type_from_handle_t<
                                Handle, decltype (m_handle_object_sets)>>,
-                             int> = 0>
+                             int>
+            = 0>
   auto const *find (Handle id, bool all = false) const
   {
     using object_type
@@ -466,9 +468,10 @@ using process_find_t
 } /* namespace detail */
 
 /* Find an object with the given handle.  */
-template <typename Handle,
-          std::enable_if_t<
-            utils::is_detected_v<detail::process_find_t, Handle>, int> = 0>
+template <
+  typename Handle,
+  std::enable_if_t<utils::is_detected_v<detail::process_find_t, Handle>, int>
+  = 0>
 auto
 find (Handle id) -> decltype (std::declval<process_t> ().find (id))
 {

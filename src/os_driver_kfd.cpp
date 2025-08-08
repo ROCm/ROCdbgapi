@@ -19,12 +19,13 @@
  THE SOFTWARE. */
 
 #include "os_driver.h"
+
 #include "debug.h"
 #include "linux/kfd_ioctl.h"
 #include "linux/kfd_sysfs.h"
 #include "logging.h"
-#include "utils.h"
 #include "process.h"
+#include "utils.h"
 
 #include <algorithm>
 #include <fstream>
@@ -480,12 +481,14 @@ protected:
   virtual amd_dbgapi_status_t
   kfd_agent_snapshot (kfd_dbg_device_info_entry *agents, size_t snapshot_count,
                       size_t *agent_count,
-                      os_exception_mask_t exceptions_cleared) const = 0;
+                      os_exception_mask_t exceptions_cleared) const
+    = 0;
 
   virtual amd_dbgapi_status_t
   kfd_queue_snapshot (kfd_queue_snapshot_entry *queues, size_t snapshot_count,
                       size_t *queue_cout,
-                      os_exception_mask_t exceptions_cleared) const = 0;
+                      os_exception_mask_t exceptions_cleared) const
+    = 0;
 
 private:
   static std::string marketing_name (uint32_t vendor_id, uint32_t device_id,
@@ -812,9 +815,8 @@ class note_reader
 {
 public:
   explicit note_reader (const amd_dbgapi_core_state_data_t &core_state)
-    : head{ static_cast<const std::byte *> (core_state.data) }, end{
-        head + core_state.size
-      }
+    : head{ static_cast<const std::byte *> (core_state.data) },
+      end{ head + core_state.size }
   {
   }
 
@@ -954,9 +956,10 @@ kfd_core_driver_t::kfd_queue_snapshot (
 }
 
 amd_dbgapi_status_t
-kfd_core_driver_t::enable_debug ([[maybe_unused]] os_exception_mask_t exceptions_reported,
-                                 [[maybe_unused]] amd_dbgapi_notifier_t notifier,
-                                 os_runtime_info_t *runtime_info)
+kfd_core_driver_t::enable_debug (
+  [[maybe_unused]] os_exception_mask_t exceptions_reported,
+  [[maybe_unused]] amd_dbgapi_notifier_t notifier,
+  os_runtime_info_t *runtime_info)
 {
   TRACE_DRIVER_BEGIN (param_in (exceptions_reported), param_in (notifier),
                       param_in (runtime_info));
@@ -1250,9 +1253,7 @@ struct kfd_snapshots
 class note_builder
 {
 public:
-  note_builder ()
-  {
-  }
+  note_builder () {}
 
   template <typename T, std::enable_if_t<!std::is_pointer_v<T>, int> = 0>
   void write (const T &v)
@@ -1955,10 +1956,9 @@ os_driver_t::create_driver (const amd_dbgapi_core_state_data_t &core_state)
       os_driver = std::make_unique<kfd_core_driver_t> (core_state);
       break;
     default:
-      warning (
-        "Cannot open core state version %" PRIu64,
-        static_cast<std::underlying_type_t<decltype (note_version)>> (
-          note_version));
+      warning ("Cannot open core state version %" PRIu64,
+               static_cast<std::underlying_type_t<decltype (note_version)>> (
+                 note_version));
     }
 
   if (os_driver != nullptr && os_driver->is_valid ())

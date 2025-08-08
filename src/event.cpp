@@ -64,10 +64,10 @@ event_t::event_t (amd_dbgapi_event_id_t event_id, process_t &process,
                   amd_dbgapi_event_kind_t event_kind,
                   amd_dbgapi_runtime_state_t runtime_state)
   : event_t (
-    event_id, process, event_kind,
-    runtime_event_t{
-      runtime_state,
-      process.is_flag_set (process_t::flag_t::runtime_enable_during_attach) })
+      event_id, process, event_kind,
+      runtime_event_t{ runtime_state,
+                       process.is_flag_set (
+                         process_t::flag_t::runtime_enable_during_attach) })
 {
   dbgapi_assert (event_kind == AMD_DBGAPI_EVENT_KIND_RUNTIME
                  && "check event kind");

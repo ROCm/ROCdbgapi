@@ -33,8 +33,8 @@
 #endif /* defined(HAVE_BACKTRACE) */
 
 #if BACKTRACE_SUPPORTED
-#include <cxxabi.h>
 #include <backtrace.h>
+#include <cxxabi.h>
 #endif /* BACKTRACE_SUPPORTED */
 
 namespace amd::dbgapi

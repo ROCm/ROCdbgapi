@@ -503,8 +503,7 @@ process_t::set_precise_memory (bool enabled)
   if (m_runtime_state != AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS)
     return;
 
-  amd_dbgapi_status_t status
-    = os_driver ().set_process_flags (new_flags);
+  amd_dbgapi_status_t status = os_driver ().set_process_flags (new_flags);
 
   if (status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED
       && status != AMD_DBGAPI_STATUS_SUCCESS)
@@ -646,10 +645,11 @@ process_t::update_agents ()
           auto [major, minor, stepping] = agent_info.gfxip;
 
           const std::string arch_name = string_printf (
-              "gfx%d%c%c", major,
-              (minor < 10) ? (minor + '0') : (minor - 10 + 'a'),
-              (stepping < 10) ? (stepping + '0') : (stepping - 10 + 'a'));
-          const architecture_t *architecture = architecture_t::find (arch_name);
+            "gfx%d%c%c", major,
+            (minor < 10) ? (minor + '0') : (minor - 10 + 'a'),
+            (stepping < 10) ? (stepping + '0') : (stepping - 10 + 'a'));
+          const architecture_t *architecture
+            = architecture_t::find (arch_name);
 
           if (architecture == nullptr)
             warning ("os_agent_id %d (`%s'): architecture %s not supported.",
@@ -1000,9 +1000,9 @@ process_t::resume_queues (const std::vector<queue_t *> &queues,
 
   size_t num_resumed_queues;
   std::vector<os_queue_state_t> queue_states (queue_ids.size ());
-  amd_dbgapi_status_t status = os_driver ().resume_queues (
-    queue_ids.data (), queue_ids.size (), &num_resumed_queues,
-    queue_states.data ());
+  amd_dbgapi_status_t status
+    = os_driver ().resume_queues (queue_ids.data (), queue_ids.size (),
+                                  &num_resumed_queues, queue_states.data ());
   if (status == AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
     {
       for (auto &&queue : queues)

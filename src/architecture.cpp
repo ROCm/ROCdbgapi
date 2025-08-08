@@ -420,7 +420,8 @@ protected:
 
   /* Return the condition code for the given conditional branch.  */
   virtual cbranch_cond_t
-  cbranch_condition_code (const instruction_t &instruction) const = 0;
+  cbranch_condition_code (const instruction_t &instruction) const
+    = 0;
 
   virtual bool is_sethalt (const instruction_t &instruction) const = 0;
   virtual bool is_barrier (const instruction_t &instruction) const = 0;
@@ -435,7 +436,8 @@ protected:
   virtual bool is_cbranch_g_fork (const instruction_t &instruction) const = 0;
   virtual bool is_cbranch_join (const instruction_t &instruction) const = 0;
   virtual bool is_trap (const instruction_t &instruction,
-                        trap_id_t *trap_id = nullptr) const = 0;
+                        trap_id_t *trap_id = nullptr) const
+    = 0;
   virtual bool is_endpgm (const instruction_t &instruction) const = 0;
   virtual bool is_sequential (const instruction_t &instruction) const = 0;
 
@@ -840,9 +842,8 @@ amdgcn_architecture_t::branch_target (wave_t &wave,
   if (is_branch (instruction) || is_call (instruction)
       || is_cbranch (instruction) || is_cbranch_i_fork (instruction))
     {
-      target
-        = pc + instruction.size ()
-          + (static_cast<int64_t> (simm16_operand (instruction)) << 2);
+      target = pc + instruction.size ()
+               + (static_cast<int64_t> (simm16_operand (instruction)) << 2);
     }
   else if (is_cbranch_g_fork (instruction))
     {
@@ -3407,7 +3408,6 @@ public:
   }
 };
 
-
 /* Vega10 Architecture.  */
 
 class gfx900_t final : public gfx9_architecture_t
@@ -3445,8 +3445,8 @@ protected:
                    uint32_t compute_relaunch_state,
                    amd_dbgapi_global_address_t context_save_address)
       : gfx9_architecture_t::cwsr_record_t (
-        queue, xcc_id, compute_relaunch_wave, compute_relaunch_state,
-        context_save_address)
+          queue, xcc_id, compute_relaunch_wave, compute_relaunch_state,
+          context_save_address)
     {
     }
 
@@ -4290,8 +4290,8 @@ protected:
                    uint32_t compute_relaunch2_state,
                    amd_dbgapi_global_address_t context_save_address)
       : gfx9_architecture_t::cwsr_record_t (
-        queue, xcc_id, compute_relaunch_wave, compute_relaunch_state,
-        context_save_address),
+          queue, xcc_id, compute_relaunch_wave, compute_relaunch_state,
+          context_save_address),
         m_compute_relaunch2_state (compute_relaunch2_state)
     {
     }
@@ -5390,8 +5390,8 @@ protected:
                    uint32_t compute_relaunch2_state,
                    amd_dbgapi_global_address_t context_save_address)
       : gfx10_architecture_t::cwsr_record_t (
-        queue, xcc_id, compute_relaunch_wave, compute_relaunch_state,
-        compute_relaunch2_state, context_save_address)
+          queue, xcc_id, compute_relaunch_wave, compute_relaunch_state,
+          compute_relaunch2_state, context_save_address)
     {
     }
 
@@ -6197,8 +6197,8 @@ protected:
                    uint32_t compute_relaunch2_state,
                    amd_dbgapi_global_address_t context_save_address)
       : gfx11_architecture_t::cwsr_record_t (
-        queue, xcc_id, compute_relaunch_wave, compute_relaunch_state,
-        compute_relaunch2_state, context_save_address)
+          queue, xcc_id, compute_relaunch_wave, compute_relaunch_state,
+          compute_relaunch2_state, context_save_address)
     {
     }
 
@@ -7523,7 +7523,7 @@ public:
 architecture_t::architecture_t (elf_amdgpu_machine_t e_machine,
                                 std::string target_triple)
   : m_architecture_id (
-    amd_dbgapi_architecture_id_t{ s_next_architecture_id () }),
+      amd_dbgapi_architecture_id_t{ s_next_architecture_id () }),
     m_e_machine (e_machine), m_target_triple (std::move (target_triple))
 {
 }
@@ -7589,9 +7589,9 @@ architecture_t::find (const std::string &name)
       && detail::last_found_architecture->name () == name)
     return detail::last_found_architecture;
 
-  auto it = std::find_if (
-    s_architecture_map.begin (), s_architecture_map.end (),
-    [&] (const auto &value) { return value.second->name () == name; });
+  auto it = std::find_if (s_architecture_map.begin (),
+                          s_architecture_map.end (), [&] (const auto &value)
+                          { return value.second->name () == name; });
   if (it != s_architecture_map.end ())
     {
       auto architecture = it->second.get ();

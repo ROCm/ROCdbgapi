@@ -211,7 +211,7 @@ public:
       return i;
     }
     reference operator* () { return *m_it->second; }
-    pointer operator-> () { return m_it->second.get (); }
+    pointer operator->() { return m_it->second.get (); }
     bool operator== (const self_type &rhs) { return m_it == rhs.m_it; }
     bool operator!= (const self_type &rhs) { return m_it != rhs.m_it; }
   };
@@ -243,7 +243,7 @@ public:
       return i;
     }
     const_reference operator* () const { return *m_it->second; }
-    const_pointer operator-> () const { return m_it->second.get (); }
+    const_pointer operator->() const { return m_it->second.get (); }
     bool operator== (const self_type &rhs) const { return m_it == rhs.m_it; }
     bool operator!= (const self_type &rhs) const { return m_it != rhs.m_it; }
   };
@@ -516,7 +516,7 @@ operator!= (const Handle &lhs, const Handle &rhs)
 template <typename Handle,
           std::enable_if_t<amd::dbgapi::is_handle_type_v<Handle>, int> = 0>
 bool
-operator! (const Handle &handle)
+operator!(const Handle &handle)
 {
   return handle == Handle{};
 }

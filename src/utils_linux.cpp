@@ -19,6 +19,7 @@
  THE SOFTWARE. */
 
 #include "utils.h"
+
 #include "logging.h"
 
 #include <dlfcn.h>
@@ -157,8 +158,8 @@ pipe_t::mark ()
 class pipe_notifier_t : public notifier_t
 {
 public:
-  pipe_notifier_t () { }
-  ~pipe_notifier_t () override { }
+  pipe_notifier_t () {}
+  ~pipe_notifier_t () override {}
 
   void open () override { m_pipe.open (); }
   void close () override { m_pipe.close (); }
@@ -184,7 +185,7 @@ public:
   }
 
 private:
-    pipe_t m_pipe;
+  pipe_t m_pipe;
 };
 
 std::unique_ptr<notifier_t>

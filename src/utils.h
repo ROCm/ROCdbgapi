@@ -32,12 +32,12 @@
 #include <exception>
 #include <functional>
 #include <iterator>
+#include <memory>
 #include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
-#include <memory>
 
 #define CONCAT_NX(x, y) x##y
 #define CONCAT(x, y) CONCAT_NX (x, y)
@@ -430,18 +430,20 @@ private:
 public:
   /* Constructors  */
   template <typename RRS = RS, typename DD = D,
-            std::enable_if_t<std::is_default_constructible_v<
-                               RRS> && std::is_default_constructible_v<DD>,
-                             int> = 0>
+            std::enable_if_t<std::is_default_constructible_v<RRS>
+                               && std::is_default_constructible_v<DD>,
+                             int>
+            = 0>
   unique_resource_t ()
     : m_resource (), m_deleter (), m_execute_on_reset (false)
   {
   }
 
-  template <typename RR, typename DD,
-            std::enable_if_t<std::is_constructible_v<
-                               RS, RR> && std::is_constructible_v<D, DD>,
-                             int> = 0>
+  template <
+    typename RR, typename DD,
+    std::enable_if_t<
+      std::is_constructible_v<RS, RR> && std::is_constructible_v<D, DD>, int>
+    = 0>
   unique_resource_t (RR &&resource, DD &&deleter) noexcept
     : m_resource (std::forward<RR> (resource)),
       m_deleter (std::forward<DD> (deleter)), m_execute_on_reset (true)
@@ -495,15 +497,15 @@ public:
   template <
     typename RR = R,
     std::enable_if_t<
-      std::is_pointer_v<RR> && !std::is_void_v<std::remove_pointer_t<RR>>,
-      int> = 0>
+      std::is_pointer_v<RR> && !std::is_void_v<std::remove_pointer_t<RR>>, int>
+    = 0>
   std::add_lvalue_reference_t<std::remove_pointer_t<R>> operator* () const
   {
     return *get ();
   }
 
   template <typename RR = R, std::enable_if_t<std::is_pointer_v<RR>, int> = 0>
-  R operator-> () const
+  R operator->() const
   {
     return get ();
   }
@@ -587,7 +589,7 @@ public:
       return i;
     }
     reference operator* () { return static_cast<reference> (*m_current); }
-    pointer operator-> () { return static_cast<pointer> (m_current); }
+    pointer operator->() { return static_cast<pointer> (m_current); }
     bool operator== (const self_type &rhs)
     {
       return m_current == rhs.m_current;
@@ -849,8 +851,7 @@ constexpr size_t GiB = KiB * KiB * KiB;
 
 extern std::string human_readable_size (size_t size);
 
-template <typename T>
-struct type_identity
+template <typename T> struct type_identity
 {
   using type = T;
 };
@@ -869,7 +870,7 @@ template <typename T> inline constexpr bool is_flag_v = is_flag<T>::value;
 
 template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
 constexpr bool
-operator! (T flag)
+operator!(T flag)
 {
   using t = std::underlying_type_t<T>;
   return static_cast<t> (flag) == t{};
@@ -891,7 +892,7 @@ operator!= (T flag, std::underlying_type_t<T> value)
 
 template <typename T, std::enable_if_t<is_flag_v<T>, int> = 0>
 constexpr T
-operator~ (T flag)
+operator~(T flag)
 {
   using t = std::underlying_type_t<T>;
   return static_cast<T> (~static_cast<t> (flag));
@@ -1048,8 +1049,8 @@ class notifier_t : private utils::not_copyable_t
 public:
   static std::unique_ptr<notifier_t> create ();
 
-  notifier_t () { }
-  virtual ~notifier_t () { };
+  notifier_t () {}
+  virtual ~notifier_t (){};
 
   /* The notifier_t is non-movable.  */
   notifier_t (notifier_t &&) = delete;

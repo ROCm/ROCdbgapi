@@ -58,11 +58,12 @@ public:
     return m_os_queue_packet_id;
   }
 
-  virtual const architecture_t::kernel_descriptor_t &
-  kernel_descriptor () const = 0;
+  virtual const architecture_t::kernel_descriptor_t &kernel_descriptor () const
+    = 0;
 
   virtual void get_info (amd_dbgapi_dispatch_info_t query, size_t value_size,
-                         void *value) const = 0;
+                         void *value) const
+    = 0;
 
   compute_queue_t &queue () const { return m_queue; }
   const agent_t &agent () const;
