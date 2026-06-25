@@ -1366,11 +1366,8 @@ amdgcn_architecture_t::set_exceptions (wave_t &wave, exception_mask_t mask,
 
   uint32_t trapsts;
   wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
-  while (mask != 0)
+  utils::for_each_flag (mask, [&] (exception_mask_t single_exception)
     {
-      /* Get the lowest bit that is set.  */
-      auto single_exception = mask ^ (mask & (mask - 1));
-
       /* For each exception, set or clear the corresponding bit in TRAPSTS.  */
       auto trapsts_bit = convert_exception (single_exception);
       if (trapsts_bit != 0)
@@ -1382,9 +1379,7 @@ amdgcn_architecture_t::set_exceptions (wave_t &wave, exception_mask_t mask,
         }
       else
         unhandled_exceptions |= single_exception;
-
-      mask ^= single_exception;
-    }
+    });
   wave.write_register (amdgpu_regnum_t::trapsts, trapsts);
 
   return unhandled_exceptions;
@@ -3969,11 +3964,8 @@ gfx9_4_architecture_t::set_exceptions (wave_t &wave, exception_mask_t mask,
 
   uint32_t trapsts;
   wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
-  while (mask != 0)
+  utils::for_each_flag (mask, [&] (exception_mask_t single_exception)
     {
-      /* Get the lowest bit that is set.  */
-      auto single_exception = mask ^ (mask & (mask - 1));
-
       /* For each exception, set or clear the corresponding bit in TRAPSTS.  */
       auto trapsts_bit = convert_exception (single_exception);
       if (trapsts_bit != 0)
@@ -3985,9 +3977,7 @@ gfx9_4_architecture_t::set_exceptions (wave_t &wave, exception_mask_t mask,
         }
       else
         unhandled_exceptions |= single_exception;
-
-      mask ^= single_exception;
-    }
+    });
   wave.write_register (amdgpu_regnum_t::trapsts, trapsts);
 
   return unhandled_exceptions;
@@ -5671,11 +5661,8 @@ gfx11_architecture_t::set_exceptions (wave_t &wave, exception_mask_t mask,
 
   uint32_t trapsts;
   wave.read_register (amdgpu_regnum_t::trapsts, &trapsts);
-  while (mask != 0)
+  utils::for_each_flag (mask, [&] (exception_mask_t single_exception)
     {
-      /* Get the lowest bit that is set.  */
-      auto single_exception = mask ^ (mask & (mask - 1));
-
       /* For each exception, set or clear the corresponding bit in TRAPSTS.  */
       auto trapsts_bit = convert_exception (single_exception);
       if (trapsts_bit != 0)
@@ -5687,9 +5674,7 @@ gfx11_architecture_t::set_exceptions (wave_t &wave, exception_mask_t mask,
         }
       else
         unhandled_exceptions |= single_exception;
-
-      mask ^= single_exception;
-    }
+    });
   wave.write_register (amdgpu_regnum_t::trapsts, trapsts);
 
   return unhandled_exceptions;
@@ -6642,11 +6627,8 @@ gfx12_architecture_t::set_exceptions (wave_t &wave, exception_mask_t mask,
   uint32_t excp_flag_priv_reg, excp_flag_user_reg;
   wave.read_register (amdgpu_regnum_t::excp_flag_priv, &excp_flag_priv_reg);
   wave.read_register (amdgpu_regnum_t::excp_flag_user, &excp_flag_user_reg);
-  while (mask != 0)
+  utils::for_each_flag (mask, [&] (exception_mask_t single_exception)
     {
-      /* Get the lowest bit that is set.  */
-      auto single_exception = mask ^ (mask & (mask - 1));
-
       /* For each exception, set or clear the corresponding bit.  */
       auto excp_flag_priv_bit = convert_priv_exception (single_exception);
       auto excp_flag_user_bit = convert_user_exception (single_exception);
@@ -6668,9 +6650,7 @@ gfx12_architecture_t::set_exceptions (wave_t &wave, exception_mask_t mask,
         }
       else
         unhandled_exceptions |= single_exception;
-
-      mask ^= single_exception;
-    }
+    });
   wave.write_register (amdgpu_regnum_t::excp_flag_priv, excp_flag_priv_reg);
   wave.write_register (amdgpu_regnum_t::excp_flag_user, excp_flag_user_reg);
 
