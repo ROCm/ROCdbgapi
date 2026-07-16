@@ -2501,13 +2501,14 @@ protected:
   };
 
   virtual std::unique_ptr<architecture_t::cwsr_record_t>
-  make_gfx9_cwsr_record (compute_queue_t &queue, uint32_t xcc_id,
-                         uint32_t compute_relaunch_wave,
-                         uint32_t compute_relaunch_state,
-                         agent_address_t context_save_address) const
+  make_cwsr_record (compute_queue_t &queue, uint32_t xcc_id,
+                    uint32_t compute_relaunch_wave,
+                    const std::vector<uint32_t> &compute_relaunch_state,
+                    agent_address_t context_save_address) const
   {
+    dbgapi_assert (compute_relaunch_state.size () == 1);
     return std::make_unique<cwsr_record_t> (
-      queue, xcc_id, compute_relaunch_wave, compute_relaunch_state,
+      queue, xcc_id, compute_relaunch_wave, compute_relaunch_state[0],
       context_save_address);
   }
 
@@ -3324,7 +3325,7 @@ gfx9_architecture_t::control_stack_iterate (
   const
 {
   size_t wave_count = 0;
-  uint32_t state = 0;
+  std::vector<uint32_t> state{ 0 };
 
   agent_address_t last_wave_area = wave_area_address;
 
@@ -3339,12 +3340,12 @@ gfx9_architecture_t::control_stack_iterate (
         }
       else if (compute_relaunch_is_state (relaunch))
         {
-          state = relaunch;
+          state[0] = relaunch;
         }
       else
         {
-          auto cwsr_record = make_gfx9_cwsr_record (
-            queue, xcc_id, relaunch, state, last_wave_area - 64);
+          auto cwsr_record = make_cwsr_record (queue, xcc_id, relaunch, state,
+                                               last_wave_area - 64);
 
           last_wave_area
             = cwsr_record->register_address (amdgpu_regnum_t::v0_64).value ();
@@ -3517,10 +3518,10 @@ protected:
   };
 
   std::unique_ptr<architecture_t::cwsr_record_t>
-  make_gfx9_cwsr_record (compute_queue_t &queue, uint32_t xcc_id,
-                         uint32_t compute_relaunch_wave,
-                         uint32_t compute_relaunch_state,
-                         agent_address_t context_save_address) const override
+  make_cwsr_record (compute_queue_t &queue, uint32_t xcc_id,
+                    uint32_t compute_relaunch_wave,
+                    const std::vector<uint32_t> &compute_relaunch_state,
+                    agent_address_t context_save_address) const override
     = 0;
 
   mi_architecture_t (elf_amdgpu_machine_t e_machine,
@@ -3666,13 +3667,14 @@ class gfx908_t final : public mi_architecture_t
   };
 
   std::unique_ptr<architecture_t::cwsr_record_t>
-  make_gfx9_cwsr_record (compute_queue_t &queue, uint32_t xcc_id,
-                         uint32_t compute_relaunch_wave,
-                         uint32_t compute_relaunch_state,
-                         agent_address_t context_save_address) const override
+  make_cwsr_record (compute_queue_t &queue, uint32_t xcc_id,
+                    uint32_t compute_relaunch_wave,
+                    const std::vector<uint32_t> &compute_relaunch_state,
+                    agent_address_t context_save_address) const override
   {
+    dbgapi_assert (compute_relaunch_state.size () == 1);
     return std::make_unique<cwsr_record_t> (
-      queue, xcc_id, compute_relaunch_wave, compute_relaunch_state,
+      queue, xcc_id, compute_relaunch_wave, compute_relaunch_state[0],
       context_save_address);
   }
 
@@ -3729,13 +3731,14 @@ protected:
   };
 
   std::unique_ptr<architecture_t::cwsr_record_t>
-  make_gfx9_cwsr_record (compute_queue_t &queue, uint32_t xcc_id,
-                         uint32_t compute_relaunch_wave,
-                         uint32_t compute_relaunch_state,
-                         agent_address_t context_save_address) const override
+  make_cwsr_record (compute_queue_t &queue, uint32_t xcc_id,
+                    uint32_t compute_relaunch_wave,
+                    const std::vector<uint32_t> &compute_relaunch_state,
+                    agent_address_t context_save_address) const override
   {
+    dbgapi_assert (compute_relaunch_state.size () == 1);
     return std::make_unique<cwsr_record_t> (
-      queue, xcc_id, compute_relaunch_wave, compute_relaunch_state,
+      queue, xcc_id, compute_relaunch_wave, compute_relaunch_state[0],
       context_save_address);
   }
 
@@ -3848,13 +3851,14 @@ protected:
   };
 
   std::unique_ptr<architecture_t::cwsr_record_t>
-  make_gfx9_cwsr_record (compute_queue_t &queue, uint32_t xcc_id,
-                         uint32_t compute_relaunch_wave,
-                         uint32_t compute_relaunch_state,
-                         agent_address_t context_save_address) const override
+  make_cwsr_record (compute_queue_t &queue, uint32_t xcc_id,
+                    uint32_t compute_relaunch_wave,
+                    const std::vector<uint32_t> &compute_relaunch_state,
+                    agent_address_t context_save_address) const override
   {
+    dbgapi_assert (compute_relaunch_state.size () == 1);
     return std::make_unique<cwsr_record_t> (
-      queue, xcc_id, compute_relaunch_wave, compute_relaunch_state,
+      queue, xcc_id, compute_relaunch_wave, compute_relaunch_state[0],
       context_save_address);
   }
 
@@ -4276,13 +4280,14 @@ protected:
   };
 
   std::unique_ptr<architecture_t::cwsr_record_t>
-  make_gfx9_cwsr_record (compute_queue_t &queue, uint32_t xcc_id,
-                         uint32_t compute_relaunch_wave,
-                         uint32_t compute_relaunch_state,
-                         agent_address_t context_save_address) const override
+  make_cwsr_record (compute_queue_t &queue, uint32_t xcc_id,
+                    uint32_t compute_relaunch_wave,
+                    const std::vector<uint32_t> &compute_relaunch_state,
+                    agent_address_t context_save_address) const override
   {
+    dbgapi_assert (compute_relaunch_state.size () == 1);
     return std::make_unique<cwsr_record_t> (
-      queue, xcc_id, compute_relaunch_wave, compute_relaunch_state,
+      queue, xcc_id, compute_relaunch_wave, compute_relaunch_state[0],
       context_save_address);
   }
 
@@ -4384,16 +4389,16 @@ protected:
     register_address (amdgpu_regnum_t regnum) const override;
   };
 
-  virtual std::unique_ptr<architecture_t::cwsr_record_t>
-  make_gfx1x_cwsr_record (compute_queue_t &queue, uint32_t xcc_id,
-                          uint32_t compute_relaunch_wave,
-                          uint32_t compute_relaunch_state,
-                          uint32_t compute_relaunch2_state,
-                          agent_address_t context_save_address) const
+  std::unique_ptr<architecture_t::cwsr_record_t>
+  make_cwsr_record (compute_queue_t &queue, uint32_t xcc_id,
+                    uint32_t compute_relaunch_wave,
+                    const std::vector<uint32_t> &compute_relaunch_state,
+                    agent_address_t context_save_address) const override
   {
+    dbgapi_assert (compute_relaunch_state.size () == 2);
     return std::make_unique<cwsr_record_t> (
-      queue, xcc_id, compute_relaunch_wave, compute_relaunch_state,
-      compute_relaunch2_state, context_save_address);
+      queue, xcc_id, compute_relaunch_wave, compute_relaunch_state[0],
+      compute_relaunch_state[1], context_save_address);
   }
 
   std::optional<amdgpu_regnum_t>
@@ -5300,7 +5305,7 @@ gfx10_architecture_t::control_stack_iterate (
   const
 {
   size_t wave_count = 0;
-  uint32_t state0 = 0, state1 = 0;
+  std::vector<uint32_t> state{ 0, 0 };
 
   agent_address_t last_wave_area = wave_area_address;
 
@@ -5315,15 +5320,15 @@ gfx10_architecture_t::control_stack_iterate (
         }
       else if (compute_relaunch_is_state (relaunch))
         {
-          state0 = relaunch;
+          state[0] = relaunch;
           /* On gfx10 and gfx11, there are 2 COMPUTE_RELAUNCH registers for
              state.  */
-          state1 = control_stack[++i];
+          state[1] = control_stack[++i];
         }
       else
         {
-          auto cwsr_record = make_gfx1x_cwsr_record (
-            queue, xcc_id, relaunch, state0, state1, last_wave_area);
+          auto cwsr_record = make_cwsr_record (queue, xcc_id, relaunch, state,
+                                               last_wave_area);
 
           last_wave_area = cwsr_record->begin ();
           wave_callback (std::move (cwsr_record));
@@ -5484,14 +5489,16 @@ protected:
     uint32_t shader_engine_id () const override;
   };
 
-  std::unique_ptr<architecture_t::cwsr_record_t> make_gfx1x_cwsr_record (
-    compute_queue_t &queue, uint32_t xcc_id, uint32_t compute_relaunch_wave,
-    uint32_t compute_relaunch_state, uint32_t compute_relaunch2_state,
-    agent_address_t context_save_address) const override
+  std::unique_ptr<architecture_t::cwsr_record_t>
+  make_cwsr_record (compute_queue_t &queue, uint32_t xcc_id,
+                    uint32_t compute_relaunch_wave,
+                    const std::vector<uint32_t> &compute_relaunch_state,
+                    agent_address_t context_save_address) const override
   {
+    dbgapi_assert (compute_relaunch_state.size () == 2);
     return std::make_unique<cwsr_record_t> (
-      queue, xcc_id, compute_relaunch_wave, compute_relaunch_state,
-      compute_relaunch2_state, context_save_address);
+      queue, xcc_id, compute_relaunch_wave, compute_relaunch_state[0],
+      compute_relaunch_state[1], context_save_address);
   }
 
   std::optional<amdgpu_regnum_t>
@@ -6328,14 +6335,16 @@ protected:
     size_t lds_size () const override;
   };
 
-  std::unique_ptr<architecture_t::cwsr_record_t> make_gfx1x_cwsr_record (
-    compute_queue_t &queue, uint32_t xcc_id, uint32_t compute_relaunch_wave,
-    uint32_t compute_relaunch_state, uint32_t compute_relaunch2_state,
-    agent_address_t context_save_address) const override
+  std::unique_ptr<architecture_t::cwsr_record_t>
+  make_cwsr_record (compute_queue_t &queue, uint32_t xcc_id,
+                    uint32_t compute_relaunch_wave,
+                    const std::vector<uint32_t> &compute_relaunch_state,
+                    agent_address_t context_save_address) const override
   {
+    dbgapi_assert (compute_relaunch_state.size () == 2);
     return std::make_unique<cwsr_record_t> (
-      queue, xcc_id, compute_relaunch_wave, compute_relaunch_state,
-      compute_relaunch2_state, context_save_address);
+      queue, xcc_id, compute_relaunch_wave, compute_relaunch_state[0],
+      compute_relaunch_state[1], context_save_address);
   }
 
   gfx12_architecture_t (elf_amdgpu_machine_t e_machine,
@@ -7642,16 +7651,14 @@ protected:
   };
 
   std::unique_ptr<architecture_t::cwsr_record_t>
-  make_gfx1x_cwsr_record (compute_queue_t &queue,
-                          uint32_t xcc_id,
-                          uint32_t compute_relaunch_wave,
-                          uint32_t compute_relaunch_state,
-                          uint32_t compute_relaunch2_state,
-                          agent_address_t context_save_address) const override
+  make_cwsr_record (compute_queue_t &queue, uint32_t xcc_id,
+                    uint32_t compute_relaunch_wave,
+                    const std::vector<uint32_t> &compute_relaunch_state,
+                    agent_address_t context_save_address) const override
   {
     return std::make_unique<cwsr_record_t> (
-      queue, xcc_id, compute_relaunch_wave, compute_relaunch_state,
-      compute_relaunch2_state, context_save_address);
+      queue, xcc_id, compute_relaunch_wave, compute_relaunch_state[0],
+      compute_relaunch_state[1], context_save_address);
   }
 
   /* A note regarding all the register methods in this class:
