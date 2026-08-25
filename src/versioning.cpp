@@ -35,8 +35,6 @@ amd_dbgapi_get_build_name ()
   TRACE_BEGIN ();
 
   return AMD_DBGAPI_BUILD_INFO;
-
-  TRACE_END ();
 }
 
 void AMD_DBGAPI
