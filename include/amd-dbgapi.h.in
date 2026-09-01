@@ -1898,9 +1898,9 @@ typedef enum
   AMD_DBGAPI_PROCESS_INFO_SIGNIFICANT_ADDRESS_BITS = 8,
   /**
    * Return if the architectures of all the agents of a process support
-   * reporting group segment out-of-address-range exceptions.  The type of this
-   * attribute is \p uint32_t with the values defined by
-   * ::amd_dbgapi_alu_exceptions_precision_t.
+   * reporting group segment out-of-address-range exceptions.  The type
+   * of this attribute is \p uint32_t with the values defined by
+   * ::amd_dbgapi_group_segment_out_of_addr_range_exception_t.
    */
   AMD_DBGAPI_PROCESS_INFO_GROUP_SEGMENT_OUT_OF_ADDR_RANGE_SUPPORTED = 9,
 } amd_dbgapi_process_info_t;

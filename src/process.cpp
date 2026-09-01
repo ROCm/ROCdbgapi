@@ -2788,4 +2788,3 @@ amd_dbgapi_set_alu_exceptions_precision (
          AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED);
   TRACE_END ();
 }
-
