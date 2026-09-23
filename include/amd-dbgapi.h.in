@@ -1896,6 +1896,13 @@ typedef enum
    * attribute is ::amd_dbgapi_segment_address_t.
    */
   AMD_DBGAPI_PROCESS_INFO_SIGNIFICANT_ADDRESS_BITS = 8,
+  /**
+   * Return if the architectures of all the agents of a process support
+   * controlling the reporting for out-of-address range exceptions in a
+   * group segment.  The type of this attribute is \p uint32_t with the
+   * values defined by ::amd_dbgapi_group_segment_excp_t.
+   */
+  AMD_DBGAPI_PROCESS_INFO_GROUP_SEGMENT_EXCEPTION_SUPPORTED = 9,
 } amd_dbgapi_process_info_t;
 
 /**
@@ -1949,7 +1956,7 @@ typedef enum
  */
 amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
     amd_dbgapi_process_id_t process_id, amd_dbgapi_process_info_t query,
-    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_80;
+    size_t value_size, void *value) AMD_DBGAPI_VERSION_0_81;
 
 /**
  * Attach to a process in order to provide debug control of the AMD GPUs it
