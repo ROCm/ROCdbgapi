@@ -666,6 +666,12 @@ typedef unsigned long amd_dbgapi_DWORD;
  */
 #define AMD_DBGAPI_VERSION_0_80
 
+/**
+ * The function was introduced in version 0.81 of the interface and has the
+ * symbol version string of ``"@AMD_DBGAPI_NAME@_0.81"``.
+ */
+#define AMD_DBGAPI_VERSION_0_81
+
 /** @} */
 
 /** \ingroup callbacks_group
