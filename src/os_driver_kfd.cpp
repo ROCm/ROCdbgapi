@@ -675,6 +675,9 @@ kfd_driver_base_t::agent_snapshot (
       agent_info.precise_alu_exceptions_supported
         = (entry.capability
            & HSA_CAP_TRAP_DEBUG_PRECISE_ALU_OPERATIONS_SUPPORTED);
+      agent_info.lds_exception_supported
+        = (entry.capability2
+           & HSA_CAP2_TRAP_DEBUG_LDS_OUT_OF_ADDR_RANGE_SUPPORTED);
       agent_info.firmware_supported
         = entry.capability & HSA_CAP_TRAP_DEBUG_FIRMWARE_SUPPORTED;
       agent_info.address_watch_mask_bits = utils::bit_mask (
