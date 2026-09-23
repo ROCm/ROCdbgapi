@@ -1473,6 +1473,18 @@ to_string (amd_dbgapi_alu_exceptions_precision_t alu_exceptions_precision)
 
 template <>
 std::string
+to_string (amd_dbgapi_group_segment_excp_t group_segment_excp)
+{
+  switch (group_segment_excp)
+    {
+      CASE (GROUP_SEGMENT_EXCP_NONE);
+      CASE (GROUP_SEGMENT_EXCP_RAISE);
+    }
+  return to_string (make_hex (group_segment_excp));
+}
+
+template <>
+std::string
 to_string (amd_dbgapi_event_kind_t event_kind)
 {
   switch (event_kind)

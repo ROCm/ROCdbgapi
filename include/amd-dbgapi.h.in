@@ -6879,6 +6879,26 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_alu_exceptions_precision (
     amd_dbgapi_alu_exceptions_precision_t alu_exceptions_precision)
      AMD_DBGAPI_VERSION_0_77;
 
+/**
+ * Group segment out-of-address range exception reporting.
+ *
+ * Group segments are the shared memory segments among the work-items
+ * within a workgroup.
+ */
+typedef enum
+{
+  /**
+   * An out-of-address range memory access in a group segment does not
+   * trigger an exception.
+   */
+  AMD_DBGAPI_GROUP_SEGMENT_EXCP_NONE = 0,
+  /**
+   * An out-of-address range memory access in a group segment triggers
+   * a hardware exception.
+   */
+  AMD_DBGAPI_GROUP_SEGMENT_EXCP_RAISE = 1
+} amd_dbgapi_group_segment_excp_t;
+
 /** @} */
 
 /** \defgroup event_group Events
