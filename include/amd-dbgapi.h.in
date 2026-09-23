@@ -1967,8 +1967,9 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_get_info (
  *
  * The process progress is initialized to ::AMD_DBGAPI_PROGRESS_NORMAL.  All
  * agents accessed by the process are configured to
- * ::AMD_DBGAPI_MEMORY_PRECISION_NONE and
- * ::AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_NONE.
+ * ::AMD_DBGAPI_MEMORY_PRECISION_NONE,
+ * ::AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_NONE and
+ * ::AMD_DBGAPI_GROUP_SEGMENT_EXCP_NONE.
  *
  * When attaching to a live process, the client process handle must have been
  * associated with a native operating system process, and the
@@ -2069,8 +2070,9 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_attach (
  * system process to continue unaffected by the library.  Any waves with a
  * displaced stepping buffer are stopped and the displaced stepping buffer
  * completed.  Any data watchpoints are removed.  All agents are configured to
- * ::AMD_DBGAPI_MEMORY_PRECISION_NONE and
- * ::AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_NONE.  Any waves in the stopped or
+ * ::AMD_DBGAPI_MEMORY_PRECISION_NONE,
+ * ::AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_NONE and
+ * ::AMD_DBGAPI_GROUP_SEGMENT_EXCP_NONE.  Any waves in the stopped or
  * single step state are resumed in non-single step mode.  Any pending events
  * for the process are discarded, and no further events will be generated for
  * the process.  If the process is in the frozen state, it is unfrozen.  The
