@@ -1902,6 +1902,13 @@ process_t::get_info (amd_dbgapi_process_info_t query, size_t value_size,
         *static_cast<amd_dbgapi_segment_address_t *> (value) = val;
         return;
       }
+
+    case AMD_DBGAPI_PROCESS_INFO_GROUP_SEGMENT_EXCEPTION_SUPPORTED:
+      utils::get_info (value_size, value,
+                       m_supports_lds_exception
+                         ? AMD_DBGAPI_GROUP_SEGMENT_EXCP_RAISE
+                         : AMD_DBGAPI_GROUP_SEGMENT_EXCP_NONE);
+      return;
     }
 
   throw api_error_t (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);

@@ -108,3 +108,7 @@ global: amd_dbgapi_process_get_info;
 @AMD_DBGAPI_NAME@_0.81 {
 global: amd_dbgapi_convert_address_space;
 } @AMD_DBGAPI_NAME@_0.80;
+
+@AMD_DBGAPI_NAME@_0.82 {
+global: amd_dbgapi_process_get_info;
+} @AMD_DBGAPI_NAME@_0.81;
