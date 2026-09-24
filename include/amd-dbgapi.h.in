@@ -6964,6 +6964,61 @@ typedef enum
   AMD_DBGAPI_ASPACE_CONFIG_VAL_GRPSEG_EXCP_ON = 3,
 } amd_dbgapi_aspace_config_value_t;
 
+/**
+ * Control a process's address space configurations.
+ *
+ * ::amd_dbgapi_aspace_config_t specifies the configuration of the address
+ * sapce to be adjusted for the given process.
+ *
+ * ::amd_dbgapi_aspace_config_value_t specifies the value for the selected
+ * configuration.
+ *
+ * A process can be set to ::AMD_DBGAPI_MEMORY_PRECISION_NONE to disable
+ * precise memory reporting.  Use the
+ * ::AMD_DBGAPI_PROCESS_INFO_PRECISE_MEMORY_SUPPORTED query to determine if the
+ * architectures of all the agents of a process support another memory
+ * precision.
+ *
+ * \param[in] process_id The process whose address space configuration is
+ * being adjusted.
+ *
+ * \param[in] address_space_id The address space.
+ *
+ * \param[in] aspace_config The configuration to be adjusted.
+ *
+ * \param[in] aspace_config_value The value to be set for the configuration.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
+ * successfully and the agents of the process use the updated value.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
+ * initialized.  The library is left uninitialized and no configuration is
+ * changed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
+ * invalid.  No configuration is changed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID \p
+ * address_space_id is invalid.  No configuration is changed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT The \p config
+ * or \p value are not valid inputs.  No configuration is changed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY Either
+ * the \p value is not suitable for the \p config, or the \p config does
+ * not apply to \p address_space_id.  No configuration is changed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED The requested setting of
+ * \p value for the \p config is not not supported by the architecture of all
+ * the agents of \p process_id.  No configuration is changed.
+ */
+amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_config_process_aspace (
+  amd_dbgapi_process_id_t process_id,
+  amd_dbgapi_address_space_id_t address_space_id,
+  amd_dbgapi_aspace_config_t aspace_config,
+  amd_dbgapi_aspace_config_value_t aspace_config_value)
+  AMD_DBGAPI_VERSION_0_81;
+
 /** @} */
 
 /** \defgroup event_group Events
