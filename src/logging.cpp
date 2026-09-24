@@ -1489,6 +1489,32 @@ to_string (amd_dbgapi_group_segment_excp_t group_segment_excp)
 
 template <>
 std::string
+to_string (amd_dbgapi_aspace_config_t aspace_config)
+{
+  switch (aspace_config)
+    {
+      CASE (ASPACE_CONFIG_PRECISE_MEM);
+      CASE (ASPACE_CONFIG_GRPSEG_EXCP);
+    }
+  return to_string (make_hex (aspace_config));
+}
+
+template <>
+std::string
+to_string (amd_dbgapi_aspace_config_value_t aspace_config_val)
+{
+  switch (aspace_config_val)
+    {
+      CASE (ASPACE_CONFIG_VAL_PRECISE_MEM_OFF);
+      CASE (ASPACE_CONFIG_VAL_PRECISE_MEM_ON);
+      CASE (ASPACE_CONFIG_VAL_GRPSEG_EXCP_OFF);
+      CASE (ASPACE_CONFIG_VAL_GRPSEG_EXCP_ON);
+    }
+  return to_string (make_hex (aspace_config_val));
+}
+
+template <>
+std::string
 to_string (amd_dbgapi_event_kind_t event_kind)
 {
   switch (event_kind)
