@@ -1520,6 +1520,19 @@ to_string (amd_dbgapi_group_segment_excp_t group_segment_excp)
 
 template <>
 std::string
+to_string (amd_dbgapi_process_properties_t property)
+{
+  switch (property)
+    {
+      CASE (PROCESS_PROPERTIES_PRECISE_MEMORY_EXCEPTIONS);
+      CASE (PROCESS_PROPERTIES_PRECISE_ALU_EXCEPTIONS);
+      CASE (PROCESS_PROPERTIES_GROUP_SEGMENT_EXCEPTIONS);
+    }
+  return to_string (make_hex (property));
+}
+
+template <>
+std::string
 to_string (amd_dbgapi_event_kind_t event_kind)
 {
   switch (event_kind)

@@ -3,7 +3,20 @@
 Full documentation for AMD Debugger API is available at
 [rocm.docs.amd.com/rocdbgapi](https://rocm.docs.amd.com/projects/ROCdbgapi/en/latest/index.html).
 
-## rocm-dbgapi-0.83 for ROCm-X
+## rocm-dbgapi-0.84 for ROCm-X
+### Added
+- New `amd_dbgapi_process_set_property` API that allows adjusting
+  different properties of a process:
+  - Precise memory exception reporting
+  - Precise ALU exceptions reporting
+  - Group segments exceptions
+
+### Removed
+- `amd_dbgapi_set_memory_precision`
+- `amd_dbgapi_set_alu_exceptions_precisions`
+
+
+## rocm-dbgapi-0.83
 ### Added
 - `amd_dbgapi_process_get_info` adds a new query called
   `AMD_DBGAPI_PROCESS_INFO_GROUP_SEGMENT_EXCEPTION_SUPPORTED` that
