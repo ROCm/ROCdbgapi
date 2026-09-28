@@ -6929,6 +6929,29 @@ typedef enum
   AMD_DBGAPI_GROUP_SEGMENT_EXCP_RAISE = 1
 } amd_dbgapi_group_segment_excp_t;
 
+/**
+ * Process properties that may be altered.
+ */
+typedef enum
+{
+  /** No property.  */
+  AMD_DBGAPI_PROC_PROP_NONE = 0,
+  /** Memory exception for an address space.  */
+  AMD_DBGAPI_PROC_PROP_ASPACE_EXCP = 1,
+} amd_dbgapi_proc_prop_t;
+
+/**
+ * The struct to hold the property value for the
+ * ::AMD_DBGAPI_PROC_PROP_ASPACE_EXCP property.
+ */
+typedef struct
+{
+  /** The address space for which the exception is being handled.  */
+  amd_dbgapi_address_space_id_t aspace_id;
+  /** If true, the exception is enabled; otherwise, it is disabled.  */
+  amd_dbgapi_group_segment_excp_t enable;
+} amd_dbgapi_aspace_excp_t;
+
 /** @} */
 
 /** \defgroup event_group Events
