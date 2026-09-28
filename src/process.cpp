@@ -20,6 +20,7 @@
 
 #include "process.h"
 #include "agent.h"
+#include "amd-dbgapi.h"
 #include "architecture.h"
 #include "callbacks.h"
 #include "code_object.h"
@@ -2752,12 +2753,13 @@ amd_dbgapi_process_get_info (amd_dbgapi_process_id_t process_id,
   TRACE_END (make_query_ref (query, param_out (value)));
 }
 
-amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_set_alu_exceptions_precision (
-  amd_dbgapi_process_id_t process_id,
-  amd_dbgapi_alu_exceptions_precision_t alu_exceptions_precision)
+amd_dbgapi_status_t
+amd_dbgapi_process_set_property (amd_dbgapi_process_id_t process_id,
+                                 amd_dbgapi_proc_prop_t process_property,
+                                 size_t value_size, void *value)
 {
-  TRACE_BEGIN (param_in (process_id), param_in (alu_exceptions_precision));
+  TRACE_BEGIN (param_in (process_id), param_in (process_property),
+               param_in (value_size), param_in (value));
   TRY
   {
     if (!detail::is_initialized)
@@ -2768,17 +2770,76 @@ amd_dbgapi_set_alu_exceptions_precision (
     if (process == nullptr)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
 
-    if (alu_exceptions_precision != AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_NONE
-        && alu_exceptions_precision
-             != AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_PRECISE)
+    if (process_property != AMD_DBGAPI_PROC_PROP_PRECISE_MEM_REP
+        && process_property != AMD_DBGAPI_PROC_PROP_PRECISE_ALU_REP
+        && process_property != AMD_DBGAPI_PROC_PROP_ASPACE_EXCP)
       THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
 
-    process->set_precise_alu_exceptions (
-      alu_exceptions_precision == AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_PRECISE);
+    if (process_property == AMD_DBGAPI_PROC_PROP_PRECISE_MEM_REP
+        && value_size != sizeof (amd_dbgapi_memory_precision_t))
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+
+    if (process_property == AMD_DBGAPI_PROC_PROP_PRECISE_ALU_REP
+        && value_size != sizeof (amd_dbgapi_alu_exceptions_precision_t))
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+
+    if (process_property == AMD_DBGAPI_PROC_PROP_ASPACE_EXCP
+        && value_size != sizeof (amd_dbgapi_proc_prop_aspace_excp_t))
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+
+    if (value == nullptr)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
+
+    if (process_property == AMD_DBGAPI_PROC_PROP_PRECISE_MEM_REP)
+      {
+        const auto mode = static_cast<amd_dbgapi_memory_precision_t *> (value);
+        if (*mode != AMD_DBGAPI_MEMORY_PRECISION_NONE
+            && *mode != AMD_DBGAPI_MEMORY_PRECISION_PRECISE)
+          THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
+
+        const bool enable
+          = (*mode == AMD_DBGAPI_MEMORY_PRECISION_PRECISE) ? true : false;
+        process->set_precise_memory (enable);
+      }
+    else if (process_property == AMD_DBGAPI_PROC_PROP_PRECISE_ALU_REP)
+      {
+        const auto mode
+          = static_cast<amd_dbgapi_alu_exceptions_precision_t *> (value);
+
+        if (*mode != AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_NONE
+            && *mode != AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_PRECISE)
+          THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
+
+        const bool enable
+          = (*mode == AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_PRECISE) ? true
+                                                                   : false;
+        process->set_precise_alu_exceptions (enable);
+      }
+    else if (process_property == AMD_DBGAPI_PROC_PROP_ASPACE_EXCP)
+      {
+        auto aspace_excp
+          = static_cast<amd_dbgapi_proc_prop_aspace_excp_t *> (value);
+        /*
+        const address_space_t *address_space = find (aspace_excp->aspace_id);
+
+        if (address_space == nullptr)
+          THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID);
+
+        if (address_space->kind () != address_space_t::kind_t::local)
+          THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
+          */
+
+        const bool enable
+          = aspace_excp->enable == AMD_DBGAPI_BOOL_TRUE ? true : false;
+
+        process->set_lds_exception (enable);
+      }
   }
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID,
          AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED);
   TRACE_END ();
 }

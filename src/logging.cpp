@@ -1489,11 +1489,24 @@ to_string (amd_dbgapi_group_segment_excp_t group_segment_excp)
 
 template <>
 std::string
+to_string (amd_dbgapi_bool_t boolean)
+{
+  switch (boolean)
+    {
+      CASE (BOOL_FALSE);
+      CASE (BOOL_TRUE);
+    }
+  return to_string (make_hex (boolean));
+}
+
+template <>
+std::string
 to_string (amd_dbgapi_proc_prop_t property)
 {
   switch (property)
     {
-      CASE (PROC_PROP_NONE);
+      CASE (PROC_PROP_PRECISE_MEM_REP);
+      CASE (PROC_PROP_PRECISE_ALU_REP);
       CASE (PROC_PROP_ASPACE_EXCP);
     }
   return to_string (make_hex (property));

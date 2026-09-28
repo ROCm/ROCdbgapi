@@ -6791,48 +6791,6 @@ typedef enum
 } amd_dbgapi_memory_precision_t;
 
 /**
- * Control precision of memory access reporting.
- *
- * A process can be set to ::AMD_DBGAPI_MEMORY_PRECISION_NONE to disable
- * precise memory reporting.  Use the
- * ::AMD_DBGAPI_PROCESS_INFO_PRECISE_MEMORY_SUPPORTED query to determine if the
- * architectures of all the agents of a process support another memory
- * precision.
- *
- * The memory precision is set independently for each process, and only affects
- * the waves executing on the agents of that process.  The setting may be
- * changed at any time, including when waves are executing, and takes effect
- * immediately.
- *
- * \param[in] process_id The process being configured.
- *
- * \param[in] memory_precision The memory precision to set.
- *
- * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
- * successfully and the agents of the process have been configured.
- *
- * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
- * left uninitialized.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
- * initialized.  The library is left uninitialized and no configuration is
- * changed.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
- * invalid.  No configuration is changed.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT \p memory_precision is
- * an invalid value.  No configuration is changed.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED The requested \p
- * memory_precision is not supported by the architecture of all the agents of
- * \p process_id.  No configuration is changed.
- */
-amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_memory_precision (
-    amd_dbgapi_process_id_t process_id,
-    amd_dbgapi_memory_precision_t memory_precision) AMD_DBGAPI_VERSION_0_54;
-
-/**
  * ALU exceptions reporting precision.
  *
  * Waves may issue multiple instructions and advance the program counter
@@ -6866,50 +6824,6 @@ typedef enum
 } amd_dbgapi_alu_exceptions_precision_t;
 
 /**
- * Control precision of ALU exceptions reporting.
- *
- * A process can set ::AMD_DBGAPI_ALU_EXCEPTIONS_PRECISION_NONE to disable
- * precise ALU exception reporting.  Use the
- * ::AMD_DBGAPI_PROCESS_INFO_PRECISE_ALU_EXCEPTIONS_SUPPORTED query to determine
- * if the architecture of all agents of the process support another ALU
- * precision mode.
- *
- * The ALU exceptions precision is set independently for each process, and only
- * affects the waves executing on the agents of that process.  The setting may
- * be changed at any time, including when waves are executing, and takes effect
- * immediately.
- *
- * \param[in] process_id The process being configured.
- *
- * \param[in] alu_exceptions_precision The ALU exception precision mode to set.
- *
- * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
- * successfully and the agents of the process have been configured.
- *
- * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
- * left uninitialized.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
- * initialized.  The library is left uninitialized and no configuration is
- * changed.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
- * invalid.  No configuration is changed.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT
- * \p alu_exceptions_precision is an invalid value.  No configuration is
- * changed.
- *
- * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED The requested \p
- * alu_exceptions_precision is not supported by the architecture of all the
- * agents of \p process_id.  No configuration is changed.
- */
-amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_set_alu_exceptions_precision (
-    amd_dbgapi_process_id_t process_id,
-    amd_dbgapi_alu_exceptions_precision_t alu_exceptions_precision)
-     AMD_DBGAPI_VERSION_0_77;
-
-/**
  * Group segment out-of-address range exception reporting.
  *
  * Group segments are the shared memory segments among the work-items
@@ -6929,16 +6843,14 @@ typedef enum
   AMD_DBGAPI_GROUP_SEGMENT_EXCP_RAISE = 1
 } amd_dbgapi_group_segment_excp_t;
 
-/**
- * Process properties that may be altered.
- */
+/** The Boolean type as an enum. */
 typedef enum
 {
-  /** No property.  */
-  AMD_DBGAPI_PROC_PROP_NONE = 0,
-  /** Memory exception for an address space.  */
-  AMD_DBGAPI_PROC_PROP_ASPACE_EXCP = 1,
-} amd_dbgapi_proc_prop_t;
+  /** False.  */
+  AMD_DBGAPI_BOOL_FALSE,
+  /** True.  */
+  AMD_DBGAPI_BOOL_TRUE
+} amd_dbgapi_bool_t;
 
 /**
  * The struct to hold the property value for the
@@ -6949,8 +6861,93 @@ typedef struct
   /** The address space for which the exception is being handled.  */
   amd_dbgapi_address_space_id_t aspace_id;
   /** If true, the exception is enabled; otherwise, it is disabled.  */
-  amd_dbgapi_group_segment_excp_t enable;
-} amd_dbgapi_aspace_excp_t;
+  amd_dbgapi_bool_t enable;
+} amd_dbgapi_proc_prop_aspace_excp_t;
+
+/**
+ * Process properties that may be altered.
+ */
+typedef enum
+{
+  /** Precise memory exception reporting.
+   *
+   * The memory precision is set independently for each process,
+   * and only affects the waves executing on the agents of that
+   * process.  The setting may be changed at any time, including
+   * when waves are executing, and takes effect immediately.
+   *
+   * Use the ::AMD_DBGAPI_PROCESS_INFO_PRECISE_MEMORY_SUPPORTED
+   * query to determine different states that the architecutres
+   * of all the agents of a process support.
+   */
+  AMD_DBGAPI_PROC_PROP_PRECISE_MEM_REP = 1,
+  /** Precise ALU exception reporting.
+   *
+   * The ALU exceptions precision is set independently for each process,
+   * and only affects the waves executing on the agents of that process.
+   * The setting may be changed at any time, including when waves are
+   * executing, and takes effect immediately.
+   *
+   * Use the ::AMD_DBGAPI_PROCESS_INFO_PRECISE_ALU_EXCEPTIONS_SUPPORTED
+   * query to determine if the architecture of all agents of the process
+   * support another ALU precision mode.
+   */
+  AMD_DBGAPI_PROC_PROP_PRECISE_ALU_REP = 2,
+  /** Memory exception for an address space.
+   *
+   * amd_dbgapi_proc_prop_aspace_excp_t struct is used to specify the
+   * property value.
+   */
+  AMD_DBGAPI_PROC_PROP_ASPACE_EXCP = 3,
+} amd_dbgapi_proc_prop_t;
+
+/**
+ * Control a process's properties.
+ *
+ * ::amd_dbgapi_process_prop_t specifies the property to be adjusted for
+ * the given \p process_id.  The context that \p value points to must be
+ * presented in the form that suits the adjustment of the given \p
+ * process_property.
+ *
+ * \param[in] process_id The process whose property is being adjusted.
+ *
+ * \param[in] process_property The property that should be altered.
+ *
+ * \param[in] value_size Size of the memory pointed to by \p value.
+ *
+ * \param[in] value Pointer to memory where resides the data that
+ * specifies the value for \p process_property.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_SUCCESS The function has been executed
+ * successfully.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED The library is not
+ * initialized.  The library is left uninitialized and no property is
+ * changed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID \p process_id is
+ * invalid.  Property is not changed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT The \p process_property
+ * or \p value are not valid inputs.  Property is not changed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY \p value
+ * is not suitable for \p process_property.  Property is not changed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_INVALID_ADDRESS_SPACE_ID \p aspace_id
+ * in data pointed by \p value is invalid.  Property is not changed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED Setting \p value for
+ * \p process_property is not not supported.  Property is not changed.
+ *
+ * \retval ::AMD_DBGAPI_STATUS_FATAL A fatal error occurred.  The library is
+ * left uninitialized.
+ */
+amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_process_set_property (
+  amd_dbgapi_process_id_t process_id,
+  amd_dbgapi_proc_prop_t process_property,
+  size_t value_size,
+  void *value) AMD_DBGAPI_VERSION_0_81;
 
 /** @} */
 

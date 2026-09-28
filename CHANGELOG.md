@@ -9,6 +9,13 @@ Full documentation for AMD Debugger API is available at
   `AMD_DBGAPI_PROCESS_INFO_GROUP_SEGMENT_EXCEPTION_SUPPORTED` that
   returns the support status for triggering an exception during an
   out-of-address range memory access in a group segment.
+- New `amd_dbgapi_process_set_property` API that allows adjusting
+  different properties of a process such as precise exception reporting
+  for memory and ALU exceptions.
+
+### Removed
+- `amd_dbgapi_set_memory_precision`
+- `amd_dbgapi_set_alu_exceptions_precisions`
 
 ## rocm-dbgapi-0.81
 ### Changed

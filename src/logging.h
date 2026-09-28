@@ -529,6 +529,7 @@ to_string (detail::parameter_t<detail::query_ref<T>, name, kind> param)
   F (amd_dbgapi_memory_precision_t)                                           \
   F (amd_dbgapi_alu_exceptions_precision_t)                                   \
   F (amd_dbgapi_group_segment_excp_t)                                         \
+  F (amd_dbgapi_bool_t)                                                       \
   F (amd_dbgapi_proc_prop_t)                                                  \
   F (amd_dbgapi_os_queue_type_t)                                              \
   F (amd_dbgapi_process_id_t)                                                 \

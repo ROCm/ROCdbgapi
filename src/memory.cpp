@@ -1598,33 +1598,3 @@ amd_dbgapi_write_memory (amd_dbgapi_process_id_t process_id,
          AMD_DBGAPI_STATUS_ERROR_MEMORY_UNAVAILABLE);
   TRACE_END (make_ref (param_out (value_size)));
 }
-
-amd_dbgapi_status_t AMD_DBGAPI
-amd_dbgapi_set_memory_precision (
-  amd_dbgapi_process_id_t process_id,
-  amd_dbgapi_memory_precision_t memory_precision)
-{
-  TRACE_BEGIN (param_in (process_id), param_in (memory_precision));
-  TRY
-  {
-    if (!detail::is_initialized)
-      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
-
-    process_t *process = process_t::find (process_id);
-
-    if (process == nullptr)
-      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
-
-    if (memory_precision != AMD_DBGAPI_MEMORY_PRECISION_NONE
-        && memory_precision != AMD_DBGAPI_MEMORY_PRECISION_PRECISE)
-      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
-
-    process->set_precise_memory (memory_precision
-                                 == AMD_DBGAPI_MEMORY_PRECISION_PRECISE);
-  }
-  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
-         AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
-         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
-         AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED);
-  TRACE_END ();
-}
