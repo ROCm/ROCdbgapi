@@ -6979,6 +6979,18 @@ amd_dbgapi_status_t AMD_DBGAPI amd_dbgapi_write_memory (
     amd_dbgapi_size_t *value_size, const void *value) AMD_DBGAPI_VERSION_0_78;
 
 /**
+ * Opaque property handle.
+ *
+ * A handle that denotes the set of properties supported on a system.
+ *
+ * Globally unique for a single library instance.
+ */
+typedef struct
+{
+  uint64_t handle;
+} amd_dbgapi_property_id_t;
+
+/**
  * Memory access precision.
  *
  * The AMD GPU can overlap the execution of memory instructions with other

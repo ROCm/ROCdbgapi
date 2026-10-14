@@ -377,6 +377,7 @@ add_library(
     src/memory.cpp
     src/os_driver.cpp
     src/process.cpp
+    src/property.cpp
     src/queue.cpp
     src/register.cpp
     src/utils.cpp
