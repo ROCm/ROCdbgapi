@@ -29,6 +29,7 @@
 #include "initialization.h"
 #include "logging.h"
 #include "os_driver.h"
+#include "property.h"
 #include "queue.h"
 #include "register.h"
 #include "runtime_rdebug.h"
@@ -1728,8 +1729,7 @@ process_t::runtime_enable (os_runtime_info_t runtime_info)
       status = os_driver ().set_process_flags (m_process_flags);
       if (status != AMD_DBGAPI_STATUS_SUCCESS
           && status != AMD_DBGAPI_STATUS_ERROR_PROCESS_EXITED)
-        fatal_error ("Could not set precise memory or precise ALU exceptions "
-                     "for %s (%s).",
+        fatal_error ("Could not set process properties for %s (%s).",
                      to_cstring (id ()), to_cstring (status));
     }
 
@@ -2773,6 +2773,87 @@ amd_dbgapi_set_alu_exceptions_precision (
   CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
          AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
          AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
+         AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED);
+  TRACE_END ();
+}
+
+amd_dbgapi_status_t AMD_DBGAPI
+amd_dbgapi_process_set_property (amd_dbgapi_process_id_t process_id,
+                                 amd_dbgapi_property_id_t property_id,
+                                 size_t value_size, const void *value)
+{
+  TRACE_BEGIN (param_in (property_id), param_in (process_id),
+               param_in (value_size),
+               make_hex (make_ref (param_in (value), value_size)));
+  TRY
+  {
+    if (!detail::is_initialized)
+      THROW (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED);
+
+    process_t *process = process_t::find (process_id);
+
+    if (process == nullptr)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID);
+
+    /* A frozen process (e.g. a core-file target) is read-only; its debug
+       configuration cannot be changed.  */
+    if (process->is_frozen ())
+      THROW (AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN);
+
+    const property_t::properties_map_t &all_properties_map
+      = property_t::all ();
+
+    if (all_properties_map.find (property_id) == all_properties_map.end ())
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_PROPERTY_ID);
+
+    property_t::property_map_value_t &property
+      = all_properties_map.at (property_id);
+
+    if (!!(property->scope () & property_t::property_scope_t::process)
+        == false)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+
+    if (value == nullptr)
+      THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT);
+
+    bool value_bool;
+    bool value_bool_initialized = false;
+
+    /* Verify the type and cast "value" based on it.  */
+    if (property->type () == property_t::property_type_t::boolean)
+      {
+        if (value_size != sizeof (amd_dbgapi_property_bool_t))
+          THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+        auto ptr = static_cast<const amd_dbgapi_property_bool_t *> (value);
+        value_bool = !!(*ptr);
+        value_bool_initialized = true;
+      }
+
+    /* Right now, there's only bool support.  So assert here once,
+       instead of before each ...->set_*().  */
+    dbgapi_assert (value_bool_initialized);
+
+    switch (static_cast<property_id_t> (property->id ().handle))
+      {
+      case property_id_t::none:
+        THROW (AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY);
+      case property_id_t::precise_memory_exception:
+        process->set_precise_memory (value_bool);
+        break;
+      case property_id_t::precise_alu_exception:
+        process->set_precise_alu_exceptions (value_bool);
+        break;
+      case property_id_t::lds_exception:
+        process->set_reporting_lds_exceptions (value_bool);
+        break;
+      }
+  }
+  CATCH (AMD_DBGAPI_STATUS_ERROR_NOT_INITIALIZED,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_PROCESS_ID,
+         AMD_DBGAPI_STATUS_ERROR_PROCESS_FROZEN,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_PROPERTY_ID,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT,
+         AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY,
          AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED);
   TRACE_END ();
 }
